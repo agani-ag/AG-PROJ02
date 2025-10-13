@@ -11,6 +11,7 @@ function add_invoice_item_row() {
 
     $('#invoice-form-items-table-body >tr:last td')[0].innerHTML = invoice_item_row_counter
     update_amounts($('#invoice-form-items-table-body input[name=invoice-qty]:last'));
+    update_amounts($('#invoice-form-items-table-body input[name=invoice-dis]:last'));
 }
 
 function setup_invoice_rows() {
@@ -68,8 +69,9 @@ function update_invoice_totals() {
 // AUTO CALCULATE ITEM AMOUNTS =============================================
 
 function initialize_auto_calculation(){
+    update_amounts($('#invoice-form-items-table-body input[name=invoice-dis]:first'));
     update_amounts($('#invoice-form-items-table-body input[name=invoice-qty]:first'));
-    $('input[name=invoice-qty], input[name=invoice-gst-percentage], input[name=invoice-rate-with-gst]').change(function (){
+    $('input[name=invoice-qty], input[name=invoice-dis], input[name=invoice-gst-percentage], input[name=invoice-rate-with-gst]').on('change input', function () {
         update_amounts($(this));
     });
 }
