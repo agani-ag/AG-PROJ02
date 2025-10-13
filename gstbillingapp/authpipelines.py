@@ -3,7 +3,6 @@ from .models import BillingProfile
 
 
 def create_profile(backend, user, response, *args, **kwargs):
-    print("===>", user)
     if UserProfile.objects.filter(user=user).exists():
         pass
     else:

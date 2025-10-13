@@ -73,35 +73,42 @@
 
 	<table class="table table-bordered" id="invoice-form-items-table">
 		<thead>
-			<th class="table-active" scope="col" colspan="13">Items</th>
+			<th class="table-active" scope="col" colspan="14">Items</th>
 
 			<tr>
 				<th scope="col">Sl No.</th>
+				<th scope="col">Model No</th>
 				<th scope="col">Product</th>
-				<th scope="col">HSN / SAC</th>
-				<th scope="col">Unit</th>
+				<th scope="col">HSN</th>
+
+				<th scope="col">Discount %</th>
+				
 				<th scope="col">Qty</th>
-				<th scope="col">Rate with GST</th>
+				<th scope="col">MRP</th>
 				<th scope="col">GST %</th>
-				<th scope="col">Rate without GST</th>
+				<th scope="col">Rate with Discount %</th>
 
 
-				<th scope="col">Amt without GST</th>
+				<th scope="col">Amt with Discount %</th>
 				<th scope="col">SGST</th>
 				<th scope="col">CGST</th>
 				<th scope="col">IGST</th>
-				<th scope="col">Amt with GST</th>
+				<th scope="col">Amt with GST %</th>
 
 			</tr>
 		</thead>
 		<tbody id="invoice-form-items-table-body">
 			<tr>
 				<td class="invoice-item-slno">1</td>
-				<td class="form-input-td"><input name="invoice-product" type="text" class="form-control product_search_area product_search_input" placeholder="Product"></td>
-				<td class="form-input-td"><input name="invoice-hsn" type="text" class="form-control" placeholder="HSN"></td>
-				<td class="form-input-td"><input name="invoice-unit" type="text" class="form-control" placeholder="Unit"></td>
+				<td class="formSS-input-td"><input name="invoice-product" type="text" class="form-control product_search_area product_search_input" placeholder="Model No"></td>
+				<td class="form-input-td"><input name="invoice-hsn" type="text" class="form-control" placeholder="Product"></td>
+				<td class="form-input-td"><input name="invoice-unit" type="text" class="form-control" placeholder="HSN"></td>
+				
+
+				<td class="form-input-td"><input name="invoice-dis" type="number" step="any" class="form-control" value='0' placeholder="Discount"></td>
+
 				<td class="form-input-td"><input name="invoice-qty" type="number" step="any" class="form-control" placeholder="Qty"></td>
-				<td class="form-input-td"><input name="invoice-rate-with-gst" type="number" step="any" class="form-control" placeholder="Rate with GST"></td>
+				<td class="form-input-td"><input name="invoice-rate-with-gst" type="number" step="any" class="form-control" placeholder="MRP"></td>
 				<td class="form-input-td"><input name="invoice-gst-percentage" type="number" step="any" class="form-control" placeholder="GST %"></td>
 
 
@@ -115,7 +122,7 @@
 		</tbody>
 
 		<tr>
-			<td colspan="8" class="text-right"><strong>TOTAL:</strong></td>
+			<td colspan="9" class="text-right"><strong>TOTAL:</strong></td>
 			<td class="form-input-td"><input name="invoice-total-amt-without-gst" type="number" step="any" class="form-control" readonly></td>
 			<td class="form-input-td"><input name="invoice-total-amt-sgst" type="number" step="any" class="form-control" readonly></td>
 			<td class="form-input-td"><input name="invoice-total-amt-cgst" type="number" step="any" class="form-control" readonly></td>

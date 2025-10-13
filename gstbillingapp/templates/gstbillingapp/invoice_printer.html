@@ -6,14 +6,18 @@
 	<div class="card">
 		<div class="card-header">
 			<div class="row">
-			<div class="col-sm-6 col-6"><strong>Invoice Date: {{invoice.invoice_date}}</strong></div> 
-			<div class="col-sm-6 text-right col-6"><strong>Invoice No:{{invoice.invoice_number}}</strong></div>
+			<div class="col-sm-6 col-6">&nbsp;</div>
+			<div class="col-sm-6 text-right"><strong>Original[&nbsp;&nbsp;] / Duplicate[&nbsp;&nbsp;] / Triplicate[&nbsp;&nbsp;]</strong></div> 
+			<div class="col-sm-6 col-6">&nbsp;</div>
+			<div class="col-sm-6 col-6">&nbsp;</div>
+			<div class="col-sm-6 col-6"><strong>Invoice Date: {{invoice.invoice_date}}</strong></div>
+			<div class="col-sm-6 text-right">&nbsp;</div> 
+			<div class="col-sm-6 col-6"><strong>Invoice No:{{invoice.invoice_number}}</strong></div>
 			</div>
 		</div>
 
 		<div class="card-body">
 			<div class="row">
-
 
 				<div class="col-sm-6 col-md-6 col-lg-6 col-6">
 					<div>
@@ -30,8 +34,6 @@
 						<div>GST No: {{user_profile.business_gst}}</div>
 					{% endif %}
 				</div>
-
-
 
 				<div class="col-sm-6 col-md-6 col-lg-6 col-6">
 					<h6 class="mb-3">Billed To:</h6>
@@ -55,11 +57,16 @@
 					<thead>
 						<tr>
 							<th class="text-center">#</th>
-							<th class="text-left">Item</th>
+							<th class="text-left">Model No</th>
+							<th class="text-center">Item</th>
 							<th class="text-center">HSN / SAC</th>
-							<th class="text-center">Unit</th>
+
+
+							<th class="text-center">Rate</th>
+							<th class="text-center">Discount</th>
+
 							<th class="text-right">Qty</th>
-							<th class="text-right">Rate ({{ currency }})</th>
+							<th class="text-right">Discounted Rate ({{ currency }})</th>
 							<th class="text-right">Taxable Amount ({{ currency }})</th>
 							<th class="text-right">GST (%)</th>
 							{% if invoice_data.igstcheck %}
@@ -79,10 +86,14 @@
 							<td class="text-left strong">{{ item.invoice_product }}</td>
 							<td class="text-center">{{ item.invoice_hsn }}</td>
 							<td class="text-center">{{ item.invoice_unit }}</td>
+
+							<td class="text-center">{{ item.invoice_rate_with_gst }}</td>
+							<td class="text-center">{{ item.invoice_dis }}%</td>
+
 							<td class="text-right">{{ item.invoice_qty }}</td>
 							<td class="text-right">{{ item.invoice_rate_without_gst|floatformat:2 }}</td>
 							<td class="text-right">{{ item.invoice_amt_without_gst|floatformat:2 }}</td>
-							<td class="text-right">{{ item.invoice_gst_percentage }}</td>
+							<td class="text-right">{{ item.invoice_gst_percentage }} %</td>
 							{% if invoice_data.igstcheck %}
 								<td class="text-right">{{ item.invoice_amt_igst|floatformat:2 }}</td>
 							{% else %}
@@ -95,12 +106,12 @@
 
 						<tr id="table-invoice-total-row">
 							{% if invoice_data.igstcheck %}
-								<td class="text-right" colspan="6">Total: </td>
+								<td class="text-right" colspan="8">Total: </td>
 								<td class="text-right">{{ currency }} {{ invoice_data.invoice_total_amt_without_gst|floatformat:2 }}</td>
 								<td class="text-right"></td>
 								<td class="text-right">{{ currency }} {{invoice_data.invoice_total_amt_igst|floatformat:2 }}</td>
 							{% else %}
-								<td class="text-right" colspan="6">Total: </td>
+								<td class="text-right" colspan="8">Total: </td>
 								<td class="text-right">{{ currency }} {{ invoice_data.invoice_total_amt_without_gst|floatformat:2 }}</td>
 								<td class="text-right"></td>
 								<td class="text-right">{{ currency }} {{invoice_data.invoice_total_amt_cgst|floatformat:2 }}</td>
@@ -141,20 +152,23 @@
 								<td>{{ currency }} {{ invoice_data.invoice_total_amt_sgst|floatformat:2 }}</td>
 							</tr>
 						{% endif %}
-						<tr>
+						
+						 <tr>
 							<td>Invoice Total: </td>
 							<td>{{ currency }} {{invoice_data.invoice_total_amt_with_gst|floatformat:2 }}</td>
 						</tr>
+
+
 						<tr> 
 							<td colspan="2" class="text-middle">
 								Invoice Total In Words: {{ total_in_words }} only.
 							</td>
 						</tr>
 						<tr id="invoice-signature-row">
-							<td colspan="2"></td>
+							<td colspan="2" style="padding-top:150px;"></td>
 						</tr>
 						<tr id="invoice-signature-text-row">
-							<td colspan="2">Authorized Signatory<br> E, & O.E.	</td>
+							<td colspan="2">Authorized Signatory<br> {{user_profile.business_title}} </td>
 						</tr>
 					</table>
 
@@ -168,7 +182,6 @@
 
 		</div>
 	</div>
-
 	<button onclick="window.print();" class="btn btn-primary d-print-none">Print Invoice</button>
 
 

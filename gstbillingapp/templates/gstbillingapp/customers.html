@@ -23,6 +23,7 @@
 			<th>GST NO</th>
 			<th></th>
 			<th></th>
+			<th></th>
 		</tr>
 	</thead>
 	<tbody class="two-col-form">
@@ -34,6 +35,7 @@
 			<td>{{customer.customer_gst}}</td>
 			<td><a href="{% url 'customer_edit' customer.id %}"><button type="button" class="btn btn-dark">Edit</button></a></td>
 			<td><button type="button" class="btn btn-danger" data-toggle="modal" data-target="#customerDeleteModal" data-customer-id="{{customer.id}}" data-customer-name="{{customer.customer_name}}">Delete</button></td>
+			<td><a href="{% url 'book_logs' customer.id %}"><button type="button" class="btn btn-warning"><b>{{customer.id}}</b></button></a></td>
 		</tr>
 		{% endfor %}
 	</tbody>

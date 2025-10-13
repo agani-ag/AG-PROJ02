@@ -1,9 +1,11 @@
-import datetime
-import json
-
+# Django imports
 from django.db.models import Sum
 
+# Python imports
+import json
+import datetime
 
+# Model imports
 from .models import Product
 from .models import Inventory
 from .models import InventoryLog
@@ -86,6 +88,7 @@ def invoice_data_processor(invoice_post_data):
             item_entry['invoice_hsn'] = invoice_post_data['invoice-hsn'][idx]
             item_entry['invoice_unit'] = invoice_post_data['invoice-unit'][idx]
             item_entry['invoice_qty'] = int(invoice_post_data['invoice-qty'][idx])
+            item_entry['invoice_dis'] = float(invoice_post_data['invoice-dis'][idx])
             item_entry['invoice_rate_with_gst'] = float(invoice_post_data['invoice-rate-with-gst'][idx])
             item_entry['invoice_gst_percentage'] = float(invoice_post_data['invoice-gst-percentage'][idx])
 

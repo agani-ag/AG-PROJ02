@@ -79,9 +79,13 @@ function update_amounts(element){
     var qty = parseInt(element.parent().parent().find('input[name=invoice-qty]').val());
     var rate_with_gst = parseFloat(element.parent().parent().find('input[name=invoice-rate-with-gst]').val());
     var gst_percentage = parseFloat(element.parent().parent().find('input[name=invoice-gst-percentage]').val());
+    var dis = parseFloat(element.parent().parent().find('input[name=invoice-dis]').val());
+    var dis2 =  rate_with_gst - (rate_with_gst * dis / 100);
+    var rate_without_gst = dis2;
+    var amt_without_gst = dis2 * qty;
 
-    var rate_without_gst = (rate_with_gst * 100.0) / (100.0 + gst_percentage);
-    var amt_without_gst = rate_without_gst * qty;
+//    var rate_without_gst = rate_with_gst - (rate_with_gst * gst_percentage / 100);
+//    var amt_without_gst = rate_without_gst * qty;
 
     var sgst;
     var cgst;

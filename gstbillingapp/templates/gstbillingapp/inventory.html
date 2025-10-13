@@ -14,7 +14,8 @@
 <table class="table table-hover font-weight-bold" id="inventory-table">
 	<thead>
 		<tr>
-			<th>Product</th>
+			<th>Model No</th>
+			<th>Product Name</th>
 			<th>Current Stock</th>
 			<th>Last Transaction</th>
 		</tr>
@@ -23,6 +24,7 @@
 		{% for inventory in inventory_list %}
 		<tr onclick="window.location='{% url 'inventory_logs' inventory.id %}';">
 			<td><a href="{% url 'inventory_logs' inventory.id %}">{{inventory.product.product_name}}</a></td>
+			<td>{{inventory.product.product_hsn}}</a></td>
 			<td>{{inventory.current_stock}}</td>
 			<td>{{inventory.last_log}}</td>
 		</tr>
