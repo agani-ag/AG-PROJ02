@@ -67,14 +67,14 @@ class Invoice(models.Model):
 
 class Product(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
-    product_name = models.CharField(max_length=200)
-    product_hsn = models.CharField(max_length=50, null=True, blank=True)
-    product_unit = models.CharField(max_length=50)
+    model_no = models.CharField(max_length=200)
+    product_name = models.CharField(max_length=50, null=True, blank=True)
+    product_hsn = models.CharField(max_length=50)
     product_discount = models.FloatField(default=0)
     product_gst_percentage = models.FloatField(default=18)
     product_rate_with_gst = models.FloatField()
     def __str__(self):
-        return str(self.product_name)
+        return str(self.model_no)
 
 # ========================= Inventory Data models ====================================
 class InventoryLog(models.Model):
@@ -95,7 +95,7 @@ class InventoryLog(models.Model):
     description = models.TextField(max_length=600, blank=True, null=True)
 
     def __str__(self):
-        return self.product.product_name + " | " + str(self.change) + " | " + self.description + " | " + str(self.date)
+        return self.product.model_no + " | " + str(self.change) + " | " + self.description + " | " + str(self.date)
 
 class Inventory(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
@@ -105,7 +105,7 @@ class Inventory(models.Model):
     last_log = models.ForeignKey(InventoryLog, null=True, blank=True, default=None, on_delete=models.SET_NULL)
 
     def __str__(self):
-        return self.product.product_name
+        return self.product.model_no
 
 # ========================= Books Data models ======================================
 

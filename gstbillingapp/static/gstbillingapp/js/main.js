@@ -11,7 +11,7 @@ function add_invoice_item_row() {
 
     $('#invoice-form-items-table-body >tr:last td')[0].innerHTML = invoice_item_row_counter
     update_amounts($('#invoice-form-items-table-body input[name=invoice-qty]:last'));
-    update_amounts($('#invoice-form-items-table-body input[name=invoice-dis]:last'));
+    update_amounts($('#invoice-form-items-table-body input[name=invoice-discount]:last'));
 }
 
 function setup_invoice_rows() {
@@ -69,19 +69,19 @@ function update_invoice_totals() {
 // AUTO CALCULATE ITEM AMOUNTS =============================================
 
 function initialize_auto_calculation(){
-    update_amounts($('#invoice-form-items-table-body input[name=invoice-dis]:first'));
+    update_amounts($('#invoice-form-items-table-body input[name=invoice-discount]:first'));
     update_amounts($('#invoice-form-items-table-body input[name=invoice-qty]:first'));
-    $('input[name=invoice-qty], input[name=invoice-dis], input[name=invoice-gst-percentage], input[name=invoice-rate-with-gst]').on('change input', function () {
+    $('input[name=invoice-qty], input[name=invoice-discount], input[name=invoice-gst-percentage], input[name=invoice-rate-with-gst]').on('change input', function () {
         update_amounts($(this));
     });
 }
 
 function update_amounts(element){
-    var product = element.parent().parent().find('input[name=invoice-product]').val();
+    var product = element.parent().parent().find('input[name=invoice-model-no]').val();
     var qty = parseInt(element.parent().parent().find('input[name=invoice-qty]').val());
     var rate_with_gst = parseFloat(element.parent().parent().find('input[name=invoice-rate-with-gst]').val());
     var gst_percentage = parseFloat(element.parent().parent().find('input[name=invoice-gst-percentage]').val());
-    var dis = parseFloat(element.parent().parent().find('input[name=invoice-dis]').val());
+    var dis = parseFloat(element.parent().parent().find('input[name=invoice-discount]').val());
     var dis2 =  rate_with_gst - (rate_with_gst * dis / 100);
     var rate_without_gst = dis2;
     var amt_without_gst = dis2 * qty;
@@ -211,8 +211,8 @@ var selected_item_input;
 
 function product_result_to_domstr(result) {
     var domstr = "<div class='product-search-result' data-product='" + JSON.stringify(result) + "'>"+
-    "<div>"+ result['product_name'] + "</div>" +
-    "<div>"+ result['product_hsn'] + " | " + result['product_unit'] + " | " + result['product_gst_percentage'] + "%" +
+    "<div>"+ result['model_no'] + "</div>" +
+    "<div>"+ result['product_name'] + " | " + result['product_hsn'] + " | " + result['product_gst_percentage'] + "%" +
     " | " + result['product_discount'] + "%" +
     "</div>";
      return domstr;
@@ -221,12 +221,12 @@ function product_result_to_domstr(result) {
 function product_result_click() {
     console.log("UPDATE THE FORM WITH SEARCH RESULT");
     product_data_json = JSON.parse($(this).attr('data-product'));
-    selected_item_input.val(product_data_json['product_name']);
+    selected_item_input.val(product_data_json['model_no']);
+    selected_item_input.parent().parent().find('input[name=invoice-product]').val(product_data_json['product_name']);    
     selected_item_input.parent().parent().find('input[name=invoice-hsn]').val(product_data_json['product_hsn']);    
-    selected_item_input.parent().parent().find('input[name=invoice-unit]').val(product_data_json['product_unit']);    
     selected_item_input.parent().parent().find('input[name=invoice-rate-with-gst]').val(product_data_json['product_rate_with_gst']);    
     selected_item_input.parent().parent().find('input[name=invoice-gst-percentage]').val(product_data_json['product_gst_percentage']);   
-    selected_item_input.parent().parent().find('input[name=invoice-dis]').val(product_data_json['product_discount']);   
+    selected_item_input.parent().parent().find('input[name=invoice-discount]').val(product_data_json['product_discount']);   
 
     // $('#customer-address-input').val(customer_data_json['customer_address']);
     // $('#customer-phone-input').val(customer_data_json['customer_phone']);
@@ -282,7 +282,7 @@ function initialize_fuse_products () {
             maxPatternLength: 32,
             minMatchCharLength: 1,
             keys: [
-            "product_name",
+            "model_no",
             ]
         };
         fuse_products = new Fuse(data, fuse_product_options);

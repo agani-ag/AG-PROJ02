@@ -10,9 +10,9 @@
 <div class="row">
 	<div class="col">
 		<h5>Model No: <b>{{inventory.product}}</b></h5>
-		<h5>Product: <b>{{inventory.product.product_hsn}}</b></h5>
+		<h5>Product: <b>{{inventory.product.product_name}}</b></h5>
 		<h4>Current Stock: <b>{{inventory.current_stock}}</b></h4>
-		<h5>Design: <b>{{inventory.product.product_unit}}</b></h5>
+		<h5>Design: <b>{{inventory.product.product_hsn}}</b></h5>
 	</div>
 	<div class="col">
 		<a href="{% url 'inventory_logs_add' inventory.id %}" id="add_customer_btn"><button type="button" class="btn btn-warning" disabled>Add Update</button></a>

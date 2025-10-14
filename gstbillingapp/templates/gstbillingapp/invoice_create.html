@@ -40,13 +40,13 @@
 				<td class="form-input-td customer_search_area"><input autocomplete="off" name="customer-name" type="text" class="form-control customer_search_input" id="customer-name-input" placeholder="Customer Name" required>
 				</td>
 				<th scope="row">Customer Address</th>
-				<td class="form-input-td"><input autocomplete="off" name="customer-address" type="text" class="form-control" id="customer-address-input" placeholder="Customer Address" required></td>
+				<td class="form-input-td"><input autocomplete="off" name="customer-address" type="text" class="form-control" id="customer-address-input" placeholder="Customer Address" required readonly></td>
 			</tr>
 			<tr>
 				<th scope="row">Customer Mobile Number</th>
-				<td class="form-input-td"><input autocomplete="off" name="customer-phone" type="tel" class="form-control" id="customer-phone-input" placeholder="Customer Mobile Number"></td>
+				<td class="form-input-td"><input autocomplete="off" name="customer-phone" type="tel" class="form-control" id="customer-phone-input" placeholder="Customer Mobile Number" readonly></td>
 				<th scope="row">Customer GST</th>
-				<td class="form-input-td"><input autocomplete="off" name="customer-gst" type="text" class="form-control" id="customer-gst-input" placeholder="Customer GST" maxlength="15" pattern="([A-Za-z0-9]{15})|(^$)"></td>
+				<td class="form-input-td"><input autocomplete="off" name="customer-gst" type="text" class="form-control" id="customer-gst-input" placeholder="Customer GST" maxlength="15" pattern="([A-Za-z0-9]{15})|(^$)" readonly></td>
 			</tr>
 
 		</tbody>
@@ -100,12 +100,12 @@
 		<tbody id="invoice-form-items-table-body">
 			<tr>
 				<td class="invoice-item-slno">1</td>
-				<td class="formSS-input-td"><input name="invoice-product" type="text" class="form-control product_search_area product_search_input" placeholder="Model No"></td>
-				<td class="form-input-td"><input name="invoice-hsn" type="text" class="form-control" placeholder="Product"></td>
-				<td class="form-input-td"><input name="invoice-unit" type="text" class="form-control" placeholder="HSN"></td>
+				<td class="formSS-input-td"><input name="invoice-model-no" type="text" class="form-control product_search_area product_search_input" placeholder="Model No"></td>
+				<td class="form-input-td"><input name="invoice-product" type="text" class="form-control" placeholder="Product" readonly></td>
+				<td class="form-input-td"><input name="invoice-hsn" type="text" class="form-control" placeholder="HSN" readonly></td>
 				
 
-				<td class="form-input-td"><input name="invoice-dis" type="number" step="any" class="form-control" value='0' placeholder="Discount"></td>
+				<td class="form-input-td"><input name="invoice-discount" type="number" step="any" class="form-control" value='0' placeholder="Discount"></td>
 
 				<td class="form-input-td"><input name="invoice-qty" type="number" step="any" class="form-control" placeholder="Qty"></td>
 				<td class="form-input-td"><input name="invoice-rate-with-gst" type="number" step="any" class="form-control" placeholder="MRP"></td>

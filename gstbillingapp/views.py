@@ -355,7 +355,7 @@ def product_delete(request):
 def inventory(request):
     context = {}
     context['inventory_list'] = Inventory.objects.filter(user=request.user).exclude(product_id__isnull=True)
-    context['untracked_products'] = Product.objects.filter(user=request.user, inventory=None).exclude(product_name__isnull=True)
+    context['untracked_products'] = Product.objects.filter(user=request.user, inventory=None).exclude(model_no__isnull=True)
     return render(request, 'gstbillingapp/inventory.html', context)
 
 @login_required

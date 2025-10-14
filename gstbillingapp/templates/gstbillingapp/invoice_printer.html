@@ -83,12 +83,12 @@
 						{% for item in invoice_data.items %}
 						<tr>
 							<td class="text-center">{{ forloop.counter }}</td>
-							<td class="text-left strong">{{ item.invoice_product }}</td>
+							<td class="text-left strong">{{ item.invoice_model_no }}</td>
+							<td class="text-center">{{ item.invoice_product }}</td>
 							<td class="text-center">{{ item.invoice_hsn }}</td>
-							<td class="text-center">{{ item.invoice_unit }}</td>
 
 							<td class="text-center">{{ item.invoice_rate_with_gst }}</td>
-							<td class="text-center">{{ item.invoice_dis }}%</td>
+							<td class="text-center">{{ item.invoice_discount }}%</td>
 
 							<td class="text-right">{{ item.invoice_qty }}</td>
 							<td class="text-right">{{ item.invoice_rate_without_gst|floatformat:2 }}</td>

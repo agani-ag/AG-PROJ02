@@ -34,7 +34,7 @@
 			<td>{{item.date}}</td>
 			<td>{{item.get_change_type_display}} {% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}">[INVOICE]</a>{% endif %}</td>
 			<td>{{item.description}}</td>
-			<td class="text-right">{{item.change}} &emsp; {{inventory.product.product_unit}}</td>
+			<td class="text-right">{{item.change}} &emsp; {{inventory.product.product_hsn}}</td>
 			<td>
 				{% if not item.associated_invoice %}
 					<a href="{% url 'book_logs_del' item.id %}" style="color: red; text-decoration: none;">
