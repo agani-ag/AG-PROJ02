@@ -141,3 +141,13 @@ input.form-control[type=number] {
 	margin-top: 5em;
 	text-align: center;
 }
+
+/* Smooth hover transition on navbar items */
+.navbar-nav .nav-item .nav-link {
+  transition: all 0.3s ease-in-out;
+}
+
+.navbar-nav .nav-item .nav-link:hover {
+  color: #f8f9fa;
+  text-decoration: underline;
+}

@@ -1,49 +1,50 @@
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-	<!-- <a class="navbar-brand" href="{% url 'landing_page' %}">Sri Manish Hardwares</a> -->
-	<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-		<span class="navbar-toggler-icon"></span>
-	</button>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+  <!-- Branding with logo -->
+  <a class="navbar-brand d-flex align-items-center" href="{% url 'landing_page' %}">
+    {% if user_profile.business_brand %}
+      {{ user_profile.business_brand | upper }}
+    {% else %}
+      {{ user | upper }}
+    {% endif %}
+  </a>
 
-	<div class="collapse navbar-collapse" id="navbarSupportedContent">
-		<ul class="navbar-nav mr-auto">
-			{% if user.is_authenticated %}
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'invoice_create' %}">New Invoice <span class="sr-only">(current)</span></a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'invoices' %}">Invoices</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'products' %}">Products</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'inventory' %}">Inventory</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'customers' %}">Customers</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'books' %}">Books</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'user_profile' %}">Profile</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'purchases' %}">Purchases</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'logout_view' %}?next=/">Logout</a>
-			</li>
-			{% endif %}
-		</ul>
-	</div>
-	{% if user.is_authenticated %}
-	<a class="navbar-brand" href="#">
-		{% if user_profile.business_brand is none %}
-        	{{ user | upper }}
-		{% else %}
-        	{{ user_profile.business_brand | upper }}
-		{% endif %}
-	</a>
-	{% endif %}
+  <!-- Navbar Toggler for mobile view -->
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <!-- Navbar Links -->
+  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav ml-auto">
+      {% if user.is_authenticated %}
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'invoice_create' %}">New Invoice</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'invoices' %}">Invoices</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'products' %}">Products</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'inventory' %}">Inventory</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'customers' %}">Customers</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'books' %}">Books</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'purchases' %}">Purchases</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'user_profile' %}">Profile</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'logout_view' %}?next=/">Logout</a>
+        </li>
+      {% endif %}
+    </ul>
+  </div>
 </nav>

@@ -20,7 +20,7 @@ function setup_invoice_rows() {
        add_invoice_item_row();
     });
 
-    for (var i = 0; i <= 4; i++) {
+    for (var i = 0; i <= 3; i++) {
         add_invoice_item_row();
     }
 }
