@@ -212,7 +212,8 @@ var selected_item_input;
 function product_result_to_domstr(result) {
     var domstr = "<div class='product-search-result' data-product='" + JSON.stringify(result) + "'>"+
     "<div>"+ result['product_name'] + "</div>" +
-    "<div>"+ result['product_hsn'] + " | " + result['product_unit'] + " | " + result['product_gst_percentage'] +
+    "<div>"+ result['product_hsn'] + " | " + result['product_unit'] + " | " + result['product_gst_percentage'] + "%" +
+    " | " + result['product_discount'] + "%" +
     "</div>";
      return domstr;
 }
@@ -224,11 +225,13 @@ function product_result_click() {
     selected_item_input.parent().parent().find('input[name=invoice-hsn]').val(product_data_json['product_hsn']);    
     selected_item_input.parent().parent().find('input[name=invoice-unit]').val(product_data_json['product_unit']);    
     selected_item_input.parent().parent().find('input[name=invoice-rate-with-gst]').val(product_data_json['product_rate_with_gst']);    
-    selected_item_input.parent().parent().find('input[name=invoice-gst-percentage]').val(product_data_json['product_gst_percentage']);    
+    selected_item_input.parent().parent().find('input[name=invoice-gst-percentage]').val(product_data_json['product_gst_percentage']);   
+    selected_item_input.parent().parent().find('input[name=invoice-dis]').val(product_data_json['product_discount']);   
 
     // $('#customer-address-input').val(customer_data_json['customer_address']);
     // $('#customer-phone-input').val(customer_data_json['customer_phone']);
     // $('#customer-gst-input').val(customer_data_json['customer_gst']);
+    initialize_auto_calculation();
 }
 
 function initialize_fuse_product_search_bar() {

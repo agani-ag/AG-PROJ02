@@ -20,6 +20,7 @@
 					<th>Model No</th>
 					<th>Product Name</th>
 					<th>MRP</th>
+					<th>Discount %</th>
 					<th>GST %</th>
 					<th></th>
 					<th></th>
@@ -31,7 +32,8 @@
 	 				<td>{{product.product_name}}</td>
 	 				<td>{{product.product_hsn}}</td>
 	 				<td>{{product.product_rate_with_gst}}</td>
-	 				<td>{{product.product_gst_percentage}}</td>
+	 				<td>{{product.product_discount}} %</td>
+	 				<td>{{product.product_gst_percentage}} %</td>
 	 				<td><a href="{% url 'product_edit' product.id %}"><button type="button" class="btn btn-primary">Edit</button></a></td>
 	 				<td><button type="button" class="btn btn-danger" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.product_name}}">Delete</button></td>
 				</tr>
@@ -88,12 +90,12 @@ $(document).ready( function () {
 	$('#product-table').DataTable({
 		"order": [],
 		"columnDefs": [ {
-			"targets": 4,
+			"targets": 5,
 			"sortable": false,
 			"searchable": false
 		},
 		{
-			"targets": 5,
+			"targets": 6,
 			"sortable": false,
 			"searchable": false
 		} ],
