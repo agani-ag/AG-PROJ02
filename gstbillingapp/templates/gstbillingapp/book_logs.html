@@ -38,7 +38,7 @@
 			<td>
 				{% if not item.associated_invoice %}
 					<a href="{% url 'book_logs_del' item.id %}" style="color: red; text-decoration: none;">
-						<i class="fas fa-trash"></i>
+						<span id="remove-entry-a" class="btn btn-danger btn-sm btn-curve">Delete</span>
 					</a>
 				{% endif %}
 			</td>
@@ -59,6 +59,6 @@ $(document).ready( function () {
 		"paging": true,
 	});
 });
-
+checkInternetConnection();
 </script>
 {% endblock %}

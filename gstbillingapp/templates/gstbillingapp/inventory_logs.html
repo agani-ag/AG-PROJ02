@@ -13,8 +13,8 @@
 	<div class="col">
 		<h5>Model No: <b>{{inventory.product}}</b></h5>
 		<h5>Product: <b>{{inventory.product.product_name}}</b></h5>
+		<h5>HSN: <b>{{inventory.product.product_hsn}}</b></h5>
 		<h4>Current Stock: <b>{{inventory.current_stock}}</b></h4>
-		<h5>Design: <b>{{inventory.product.product_hsn}}</b></h5>
 	</div>
 	<div class="col">
 		<a href="{% url 'inventory' %}" id="add_customer_btn"><button type="button" class="btn btn-danger">Back	</button></a>
@@ -46,7 +46,7 @@
 			<td>
 				{% if not item.associated_invoice %}
 					<a href="{% url 'inventory_logs_del' item.id %}" style="color: red; text-decoration: none;">
-						<i class="fas fa-trash"></i>
+						<span id="remove-entry-a" class="btn btn-danger btn-sm btn-curve">Delete</span>
 					</a>
 				{% endif %}
 			</td>
@@ -67,6 +67,6 @@ $(document).ready( function () {
 		"paging": true,
 	});
 });
-
+checkInternetConnection();
 </script>
 {% endblock %}

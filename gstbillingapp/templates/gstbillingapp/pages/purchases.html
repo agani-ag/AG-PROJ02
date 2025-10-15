@@ -12,31 +12,26 @@
 		{% endfor %}
 	{% endif %}
 
+	<h2>Purchases</h2>
+	<hr>
 		<div class="row">
 			<div class="col">
-				<h2>Purchases</h2>
-				<h5>
-					Purchased : <b>₹ {{ total_p | default:0 | intcomma }}</b>,
-					Paid : <b>₹ {{ total_pp | default:0 | intcomma }}</b>,
-					Balance : <b>₹ {{ total_pb | default:0 | intcomma }}</b>
-				</h5>
+				<h3>Purchased: <b>₹ {{ total_p | default:0 | intcomma }}</b></h3>
+				<h3>Paid: <b>₹ {{ total_pp | default:0 | intcomma }}</b></h3>
+				<h3>Balance: <b>₹ {{ total_pb | default:0 | intcomma }}</b></h3>
 			</div>
 			<div class="col">
 				<a href="{% url 'purchases_add' %}" id="add_product_btn"><button type="button" class="btn btn-primary">Add Purchase</button></a>
 			</div>
 		</div>
-		<style>
-			#center{
-				text-align: center;
-			}
-		</style>
-		<table class="table table-bordered" id="invoice-table">
+
+		<table class="table table-bordered" id="purchase-table">
 		<thead>
 			<tr>
 				<th>Date</th>
 				<th id="center">Amount</th>
 				<th id="center">Entry</th>
-				<th style="text-align: center;">Tools</th>
+				<th style="text-align: center;">Actions</th>
 				<th style="text-align: center;">Days</th>
 			</tr>
 		</thead>
@@ -47,7 +42,7 @@
  				<td id="center"><b>₹ {{purchase.amount|intcomma}}</b></td>
 				 <td id="center" style="vertical-align: middle;">
 					{% if purchase.ptype == 'purchase' %}
-						<span class="bg-warning text-white p-2">Purchase</span>
+						<span class="bg-warning text-white rounded p-2">Purchase</span>
 					{% else %}
 					<span class="bg-success text-white rounded p-2">Paid</span>
 					{% endif %}
@@ -73,7 +68,7 @@
 {% block includejs %}
 <script type="text/javascript">
 	$(document).ready( function () {
-		$('#invoice-table').DataTable({
+		$('#purchase-table').DataTable({
 			"order": [],
 			"columnDefs": [ {
 				"targets": 3,
@@ -85,10 +80,10 @@
 	});
 </script>
 <style>
-  #invoice-table td.color1 {
+  #purchase-table td.color1 {
     background-color: #11ff007e;
   }
-  #invoice-table td.color2 {
+  #purchase-table td.color2 {
     background-color: #ffff007e;
   }
 </style>

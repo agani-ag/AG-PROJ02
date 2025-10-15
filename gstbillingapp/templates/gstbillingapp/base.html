@@ -15,13 +15,17 @@
     {% endblock %}
 
     <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="{% static 'gstbillingapp/bootstrap-4.4.1-dist/css/bootstrap-cosmo.min.css' %}" id="bootstrap-css">
+
+    <!-- OFFLINE -->
+    <!-- <link rel="stylesheet" href="{% static 'gstbillingapp/bootstrap-4.4.1-dist/css/bootstrap-cosmo.min.css' %}" id="bootstrap-css"> -->
+    <!-- ONLINE -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
     <link rel="stylesheet" href="{% static 'gstbillingapp/main.css' %}" id="main-css">
 
     <!-- DataTables CSS  -->
     <link rel="stylesheet" href="{% static 'gstbillingapp/DataTables/jquery.dataTables.min.css' %}" id="datatables-css">
     <link rel="stylesheet" href="{% static 'gstbillingapp/DataTables/dataTables.bootstrap4.min.css' %}" id="datatables-bootstrap-css">
-
     {% block includecss %}
     {% endblock %}
 </head>
@@ -52,13 +56,19 @@
 
     </div>
 
-    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="{% static 'gstbillingapp/js/jquery-3.4.1.min.js' %}" id="jquery-js"></script>
+    <!-- OFFLINE MODE -->
+    <script src="{% static 'gstbillingapp/js/utility.js' %}"></script>
+    <!-- jQuery first, then Popper.js, then Bootstrap JS, then DataTables -->
+    <!-- <script src="{% static 'gstbillingapp/js/jquery-3.4.1.min.js' %}" id="jquery-js"></script>
     <script src="{% static 'gstbillingapp/js/popper.min.js' %}" id="popper-js"></script>
     <script src="{% static 'gstbillingapp/bootstrap-4.4.1-dist/js/bootstrap.min.js' %}" id="bootstrap-js"></script>
-
-    <!-- DataTables  -->
-    <script src="{% static 'gstbillingapp/DataTables/jquery.dataTables.min.js' %}" id="datatables-js"></script>
+    <script src="{% static 'gstbillingapp/DataTables/jquery.dataTables.min.js' %}" id="datatables-js"></script> -->
+    
+    <!-- ONLINE MODE -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.12.1/js/jquery.dataTables.min.js"></script>
 
     {% block includejs %}
     {% endblock %}
@@ -71,37 +81,6 @@
         gtag('js', new Date());
         gtag('config', 'UA-159304253-1');
     </script>
-
-    <script>
-		// Check if the internet is available by trying to load a lightweight resource from a CDN
-		function checkInternetConnection() {
-			var xhr = new XMLHttpRequest();
-			xhr.open('GET', 'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js', true); // A small JS file from a CDN
-			xhr.onload = function() {
-				if (xhr.status === 200) {
-					// If the request is successful, assume the internet is available
-					loadCDNFiles();
-				}
-			};
-			xhr.onerror = function() {
-				// If the request fails, assume there's no internet, use local files
-				console.log('No internet connection. Using local files.');
-			};
-			xhr.send();
-		}
-
-		function loadCDNFiles() {
-			// Load the CDN links for CSS and JS
-			document.getElementById('bootstrap-css').href = 'https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css';
-			document.getElementById('jquery-js').src = 'https://code.jquery.com/jquery-3.6.0.min.js';
-			document.getElementById('popper-js').src = 'https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js';
-			document.getElementById('bootstrap-js').src = 'https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js';
-			document.getElementById('datatables-js').src = 'https://cdn.datatables.net/1.12.1/js/jquery.dataTables.min.js';  // Example CDN for DataTables
-		}
-
-		// Run the check when the page loads
-		checkInternetConnection();
-	</script>
 
 </body>
 </html>
