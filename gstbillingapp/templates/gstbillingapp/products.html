@@ -17,9 +17,10 @@
 		<table class="table table-bordered" id="product-table">
 			<thead>
 				<tr>
+					<th>Model No</th>
 					<th>Product Name</th>
-					<th>HSN</th>
-					<th>Rate With GST</th>
+					<th>MRP</th>
+					<th>Discount %</th>
 					<th>GST %</th>
 					<th></th>
 					<th></th>
@@ -28,12 +29,13 @@
 			<tbody class="two-col-form">
 				{% for product in products %}
 				<tr>
+	 				<td>{{product.model_no}}</td>
 	 				<td>{{product.product_name}}</td>
-	 				<td>{{product.product_hsn}}</td>
 	 				<td>{{product.product_rate_with_gst}}</td>
-	 				<td>{{product.product_gst_percentage}}</td>
+	 				<td>{{product.product_discount}} %</td>
+	 				<td>{{product.product_gst_percentage}} %</td>
 	 				<td><a href="{% url 'product_edit' product.id %}"><button type="button" class="btn btn-primary">Edit</button></a></td>
-	 				<td><button type="button" class="btn btn-danger" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.product_name}}">Delete</button></td>
+	 				<td><button type="button" class="btn btn-danger" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.model_no}}">Delete</button></td>
 				</tr>
 				{% endfor %}
 			</tbody>
@@ -75,25 +77,25 @@
 $('#productDeleteModal').on('show.bs.modal', function (event) {
 	var button = $(event.relatedTarget) // Button that triggered the modal
 	var product_id = button.data('product-id') // Extract info from data-* attributes
-	var product_name = button.data('product-name') // Extract info from data-* attributes
+	var model_no = button.data('product-name') // Extract info from data-* attributes
 	// If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
 	// Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
 	var modal = $(this)
 	modal.find('.modal-body input').val(product_id)
-	console.log(product_name)
-	modal.find('.product-name').html(product_name)
+	console.log(model_no)
+	modal.find('.product-name').html(model_no)
 })
 
 $(document).ready( function () {
 	$('#product-table').DataTable({
 		"order": [],
 		"columnDefs": [ {
-			"targets": 4,
+			"targets": 5,
 			"sortable": false,
 			"searchable": false
 		},
 		{
-			"targets": 5,
+			"targets": 6,
 			"sortable": false,
 			"searchable": false
 		} ],

@@ -1,0 +1,90 @@
+{% extends "gstbillingapp/base.html" %}
+
+{% load static %}
+{% load humanize %}
+{% block content %}
+
+	{% if messages %}
+		{% for message in messages %}
+			<div class="alert {% if message.tags == 'success' %} alert-success
+			{% elif message.tags == 'error' %} alert-danger {% else %} alert-primary {% endif %}" style="margin-bottom: 0%;">
+			<p>{{ message }}</p></div>
+		{% endfor %}
+	{% endif %}
+
+	<h2>Purchases</h2>
+	<hr>
+		<div class="row">
+			<div class="col">
+				<h3>Purchased: <b>₹ {{ total_p | default:0 | intcomma }}</b></h3>
+				<h3>Paid: <b>₹ {{ total_pp | default:0 | intcomma }}</b></h3>
+				<h3>Balance: <b>₹ {{ total_pb | default:0 | intcomma }}</b></h3>
+			</div>
+			<div class="col">
+				<a href="{% url 'purchases_add' %}" id="add_product_btn"><button type="button" class="btn btn-primary">Add Purchase</button></a>
+			</div>
+		</div>
+
+		<table class="table table-bordered" id="purchase-table">
+		<thead>
+			<tr>
+				<th>Date</th>
+				<th id="center">Amount</th>
+				<th id="center">Entry</th>
+				<th style="text-align: center;">Actions</th>
+				<th style="text-align: center;">Days</th>
+			</tr>
+		</thead>
+		<tbody class="two-col-form">
+			{% for purchase in purchases %}
+			<tr>
+ 				<td>{{purchase.date|date:"d-m-Y"}}</td>
+ 				<td id="center"><b>₹ {{purchase.amount|intcomma}}</b></td>
+				 <td id="center" style="vertical-align: middle;">
+					{% if purchase.ptype == 'purchase' %}
+						<span class="bg-warning text-white rounded p-2">Purchase</span>
+					{% else %}
+					<span class="bg-success text-white rounded p-2">Paid</span>
+					{% endif %}
+				</td>
+				<td style="text-align: center;">
+					<a href="{% url 'purchases_edit' purchase.id %}"><button type="button" class="btn btn-primary">View</button></a>
+					<a href="{% url 'purchases_delete' purchase.id %}"><button type="button" class="btn btn-danger">Delete</button></a>
+				</td>
+				{% if purchase.colour == 'colour1' %}
+				<td class="color1" style="text-align: center;"><b>{{purchase.days}}</b></td>
+				{% elif purchase.colour == 'colour2' %}
+				<td style="text-align: center;"><b>{{purchase.days}}</b></td>
+				{% else %}
+				<td class="color2" style="text-align: center;" title="₹{{purchase.colour}}"><b>{{purchase.days}}</b></td>
+				{% endif %}
+			</tr>
+			{% endfor %}
+		</tbody>
+		</table>
+{% endblock %}
+
+
+{% block includejs %}
+<script type="text/javascript">
+	$(document).ready( function () {
+		$('#purchase-table').DataTable({
+			"order": [],
+			"columnDefs": [ {
+				"targets": 3,
+				"sortable": false,
+				"searchable": false
+			} ],
+			"paging": true
+		});
+	});
+</script>
+<style>
+  #purchase-table td.color1 {
+    background-color: #11ff007e;
+  }
+  #purchase-table td.color2 {
+    background-color: #ffff007e;
+  }
+</style>
+{% endblock %}

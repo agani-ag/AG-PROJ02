@@ -1,9 +1,11 @@
-import datetime
-import json
-
+# Django imports
 from django.db.models import Sum
 
+# Python imports
+import json
+import datetime
 
+# Model imports
 from .models import Product
 from .models import Inventory
 from .models import InventoryLog
@@ -78,14 +80,15 @@ def invoice_data_processor(invoice_post_data):
 
 
     invoice_post_data = dict(invoice_post_data)
-    for idx, product in enumerate(invoice_post_data['invoice-product']):
+    for idx, product in enumerate(invoice_post_data['invoice-model-no']):
         if product:
             print(idx, product)
             item_entry = {}
-            item_entry['invoice_product'] = product
+            item_entry['invoice_model_no'] = product
+            item_entry['invoice_product'] = invoice_post_data['invoice-product'][idx]
             item_entry['invoice_hsn'] = invoice_post_data['invoice-hsn'][idx]
-            item_entry['invoice_unit'] = invoice_post_data['invoice-unit'][idx]
             item_entry['invoice_qty'] = int(invoice_post_data['invoice-qty'][idx])
+            item_entry['invoice_discount'] = float(invoice_post_data['invoice-discount'][idx])
             item_entry['invoice_rate_with_gst'] = float(invoice_post_data['invoice-rate-with-gst'][idx])
             item_entry['invoice_gst_percentage'] = float(invoice_post_data['invoice-gst-percentage'][idx])
 
@@ -106,21 +109,21 @@ def update_products_from_invoice(invoice_data_processed, request):
     for item in invoice_data_processed['items']:
         new_product = False
         if Product.objects.filter(user=request.user,
+                                  model_no=item['invoice_model_no'],
                                   product_name=item['invoice_product'],
                                   product_hsn=item['invoice_hsn'],
-                                  product_unit=item['invoice_unit'],
                                   product_gst_percentage=item['invoice_gst_percentage']).exists():
             product = Product.objects.get(user=request.user,
+                                          model_no=item['invoice_model_no'],
                                           product_name=item['invoice_product'],
                                           product_hsn=item['invoice_hsn'],
-                                          product_unit=item['invoice_unit'],
                                           product_gst_percentage=item['invoice_gst_percentage'])
         else:
             new_product = True
             product = Product(user=request.user,
+                              model_no=item['invoice_model_no'],
                               product_name=item['invoice_product'],
                               product_hsn=item['invoice_hsn'],
-                              product_unit=item['invoice_unit'],
                               product_gst_percentage=item['invoice_gst_percentage'])
         product.product_rate_with_gst = item['invoice_rate_with_gst']
         product.save()
@@ -139,9 +142,9 @@ def update_inventory(invoice, request):
     invoice_data =  json.loads(invoice.invoice_json)
     for item in invoice_data['items']:
         product = Product.objects.get(user=request.user,
+                                      model_no=item['invoice_model_no'],
                                       product_name=item['invoice_product'],
                                       product_hsn=item['invoice_hsn'],
-                                      product_unit=item['invoice_unit'],
                                       product_gst_percentage=item['invoice_gst_percentage'])
         inventory = Inventory.objects.get(user=product.user, product=product)
         change = int(item['invoice_qty'])*(-1)
