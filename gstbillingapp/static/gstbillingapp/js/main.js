@@ -18,6 +18,12 @@ function setup_invoice_rows() {
     $("#invoice-form-addrow").click(function(event) {
        event.preventDefault();
        add_invoice_item_row();
+        // Move the product search bar down by 5%
+        $('#product_search_bar').each(function () {
+            let currentBottom = parseFloat($(this).css('bottom'));
+            let newBottom = currentBottom - 5;
+            $(this).css('bottom', newBottom + '%');
+        });
     });
 
     for (var i = 0; i <= 3; i++) {
