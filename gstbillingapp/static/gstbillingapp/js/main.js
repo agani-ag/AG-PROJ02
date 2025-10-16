@@ -68,11 +68,23 @@ function update_invoice_totals() {
 
 // AUTO CALCULATE ITEM AMOUNTS =============================================
 
-function initialize_auto_calculation(){
-    update_amounts($('#invoice-form-items-table-body input[name=invoice-discount]:first'));
-    update_amounts($('#invoice-form-items-table-body input[name=invoice-qty]:first'));
-    $('input[name=invoice-qty], input[name=invoice-discount], input[name=invoice-gst-percentage], input[name=invoice-rate-with-gst]').on('change input', function () {
-        update_amounts($(this));
+function initialize_auto_calculation() {
+    // Loop through all rows in the invoice items table
+    $('#invoice-form-items-table-body tr').each(function() {
+        // Trigger the update_amounts function on each relevant input field
+        $(this).find('input[name=invoice-qty], input[name=invoice-discount], input[name=invoice-gst-percentage], input[name=invoice-rate-with-gst]').on('change input', function () {
+            update_amounts($(this));
+        });
+
+        // Trigger initial calculation for all fields in the current row
+        update_amounts($(this).find('input[name=invoice-qty]:first'));
+        update_amounts($(this).find('input[name=invoice-discount]:first'));
+    });
+
+    // Also trigger the update for all existing rows if the page is already populated with data
+    $('#invoice-form-items-table-body tr').each(function() {
+        update_amounts($(this).find('input[name=invoice-qty]:first'));
+        update_amounts($(this).find('input[name=invoice-discount]:first'));
     });
 }
 
