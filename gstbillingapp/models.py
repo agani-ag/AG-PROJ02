@@ -1,10 +1,11 @@
+# Django imports
 from django.db import models
 from django.contrib.auth.models import User
 
+# Python imports
 from datetime import datetime
-# Create your models here.
 
-# ========================== Saas Data models ==================================
+# ========================== SAAS Data models ==================================
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -13,7 +14,9 @@ class UserProfile(models.Model):
     business_address = models.TextField(max_length=400, blank=True, null=True)
     business_email = models.EmailField(blank=True, null=True)
     business_phone = models.CharField(max_length=20, blank=True, null=True)
-    business_gst = models.CharField(max_length=15, blank=True, null=True)
+    business_gst = models.CharField(max_length=15, blank=True, null=True, default='00AAAAA0000A0A0')
+    business_brand = models.CharField(max_length=30, blank=True, null=True, default=None)
+    business_config = models.TextField(blank=True, null=True, default=None)
 
     def __str__(self):
         return self.user.username
@@ -39,9 +42,9 @@ class BillingProfile(models.Model):
 class Customer(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     customer_name = models.CharField(max_length=200)
-    customer_address = models.TextField(max_length=600, blank=True, null=True)
-    customer_phone = models.CharField(max_length=14, blank=True, null=True)
-    customer_gst = models.CharField(max_length=15, blank=True, null=True)
+    customer_address = models.TextField(max_length=600, blank=True, null=True, default='')
+    customer_phone = models.CharField(max_length=14, blank=True, null=True, default='')
+    customer_gst = models.CharField(max_length=15, blank=True, null=True, default='00AAAAA0000A0A0')
     def __str__(self):
         return self.customer_name
 
@@ -64,13 +67,14 @@ class Invoice(models.Model):
 
 class Product(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
-    product_name = models.CharField(max_length=200)
-    product_hsn = models.CharField(max_length=50, null=True, blank=True)
-    product_unit = models.CharField(max_length=50)
-    product_gst_percentage = models.FloatField()
+    model_no = models.CharField(max_length=200)
+    product_name = models.CharField(max_length=50, null=True, blank=True)
+    product_hsn = models.CharField(max_length=50)
+    product_discount = models.FloatField(default=0)
+    product_gst_percentage = models.FloatField(default=18)
     product_rate_with_gst = models.FloatField()
     def __str__(self):
-        return str(self.product_name)
+        return str(self.model_no)
 
 # ========================= Inventory Data models ====================================
 class InventoryLog(models.Model):
@@ -91,7 +95,7 @@ class InventoryLog(models.Model):
     description = models.TextField(max_length=600, blank=True, null=True)
 
     def __str__(self):
-        return self.product.product_name + " | " + str(self.change) + " | " + self.description + " | " + str(self.date)
+        return self.product.model_no + " | " + str(self.change) + " | " + self.description + " | " + str(self.date)
 
 class Inventory(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
@@ -101,7 +105,7 @@ class Inventory(models.Model):
     last_log = models.ForeignKey(InventoryLog, null=True, blank=True, default=None, on_delete=models.SET_NULL)
 
     def __str__(self):
-        return self.product.product_name
+        return self.product.model_no
 
 # ========================= Books Data models ======================================
 
@@ -134,3 +138,17 @@ class BookLog(models.Model):
     def __str__(self):
         return self.parent_book.customer.customer_name + " | " + str(self.change) + " | " + self.description + " | " + str(self.date)
 
+# ========================= Purchase Data models ====================================
+class PurchaseLog(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    date = models.DateTimeField(default=datetime.now, blank=True, null=True)
+    status = models.CharField(max_length=100, default='open')
+    ptype = models.CharField(max_length=100, default='purchase')
+    ventor = models.CharField(max_length=100, blank=True, null=True)
+    category = models.CharField(max_length=100, blank=True, null=True)
+    addon1 = models.CharField(max_length=100, default='cheque')
+    addon2 = models.CharField(max_length=100, blank=True, null=True)
+    amount = models.IntegerField(blank=True, null=True, default=0)
+
+    def __str__(self):
+        return str(self.date)

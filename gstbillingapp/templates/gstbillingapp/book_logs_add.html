@@ -22,7 +22,9 @@
 		<tbody class="two-col-form">
 			<tr>
 				<th scope="row" class="text-right">Date & Time:</th>
-				<td class="form-input-td customer_search_area">{{form.date}}</td>
+				<td class="form-input-td customer_search_area">
+					<input type="datetime-local" value="{%now "Y-m-d H:i:s"%}" name="date">
+				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Change in balance:</th>

@@ -1,37 +1,78 @@
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-	<a class="navbar-brand" href="{% url 'landing_page' %}">Python Django GST Billing</a>
-	<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-		<span class="navbar-toggler-icon"></span>
-	</button>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+  <!-- Branding with logo -->
+  <a class="navbar-brand d-flex align-items-center" href="{% url 'landing_page' %}">
+    {% if user_profile.business_brand %}
+      {{ user_profile.business_brand | upper }}
+    {% else %}
+      {{ user | upper }}
+    {% endif %}
+  </a>
 
-	<div class="collapse navbar-collapse" id="navbarSupportedContent">
-		<ul class="navbar-nav mr-auto">
-			{% if user.is_authenticated %}
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'invoice_create' %}">New Invoice <span class="sr-only">(current)</span></a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'invoices' %}">Invoices</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'inventory' %}">Inventory</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'books' %}">Books</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'customers' %}">Customers</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'products' %}">Products</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'user_profile' %}">Profile</a>
-			</li>
-			<li class="nav-item">
-				<a class="nav-link" href="{% url 'logout' %}?next=/">Logout</a>
-			</li>
-			{% endif %}
-		</ul>
-	</div>
+  <!-- Navbar Toggler for mobile view -->
+  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+    aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+    <span class="navbar-toggler-icon"></span>
+  </button>
+
+  <!-- Navbar Links -->
+  <div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav ml-auto">
+      {% if user.is_authenticated %}
+
+        <!-- Invoices Dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="{% url 'invoice_create' %}" id="invoicesDropdown" role="button" data-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false">
+            Invoices
+          </a>
+          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="invoicesDropdown">
+            <a class="dropdown-item" href="{% url 'invoice_create' %}">New Invoice</a>
+            <a class="dropdown-item" href="{% url 'invoices' %}">All Invoices</a>
+          </div>
+        </li>
+
+        <!-- Products Dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="productsDropdown" role="button" data-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false">
+            Products
+          </a>
+          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="productsDropdown">
+            <a class="dropdown-item" href="{% url 'products' %}">Products</a>
+            <a class="dropdown-item" href="{% url 'inventory' %}">Inventory</a>
+          </div>
+        </li>
+
+        <!-- Customers Link -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'customers' %}">Customers</a>
+        </li>
+
+        <!-- Accounts Dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="accountsDropdown" role="button" data-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false">
+            Accounts
+          </a>
+          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="accountsDropdown">
+            <a class="dropdown-item" href="{% url 'books' %}">Books</a>
+            <a class="dropdown-item" href="{% url 'purchases' %}">Purchases</a>
+          </div>
+        </li>
+
+        <!-- Profile Dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="profileDropdown" role="button" data-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false">
+            Profile
+          </a>
+          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="profileDropdown">
+            <a class="dropdown-item" href="{% url 'user_profile' %}">{{ user | upper }}</a>
+            <a class="dropdown-item" href="{% url 'logout_view' %}">Logout</a>
+          </div>
+        </li>
+
+      {% endif %}
+    </ul>
+  </div>
 </nav>
