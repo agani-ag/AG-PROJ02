@@ -33,6 +33,7 @@ urlpatterns = [
     path('customers/add', customers.customer_add, name='customer_add'),
     path('customers/edit/<int:customer_id>', customers.customer_edit, name='customer_edit'),
     path('customers/delete', customers.customer_delete, name='customer_delete'),
+    path('customers/default_password', customers.customer_default_password, name='customer_default_password'),
     path('customersjson', customers.customersjson, name='customersjson'),
 
     # Book URLs

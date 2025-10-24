@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+
+
+{% block content %}
+<div class="row">
+<div class="col-sm">
+</div>
+<div class="col-sm">
+	<div class="card" id="login-card">
+		<h5 class="card-header">GST Billing Portal</h5>
+		<div class="card-body">
+			<h5 class="card-title">Login and start billing now!</h5>
+		</div>
+		<form method="POST">
+			{% csrf_token %}
+			<table class="table">
+				<tbody class="two-col-form">
+					<tr>
+						<th scope="row" class="text-right">Username:</th>
+						<td class="form-input-td"><input type="text" name="customer_userid" 
+							value="{{ customer_userid }}" required></td>
+					</tr>
+					<tr>
+						<th scope="row" class="text-right">Password:</th>
+						<td class="form-input-td"><input type="password" name="customer_password" required></td>
+					</tr>
+				</tbody>
+			</table>
+		
+			<input type="submit" class="btn btn-primary float-right" value="Login">
+		</form>
+
+		
+	</div>
+		<a href="{% url 'signup_view' %}"><input class="btn btn-danger float-right" value="Sign Up"></a>
+	</div>
+<div class="col-sm">
+</div>
+</div>
+{% endblock %}

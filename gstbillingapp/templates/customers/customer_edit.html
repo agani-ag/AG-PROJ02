@@ -26,10 +26,63 @@
 				<th scope="row" class="text-right">Customer GST:</th>
 				<td class="form-input-td" pattern="([A-Za-z0-9]{15})|(^$)">{{customer_form.customer_gst}}</td>
 			</tr>
+			<tr>
+				<th scope="row" class="text-right">Customer Email:</th>
+				<td class="form-input-td">{{customer_form.customer_email}}</td>
+			</tr>
+			{% if customer_password.0 %}
+			<tr>
+				<th scope="row" class="text-right">Customer Login ID:</th>
+				<td class="form-input-td" aria-readonly="true">{{customer_userid}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Customer Password:</th>
+				<td class="form-input-td" readonly style="color: {{customer_password.2}};">{{customer_password.1}}
+					<button><a href="#" title="Reset Customer Password to Default" style="text-decoration: none;color: #000;"
+						data-toggle="modal" data-target="#customerResetPasswordModal" title="Reset Customer Password to Default">Reset</a>
+					</button>
+				</td>
+			</tr>
+			{% endif %}
+			<tr>
+				<th scope="row" class="text-right">Is Mobile User:</th>
+				<td class="form-input-td">
+					<label class="switch">
+						<input type="checkbox" name="is_mobile_user" {% if is_mobile_user %}checked{% endif %}>
+						<span class="slider round"></span>
+					</label>
+				</td>
+			</tr>
 		</tbody>
 	</table>
 
 	<input type="submit" class="btn btn-primary float-right" value="Save Changes">
 </form>
+
+<div class="modal fade" id="customerResetPasswordModal" tabindex="-1" role="dialog" aria-labelledby="customerResetPasswordModalLabel" aria-hidden="true">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="customerResetPasswordModalLabel">Default Password Reset</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form method="POST" action="{% url 'customer_default_password' %}">
+			{% csrf_token %}
+			<div class="modal-body">
+				Are you sure you want to reset password for <b>{{customer_userid}}</b>?
+					<div class="form-group">
+						<input hidden="true" type="text" class="form-control" name="customer_id" value="{{customer_id}}">
+					</div>
+			</div>
+			<div class="modal-footer">
+				<button type="submit" class="btn btn-danger" >Yes</button>
+				<button type="button" class="btn btn-primary" data-dismiss="modal">No</button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
 
 {% endblock %}

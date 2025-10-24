@@ -58,6 +58,8 @@ def product_delete(request):
         product_obj.delete()
     return redirect('products')
 
+
+# ================= Product API Views ===========================
 @login_required
 def productsjson(request):
     products = list(Product.objects.filter(user=request.user).values())

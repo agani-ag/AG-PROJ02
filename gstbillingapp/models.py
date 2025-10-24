@@ -45,6 +45,10 @@ class Customer(models.Model):
     customer_address = models.TextField(max_length=600, blank=True, null=True, default='')
     customer_phone = models.CharField(max_length=14, blank=True, null=True, default='')
     customer_gst = models.CharField(max_length=15, blank=True, null=True, default='00AAAAA0000A0A0')
+    customer_email = models.EmailField(blank=True, null=True)
+    customer_password = models.CharField(max_length=15, null=True, default=None)
+    customer_userid = models.CharField(max_length=15, null=True, default=None)
+    is_mobile_user = models.BooleanField(default=False)
     def __str__(self):
         return self.customer_name
 

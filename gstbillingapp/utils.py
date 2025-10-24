@@ -1,9 +1,11 @@
 # Django imports
 from django.db.models import Sum
+from django.shortcuts import get_object_or_404
 
 # Python imports
 import json
 import datetime
+
 
 # Model imports
 from .models import Product
@@ -11,8 +13,10 @@ from .models import Inventory
 from .models import InventoryLog
 from .models import Book
 from .models import BookLog
+from .models import Customer
 
 
+#  ================= Invoice Methods ====================
 def invoice_data_validator(invoice_data):
     
     # Validate Invoice Info ----------
@@ -105,6 +109,7 @@ def invoice_data_processor(invoice_post_data):
     print(processed_invoice_data)
     return processed_invoice_data
 
+
 def update_products_from_invoice(invoice_data_processed, request):
     for item in invoice_data_processed['items']:
         new_product = False
@@ -131,8 +136,8 @@ def update_products_from_invoice(invoice_data_processed, request):
         if new_product:
             create_inventory(product)
 
-#  ================== Inventory methods ====================
 
+#  ================== Inventory methods ====================
 def create_inventory(product):
     if not Inventory.objects.filter(user=product.user, product=product).exists():
         new_inventory = Inventory(user=product.user, product=product)
@@ -180,8 +185,7 @@ def recalculate_inventory_total(inventory_obj, user):
     inventory_obj.save()
 
 
-# ================ Book methods ===========================
-
+# ================ Book Methods ===========================
 def add_customer_book(customer):
     # check if customer already exists
     if Book.objects.filter(user=customer.user, customer=customer).exists():
@@ -208,3 +212,14 @@ def auto_deduct_book_from_invoice(invoice):
     book.current_balance = book.current_balance + book_log.change
     book.last_log = book_log
     book.save()
+
+
+# ================ Customer Methods ===========================
+def add_customer_userid(customer):
+    # check if customer not already exists
+    if not Customer.objects.filter(user=customer.user, id=customer.id).exists():
+        return
+    PREFIX = "ME"
+    customer = get_object_or_404(Customer, user=customer.user, id=customer.id)
+    customer.customer_userid = f"{PREFIX}{customer.user.id}C{customer.id}"
+    customer.save()

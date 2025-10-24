@@ -69,7 +69,7 @@ def purchases_add(request):
             category_save = category_other
             business_config = get_object_or_404(UserProfile, user=request.user)
             bc = json.loads(business_config.business_config)
-            bc['category'].append(category_other)
+            bc['purchase_category'].append(category_other)
             business_config.business_config = json.dumps(bc)
             business_config.save()
         else:
@@ -91,7 +91,7 @@ def purchases_add(request):
         business_config.save()
         data['category'] = []
         return render(request,'purchases/purchase_add.html',data)
-    data['category'] = json.loads(data['category']['business_config']).get('category')
+    data['category'] = json.loads(data['category']['business_config']).get('purchase_category')
     return render(request,'purchases/purchase_add.html',data)
 
 @login_required
@@ -116,7 +116,7 @@ def purchases_edit(request,pid):
             category_save = category_other
             business_config = get_object_or_404(UserProfile, user=request.user)
             bc = json.loads(business_config.business_config)
-            bc['category'].append(category_other)
+            bc['purchase_category'].append(category_other)
             business_config.business_config = json.dumps(bc)
             business_config.save()
         else:
@@ -136,7 +136,7 @@ def purchases_edit(request,pid):
         messages.success(request, 'Your changes have been saved successfully.')
         return redirect('purchases_edit',pid)
     data['category'] = UserProfile.objects.filter(user=request.user).values('business_config').first()
-    data['category'] = json.loads(data['category']['business_config']).get('category')
+    data['category'] = json.loads(data['category']['business_config']).get('purchase_category')
     return render(request,'purchases/purchase_edit.html',data)
 
 @login_required

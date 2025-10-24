@@ -9,7 +9,7 @@ from .models import BookLog
 class CustomerForm(ModelForm):
      class Meta:
          model = Customer
-         fields = ['customer_name', 'customer_address', 'customer_phone', 'customer_gst']
+         fields = ['customer_name', 'customer_address', 'customer_phone', 'customer_gst', 'customer_email']
 
 
 class ProductForm(ModelForm):

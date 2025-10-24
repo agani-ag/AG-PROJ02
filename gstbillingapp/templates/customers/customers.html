@@ -21,6 +21,7 @@
 			<th>Address</th>
 			<th>Phone</th>
 			<th>GST NO</th>
+			<th>Mobile</th>
 			<th></th>
 			<th></th>
 			<th></th>
@@ -33,6 +34,12 @@
 			<td>{{customer.customer_address}}</td>
 			<td>{{customer.customer_phone}}</td>
 			<td>{{customer.customer_gst}}</td>
+			<td>
+				<span class="switch">
+					<input type="checkbox" {% if customer.is_mobile_user %}checked{% endif %} disabled>
+					<span class="slider round"></span>
+				</span>
+			</td>
 			<td><a href="{% url 'customer_edit' customer.id %}"><button type="button" class="btn btn-dark">Edit</button></a></td>
 			<td><button type="button" class="btn btn-danger" data-toggle="modal" data-target="#customerDeleteModal" data-customer-id="{{customer.id}}" data-customer-name="{{customer.customer_name}}">Delete</button></td>
 			<td><a href="{% url 'book_logs' customer.id %}"><button type="button" class="btn btn-warning"><b>{{customer.id}}</b></button></a></td>
