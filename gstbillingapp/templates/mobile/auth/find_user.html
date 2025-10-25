@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+
+
+{% block content %}
+
+<h2>Find User</h2>
+
+<form method="POST">
+	{% csrf_token %}
+	<table class="table">
+		<tbody class="two-col-form">
+			<tr>
+				<th scope="row" class="text-right">User Details Type:</th>
+				<td class="form-input-td">
+					<select name="customer_type" id="customer_type" onchange="updateInputBehavior()">
+						<option value="email" selected>Email</option>
+						<option value="phone">Phone</option>
+						<option value="gst">GST Number</option>
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right" id="customer_input_label">Enter Email Address:</th>
+				<td class="form-input-td">
+					<input type="email" id="customer_input" name="customer_input_email" required>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-center" colspan="2">
+					<input type="submit" class="btn btn-primary" value="Search User">
+				</th>
+			</tr>
+		</tbody>
+	</table>
+
+</form>
+
+{% if customer_result %}
+	<table class="table table-bordered">
+		<thead>
+			<tr>
+				<th colspan="2" class="text-center">User Search Results</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr class="text-center">
+				<th>Username</th>
+				<th>{{ customer_input }}</th>
+			</tr>
+			{% for cust in customer %}
+			<tr class="text-center">
+				{% if cust.customer_userid %}
+					<td><a href="{% url 'mlogin_view' %}?customer_userid={{ cust.customer_userid }}">{{ cust.customer_userid }}</a></td>
+				{% else %}
+					<td>N/A</td>
+				{% endif %}
+				{% if customer_input == "Email" %}
+					<td>{{ cust.customer_email }}</td>
+				{% elif customer_input == "Phone" %}
+					<td>{{ cust.customer_phone }}</td>
+				{% elif customer_input == "GST Number" %}
+					<td>{{ cust.customer_gst }}</td>
+				{% endif %}
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+{% endif %}
+
+<script>
+	function updateInputBehavior() {
+		const selectType = document.getElementById('customer_type').value;
+		const inputField = document.getElementById('customer_input');
+		const labelField = document.getElementById('customer_input_label');
+		
+		if (selectType === 'email') {
+			inputField.type = 'email';
+			labelField.textContent = 'Enter Email Address:';
+			inputField.name = 'customer_input_email';
+		} else if (selectType === 'phone') {
+			inputField.type = 'number';
+			labelField.textContent = 'Enter Phone Number:';
+			inputField.name = 'customer_input_phone';
+		} else if (selectType === 'gst') {
+			inputField.type = 'text';
+			labelField.textContent = 'Enter GST Number:';
+			inputField.pattern = "([A-Za-z0-9]{15})|(^$)";
+			inputField.name = 'customer_input_gst';
+		}
+	}
+</script>
+{% endblock %}
