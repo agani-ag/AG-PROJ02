@@ -87,6 +87,16 @@ def customer_default_password(request):
         return redirect('customer_edit', customer_id=customer_id)
 
 
+@login_required
+def customerall_userid_set(request):
+    customer_obj = Customer.objects.filter(user=request.user)
+    for customer in customer_obj:
+        add_customer_userid(customer)
+        customer.is_mobile_user = True
+        customer.save()
+    return redirect('customers')
+
+
 # ================= Customer API Views ===========================
 @login_required
 def customersjson(request):

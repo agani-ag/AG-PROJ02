@@ -33,7 +33,7 @@
 			{% if customer_password.0 %}
 			<tr>
 				<th scope="row" class="text-right">Customer Login ID:</th>
-				<td class="form-input-td" aria-readonly="true">{{customer_userid}}</td>
+				<td class="form-input-td" aria-readonly="true">{{customer_userid | upper}}</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Customer Password:</th>
@@ -71,7 +71,7 @@
 			<form method="POST" action="{% url 'customer_default_password' %}">
 			{% csrf_token %}
 			<div class="modal-body">
-				Are you sure you want to reset password for <b>{{customer_userid}}</b>?
+				Are you sure you want to reset password for <b>{{customer_userid | upper}}</b>?
 					<div class="form-group">
 						<input hidden="true" type="text" class="form-control" name="customer_id" value="{{customer_id}}">
 					</div>

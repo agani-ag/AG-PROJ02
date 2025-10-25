@@ -221,5 +221,6 @@ def add_customer_userid(customer):
         return
     PREFIX = "ME"
     customer = get_object_or_404(Customer, user=customer.user, id=customer.id)
-    customer.customer_userid = f"{PREFIX}{customer.user.id}C{customer.id}"
+    c_userid = f"{PREFIX}{customer.user.id}C{customer.id}"
+    customer.customer_userid = c_userid.lower()
     customer.save()
