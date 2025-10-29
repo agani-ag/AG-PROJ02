@@ -30,7 +30,7 @@
 	</div>
 </div>
 <!-- AG GRID CONTAINER -->
-<div class="ag-theme-alpine mt-3" id="customerGrid" style="height: 600px; width: 100%;"></div>
+<div class="ag-theme-alpine mt-3" id="customerGrid" style="height: 80vh; width: 100%;"></div>
 
 <!-- DELETE MODAL -->
 <div class="modal fade" id="customerDeleteModal" tabindex="-1" role="dialog" aria-labelledby="customerDeleteModalLabel" aria-hidden="true">
@@ -68,8 +68,8 @@
 document.addEventListener('DOMContentLoaded', function() {
 
 	const columnDefs = [
-		{ headerName: "Customer Name", field: "customer_name", sortable: true, filter: true, flex: 2 },
-		{ headerName: "Address", field: "customer_address", sortable: true, filter: true, flex: 2, hide: true,
+		{ headerName: "Customer Name", field: "customer_name", sortable: true, filter: true },
+		{ headerName: "Address", field: "customer_address", sortable: true, filter: true, hide: true, width: 250,
 			cellRenderer: params => params.value ? params.value : '<span style="color:red;">N/A</span>'
 		},
 		{ headerName: "Phone", field: "customer_phone", sortable: true, filter: true },
