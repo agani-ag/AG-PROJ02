@@ -5,7 +5,7 @@ from django.urls import path, include
 from .views import (
     auth, profile, invoices, customers,
     books, products, inventory, purchases,
-    views
+    features, views
 )
 
 urlpatterns = [
@@ -36,6 +36,7 @@ urlpatterns = [
     path('customers/default_password', customers.customer_default_password, name='customer_default_password'),
     path('customers/customerall_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
     path('customersjson', customers.customersjson, name='customersjson'),
+    path('customers/api/add/<int:user>', customers.customer_api_add, name='customer_api_add'),
 
     # Book URLs
     path('books', books.books, name='books'),
@@ -61,4 +62,7 @@ urlpatterns = [
     path('purchases/add', purchases.purchases_add, name='purchases_add'),
     path('purchases/edit/<int:pid>', purchases.purchases_edit, name='purchases_edit'),
     path('purchases/delete/<int:pid>', purchases.purchases_delete, name='purchases_delete'),
+    
+    # Features URLs
+    path('feature/upload', features.excel_upload, name='upload'),
 ]

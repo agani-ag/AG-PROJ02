@@ -4,6 +4,8 @@ from django.contrib.auth.models import User
 
 # Python imports
 from datetime import datetime
+from django.db.models import Q
+from django.core.exceptions import ValidationError
 
 # ========================== SAAS Data models ==================================
 
@@ -42,13 +44,26 @@ class BillingProfile(models.Model):
 class Customer(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     customer_name = models.CharField(max_length=200)
-    customer_address = models.TextField(max_length=600, blank=True, null=True, default='')
-    customer_phone = models.CharField(max_length=14, blank=True, null=True, default='')
-    customer_gst = models.CharField(max_length=15, blank=True, null=True, default='00AAAAA0000A0A0')
+    customer_address = models.TextField(max_length=600, blank=True, null=True)
+    customer_phone = models.CharField(max_length=14, blank=True, null=True)
+    customer_gst = models.CharField(max_length=15, blank=True, null=True)
     customer_email = models.EmailField(blank=True, null=True)
-    customer_password = models.CharField(max_length=15, null=True, default=None)
-    customer_userid = models.CharField(max_length=15, null=True, default=None)
+    customer_password = models.CharField(max_length=15, null=True, blank=True)
+    customer_userid = models.CharField(max_length=15, null=True, blank=True)
     is_mobile_user = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        if self.customer_name:
+            self.customer_name = self.customer_name.upper()
+        if self.customer_address:
+            self.customer_address = self.customer_address.upper()
+        if self.customer_email:
+            self.customer_email = self.customer_email.lower()
+        if self.customer_gst:
+            self.customer_gst = self.customer_gst.upper()
+
+        super().save(*args, **kwargs)
+        
     def __str__(self):
         return self.customer_name
 
@@ -77,6 +92,15 @@ class Product(models.Model):
     product_discount = models.FloatField(default=0)
     product_gst_percentage = models.FloatField(default=18)
     product_rate_with_gst = models.FloatField()
+
+    def save(self, *args, **kwargs):
+        if self.model_no:
+            self.model_no = self.model_no.upper()
+        if self.product_name:
+            self.product_name = self.product_name.upper()
+        
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return str(self.model_no)
 

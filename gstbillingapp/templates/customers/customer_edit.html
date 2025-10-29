@@ -20,11 +20,18 @@
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Customer Phone:</th>
-				<td class="form-input-td">{{customer_form.customer_phone}}</td>
+				<td class="form-input-td">
+					<input type="tel" name="customer_phone" pattern="^[6-9][0-9]{9}$"
+					value="{{customer_form.customer_phone.value|default:''}}" required>
+				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Customer GST:</th>
-				<td class="form-input-td" pattern="([A-Za-z0-9]{15})|(^$)">{{customer_form.customer_gst}}</td>
+				<td class="form-input-td">
+					<input type="text" name="customer_gst" value="{{customer_form.customer_gst.value|default:''}}" 
+						   pattern="^$|^[A-Za-z0-9]{15}$" 
+						   title="GST number must be exactly 15 alphanumeric characters or left empty">
+				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Customer Email:</th>
@@ -58,6 +65,7 @@
 
 	<input type="submit" class="btn btn-primary float-right" value="Save Changes">
 </form>
+	<input type="submit" class="btn btn-danger float-right" value="Discard Changes" onclick="window.location.href='{% url 'customers' %}'" style="margin-right: 10px;">
 
 <div class="modal fade" id="customerResetPasswordModal" tabindex="-1" role="dialog" aria-labelledby="customerResetPasswordModalLabel" aria-hidden="true">
 	<div class="modal-dialog" role="document">

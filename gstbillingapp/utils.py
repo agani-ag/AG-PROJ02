@@ -224,3 +224,11 @@ def add_customer_userid(customer):
     c_userid = f"{PREFIX}{customer.user.id}C{customer.id}"
     customer.customer_userid = c_userid.lower()
     customer.save()
+
+
+def customer_already_exists(user, customer_phone, customer_email, customer_gst):
+    if Customer.objects.filter(user=user, customer_phone=customer_phone).exists() or \
+       Customer.objects.filter(user=user, customer_email=customer_email).exists() or \
+       Customer.objects.filter(user=user, customer_gst=customer_gst).exists():
+        return True
+    return False

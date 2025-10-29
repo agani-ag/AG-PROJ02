@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% load static %}
 
 {% block content %}
@@ -21,6 +20,21 @@
         color: #2b3e50;
         font-weight: 600;
         margin-bottom: 15px;
+    }
+
+    select {
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background: white;
+        font-size: 14px;
+        cursor: pointer;
+        margin-bottom: 20px;
+        transition: all 0.3s;
+    }
+
+    select:hover {
+        border-color: #007bff;
     }
 
     input[type="file"] {
@@ -151,62 +165,106 @@
         margin-top: 30px;
         background: white;
         border-radius: 8px;
-        padding: 0; /* remove extra padding */
+        padding: 0;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
 
     .footer-buttons {
         margin-top: 25px;
     }
-
 </style>
 
-    <h2>📂 Excel Upload → 🔁 Map → ✏️ Edit → ⬇️ Download</h2>
+<h2>Excel Upload</h2>
 
-    <input type="file" id="fileInput" accept=".xlsx,.xls" />
+<!-- 🟢 Dropdown Template Selector -->
+<label for="templateSelect"><strong>Template:</strong></label>
+<select id="templateSelect">
+    <option value="customer">Customer</option>
+    <option value="product">Product</option>
+</select><br>
 
-    <div id="mappingContainer">
-        <div>
-            <h3>Uploaded Columns</h3>
-            <div id="uploadedColumns" class="columnBox"></div>
-        </div>
-        <div>
-            <h3>Required Headers</h3>
-            <div id="requiredColumns" class="columnBox"></div>
-        </div>
+<input type="file" id="fileInput" accept=".xlsx,.xls" />
+
+<div id="mappingContainer">
+    <div>
+        <h3>Uploaded Columns</h3>
+        <div id="uploadedColumns" class="columnBox"></div>
     </div>
-
-    <button id="previewBtn" disabled>Preview Mapped Data</button>
-    <div id="excelPreview"></div>
-
-    <div class="footer-buttons">
-        <button id="uploadBtn" disabled>Send to API</button>
-        <button id="downloadBtn" disabled>Download Excel (Client)</button>
+    <div>
+        <h3>Required Headers</h3>
+        <div id="requiredColumns" class="columnBox"></div>
     </div>
+</div>
+
+<button id="previewBtn" disabled>Preview Mapped Data</button>
+<div id="excelPreview"></div>
+
+<div class="footer-buttons">
+    <button id="uploadBtn" disabled>Load Data</button>
+    <button id="downloadBtn" disabled>Download Excel</button>
+</div>
 
 <script>
-const REQUIRED_HEADERS = ["ID", "Name", "Email", "DefaultText", "Salary"];
+// 🟢 Template Definitions
+const TEMPLATE_CONFIG = {
+    customer: {
+        headers: {{customer|safe}},
+        api: "/customers/api/add/{{ user.id }}"
+    },
+    product: {
+        headers: {{product|safe}},
+        api: "/products/api/add/{{ user.id }}"
+    }
+};
+
+let currentTemplate = "customer";
+let REQUIRED_HEADERS = TEMPLATE_CONFIG[currentTemplate].headers;
+let UPLOAD_URL = TEMPLATE_CONFIG[currentTemplate].api;
 
 let parsedData = [];
 let headerMapping = {};
 let hot;
 
-const fileInput = document.getElementById('fileInput');
-const uploadedColumnsDiv = document.getElementById('uploadedColumns');
-const requiredColumnsDiv = document.getElementById('requiredColumns');
-const previewBtn = document.getElementById('previewBtn');
-const uploadBtn = document.getElementById('uploadBtn');
-const downloadBtn = document.getElementById('downloadBtn');
-const previewContainer = document.getElementById('excelPreview');
+const templateSelect = document.getElementById("templateSelect");
+const fileInput = document.getElementById("fileInput");
+const uploadedColumnsDiv = document.getElementById("uploadedColumns");
+const requiredColumnsDiv = document.getElementById("requiredColumns");
+const previewBtn = document.getElementById("previewBtn");
+const uploadBtn = document.getElementById("uploadBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const previewContainer = document.getElementById("excelPreview");
 
-fileInput.addEventListener('change', (e) => {
+// 🔄 When dropdown changes, update headers + API
+templateSelect.addEventListener("change", (e) => {
+    currentTemplate = e.target.value;
+    REQUIRED_HEADERS = TEMPLATE_CONFIG[currentTemplate].headers;
+    UPLOAD_URL = TEMPLATE_CONFIG[currentTemplate].api;
+
+    // Reset mapping and preview for new template
+    headerMapping = {};
+    requiredColumnsDiv.innerHTML = "";
+    previewContainer.innerHTML = "";
+    previewBtn.disabled = true;
+    uploadBtn.disabled = true;
+    downloadBtn.disabled = true;
+
+    // 🧠 If Excel is already uploaded, refresh the mapping UI
+    if (parsedData.length > 0) {
+        const uploadedHeaders = parsedData[0];
+        showMappingUI(uploadedHeaders);
+        previewBtn.disabled = false;
+    }
+});
+
+// 🧾 File Upload Logic
+fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return alert("Please select a file!");
 
     const reader = new FileReader();
     reader.onload = (event) => {
         const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: "array" });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         parsedData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
@@ -224,7 +282,7 @@ function showMappingUI(uploadedHeaders) {
     requiredColumnsDiv.innerHTML = "";
     headerMapping = {};
 
-    // Uploaded headers
+    // Uploaded Headers
     uploadedHeaders.forEach(header => {
         const div = document.createElement("div");
         div.className = "columnItem";
@@ -243,7 +301,7 @@ function showMappingUI(uploadedHeaders) {
         uploadedColumnsDiv.appendChild(div);
     });
 
-    // Required headers as drop targets
+    // Required Headers
     REQUIRED_HEADERS.forEach(req => {
         const box = document.createElement("div");
         box.className = "dropTarget";
@@ -313,8 +371,8 @@ function renderPreview(data) {
         manualRowMove: true,
         manualColumnMove: true,
         minSpareRows: 1,
-        wordWrap: true,           // enable text wrap
-        height: 'auto',           // auto adjust height
+        wordWrap: true,
+        height: 'auto',
         licenseKey: 'non-commercial-and-evaluation'
     });
     uploadBtn.disabled = false;
@@ -328,13 +386,13 @@ uploadBtn.addEventListener("click", async () => {
         .filter(r => r.some(c => c !== null && c !== ""))
         .map(r => Object.fromEntries(REQUIRED_HEADERS.map((h, i) => [h, r[i]])));
     console.log("Sending data to API:", jsonData);
-    const res = await fetch("/api/upload", {
+    const res = await fetch(UPLOAD_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(jsonData)
     });
     const result = await res.json();
-    alert(result.message);
+    alert(result.message || "Upload complete!");
 });
 
 downloadBtn.addEventListener("click", () => {
@@ -348,7 +406,7 @@ downloadBtn.addEventListener("click", () => {
     const worksheet = XLSX.utils.json_to_sheet(jsonData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
-    XLSX.writeFile(workbook, "EditedData.xlsx");
+    XLSX.writeFile(workbook, `${currentTemplate}_EditedData.xlsx`);
 });
 </script>
 {% endblock %}
