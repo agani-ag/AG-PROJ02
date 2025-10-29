@@ -120,9 +120,16 @@ document.addEventListener('DOMContentLoaded', function() {
 		columnDefs: columnDefs,
 		rowData: rowData,
 		pagination: true,
-		paginationPageSize: 10,
-		defaultColDef: { resizable: true, 
-		}
+		paginationPageSize: 20,
+		defaultColDef: { resizable: true },
+		overlayNoRowsTemplate: `
+        <div class="no-rows-overlay">
+            <i class="fas fa-user" style="font-size: 36px; color: #888;"></i>
+            <div style="margin-top: 10px; font-size: 16px; color: #555;">
+                No customers found.
+            </div>
+        </div>
+    `,
 	};
 
 	const gridDiv = document.querySelector('#customerGrid');
