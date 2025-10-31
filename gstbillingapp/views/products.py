@@ -94,7 +94,7 @@ def product_api_add(request):
                     product_name=item.get('product_name') or '',
                     product_hsn=item.get('product_hsn') or '',
                     product_discount=item.get('product_discount') or 0,
-                    product_gst_percentage=item.get('product_gst_percentage') or 0,
+                    product_gst_percentage=item.get('product_gst_percentage') or 18,
                     product_rate_with_gst=item.get('product_rate_with_gst') or 0
                 )
                 product.save()
@@ -103,5 +103,5 @@ def product_api_add(request):
                 if int(product_stock) > 0:
                     add_stock_to_inventory(product, int(product_stock), "Initial stock", user)
                 inserted_count += 1
-        return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products added successfully. {not_inserted_count} Products not added.'})
+        return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products added successfully.\n{not_inserted_count} Products not added.\nTotal {len(data)} items.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add products.'})

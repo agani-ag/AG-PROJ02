@@ -30,7 +30,7 @@
 				{% for product in products %}
 				<tr>
 	 				<td>{{product.model_no}}</td>
-	 				<td>{{product.product_name}}</td>
+	 				<td>{% if product.product_name %}{{product.product_name}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 	 				<td>{{product.product_rate_with_gst}}</td>
 	 				<td>{{product.product_discount}} %</td>
 	 				<td>{{product.product_gst_percentage}} %</td>

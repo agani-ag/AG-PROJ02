@@ -29,8 +29,7 @@ def excel_upload(request):
     ]
     
     book_fields = [
-        "date","change","change_type",
-        "associated_invoice","description"
+        "date","change","associated_invoice"
     ]
 
     product_fields = [
@@ -55,10 +54,10 @@ def excel_upload(request):
     template_config["stock"]["headers"] = stock_fields
     
     # Configure APIs
-    template_config["books"]["api"] = f"/books/api/add?business_uid={business_uid}"
-    template_config["product"]["api"] = f"/products/api/add?business_uid={business_uid}"
-    template_config["customer"]["api"] = f"/customers/api/add?business_uid={business_uid}"
-    template_config["stock"]["api"] = f"/inventory/api/stock/add?business_uid={business_uid}"
+    template_config["books"]["api"] = f"/books/api/add?business_uid={business_uid}&notes=Added via Excel"
+    template_config["product"]["api"] = f"/products/api/add?business_uid={business_uid}&notes=New Product Added & Stock Uploaded via Excel"
+    template_config["customer"]["api"] = f"/customers/api/add?business_uid={business_uid}&notes=Uploaded via Excel"
+    template_config["stock"]["api"] = f"/inventory/api/stock/add?business_uid={business_uid}&notes=Stock Uploaded via Excel"
 
     # Configure Data
     template_config["books"]["data"] = customers_data

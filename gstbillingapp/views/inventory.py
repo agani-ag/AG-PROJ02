@@ -96,6 +96,7 @@ def inventory_logs_del(request, inventorylog_id):
 def inventory_api_stock_add(request):
     if request.method == "POST":
         business_uid = request.GET.get('business_uid', None)
+        notes = request.GET.get('notes', 'API Stock')
         if not business_uid:
             return JsonResponse({'status': 'error', 'message': 'Business UID is required.'})
         user_profile = get_object_or_404(UserProfile, business_uid=business_uid)
@@ -105,6 +106,8 @@ def inventory_api_stock_add(request):
         data = json.loads(data)
         inserted_count = 0
         not_inserted_count = 0
+        increased_quantity = 0
+        decreased_quantity = 0
         for item in data:
             if item.get('model_no') == "" or item.get('model_no') is None:
                 not_inserted_count += 1
@@ -112,9 +115,14 @@ def inventory_api_stock_add(request):
                 product = Product.objects.get(user=user, model_no=item.get('model_no').upper())
                 product_stock = item.get('product_stock') or 0
                 if int(product_stock) > 0:
-                    add_stock_to_inventory(product, int(product_stock), "API Stock", user)
+                    add_stock_to_inventory(product, int(product_stock), notes, user)
                     inserted_count += 1
+                    increased_quantity += int(product_stock)
+                elif int(product_stock) < 0:
+                    add_stock_to_inventory(product, -abs(int(product_stock)), notes, user)
+                    inserted_count += 1
+                    decreased_quantity += -abs(int(product_stock))
                 else:
                     not_inserted_count += 1
-        return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products Stock added successfully. {not_inserted_count} Products Stock not added.'})
+        return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products Stock added successfully.\n{not_inserted_count} Products Stock not added.\nQuantity Added: {increased_quantity}\nQuantity Removed: {decreased_quantity}'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add products stock.'})

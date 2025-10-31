@@ -44,6 +44,8 @@ urlpatterns = [
     path('books/<int:book_id>', books.book_logs, name='book_logs'),
     path('books/<int:book_id>/addupdate', books.book_logs_add, name='book_logs_add'),
     path('book/del/<int:booklog_id>', books.book_logs_del, name='book_logs_del'),
+    # API Endpoints
+    path('books/api/add', books.book_logs_api_add, name='book_logs_api_add'),
 
     # Product URLs
     path('products', products.products, name='products'),

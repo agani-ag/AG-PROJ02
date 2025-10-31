@@ -203,8 +203,7 @@ def add_customer_book(customer):
     # check if customer already exists
     if Book.objects.filter(user=customer.user, customer=customer).exists():
         return
-    book = Book(user=customer.user,
-                customer=customer)
+    book = Book(user=customer.user, customer=customer)
     book.save()
 
 
@@ -226,6 +225,12 @@ def auto_deduct_book_from_invoice(invoice):
     book.last_log = book_log
     book.save()
 
+def recalculate_book_current_balance(book_obj):
+    new_total = BookLog.objects.filter(parent_book=book_obj).aggregate(Sum('change'))['change__sum']
+    if not new_total:
+        new_total = 0
+    book_obj.current_balance = new_total
+    book_obj.save()
 
 # ================ Customer Methods ===========================
 def add_customer_userid(customer):
