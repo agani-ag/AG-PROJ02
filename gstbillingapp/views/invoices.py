@@ -50,7 +50,7 @@ def invoice_create(request):
         print("POST received - Invoice Data")
 
         invoice_data = request.POST
-
+        non_gst_mode = 'nongstcheck' in invoice_data
         validation_error = invoice_data_validator(invoice_data)
         if validation_error:
             context["error_message"] = validation_error
@@ -94,9 +94,9 @@ def invoice_create(request):
         # save invoice
         invoice_data_processed_json = json.dumps(invoice_data_processed)
         new_invoice = Invoice(user=request.user,
-                              invoice_number=int(invoice_data['invoice-number']),
-                              invoice_date=datetime.datetime.strptime(invoice_data['invoice-date'], '%Y-%m-%d'),
-                              invoice_customer=customer, invoice_json=invoice_data_processed_json)
+            invoice_number=int(invoice_data['invoice-number']),
+            invoice_date=datetime.datetime.strptime(invoice_data['invoice-date'], '%Y-%m-%d'),
+            invoice_customer=customer, invoice_json=invoice_data_processed_json, non_gst_mode=non_gst_mode)
         new_invoice.save()
         print("INVOICE SAVED")
 

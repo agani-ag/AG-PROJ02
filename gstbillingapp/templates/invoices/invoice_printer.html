@@ -31,7 +31,9 @@
 						<div>Phone: {{user_profile.business_phone}}</div>
 					{% endif %}
 					{% if user_profile.business_gst %}
-						<div>GST No: {{user_profile.business_gst}}</div>
+						{% if not invoice.non_gst_mode %}
+							<div>GST No: {{user_profile.business_gst}}</div>
+						{% endif %}
 					{% endif %}
 				</div>
 
@@ -42,9 +44,11 @@
 					</div>
 					<div>{{ invoice_data.customer_address }}</div>
 					<div>Phone: {{ invoice_data.customer_phone }}</div>
-					<div>GST No: {{ invoice_data.customer_gst }}</div>
+					{% if not invoice.non_gst_mode %}
+						<div>GST No: {{ invoice_data.customer_gst }}</div>
+					{% endif %}
 					{% if invoice_data.vehicle_number %}
-					<div><strong>Vehicle No:</strong> {{ invoice_data.vehicle_number }}</div>
+						<div><strong>Vehicle No:</strong> {{ invoice_data.vehicle_number }}</div>
 					{% endif %}
 				</div>
 
