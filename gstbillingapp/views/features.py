@@ -1,12 +1,13 @@
 # Django imports
 from django.shortcuts import render
 from django.http import JsonResponse
-
+from django.contrib.auth.decorators import login_required
 
 # Models
 from ..models import Customer
 
 # ================= Features Pages ==============================
+@login_required
 def excel_upload(request):
     context = {}
     business_uid = request.user.userprofile.business_uid
@@ -37,22 +38,27 @@ def excel_upload(request):
         "product_discount","product_gst_percentage","product_rate_with_gst",
     ]
 
+    stock_fields = ["model_no","product_stock"]
+
     # Initialize Template Configuration
     template_config = {
         "books": {},
         "product": {},
         "customer": {},
+        "stock": {},
     }
 
     # Configure headers
     template_config["books"]["headers"] = book_fields
     template_config["product"]["headers"] = product_fields
     template_config["customer"]["headers"] = customer_fields
+    template_config["stock"]["headers"] = stock_fields
     
     # Configure APIs
     template_config["books"]["api"] = f"/books/api/add?business_uid={business_uid}"
     template_config["product"]["api"] = f"/products/api/add?business_uid={business_uid}"
     template_config["customer"]["api"] = f"/customers/api/add?business_uid={business_uid}"
+    template_config["stock"]["api"] = f"/inventory/api/stock/add?business_uid={business_uid}"
 
     # Configure Data
     template_config["books"]["data"] = customers_data

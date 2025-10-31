@@ -186,6 +186,18 @@ def recalculate_inventory_total(inventory_obj, user):
     inventory_obj.save()
 
 
+def add_stock_to_inventory(product, quantity, description, user):
+    inventory = Inventory.objects.get(user=user, product=product)
+    inventory_log = InventoryLog(user=user,
+                                 product=product,
+                                 date=datetime.datetime.now(),
+                                 change=quantity,
+                                 change_type=1,
+                                 description=description)
+    inventory_log.save()
+    recalculate_inventory_total(inventory, user)
+
+
 # ================ Book Methods ===========================
 def add_customer_book(customer):
     # check if customer already exists

@@ -20,6 +20,7 @@
     <option value="customer">Customer</option>
     <option value="books">Books</option>
     <option value="product">Product</option>
+    <option value="stock">Product Stock</option>
 </select>
 <select id="subSelect" style="display:none;">
     <option value="">-- Select --</option>
@@ -48,8 +49,10 @@
 <div id="excelPreview"></div>
 
 <div class="footer-buttons">
-    <button id="uploadBtn" disabled>Load Data</button>
-    <button id="downloadBtn" disabled>Download Excel</button>
+    <button id="uploadBtn" disabled><i class="fas fa-upload"></i></button>
+    <button id="reloaduploadBtn" style="display: none;"><i class="fas fa-reply"></i></button>
+    <button id="downloadBtn" disabled><i class="fas fa-download"></i></button>
+    <button id="refreshBtn" style="display: none;"><i class="fas fa-refresh"></i></button>
 </div>
 
 <script>
@@ -72,16 +75,15 @@ const requiredColumnsDiv = document.getElementById("requiredColumns");
 const selectedValueColumnsDiv = document.getElementById("selectedValueColumns");
 const previewBtn = document.getElementById("previewBtn");
 const uploadBtn = document.getElementById("uploadBtn");
+const reloaduploadBtn = document.getElementById("reloaduploadBtn");
 const downloadBtn = document.getElementById("downloadBtn");
+const refreshBtn = document.getElementById("refreshBtn");
 const previewContainer = document.getElementById("excelPreview");
 
 // 🔄 When dropdown changes, update headers + API
 templateSelect.addEventListener("change", (e) => {
     currentTemplate = e.target.value;
-    if (currentTemplate == "customer" || currentTemplate == "product") {
-        subSelect.style.display = "none";
-        selectedValueContainer.style.display = "none";
-    } else {
+    if (currentTemplate == "books") {
             CT_DATA = TEMPLATE_CONFIG[currentTemplate].data;
             CT_DATA.forEach(item => {
             const option = document.createElement("option");
@@ -89,8 +91,12 @@ templateSelect.addEventListener("change", (e) => {
             option.textContent = item.id.toUpperCase();
             subSelect.appendChild(option);
         });
-    subSelect.style.display = "inline-block";
-    selectedValueContainer.style.display = "inline-block";
+        subSelect.style.display = "inline-block";
+        selectedValueContainer.style.display = "inline-block";
+    } 
+    else {
+        subSelect.style.display = "none";
+        selectedValueContainer.style.display = "none";
     }
 
     REQUIRED_HEADERS = TEMPLATE_CONFIG[currentTemplate].headers;
@@ -147,7 +153,7 @@ subSelect.addEventListener("change", (e) => {
 // 🧾 File Upload Logic
 fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
-    if (!file) return alert("Please select a file!");
+    if (!file) return Swal.fire("Please select a file!");
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -156,7 +162,7 @@ fileInput.addEventListener("change", (e) => {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         parsedData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-        if (parsedData.length === 0) return alert("Empty file!");
+        if (parsedData.length === 0) return Swal.fire("Empty file!");
 
         const uploadedHeaders = parsedData[0];
         showMappingUI(uploadedHeaders);
@@ -203,7 +209,7 @@ function showMappingUI(uploadedHeaders) {
             if (!header) return;
 
             if (Object.values(headerMapping).includes(header)) {
-                alert("That column is already mapped!");
+                Swal.fire("That column is already mapped!");
                 return;
             }
 
@@ -229,7 +235,7 @@ function showMappingUI(uploadedHeaders) {
 
 previewBtn.addEventListener("click", () => {
     if (Object.keys(headerMapping).length === 0) {
-        alert("Please map all required headers first!");
+        Swal.fire("Please map all required headers first!");
         return;
     }
 
@@ -276,9 +282,9 @@ uploadBtn.addEventListener("click", async () => {
     console.log("Sending data to API:", jsonData);
     postUrl = UPLOAD_URL;
     const a1 = templateSelect.value;
-    if (currentTemplate != "customer" || currentTemplate != "product") {
+    if (a1 === "books") {
         const a2 = subSelect.value;
-        if (a2 == "") {
+        if (a2 === "") {
             return Swal.fire('Please select a valid option from the second dropdown!');
         }
         postUrl += `&id=${a2}`;
@@ -291,16 +297,34 @@ uploadBtn.addEventListener("click", async () => {
     if (res.ok) {
         // HTTP status 200–299
         const result = await res.json();
-        alert(result.message || "Upload complete!");
+        uploadBtn.disabled = true;
+        reloaduploadBtn.style.display = "inline-block";
+        refreshBtn.style.display = "inline-block";
+        Swal.fire(result.message || "Upload complete!");
     } else {
         // Handle non-200 responses
         const errorText = await res.text();
-        alert(`Upload failed! (${res.status})`);
+        Swal.fire(`Upload failed! (${res.status})`);
     }
+
+});
+
+reloaduploadBtn.addEventListener("click", () => {
+    Swal.fire({
+        title: 'Reloading...',
+        didOpen: () => {
+            Swal.showLoading();
+            setTimeout(() => {
+                uploadBtn.disabled = false;
+                reloaduploadBtn.style.display = "none";
+                Swal.close();
+            }, 2000);
+        }
+    });
 });
 
 downloadBtn.addEventListener("click", () => {
-    if (!hot) return alert("No data to download!");
+    if (!hot) return Swal.fire("No data to download!");
 
     const edited = hot.getData();
     const jsonData = edited
@@ -311,6 +335,10 @@ downloadBtn.addEventListener("click", () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
     XLSX.writeFile(workbook, `${currentTemplate}_EditedData.xlsx`);
+});
+
+refreshBtn.addEventListener("click", () => {
+    location.reload();
 });
 </script>
 {% endblock %}

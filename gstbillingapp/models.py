@@ -103,10 +103,10 @@ class Product(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     model_no = models.CharField(max_length=200)
     product_name = models.CharField(max_length=50, null=True, blank=True)
-    product_hsn = models.CharField(max_length=50)
-    product_discount = models.FloatField(default=0)
-    product_gst_percentage = models.FloatField(default=18)
-    product_rate_with_gst = models.FloatField()
+    product_hsn = models.CharField(max_length=50, null=True, blank=True)
+    product_discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    product_gst_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=18)
+    product_rate_with_gst = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     def save(self, *args, **kwargs):
         if self.model_no:

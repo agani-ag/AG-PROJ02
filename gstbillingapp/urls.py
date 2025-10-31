@@ -36,6 +36,7 @@ urlpatterns = [
     path('customers/default_password', customers.customer_default_password, name='customer_default_password'),
     path('customers/customerall_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
     path('customersjson', customers.customersjson, name='customersjson'),
+    # API Endpoints
     path('customers/api/add', customers.customer_api_add, name='customer_api_add'),
 
     # Book URLs
@@ -50,12 +51,16 @@ urlpatterns = [
     path('products/edit/<int:product_id>', products.product_edit, name='product_edit'),
     path('products/delete', products.product_delete, name='product_delete'),
     path('productsjson', products.productsjson, name='productsjson'),
+    # API Endpoints
+    path('products/api/add', products.product_api_add, name='product_api_add'),
 
     # Inventory URLs
     path('inventory', inventory.inventory, name='inventory'),
     path('inventory/<int:inventory_id>', inventory.inventory_logs, name='inventory_logs'),
     path('inventory/<int:inventory_id>/addupdate', inventory.inventory_logs_add, name='inventory_logs_add'),
     path('inventory/del/<int:inventorylog_id>', inventory.inventory_logs_del, name='inventory_logs_del'),
+    # API Endpoints
+    path('inventory/api/stock/add', inventory.inventory_api_stock_add, name='inventory_api_stock_add'),
 
     # Purchase URLs
     path('purchases', purchases.purchases, name='purchases'),
@@ -64,5 +69,5 @@ urlpatterns = [
     path('purchases/delete/<int:pid>', purchases.purchases_delete, name='purchases_delete'),
     
     # Features URLs
-    path('feature/upload', features.excel_upload, name='upload'),
+    path('feature/upload', features.excel_upload, name='feature_upload'),
 ]
