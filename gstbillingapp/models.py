@@ -21,6 +21,20 @@ class UserProfile(models.Model):
     business_config = models.TextField(blank=True, null=True, default=None)
     business_uid = models.TextField(blank=True, null=True)
 
+    def save(self, *args, **kwargs):
+        if self.business_title:
+            self.business_title = self.business_title.upper()
+        if self.business_address:
+            self.business_address = self.business_address.upper()
+        if self.business_email:
+            self.business_email = self.business_email.lower()
+        if self.business_gst:
+            self.business_gst = self.business_gst.upper()
+        if self.business_brand:
+            self.business_brand = self.business_brand.upper()
+
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return self.user.username
 

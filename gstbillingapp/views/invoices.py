@@ -1,4 +1,5 @@
 # Django imports
+from django.contrib import messages
 from django.db.models import Max, Sum
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -31,6 +32,9 @@ def invoice_create(request):
     # if business info is blank redirect to update it
     user_profile = get_object_or_404(UserProfile, user=request.user)
     if not user_profile.business_title:
+        return redirect('user_profile_edit')
+    if not user_profile.business_gst:
+        messages.warning(request, "Please update your business GST number before creating invoices.")
         return redirect('user_profile_edit')
 
     context = {}

@@ -1,18 +1,16 @@
 # Django imports
-from django.forms import ValidationError
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password, check_password
 
 # Models
-from ..models import Customer
+from ..models import Customer, UserProfile
 
 # Utility functions
 from ..utils import (
-    add_customer_book, add_customer_userid,
-    customer_already_exists
+    add_customer_book, add_customer_userid
 )
 
 # Forms
@@ -126,34 +124,38 @@ def customersjson(request):
 
 
 @csrf_exempt
-def customer_api_add(request, user):
+def customer_api_add(request):
     if request.method == "POST":
+        business_uid = request.GET.get('business_uid', None)
+        if not business_uid:
+            return JsonResponse({'status': 'error', 'message': 'Business UID is required.'})
+        user_profile = get_object_or_404(UserProfile, business_uid=business_uid)
+        if user_profile:
+            user = user_profile.user
         data = request.body.decode('utf-8')
         data = json.loads(data)
         inserted_count = 0
         not_inserted_count = 0
         for item in data:
-            if customer_already_exists(user, item.get('customer_phone'),
-                    item.get('customer_email'), item.get('customer_gst')):
+            if item.get('customer_name') == "" and item.get('customer_phone') == "":
                 not_inserted_count += 1
-                continue
-            if 'customer_name' not in item:
+            elif Customer.objects.filter(user=user, customer_phone=item.get('customer_phone')).exists():
                 not_inserted_count += 1
-                continue
-            customer = Customer(
-                user_id=user,
-                customer_name=item.get('customer_name'),
-                customer_email=item.get('customer_email', None),
-                customer_phone=item.get('customer_phone', None),
-                customer_address=item.get('customer_address', None),
-                customer_gst=item.get('customer_gst', None),
-                customer_password=make_password(CPASSWORD),
-                is_mobile_user=True
-            )
-            customer.save()
-            # create customer book & userid
-            add_customer_book(customer)
-            add_customer_userid(customer)
-            inserted_count += 1
+            else:
+                customer = Customer(
+                    user=user,
+                    customer_name=item.get('customer_name'),
+                    customer_phone=item.get('customer_phone'),
+                    customer_email=item.get('customer_email', None),
+                    customer_address=item.get('customer_address', None),
+                    customer_gst=item.get('customer_gst', None),
+                    customer_password=make_password(CPASSWORD),
+                    is_mobile_user=True
+                )
+                customer.save()
+                # create customer book & userid
+                add_customer_book(customer)
+                add_customer_userid(customer)
+                inserted_count += 1
         return JsonResponse({'status': 'success', 'message': f'{inserted_count} Customers added successfully. {not_inserted_count} Customers not added.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add customers.'})

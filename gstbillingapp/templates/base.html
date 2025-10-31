@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>
         {% block title %}
-        GST Billing
+        GST Sync
         {% endblock %}
     </title>
 
@@ -50,6 +50,14 @@
         </div>
         {% endif %}
 
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}" role="alert">
+                {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
         {% block content %}
         CONTENT BLOCK
         {% endblock %}
@@ -74,6 +82,8 @@
     <link href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.2.1/styles/ag-grid.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.2.1/styles/ag-theme-alpine.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.2.1/dist/ag-grid-community.min.noStyle.js"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     {% block includejs %}
     {% endblock %}
 

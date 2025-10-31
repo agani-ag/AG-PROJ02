@@ -1,24 +1,63 @@
 # Django imports
 from django.shortcuts import render
+from django.http import JsonResponse
 
+
+# Models
+from ..models import Customer
 
 # ================= Features Pages ==============================
 def excel_upload(request):
     context = {}
-    context['user'] = request.user
-    context['customer'] = [ 
-        "customer_name",
-        "customer_address",
-        "customer_phone",
-        "customer_gst",
-        "customer_email",
+    business_uid = request.user.userprofile.business_uid
+    customers_data = list(Customer.objects.filter(user=request.user).order_by('id').values())
+    for customer in customers_data:
+        customer.pop('id')
+        customer.pop('user_id')
+        customer.pop('is_mobile_user')
+        customer.pop('customer_password')
+        customer['id'] = customer.pop('customer_userid')
+        for key, value in customer.items():
+            if value in [None, 'None', 'null']:
+                customer[key] = ''
+
+    # Define Template Fields
+    customer_fields = [
+        "customer_name","customer_address","customer_phone",
+        "customer_gst","customer_email",
     ]
-    context['product'] = [ 
-        "model_no",
-        "product_name",
-        "product_hsn",
-        "product_discount",
-        "product_gst_percentage",
-        "product_rate_with_gst",
+    
+    book_fields = [
+        "date","change","change_type",
+        "associated_invoice","description"
     ]
+
+    product_fields = [
+        "model_no","product_name","product_hsn","product_stock",
+        "product_discount","product_gst_percentage","product_rate_with_gst",
+    ]
+
+    # Initialize Template Configuration
+    template_config = {
+        "books": {},
+        "product": {},
+        "customer": {},
+    }
+
+    # Configure headers
+    template_config["books"]["headers"] = book_fields
+    template_config["product"]["headers"] = product_fields
+    template_config["customer"]["headers"] = customer_fields
+    
+    # Configure APIs
+    template_config["books"]["api"] = f"/books/api/add?business_uid={business_uid}"
+    template_config["product"]["api"] = f"/products/api/add?business_uid={business_uid}"
+    template_config["customer"]["api"] = f"/customers/api/add?business_uid={business_uid}"
+
+    # Configure Data
+    template_config["books"]["data"] = customers_data
+
+    # Template Configuration With Whole Data
+    context['template_config'] = template_config
+    # return JsonResponse(template_config)
     return render(request, 'features/upload.html', context)
