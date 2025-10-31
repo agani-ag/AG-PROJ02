@@ -43,7 +43,11 @@
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">GST:</th>
-				<td class="form-input-td" pattern="([A-Za-z0-9]{15})|(^$)">{{profile_edit_form.business_gst}}</td>
+				<td class="form-input-td">
+					<input type="text" name="business_gst" value="{{profile_edit_form.business_gst.value|default:''}}" 
+						   pattern="^$|^[A-Za-z0-9]{15}$" 
+						   title="GST number must be exactly 15 alphanumeric characters or left empty">
+				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Brand:</th>

@@ -1,5 +1,6 @@
 # Django imports
 from django.db.models import Sum
+from gstbilling import settings
 from django.shortcuts import get_object_or_404
 
 # Python imports
@@ -219,9 +220,8 @@ def add_customer_userid(customer):
     # check if customer not already exists
     if not Customer.objects.filter(user=customer.user, id=customer.id).exists():
         return
-    PREFIX = "ME"
     customer = get_object_or_404(Customer, user=customer.user, id=customer.id)
-    c_userid = f"{PREFIX}{customer.user.id}C{customer.id}"
+    c_userid = f"{settings.PRODUCT_PREFIX}{customer.user.id}C{customer.id}"
     customer.customer_userid = c_userid.lower()
     customer.save()
 

@@ -23,6 +23,7 @@ def user_profile_edit(request):
     context = {}
     user_profile = get_object_or_404(UserProfile, user=request.user)
     context['user_profile_form'] = UserProfileForm(instance=user_profile)
+    context['business_uid'] = user_profile.business_uid
     
     if request.method == "POST":
         user_profile_form = UserProfileForm(request.POST, instance=user_profile)

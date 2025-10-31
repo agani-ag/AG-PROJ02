@@ -16,9 +16,10 @@ class UserProfile(models.Model):
     business_address = models.TextField(max_length=400, blank=True, null=True)
     business_email = models.EmailField(blank=True, null=True)
     business_phone = models.CharField(max_length=20, blank=True, null=True)
-    business_gst = models.CharField(max_length=15, blank=True, null=True, default='00AAAAA0000A0A0')
+    business_gst = models.CharField(max_length=15, blank=True, null=True)
     business_brand = models.CharField(max_length=30, blank=True, null=True, default=None)
     business_config = models.TextField(blank=True, null=True, default=None)
+    business_uid = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return self.user.username
