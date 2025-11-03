@@ -9,8 +9,13 @@
 			<div class="col">
 				<h2>Products</h2>
 			</div>
-			<div class="col">
-				<a href="{% url 'product_add' %}" id="add_product_btn"><button type="button" class="btn btn-primary">Add New</button></a>
+			<div class="col text-right" style="padding-top: 0.5%;">
+				<a href="{% url 'product_add' %}" class="btn btn-primary btn-sm btn-curve">
+					<i class="fas fa-plus"></i>
+				</a>
+				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" style="text-decoration: none;">
+					<i class="fas fa-file-excel"></i>
+				</a>
 			</div>
 		</div>
 
@@ -20,10 +25,9 @@
 					<th>Model No</th>
 					<th>Product Name</th>
 					<th>MRP</th>
-					<th>Discount %</th>
-					<th>GST %</th>
-					<th></th>
-					<th></th>
+					<th>Discount%</th>
+					<th>GST%</th>
+					<th>Actions</th>
 				</tr>
 			</thead>
 			<tbody class="two-col-form">
@@ -32,10 +36,15 @@
 	 				<td>{{product.model_no}}</td>
 	 				<td>{% if product.product_name %}{{product.product_name}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 	 				<td>{{product.product_rate_with_gst}}</td>
-	 				<td>{{product.product_discount}} %</td>
-	 				<td>{{product.product_gst_percentage}} %</td>
-	 				<td><a href="{% url 'product_edit' product.id %}"><button type="button" class="btn btn-primary">Edit</button></a></td>
-	 				<td><button type="button" class="btn btn-danger" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.model_no}}">Delete</button></td>
+	 				<td>{{product.product_discount}}%</td>
+	 				<td>{{product.product_gst_percentage}}%</td>
+	 				<td>
+						<div class="btn-group" role="group" aria-label="Basic example">
+							<a href="{% url 'product_edit' product.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
+							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.model_no}}"><i class="fas fa-trash"></i></button>
+							<a href="{% url 'inventory_logs' product.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-alt"></i></a>
+						</div>
+					</td>
 				</tr>
 				{% endfor %}
 			</tbody>
@@ -59,8 +68,8 @@
 					</div>
 			</div>
 			<div class="modal-footer">
-				<button type="submit" class="btn btn-danger" >Yes</button>
-				<button type="button" class="btn btn-primary" data-dismiss="modal">No</button>
+				<button type="submit" class="btn btn-danger btn-sm btn-curve" >Yes</button>
+				<button type="button" class="btn btn-primary btn-sm btn-curve" data-dismiss="modal">No</button>
 			</div>
 			</form>
 		</div>
@@ -93,13 +102,26 @@ $(document).ready( function () {
 			"targets": 5,
 			"sortable": false,
 			"searchable": false
-		},
-		{
-			"targets": 6,
-			"sortable": false,
-			"searchable": false
-		} ],
-		"paging": true
+		}],
+		"paging": true,
+		dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'excelHtml5',
+                text: '<i class="fas fa-file-excel"></i> Excel',
+                className: 'btn btn-success btn-sm btn-curve'
+            },
+            {
+                extend: 'pdfHtml5',
+                text: '<i class="fas fa-file-pdf"></i> PDF',
+                className: 'btn btn-danger btn-sm btn-curve'
+            },
+            {
+                extend: 'print',
+                text: '<i class="fas fa-print"></i> Print',
+                className: 'btn btn-warning btn-sm btn-curve'
+            }
+        ]
 	});
 });
 

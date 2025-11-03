@@ -84,6 +84,7 @@ def customer_edit(request, customer_id):
     else:
         customer_password = [True,'Changed','green']
     context['customer_password'] = customer_password
+    context['id'] = customer_obj.id
     return render(request, 'customers/customer_edit.html', context)
 
 

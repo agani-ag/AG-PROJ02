@@ -186,3 +186,14 @@ input:checked + .slider {
 input:checked + .slider:before {
 	transform: translateX(16px);
 }
+/* Custom CSS for Customer Mobile Toggle Buttons */
+.btn-orange-on {
+	background-color: orange;
+	color: white;
+}
+.btn-orange-off {
+	background-color: darkorange;
+}
+.btn-orange-off:hover {
+	color: white;
+}

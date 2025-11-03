@@ -25,7 +25,7 @@
 		<tr onclick="window.location='{% url 'inventory_logs' inventory.id %}';">
 			<td><a href="{% url 'inventory_logs' inventory.id %}">{{inventory.product.model_no}}</a></td>
 			<td>{{inventory.product.product_name}}</a></td>
-			<td>{{inventory.current_stock}}</td>
+			<td>{% if inventory.current_stock > 0 %}{{inventory.current_stock}}{% else %}<span class="text-danger">{{inventory.current_stock}}</span>{% endif %}</td>
 			<td>{{inventory.last_log}}</td>
 		</tr>
 		{% endfor %}

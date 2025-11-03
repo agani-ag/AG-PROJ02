@@ -23,7 +23,11 @@
 		{% for book in book_list %}
 		<tr onclick="window.location='{% url 'book_logs' book.id %}';">
 			<td><a href="{% url 'book_logs' book.id %}">{{book.customer.customer_name}}</a></td>
-			<td>{{book.current_balance}}</td>
+			<td>{% if book.current_balance > 0 %}
+                <span class="text-success">{{ book.current_balance }}</span>
+            {% else %}
+                <span class="text-danger">{{ book.current_balance }}</span>
+            {% endif %}
 			<td>{{book.last_log}}</td>
 		</tr>
 		{% endfor %}

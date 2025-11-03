@@ -34,6 +34,7 @@ def product_edit(request, product_id):
             return redirect('products')
     context = {}
     context['product_form'] = ProductForm(instance=product_obj)
+    context['id'] = product_obj.id
     return render(request, 'products/product_edit.html', context)
 
 

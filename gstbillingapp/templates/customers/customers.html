@@ -7,32 +7,50 @@
 		<h2>Customers</h2>
 	</div>
 	<div class="col text-right" style="padding-top: 0.5%;">
-		<a href="{% url 'customerall_userid_set' %}" class="btn btn-warning btn-sm btn-curve" style="text-decoration: none;">
-			<i class="fas fa-refresh"></i>
-		</a>
-		<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" style="text-decoration: none;">
-			<i class="fas fa-file-excel"></i>
-		</a>
-		<a href="{% url 'customer_add' %}">
-			<button type="button" class="btn btn-primary btn-sm btn-curve">
-				<i class="fas fa-plus"></i>
-			</button>
-		</a>
-		<!-- ✅ Column Toggle Dropdown -->
-		<div class="dropdown d-inline-block">
-			<button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="columnToggleDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-				<i class="fas fa-columns"></i>
-			</button>
-			<div class="dropdown-menu" aria-labelledby="columnToggleDropdown" id="columnToggleMenu" style="padding:10px; min-width: 200px;">
-				<!-- checkboxes will be dynamically created -->
-			</div>
-		</div>
+		
+		<a href="{% url 'customer_add' %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-plus"></i></a>
+		<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve"><i class="fas fa-file-excel"></i></a>
+		<a href="{% url 'customerall_userid_set' %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-refresh"></i></a>
 	</div>
 </div>
-<!-- AG GRID CONTAINER -->
-<div class="ag-theme-alpine mt-3" id="customerGrid" style="height: 80vh; width: 100%;"></div>
 
-<!-- DELETE MODAL -->
+<table class="table table-bordered" id="customer-table">
+	<thead>
+		<tr>
+			<th>Customer Name</th>
+			<th>Address</th>
+			<th>Phone</th>
+			<th>GST NO</th>
+			<th>Mobile</th>
+			<th>Actions</th>
+		</tr>
+	</thead>
+	<tbody class="two-col-form">
+		{% for customer in customers %}
+		<tr>
+			<td>{{customer.customer_name}}</td>
+			<td>{% if customer.customer_address %}{{customer.customer_address}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+			<td>{% if customer.customer_phone %}{{customer.customer_phone}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+			<td>{% if customer.customer_gst %}{{customer.customer_gst}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+			<td class="text-center">
+				{% if customer.is_mobile_user %}
+					<a href="#" class="btn btn-orange-on btn-sm btn-curve"><i class="fas fa-toggle-on"></i></a>
+				{% else %}
+					<a href="#" class="btn btn-orange-off btn-sm btn-curve"><i class="fas fa-toggle-off"></i></a>
+				{% endif %}
+			</td>
+			<td>
+				<div class="btn-group" role="group" aria-label="Basic example">
+					<a href="{% url 'customer_edit' customer.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
+					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#customerDeleteModal" data-customer-id="{{customer.id}}" data-customer-name="{{customer.customer_name}}"><i class="fas fa-trash"></i></button>
+					<a href="{% url 'book_logs' customer.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-alt"></i></a>
+				</div>
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+
 <div class="modal fade" id="customerDeleteModal" tabindex="-1" role="dialog" aria-labelledby="customerDeleteModalLabel" aria-hidden="true">
 	<div class="modal-dialog" role="document">
 		<div class="modal-content">
@@ -43,17 +61,17 @@
 				</button>
 			</div>
 			<form method="POST" action="{% url 'customer_delete' %}">
-				{% csrf_token %}
-				<div class="modal-body">
-					Are you sure you want to delete <b><span class="customer-name"></span></b>?
+			{% csrf_token %}
+			<div class="modal-body">
+				Are you sure you want to delete <b><span class="customer-name"></span></b>?
 					<div class="form-group">
-						<input type="hidden" class="form-control" name="customer_id">
+						<input hidden="true" type="text" class="form-control" name="customer_id">
 					</div>
-				</div>
-				<div class="modal-footer">
-					<button type="submit" class="btn btn-danger">Yes</button>
-					<button type="button" class="btn btn-primary" data-dismiss="modal">No</button>
-				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="submit" class="btn btn-danger" >Yes</button>
+				<button type="button" class="btn btn-primary" data-dismiss="modal">No</button>
+			</div>
 			</form>
 		</div>
 	</div>
@@ -63,111 +81,54 @@
 
 
 {% block includejs %}
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-
-	const columnDefs = [
-		{ headerName: "Customer Name", field: "customer_name", sortable: true, filter: true },
-		{ headerName: "Address", field: "customer_address", sortable: true, filter: true, hide: true, width: 250,
-			cellRenderer: params => params.value ? params.value : '<span style="color:red;">N/A</span>'
-		},
-		{ headerName: "Phone", field: "customer_phone", sortable: true, filter: true },
-		{ headerName: "GST No", field: "customer_gst", sortable: true, filter: true,
-			cellRenderer: params => params.value ? params.value : '<span style="color:red;">N/A</span>'
-		},
-		{ headerName: "Mobile User", field: "is_mobile_user", cellRenderer: params => {
-			return `<span class="switch">
-						<input type="checkbox" ${params.value ? "checked" : ""} disabled>
-						<span class="slider round"></span>
-					</span>`;
-		}, width: 120 },
-		{ headerName: "Edit", field: "edit", width: 100, cellRenderer: params => `
-			<a href="/customers/edit/${params.data.id}">
-				<button type="button" class="btn btn-dark btn-sm">Edit</button>
-			</a>
-		` },
-		{ headerName: "Delete", field: "delete", width: 120, cellRenderer: params => `
-			<button type="button" class="btn btn-danger btn-sm"
-				data-toggle="modal"
-				data-target="#customerDeleteModal"
-				data-customer-id="${params.data.id}"
-				data-customer-name="${params.data.customer_name}">
-				Delete
-			</button>
-		` },
-		{ headerName: "Logs", field: "logs", width: 100, cellRenderer: params => `
-			<a href="/books/${params.data.id}">
-				<button type="button" class="btn btn-warning btn-sm"><b>${params.data.id}</b></button>
-			</a>
-		` }
-	];
-
-	const rowData = [
-		{% for customer in customers %}
-		{
-			id: {{customer.id}},
-			customer_name: "{{customer.customer_name|escapejs}}",
-			customer_address: "{{customer.customer_address|default_if_none:''|escapejs}}",
-			customer_phone: "{{customer.customer_phone|default_if_none:''|escapejs}}",
-			customer_gst: "{{customer.customer_gst|default_if_none:''|escapejs}}",
-			is_mobile_user: {{ customer.is_mobile_user|yesno:"true,false" }},
-		},
-		{% endfor %}
-	];
-
-	const gridOptions = {
-		columnDefs: columnDefs,
-		rowData: rowData,
-		pagination: true,
-		paginationPageSize: 20,
-		defaultColDef: { resizable: true },
-		overlayNoRowsTemplate: `
-        <div class="no-rows-overlay">
-            <i class="fas fa-user" style="font-size: 36px; color: #888;"></i>
-            <div style="margin-top: 10px; font-size: 16px; color: #555;">
-                No customers found.
-            </div>
-        </div>
-    `,
-	};
-
-	const gridDiv = document.querySelector('#customerGrid');
-	new agGrid.Grid(gridDiv, gridOptions);
-	// ✅ Create toggle checkboxes dynamically
-	const menu = document.getElementById('columnToggleMenu');
-	columnDefs.forEach(col => {
-		if (col.field) { // skip computed buttons
-			const div = document.createElement('div');
-			div.innerHTML = `
-				<label style="display:block;">
-					<input type="checkbox" class="column-toggle" data-col="${col.field}" ${col.hide ? '' : 'checked'}>
-					${col.headerName}
-				</label>
-			`;
-			menu.appendChild(div);
-		}
-	});
-
-	// ✅ Listen for checkbox changes
-	menu.addEventListener('change', function(e) {
-		if (e.target.classList.contains('column-toggle')) {
-			const colField = e.target.getAttribute('data-col');
-			const visible = e.target.checked;
-			gridOptions.api.setColumnVisible(colField, visible);
-		}
-	});
-});
-
-
-// ✅ DELETE MODAL DATA SETUP
+<script type="text/javascript">
 $('#customerDeleteModal').on('show.bs.modal', function (event) {
-	var button = $(event.relatedTarget);
-	var customer_id = button.data('customer-id');
-	var customer_name = button.data('customer-name');
-	var modal = $(this);
-	modal.find('input[name="customer_id"]').val(customer_id);
-	modal.find('.customer-name').text(customer_name);
+	var button = $(event.relatedTarget) // Button that triggered the modal
+	var customer_id = button.data('customer-id') // Extract info from data-* attributes
+	var customer_name = button.data('customer-name') // Extract info from data-* attributes
+	// If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
+	// Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
+	var modal = $(this)
+	modal.find('.modal-body input').val(customer_id)
+	console.log(customer_name)
+	modal.find('.customer-name').html(customer_name)
 });
+
+
+$(document).ready( function () {
+	$('#customer-table').DataTable({
+		"order": [],
+		"columnDefs": [{
+				"targets": 4,
+				"sortable": false,
+				"searchable": false
+			},
+			{
+				"targets": 5,
+				"sortable": false,
+				"searchable": false
+			}],
+		"paging": true,
+		dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'excelHtml5',
+                text: '<i class="fas fa-file-excel"></i> Excel',
+                className: 'btn btn-success btn-sm btn-curve'
+            },
+            {
+                extend: 'pdfHtml5',
+                text: '<i class="fas fa-file-pdf"></i> PDF',
+                className: 'btn btn-danger btn-sm btn-curve'
+            },
+            {
+                extend: 'print',
+                text: '<i class="fas fa-print"></i> Print',
+                className: 'btn btn-warning btn-sm btn-curve'
+            }
+        ]
+	});
+});
+
 </script>
 {% endblock %}

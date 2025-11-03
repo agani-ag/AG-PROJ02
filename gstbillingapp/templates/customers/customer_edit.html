@@ -16,7 +16,9 @@
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Customer Address:</th>
-				<td class="form-input-td">{{customer_form.customer_address}}</td>
+				<td class="form-input-td">
+					<textarea name="customer_address" rows="4" cols="30">{{customer_form.customer_address.value|default:''}}</textarea>
+				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Customer Phone:</th>
@@ -45,9 +47,7 @@
 			<tr>
 				<th scope="row" class="text-right">Customer Password:</th>
 				<td class="form-input-td" readonly style="color: {{customer_password.2}};">{{customer_password.1}}
-					<button><a href="#" title="Reset Customer Password to Default" style="text-decoration: none;color: #000;"
-						data-toggle="modal" data-target="#customerResetPasswordModal" title="Reset Customer Password to Default">Reset</a>
-					</button>
+					<a href="#" class="btn btn-dark btn-sm btn-curve" data-toggle="modal" data-target="#customerResetPasswordModal"><i class="fas fa-redo"></i></a>
 				</td>
 			</tr>
 			{% endif %}
@@ -63,9 +63,14 @@
 		</tbody>
 	</table>
 
-	<input type="submit" class="btn btn-primary float-right" value="Save Changes">
+	<div class="form-group text-right">
+		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
 </form>
-	<input type="submit" class="btn btn-danger float-right" value="Discard Changes" onclick="window.location.href='{% url 'customers' %}'" style="margin-right: 10px;">
+		<a class="btn btn-danger" href="{% url 'customers' %}"><i class="fas fa-reply"></i></a>
+		{% if id %}
+			<a class="btn btn-warning" href="{% url 'book_logs' id %}"><i class="fas fa-file-alt"></i></a>
+		{% endif %}
+	</div>
 
 <div class="modal fade" id="customerResetPasswordModal" tabindex="-1" role="dialog" aria-labelledby="customerResetPasswordModalLabel" aria-hidden="true">
 	<div class="modal-dialog" role="document">
@@ -85,8 +90,8 @@
 					</div>
 			</div>
 			<div class="modal-footer">
-				<button type="submit" class="btn btn-danger" >Yes</button>
-				<button type="button" class="btn btn-primary" data-dismiss="modal">No</button>
+				<button type="submit" class="btn btn-danger btn-sm btn-curve" >Yes</button>
+				<button type="button" class="btn btn-primary btn-sm btn-curve" data-dismiss="modal">No</button>
 			</div>
 			</form>
 		</div>

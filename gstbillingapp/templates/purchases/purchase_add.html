@@ -17,8 +17,7 @@
 		<div class="col">
 			<h2>Add Purchase</h2>
 		</div>
-		<div class="col">
-			<a href="{% url 'purchases' %}" id="add_product_btn"><button type="button" class="btn btn-primary">Purchases</button></a>
+		<div class="col text-right">
 		</div>
 	</div>
 
@@ -74,8 +73,11 @@
 				<th>Ref No</th>
 				<th><input type="text"  name="addon2" placeholder="Invoice / Cheque No"></th>
 			</tr>
-			<tr>
-				<th colspan="2"><input type="submit" class="btn btn-primary"></th>
+			<tr class="text-right">
+				<th colspan="2">
+					<button type="submit" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-save"></i></button>
+					<a href="{% url 'purchases' %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-reply"></i></a>
+				</th>
 			</tr>
 		</form>
 	</table>
