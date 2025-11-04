@@ -1,0 +1,164 @@
+# Django imports
+from django.db.models import Sum
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect, get_object_or_404
+
+# Models
+from ..models import (
+    Invoice, Book, BookLog,
+    UserProfile, Customer
+)
+
+# Forms
+from ..forms import BookLogForm
+
+# Utility functions
+from ..utils import (
+    recalculate_book_current_balance
+)
+
+# Python imports
+import json
+import datetime
+
+# ===================== Book views =============================
+@login_required
+def books(request):
+    context = {}
+    context['book_list'] = Book.objects.filter(user=request.user).exclude(customer_id__isnull=True)
+    return render(request, 'books/books.html', context)
+
+
+@login_required
+def book_logs(request, book_id):
+    context = {}
+    book = get_object_or_404(Book, id=book_id, user=request.user)
+    book_logs = BookLog.objects.filter(parent_book=book).order_by('-date')
+    context['book'] = book
+    context['book_logs'] = book_logs
+    return render(request, 'books/book_logs.html', context)
+
+
+@login_required
+def book_logs_add(request, book_id):
+    context = {}
+    book = get_object_or_404(Book, id=book_id, user=request.user)
+    book_logs = BookLog.objects.filter(parent_book=book)
+    context['book'] = book
+    context['book_logs'] = book_logs
+    context['form'] = BookLogForm()
+
+    if request.method == "POST":
+        book_log_form = BookLogForm(request.POST)
+        invoice_no = request.POST["invoice_no"]
+        invoice = None
+        if invoice_no:
+            try:
+                invoice_no = int(invoice_no)
+                invoice = Invoice.objects.get(user=request.user, invoice_number=invoice_no)
+            except:
+                context['error_message'] = "Incorrect invoice number %s"%(invoice_no,)
+                return render(request, 'books/book_logs_add.html', context)
+                context['form'] = book_log_form
+                return render(request, 'books/book_logs_add.html', context)
+
+
+        book_log = book_log_form.save(commit=False)
+        book_log.parent_book = book
+        if invoice:
+            book_log.associated_invoice = invoice
+        book_log.save()
+
+        book.current_balance = book.current_balance + book_log.change
+        book.last_log = book_log
+        book.save()
+        return redirect('book_logs', book.id)
+
+    return render(request, 'books/book_logs_add.html', context)
+
+@login_required
+def book_logs_del(request, booklog_id):
+    bklg = get_object_or_404(BookLog, id=booklog_id)
+    book = get_object_or_404(Book, id=bklg.parent_book.id, user=request.user)
+    bklg.delete()
+    new_total = BookLog.objects.filter(parent_book=book).aggregate(Sum('change'))['change__sum']
+    new_last_log = BookLog.objects.filter(parent_book=book).last()
+    if not new_total:
+        new_total = 0
+    book.current_balance = new_total
+    book.last_log = new_last_log
+    book.save()
+    return redirect('book_logs', book.id)
+
+
+# ================= Books API Views ===========================
+@csrf_exempt
+def book_logs_api_add(request):
+    if request.method == "POST":
+        business_uid = request.GET.get('business_uid', None)
+        customer_id = request.GET.get('id', None)
+        notes = request.GET.get('notes', "Added via API")
+        if not business_uid or not id:
+            return JsonResponse({'status': 'error', 'message': 'Business UID and Customer ID are required.'})
+        user_profile = get_object_or_404(UserProfile, business_uid=business_uid)
+        if user_profile:
+            user = user_profile.user
+        customer = get_object_or_404(Customer, customer_userid=customer_id, user=user)
+        parent_book = get_object_or_404(Book, customer=customer, user=user)
+        data = request.body.decode('utf-8')
+        data = json.loads(data)
+        inserted_count = 0
+        not_inserted_count = 0
+        credits = 0
+        debits = 0
+        for item in data:
+            try:
+                date_text = item.get('date') or None
+                if date_text:
+                    try:
+                        date_text = datetime.datetime.strptime(date_text, '%Y-%m-%d')
+                    except:
+                        not_inserted_count += 1
+                        continue
+                else:
+                    not_inserted_count += 1
+                    continue
+                changes = item.get('change') or 0
+                if changes in [None, 'None', '', 0]:
+                    not_inserted_count += 1
+                    continue
+                change = float(changes)
+                if change > 0:
+                    change_type = 0  # credit
+                    credits += change
+                else:
+                    change_type = 1  # debit
+                    debits += abs(change)
+
+                associated_invoice_no = item.get('associated_invoice') or None
+                associated_invoice = None
+                if associated_invoice_no:
+                    try:
+                        associated_invoice_no = int(associated_invoice_no)
+                        associated_invoice = Invoice.objects.get(user=user, invoice_number=associated_invoice_no)
+                    except:
+                        pass
+                description = notes
+
+                book_log = BookLog(
+                    parent_book=parent_book,
+                    date=date_text,
+                    change=change,
+                    change_type=change_type,
+                    associated_invoice=associated_invoice,
+                    description=description
+                )
+                book_log.save()
+                inserted_count += 1
+            except Exception as e:
+                not_inserted_count += 1
+        recalculate_book_current_balance(parent_book)
+        return JsonResponse({'status': 'success', 'message': f'{customer.customer_name}\n{inserted_count} Book logs added successfully.\n{not_inserted_count} Book logs not added.\nCredits: {credits}, Debits: {debits}.'})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to add book logs.'})

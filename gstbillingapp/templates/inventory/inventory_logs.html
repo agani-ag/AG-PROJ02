@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+
+
+{% block content %}
+<h2>Inventory Details</h2>
+<hr>
+
+<div class="row">
+	<div class="col">
+		<h5>Model No: <b>{{inventory.product}}</b></h5>
+		<h5>Product: <b>{{inventory.product.product_name}}</b></h5>
+		<h5>HSN: <b>{{inventory.product.product_hsn}}</b></h5>
+		<h4>Current Stock: <b>{% if inventory.current_stock > 0 %}
+			<span class="text-success">{{ inventory.current_stock }}</span>
+			{% else %}
+			<span class="text-danger">{{ inventory.current_stock }}</span>
+			{% endif %}</b></h4>
+	</div>
+	<div class="col text-right">
+		<a href="{% url 'inventory_logs_add' inventory.id %}" class="btn btn-primary btn-sm btn-curve">
+			<i class="fas fa-plus"></i></a>
+		<a href="{% url 'inventory' %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-reply"></i></a>
+		<a href="{% url 'product_edit' inventory.product.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-edit"></i></a>
+	</div>
+</div>
+
+<hr>
+
+<table class="table table-hover font-weight-bold" id="inventory-logs-table">
+	<thead>
+		<tr>
+			<th>Date</th>
+			<th>Type</th>
+			<th>Change</th>
+			<th>Description</th>
+			<th></th>
+		</tr>
+	</thead>
+	<tbody class="two-col-form">
+		{% for item in inventory_logs %}
+		<tr class="{% if item.change < 0 %}table-danger{% else %}table-success{%endif%}">
+			<td>{{item.date}}</td>
+			<td>{{item.get_change_type_display}} {% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}">[INVOICE]</a>{% endif %}</td>
+			<td>{{item.change}}</td>
+			<td>{{item.description}}</td>
+			<td>
+				{% if not item.associated_invoice %}
+					<a href="{% url 'inventory_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
+						<i class="fas fa-trash"></i>
+					</a>
+				{% endif %}
+			</td>
+		{% endfor %}
+	</tbody>
+</table>
+
+
+
+{% endblock %}
+
+
+{% block includejs %}
+<script type="text/javascript">
+$(document).ready( function () {
+	$('#inventory-logs-table').DataTable({
+		"order": [],
+		"paging": true,
+	});
+});
+</script>
+{% endblock %}

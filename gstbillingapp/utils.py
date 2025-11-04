@@ -1,9 +1,12 @@
 # Django imports
 from django.db.models import Sum
+from gstbilling import settings
+from django.shortcuts import get_object_or_404
 
 # Python imports
 import json
 import datetime
+
 
 # Model imports
 from .models import Product
@@ -11,8 +14,10 @@ from .models import Inventory
 from .models import InventoryLog
 from .models import Book
 from .models import BookLog
+from .models import Customer
 
 
+#  ================= Invoice Methods ====================
 def invoice_data_validator(invoice_data):
     
     # Validate Invoice Info ----------
@@ -105,6 +110,7 @@ def invoice_data_processor(invoice_post_data):
     print(processed_invoice_data)
     return processed_invoice_data
 
+
 def update_products_from_invoice(invoice_data_processed, request):
     for item in invoice_data_processed['items']:
         new_product = False
@@ -131,8 +137,8 @@ def update_products_from_invoice(invoice_data_processed, request):
         if new_product:
             create_inventory(product)
 
-#  ================== Inventory methods ====================
 
+#  ================== Inventory methods ====================
 def create_inventory(product):
     if not Inventory.objects.filter(user=product.user, product=product).exists():
         new_inventory = Inventory(user=product.user, product=product)
@@ -180,14 +186,24 @@ def recalculate_inventory_total(inventory_obj, user):
     inventory_obj.save()
 
 
-# ================ Book methods ===========================
+def add_stock_to_inventory(product, quantity, description, user):
+    inventory = Inventory.objects.get(user=user, product=product)
+    inventory_log = InventoryLog(user=user,
+                                 product=product,
+                                 date=datetime.datetime.now(),
+                                 change=quantity,
+                                 change_type=1,
+                                 description=description)
+    inventory_log.save()
+    recalculate_inventory_total(inventory, user)
 
+
+# ================ Book Methods ===========================
 def add_customer_book(customer):
     # check if customer already exists
     if Book.objects.filter(user=customer.user, customer=customer).exists():
         return
-    book = Book(user=customer.user,
-                customer=customer)
+    book = Book(user=customer.user, customer=customer)
     book.save()
 
 
@@ -208,3 +224,28 @@ def auto_deduct_book_from_invoice(invoice):
     book.current_balance = book.current_balance + book_log.change
     book.last_log = book_log
     book.save()
+
+def recalculate_book_current_balance(book_obj):
+    new_total = BookLog.objects.filter(parent_book=book_obj).aggregate(Sum('change'))['change__sum']
+    if not new_total:
+        new_total = 0
+    book_obj.current_balance = new_total
+    book_obj.save()
+
+# ================ Customer Methods ===========================
+def add_customer_userid(customer):
+    # check if customer not already exists
+    if not Customer.objects.filter(user=customer.user, id=customer.id).exists():
+        return
+    customer = get_object_or_404(Customer, user=customer.user, id=customer.id)
+    c_userid = f"{settings.PRODUCT_PREFIX}{customer.user.id}C{customer.id}"
+    customer.customer_userid = c_userid.lower()
+    customer.save()
+
+
+def customer_already_exists(user, customer_phone, customer_email, customer_gst):
+    if Customer.objects.filter(user=user, customer_phone=customer_phone).exists() or \
+       Customer.objects.filter(user=user, customer_email=customer_email).exists() or \
+       Customer.objects.filter(user=user, customer_gst=customer_gst).exists():
+        return True
+    return False

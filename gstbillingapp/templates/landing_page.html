@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+
+{% load static %}
+<!doctype html>
+
+{% block title %}
+GSTSync
+{% endblock %}
+
+{% block metatags %}
+<meta name="description" content="Create GST invoice/bills for free. Automatic inventory Management and Books management.">
+<meta name="google-site-verification" content="MJbX1a9Fs1MIE1tnpRnp4At9OzVMxoumTAvOWUlG8-w" />
+<link rel="canonical" href="https://billgst.in/" />
+
+<meta property="og:title" content="BillGST - Simplest GST invoicing | Inventory Management | Book keeping" />
+<meta property="og:url" content="https://billgst.in" />
+<meta property="og:image" content="https://billgst.in{% static "gstbillingapp/images/screenshot_interface.png" %}" />
+{% endblock %}
+
+{% block content %}
+
+<div class="jumbotron">
+	<h2 class="display-6"><b>GST Sync</b></h2>
+	<h4 class="display-8">Smart Invoicing. Easy GST.</h4>
+	<a class="btn btn-primary btn-lg" href="{% url 'invoice_create' %}" role="button">Log In</a>
+	<hr class="my-4">
+	<div class="col d-flex align-items-stretch">
+		<div class="card text-white bg-primary mb-3">
+			<div class="card-body">
+			<img class="img-fluid" src="{% static 'gstbillingapp/images/screenshot_interface.png' %}" alt="Simple Interface">
+			</div>
+		</div>
+</div>
+
+
+</div>
+
+{% endblock %}
+
+
+
