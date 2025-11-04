@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% load static %}
+{% block includecss %}
+    <link rel="stylesheet" href="{% static 'gstbillingapp/features-upload.css' %}" id="main-css">
+{% endblock %}
+
+{% block content %}
+
+<!-- SheetJS -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Handsontable -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14.3.0/dist/handsontable.min.css">
+<script src="https://cdn.jsdelivr.net/npm/handsontable@14.3.0/dist/handsontable.min.js"></script>
+
+<div class="row">
+    <div class="col">
+        <h2>Excel Upload</h2>
+    </div>
+    <div class="col text-right" style="padding-top: 0.5%;">
+        <a href="javascript:history.back()" class="btn btn-danger btn-sm btn-curve">
+            <i class="fas fa-reply"></i>
+        </a>
+    </div>
+</div>
+<div class="alert alert-info">
+    <strong>Instructions:</strong>
+    <ul>
+        <li>Select the appropriate template from the dropdown.</li>
+        <li>Upload your Excel file (.xlsx, .xls, .csv).</li>
+        <li>Drag and drop to map uploaded columns to required headers.</li>
+        <li>Preview the mapped data and make any necessary edits.</li>
+        <li>Click the upload button to send data to the server.</li>
+    </ul>
+</div>
+<hr>
+
+<!-- 🟢 Dropdown Template Selector -->
+<label for="templateSelect"><strong>Template:</strong></label>
+<select id="templateSelect">
+    <option value="customer">Customer</option>
+    <option value="books">Books</option>
+    <option value="product">Product</option>
+    <option value="stock">Product Stock</option>
+</select>
+<select id="subSelect" style="display:none;">
+    <option value="">-- Select --</option>
+</select>
+<br>
+<input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+
+<div id="mappingContainer">
+    <div>
+        <h3>Uploaded Columns</h3>
+        <div id="uploadedColumns" class="columnBox"></div>
+    </div>
+    <div>
+        <h3>Required Headers</h3>
+        <div id="requiredColumns" class="columnBox"></div>
+    </div>
+    <div id="selectedValueContainer" style="display: none;">
+        <h3>Selected Value Details</h3>
+        <div id="selectedValueColumns" class="columnBox">
+            <div>No data found</div>
+        </div>
+    </div>
+</div>
+
+<button id="previewBtn" disabled>Preview Mapped Data</button>
+<div id="excelPreview"></div>
+
+<div class="footer-buttons">
+    <button id="uploadBtn" disabled><i class="fas fa-upload"></i></button>
+    <button id="reloaduploadBtn" style="display: none;"><i class="fas fa-reply"></i></button>
+    <button id="downloadBtn" disabled><i class="fas fa-download"></i></button>
+    <button id="refreshBtn" style="display: none;"><i class="fas fa-refresh"></i></button>
+</div>
+
+<script>
+const TEMPLATE_CONFIG = {{ template_config|safe }};
+
+let currentTemplate = "customer";
+let REQUIRED_HEADERS = TEMPLATE_CONFIG[currentTemplate].headers;
+let UPLOAD_URL = TEMPLATE_CONFIG[currentTemplate].api;
+
+let parsedData = [];
+let headerMapping = {};
+let hot;
+
+const templateSelect = document.getElementById("templateSelect");
+const subSelect = document.getElementById("subSelect");
+const selectedValueContainer = document.getElementById("selectedValueContainer");
+const fileInput = document.getElementById("fileInput");
+const uploadedColumnsDiv = document.getElementById("uploadedColumns");
+const requiredColumnsDiv = document.getElementById("requiredColumns");
+const selectedValueColumnsDiv = document.getElementById("selectedValueColumns");
+const previewBtn = document.getElementById("previewBtn");
+const uploadBtn = document.getElementById("uploadBtn");
+const reloaduploadBtn = document.getElementById("reloaduploadBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+const refreshBtn = document.getElementById("refreshBtn");
+const previewContainer = document.getElementById("excelPreview");
+
+// 🔄 When dropdown changes, update headers + API
+templateSelect.addEventListener("change", (e) => {
+    currentTemplate = e.target.value;
+    if (currentTemplate == "books") {
+            CT_DATA = TEMPLATE_CONFIG[currentTemplate].data;
+            CT_DATA.forEach(item => {
+            const option = document.createElement("option");
+            option.value = item.id;
+            option.textContent = item.id.toUpperCase();
+            subSelect.appendChild(option);
+        });
+        subSelect.style.display = "inline-block";
+        selectedValueContainer.style.display = "inline-block";
+    } 
+    else {
+        subSelect.style.display = "none";
+        selectedValueContainer.style.display = "none";
+    }
+
+    REQUIRED_HEADERS = TEMPLATE_CONFIG[currentTemplate].headers;
+    UPLOAD_URL = TEMPLATE_CONFIG[currentTemplate].api;
+    // Reset mapping and preview for new template
+    headerMapping = {};
+    requiredColumnsDiv.innerHTML = "";
+    previewContainer.innerHTML = "";
+    previewBtn.disabled = true;
+    uploadBtn.disabled = true;
+    downloadBtn.disabled = true;
+
+    // 🧠 If Excel is already uploaded, refresh the mapping UI
+    if (parsedData.length > 0) {
+        const uploadedHeaders = parsedData[0];
+        showMappingUI(uploadedHeaders);
+        previewBtn.disabled = false;
+    }
+});
+
+subSelect.addEventListener("change", (e) => {
+    const selectedId = e.target.value;
+    const selectedItem = CT_DATA.find(item => item.id === selectedId);
+
+    if (selectedItem) {
+        // Generate readable label + value divs
+        const columnsHTML = Object.entries(selectedItem)
+            .filter(([key, value]) => value !== "" && value !== null && value !== undefined)
+            .map(([key, value]) => {
+                // Convert snake_case or camelCase to Title Case
+                var label = key
+                    .replace(/_/g, " ")          // replace underscores with spaces
+                    .replace(/([A-Z])/g, " $1")  // add space before capitals
+                    .replace(/\b\w/g, c => c.toUpperCase()) // capitalize each word
+                    .trim();
+                if (label === "Id") {
+                    label = "ID";
+                }
+                return `
+                    <tr width="100px">
+                        <td align="right" class="wrapCell">${label}</td>
+                        <td width=250px><b>${value}</b></td>
+                    </tr>
+                    `;
+            })
+            .join("");
+
+        selectedValueColumnsDiv.innerHTML = `<table border="1" >${columnsHTML}</table>`;
+    } else {
+        selectedValueColumnsDiv.innerHTML = "<div>No data found</div>";
+    }
+});
+
+// 🧾 File Upload Logic
+fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return Swal.fire("Please select a file!");
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        parsedData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        if (parsedData.length === 0) return Swal.fire("Empty file!");
+
+        const uploadedHeaders = parsedData[0];
+        showMappingUI(uploadedHeaders);
+        previewBtn.disabled = false;
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+function showMappingUI(uploadedHeaders) {
+    uploadedColumnsDiv.innerHTML = "";
+    requiredColumnsDiv.innerHTML = "";
+    headerMapping = {};
+
+    // Uploaded Headers
+    uploadedHeaders.forEach(header => {
+        const div = document.createElement("div");
+        div.className = "columnItem";
+        div.textContent = header;
+        div.draggable = true;
+        div.dataset.header = header;
+
+        div.addEventListener("dragstart", e => {
+            if (!div.classList.contains("mapped")) {
+                e.dataTransfer.setData("text/plain", header);
+            } else {
+                e.preventDefault();
+            }
+        });
+
+        uploadedColumnsDiv.appendChild(div);
+    });
+
+    // Required Headers
+    REQUIRED_HEADERS.forEach(req => {
+        const box = document.createElement("div");
+        box.className = "dropTarget";
+        box.textContent = req + " (drop here)";
+        box.dataset.target = req;
+
+        box.addEventListener("dragover", e => e.preventDefault());
+        box.addEventListener("drop", e => {
+            e.preventDefault();
+            const header = e.dataTransfer.getData("text/plain");
+            if (!header) return;
+
+            if (Object.values(headerMapping).includes(header)) {
+                Swal.fire("That column is already mapped!");
+                return;
+            }
+
+            headerMapping[req] = header;
+
+            box.classList.add("mapped");
+            box.innerHTML = `${req} ← ${header} <span class="removeMap" title="Remove mapping">❌</span>`;
+
+            const uploadedDiv = [...uploadedColumnsDiv.children].find(d => d.dataset.header === header);
+            if (uploadedDiv) uploadedDiv.classList.add("mapped");
+
+            box.querySelector(".removeMap").addEventListener("click", () => {
+                delete headerMapping[req];
+                box.classList.remove("mapped");
+                box.textContent = req + " (drop here)";
+                if (uploadedDiv) uploadedDiv.classList.remove("mapped");
+            });
+        });
+
+        requiredColumnsDiv.appendChild(box);
+    });
+}
+
+previewBtn.addEventListener("click", () => {
+    if (Object.keys(headerMapping).length === 0) {
+        Swal.fire("Please map all required headers first!");
+        return;
+    }
+
+    const uploadedHeaders = parsedData[0];
+    const dataRows = parsedData.slice(1);
+
+    const mappedData = dataRows.map(row => {
+        const obj = {};
+        REQUIRED_HEADERS.forEach(req => {
+            const uploadedIndex = uploadedHeaders.indexOf(headerMapping[req]);
+            obj[req] = uploadedIndex >= 0 ? row[uploadedIndex] : null;
+        });
+        return obj;
+    });
+
+    renderPreview(mappedData);
+});
+
+function renderPreview(data) {
+    previewContainer.innerHTML = "";
+    hot = new Handsontable(previewContainer, {
+        data: data.map(Object.values),
+        colHeaders: REQUIRED_HEADERS,
+        rowHeaders: true,
+        contextMenu: ['remove_row', 'undo', 'redo', 'copy', 'cut'],
+        stretchH: 'all',
+        manualRowMove: true,
+        manualColumnMove: true,
+        minSpareRows: 1,
+        wordWrap: true,
+        height: 'auto',
+        licenseKey: 'non-commercial-and-evaluation'
+    });
+    uploadBtn.disabled = false;
+    downloadBtn.disabled = false;
+}
+
+uploadBtn.addEventListener("click", async () => {
+    if (!hot) return;
+    const edited = hot.getData();
+    const jsonData = edited
+        .filter(r => r.some(c => c !== null && c !== ""))
+        .map(r => Object.fromEntries(REQUIRED_HEADERS.map((h, i) => [h, r[i]])));
+    console.log("Sending data to API:", jsonData);
+    postUrl = UPLOAD_URL;
+    const a1 = templateSelect.value;
+    if (a1 === "books") {
+        const a2 = subSelect.value;
+        if (a2 === "") {
+            return Swal.fire('Please select a valid option from the second dropdown!');
+        }
+        postUrl += `&id=${a2}`;
+    }
+    const res = await fetch(postUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(jsonData)
+    });
+    if (res.ok) {
+        // HTTP status 200–299
+        const result = await res.json();
+        uploadBtn.disabled = true;
+        reloaduploadBtn.style.display = "inline-block";
+        refreshBtn.style.display = "inline-block";
+        Swal.fire(result.message || "Upload complete!");
+    } else {
+        // Handle non-200 responses
+        const errorText = await res.text();
+        Swal.fire(`Upload failed! (${res.status})`);
+    }
+
+});
+
+reloaduploadBtn.addEventListener("click", () => {
+    Swal.fire({
+        title: 'Reloading...',
+        didOpen: () => {
+            Swal.showLoading();
+            setTimeout(() => {
+                uploadBtn.disabled = false;
+                reloaduploadBtn.style.display = "none";
+                Swal.close();
+            }, 2000);
+        }
+    });
+});
+
+downloadBtn.addEventListener("click", () => {
+    if (!hot) return Swal.fire("No data to download!");
+
+    const edited = hot.getData();
+    const jsonData = edited
+        .filter(r => r.some(c => c !== null && c !== ""))
+        .map(r => Object.fromEntries(REQUIRED_HEADERS.map((h, i) => [h, r[i]])));
+
+    const worksheet = XLSX.utils.json_to_sheet(jsonData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
+    XLSX.writeFile(workbook, `${currentTemplate}_EditedData.xlsx`);
+});
+
+refreshBtn.addEventListener("click", () => {
+    location.reload();
+});
+</script>
+{% endblock %}

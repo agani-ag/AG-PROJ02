@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12 col-md-8 mx-auto">
+            <!-- Profile Card -->
+            <div class="card shadow-lg">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Business Profile</h4>
+					<div>
+						<a href="{% url 'user_profile_edit' %}" class="btn btn-light btn-sm mr-2"><b>Edit</b></a>
+                    	<a href="{% url 'logout_view' %}" class="btn btn-light btn-sm mr-2"><b>Logout</b></a>
+					</div>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered table-striped">
+                        <tbody>
+                            <tr>
+                                <th scope="row" class="text-right" style="min-width: 150px;">Name:</th>
+                                <td>{{ user_profile.business_title }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="text-right">Address:</th>
+                                <td>{% if user_profile.business_address %}{{ user_profile.business_address }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="text-right">Email:</th>
+                                <td>{% if user_profile.business_email %}{{ user_profile.business_email }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="text-right">Phone:</th>
+                                <td>{% if user_profile.business_phone %}{{ user_profile.business_phone }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="text-right">GST:</th>
+                                <td>{% if user_profile.business_gst %}{{ user_profile.business_gst }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="text-right">Brand:</th>
+                                <td>{% if user_profile.business_brand %}{{ user_profile.business_brand }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="text-right">UserID:</th>
+                                <td style="color: green;">{{ user_profile.business_uid }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

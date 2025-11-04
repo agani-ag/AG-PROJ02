@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% load humanize %}
+{% block content %}
+
+	{% if messages %}
+		{% for message in messages %}
+			<div class="alert {% if message.tags == 'success' %} alert-success
+				{% elif message.tags == 'error' %} alert-danger {% else %} alert-primary {% endif %}">
+			<p>{{ message }}</p>
+		{% endfor %}
+	</div>
+	{% endif %}
+
+
+
+	<div class="row">
+		<div class="col">
+			<h2>Edit Purchase</h2>
+		</div>
+		<div class="col">
+			<a href="{% url 'purchases' %}" id="add_product_btn"><button type="button" class="btn btn-primary">Purchases</button></a>
+		</div>
+	</div>
+	<table class="table table-bordered" id="invoice-table">
+		<form method="post">
+			{% csrf_token %}
+			<tr>
+				<th>Date</th>
+				<th><input type="datetime-local" value="{{ plog.date|date:'Y-m-d' }}T{{ plog.date|date:'H:i' }}" name="date"></th>
+			</tr>
+
+			<tr>
+				<th>Type</th>
+				<th>
+					<select id="ptype" name="ptype" onchange="toggleRow()">
+						{% if plog.ptype == 'purchase'%}
+							<option value="purchase" selected>Purchase</option>
+						{% else %}
+							<option value="purchase">Purchase</option>
+						{% endif %}
+						{% if plog.ptype == 'paid'%}
+							<option value="paid" selected>Paid</option>
+						{% else %}
+							<option value="paid">Paid</option>
+						{% endif %}
+					</select>
+				</th>
+			</tr>
+
+			<tr id="purchase-category-row">
+				<th>Category</th>
+				<th>
+					<select id="purchase-category" name="purchase_category" onchange="toggleTextbox()">
+						{% for cat in category %}
+							{% if plog.category == cat %}
+								<option value="{{ cat }}" selected>{{ cat }}</option>
+							{% else %}
+								<option value="{{ cat }}">{{ cat }}</option>
+							{% endif %}
+						{% endfor %}
+						<option value="Other">Other</option>
+					</select>
+					<input id="textbox" class="custom-textbox" type="text" name="other_category" 
+					style="display: none;" placeholder="Enter your option">
+				</th>
+			</tr>
+
+			<tr>
+				<th>Amount</th>
+				<th><input type="number" name="amount" value='{{plog.amount}}'required></th>
+			</tr>
+			
+			{% if plog.ptype == 'paid'%}
+			<tr id="paidRow">
+				<th>Paid Type</th>
+				<th>
+					<select id="addon1" name="addon1">
+						{% if plog.addon1 == 'cheque'%}
+							<option value="cheque" selected>Cheque</option>
+						{% else %}
+							<option value="cheque">Cheque</option>
+						{% endif %}
+						{% if plog.addon1 == 'rtgs'%}
+							<option value="rtgs" selected>RTGS</option>
+						{% else %}
+							<option value="rtgs">RTGS</option>
+						{% endif %}
+						{% if plog.addon1 == 'neft'%}
+							<option value="neft" selected>NEFT</option>
+						{% else %}
+							<option value="neft">NEFT</option>
+						{% endif %}
+					</select>
+				</th>
+			</tr>
+			{% else %}
+			<tr id="paidRow" style="display: none;">
+				<th>Paid Type</th>
+				<th>
+					<select id="addon1" name="addon1">
+						<option value="cheque">Cheque</option>
+						<option value="rtgs" selected>RTGS</option>
+						<option value="neft">NEFT</option>
+					</select>
+				</th>
+			</tr>
+			{% endif %}
+
+			<tr>
+				<th>Ref No</th>
+				<th><input type="text" name="addon2" value="{{plog.addon2}}" placeholder="Invoice / Cheque No"></th>
+			</tr>
+			<tr>
+				<th colspan="2">
+					<input type="submit" class="btn btn-primary" value="Update">
+					<a href="{% url 'purchases' %}" id="add_product_btn"><button type="button" class="btn btn-danger">Back</button></a>
+				</th>
+			</tr>
+		</form>
+	</table>
+		
+	
+	<script>
+		function toggleRow() {
+		var ptype = document.getElementById('ptype').value;
+		var purchaseRow = document.getElementById('paidRow');
+		var purchasCategoryRow = document.getElementById('purchase-category-row');
+		
+		// Show the row if 'purchase' is selected, otherwise hide it
+		if (ptype === 'purchase') {
+			purchaseRow.style.display = 'none';
+			purchasCategoryRow.style.display = '';
+		} else {
+			purchaseRow.style.display = '';
+			purchasCategoryRow.style.display = 'none';
+		}
+		}
+	</script>
+
+	<script>
+        // Check the initial value of the dropdown on page load
+        window.onload = function() {
+            toggleTextbox(); // Call the function to show/hide the textbox based on the selected value
+        };
+
+        function toggleTextbox() {
+            const dropdown = document.getElementById('purchase-category');
+            const textbox = document.getElementById('textbox');
+			var ptype = document.getElementById('ptype');
+			var purchasCategoryRow = document.getElementById('purchase-category-row');
+
+            // If the value is "Other", show the textbox
+            if (dropdown.value === 'Other' || dropdown.value === '') {
+                textbox.style.display = 'inline'; 
+            } else {
+                textbox.style.display = 'none'; 
+            }
+			if (ptype.value === 'purchase') {
+                purchasCategoryRow.style.display = ''; 
+            } else {
+                purchasCategoryRow.style.display = 'none'; 
+            }
+        }
+
+        // Event listener for change in the dropdown value
+        document.getElementById('purchase-category').addEventListener('change', toggleTextbox);
+    </script>
+{% endblock %}

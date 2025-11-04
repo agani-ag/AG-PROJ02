@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<h2>Edit Customer</h2>
+<form method="POST">
+	{% csrf_token %}
+	<table class="table">
+		<tbody class="two-col-form">
+			<tr>
+				<th scope="row" class="text-right">Customer Name:</th>
+				<td class="form-input-td">{{customer_form.customer_name}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Customer Address:</th>
+				<td class="form-input-td">
+					<textarea name="customer_address" rows="4" cols="30">{{customer_form.customer_address.value|default:''}}</textarea>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Customer Phone:</th>
+				<td class="form-input-td">
+					<input type="tel" name="customer_phone" pattern="^[6-9][0-9]{9}$"
+					value="{{customer_form.customer_phone.value|default:''}}" required>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Customer GST:</th>
+				<td class="form-input-td">
+					<input type="text" name="customer_gst" value="{{customer_form.customer_gst.value|default:''}}" 
+						   pattern="^$|^[A-Za-z0-9]{15}$" 
+						   title="GST number must be exactly 15 alphanumeric characters or left empty">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Customer Email:</th>
+				<td class="form-input-td">{{customer_form.customer_email}}</td>
+			</tr>
+			{% if customer_password.0 %}
+			<tr>
+				<th scope="row" class="text-right">Customer Login ID:</th>
+				<td class="form-input-td" aria-readonly="true">{{customer_userid | upper}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Customer Password:</th>
+				<td class="form-input-td" readonly style="color: {{customer_password.2}};">{{customer_password.1}}
+					<!-- <a href="#" class="btn btn-dark btn-sm btn-curve" data-toggle="modal" data-target="#customerResetPasswordModal"><i class="fas fa-redo"></i></a> -->
+					<a onclick="resetCustomerPassword('{{ customer_id }}')" class="btn btn-dark btn-sm btn-curve"><i class="fas fa-redo"></i></a>
+				</td>
+			</tr>
+			{% endif %}
+			<tr>
+				<th scope="row" class="text-right">Is Mobile User:</th>
+				<td class="form-input-td">
+					<label class="switch">
+						<input type="checkbox" name="is_mobile_user" {% if is_mobile_user %}checked{% endif %}>
+						<span class="slider round"></span>
+					</label>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<div class="form-group text-right">
+		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+</form>
+		<a class="btn btn-danger" href="{% url 'customers' %}"><i class="fas fa-reply"></i></a>
+		{% if id %}
+			<a class="btn btn-warning" href="{% url 'book_logs' id %}"><i class="fas fa-file-alt"></i></a>
+		{% endif %}
+	</div>
+
+<div class="modal fade" id="customerResetPasswordModal" tabindex="-1" role="dialog" aria-labelledby="customerResetPasswordModalLabel" aria-hidden="true">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="customerResetPasswordModalLabel">Default Password Reset</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form method="POST" action="{% url 'customer_default_password' %}">
+			{% csrf_token %}
+			<div class="modal-body">
+				Are you sure you want to reset password for <b>{{customer_userid | upper}}</b>?
+					<div class="form-group">
+						<input hidden="true" type="text" class="form-control" name="customer_id" value="{{customer_id}}">
+					</div>
+			</div>
+			<div class="modal-footer">
+				<button type="submit" class="btn btn-danger btn-sm btn-curve" >Yes</button>
+				<button type="button" class="btn btn-primary btn-sm btn-curve" data-dismiss="modal">No</button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<script>
+function resetCustomerPassword(customerId) {
+	Swal.fire({
+		title: 'Customer Password Reset',
+		text: "This will reset the password for the customer!",
+		icon: 'warning',
+		showCancelButton: true,
+		confirmButtonColor: '#3085d6',
+		cancelButtonColor: '#d33',
+		confirmButtonText: 'Yes, reset password!'
+	}).then((result) => {
+		if (result.isConfirmed) {
+			$.ajax({
+				type: "POST",
+				url: "{% url 'customer_default_password' %}",
+				data: {
+					'customer_userid': '{{ customer_userid }}',
+				},
+				success: function(response) {
+					Swal.fire(
+						'Success!',
+						response.message,
+						'success'
+					).then(() => {
+						location.reload();
+					});
+				},
+				error: function(xhr, status, error) {
+					Swal.fire(
+						'Error!',
+						'An error occurred while setting User IDs.',
+						'error'
+					);
+				}
+			});
+		}
+	});
+};
+</script>
+{% endblock %}

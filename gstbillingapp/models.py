@@ -4,6 +4,8 @@ from django.contrib.auth.models import User
 
 # Python imports
 from datetime import datetime
+from django.db.models import Q
+from django.core.exceptions import ValidationError
 
 # ========================== SAAS Data models ==================================
 
@@ -14,10 +16,25 @@ class UserProfile(models.Model):
     business_address = models.TextField(max_length=400, blank=True, null=True)
     business_email = models.EmailField(blank=True, null=True)
     business_phone = models.CharField(max_length=20, blank=True, null=True)
-    business_gst = models.CharField(max_length=15, blank=True, null=True, default='00AAAAA0000A0A0')
+    business_gst = models.CharField(max_length=15, blank=True, null=True)
     business_brand = models.CharField(max_length=30, blank=True, null=True, default=None)
     business_config = models.TextField(blank=True, null=True, default=None)
+    business_uid = models.TextField(blank=True, null=True)
 
+    def save(self, *args, **kwargs):
+        if self.business_title:
+            self.business_title = self.business_title.upper()
+        if self.business_address:
+            self.business_address = self.business_address.upper()
+        if self.business_email:
+            self.business_email = self.business_email.lower()
+        if self.business_gst:
+            self.business_gst = self.business_gst.upper()
+        if self.business_brand:
+            self.business_brand = self.business_brand.upper()
+
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return self.user.username
 
@@ -42,9 +59,26 @@ class BillingProfile(models.Model):
 class Customer(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     customer_name = models.CharField(max_length=200)
-    customer_address = models.TextField(max_length=600, blank=True, null=True, default='')
-    customer_phone = models.CharField(max_length=14, blank=True, null=True, default='')
-    customer_gst = models.CharField(max_length=15, blank=True, null=True, default='00AAAAA0000A0A0')
+    customer_address = models.TextField(max_length=600, blank=True, null=True)
+    customer_phone = models.CharField(max_length=14, blank=True, null=True)
+    customer_gst = models.CharField(max_length=15, blank=True, null=True)
+    customer_email = models.EmailField(blank=True, null=True)
+    customer_password = models.CharField(max_length=15, null=True, blank=True)
+    customer_userid = models.CharField(max_length=15, null=True, blank=True)
+    is_mobile_user = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        if self.customer_name:
+            self.customer_name = self.customer_name.upper()
+        if self.customer_address:
+            self.customer_address = self.customer_address.upper()
+        if self.customer_email:
+            self.customer_email = self.customer_email.lower()
+        if self.customer_gst:
+            self.customer_gst = self.customer_gst.upper()
+
+        super().save(*args, **kwargs)
+        
     def __str__(self):
         return self.customer_name
 
@@ -61,6 +95,7 @@ class Invoice(models.Model):
     invoice_json = models.TextField()
     inventory_reflected = models.BooleanField(default=True)
     books_reflected = models.BooleanField(default=True)
+    non_gst_mode = models.BooleanField(default=False)
     def __str__(self):
         return str(self.invoice_number) + " | " + str(self.invoice_date)
 
@@ -69,10 +104,19 @@ class Product(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     model_no = models.CharField(max_length=200)
     product_name = models.CharField(max_length=50, null=True, blank=True)
-    product_hsn = models.CharField(max_length=50)
+    product_hsn = models.CharField(max_length=50, null=True, blank=True)
     product_discount = models.FloatField(default=0)
     product_gst_percentage = models.FloatField(default=18)
-    product_rate_with_gst = models.FloatField()
+    product_rate_with_gst = models.FloatField(default=0)
+
+    def save(self, *args, **kwargs):
+        if self.model_no:
+            self.model_no = self.model_no.upper()
+        if self.product_name:
+            self.product_name = self.product_name.upper()
+        
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return str(self.model_no)
 
