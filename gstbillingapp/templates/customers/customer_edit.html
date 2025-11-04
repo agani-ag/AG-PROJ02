@@ -1,8 +1,5 @@
 {% extends "base.html" %}
-
 {% load static %}
-
-
 
 {% block content %}
 <h2>Edit Customer</h2>
@@ -47,7 +44,8 @@
 			<tr>
 				<th scope="row" class="text-right">Customer Password:</th>
 				<td class="form-input-td" readonly style="color: {{customer_password.2}};">{{customer_password.1}}
-					<a href="#" class="btn btn-dark btn-sm btn-curve" data-toggle="modal" data-target="#customerResetPasswordModal"><i class="fas fa-redo"></i></a>
+					<!-- <a href="#" class="btn btn-dark btn-sm btn-curve" data-toggle="modal" data-target="#customerResetPasswordModal"><i class="fas fa-redo"></i></a> -->
+					<a onclick="resetCustomerPassword('{{ customer_id }}')" class="btn btn-dark btn-sm btn-curve"><i class="fas fa-redo"></i></a>
 				</td>
 			</tr>
 			{% endif %}
@@ -98,4 +96,43 @@
 	</div>
 </div>
 
+<script>
+function resetCustomerPassword(customerId) {
+	Swal.fire({
+		title: 'Customer Password Reset',
+		text: "This will reset the password for the customer!",
+		icon: 'warning',
+		showCancelButton: true,
+		confirmButtonColor: '#3085d6',
+		cancelButtonColor: '#d33',
+		confirmButtonText: 'Yes, reset password!'
+	}).then((result) => {
+		if (result.isConfirmed) {
+			$.ajax({
+				type: "POST",
+				url: "{% url 'customer_default_password' %}",
+				data: {
+					'customer_userid': '{{ customer_userid }}',
+				},
+				success: function(response) {
+					Swal.fire(
+						'Success!',
+						response.message,
+						'success'
+					).then(() => {
+						location.reload();
+					});
+				},
+				error: function(xhr, status, error) {
+					Swal.fire(
+						'Error!',
+						'An error occurred while setting User IDs.',
+						'error'
+					);
+				}
+			});
+		}
+	});
+};
+</script>
 {% endblock %}

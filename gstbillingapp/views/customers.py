@@ -97,31 +97,36 @@ def customer_delete(request):
     return redirect('customers')
 
 
-@login_required
-def customer_default_password(request):
-    if request.method == "POST":
-        customer_id = request.POST["customer_id"]
-        customer_obj = get_object_or_404(Customer, user=request.user, id=customer_id)
-        customer_obj.customer_password = make_password(CPASSWORD)
-        customer_obj.save()
-        return redirect('customer_edit', customer_id=customer_id)
-
-
-@login_required
-def customerall_userid_set(request):
-    customer_obj = Customer.objects.filter(user=request.user)
-    for customer in customer_obj:
-        add_customer_userid(customer)
-        customer.is_mobile_user = True
-        customer.save()
-    return redirect('customers')
-
-
 # ================= Customer API Views ===========================
 @login_required
 def customersjson(request):
     customers = list(Customer.objects.filter(user=request.user).values())
     return JsonResponse(customers, safe=False)
+
+
+@csrf_exempt
+def customer_default_password(request):
+    if request.method == "POST":
+        customer_userid = request.POST["customer_userid"]
+        customer_obj = get_object_or_404(Customer, customer_userid=customer_userid)
+        customer_obj.customer_password = make_password(CPASSWORD)
+        customer_obj.save()
+        return JsonResponse({'status': 'success', 'message': f"{customer_userid.upper()} customer's password reset to default."})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to reset customer password.'})
+
+
+@csrf_exempt
+def customerall_userid_set(request):
+    if request.method == "POST":
+        customer_user = request.POST["customer_userid"]
+        customer_count = list(Customer.objects.filter(user_id=customer_user))
+        customer_obj = Customer.objects.filter(user_id=customer_user)
+        for customer in customer_obj:
+            add_customer_userid(customer)
+            customer.is_mobile_user = True
+            customer.save()
+        return JsonResponse({'status': 'success', 'message': f'{len(customer_count)} Customer User IDs set successfully.'})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to set customer user IDs.'})
 
 
 @csrf_exempt

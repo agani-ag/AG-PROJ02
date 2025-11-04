@@ -10,7 +10,7 @@
 		
 		<a href="{% url 'customer_add' %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-plus"></i></a>
 		<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve"><i class="fas fa-file-excel"></i></a>
-		<a href="{% url 'customerall_userid_set' %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-refresh"></i></a>
+		<button class="btn btn-warning btn-sm btn-curve" id="set-allcustomer-userid"><i class="fas fa-refresh"></i></button>
 	</div>
 </div>
 
@@ -130,5 +130,42 @@ $(document).ready( function () {
 	});
 });
 
+$('#set-allcustomer-userid').click(function(){
+	Swal.fire({
+		title: 'All Customer User IDs',
+		text: "This will set User IDs for all customers!",
+		icon: 'warning',
+		showCancelButton: true,
+		confirmButtonColor: '#3085d6',
+		cancelButtonColor: '#d33',
+		confirmButtonText: 'Yes, set User IDs!'
+	}).then((result) => {
+		if (result.isConfirmed) {
+			$.ajax({
+				type: "POST",
+				url: "{% url 'customer_default_password' %}",
+				data: {
+					'customer_userid': '{{ user.id }}',
+				},
+				success: function(response) {
+					Swal.fire(
+						'Success!',
+						response.message,
+						'success'
+					).then(() => {
+						location.reload();
+					});
+				},
+				error: function(xhr, status, error) {
+					Swal.fire(
+						'Error!',
+						'An error occurred while setting User IDs.',
+						'error'
+					);
+				}
+			});
+		}
+	});
+});
 </script>
 {% endblock %}

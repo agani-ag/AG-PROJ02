@@ -33,11 +33,11 @@ urlpatterns = [
     path('customers/add', customers.customer_add, name='customer_add'),
     path('customers/edit/<int:customer_id>', customers.customer_edit, name='customer_edit'),
     path('customers/delete', customers.customer_delete, name='customer_delete'),
-    path('customers/default_password', customers.customer_default_password, name='customer_default_password'),
-    path('customers/customerall_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
     path('customersjson', customers.customersjson, name='customersjson'),
     # API Endpoints
     path('customers/api/add', customers.customer_api_add, name='customer_api_add'),
+    path('customers/api/default_password', customers.customer_default_password, name='customer_default_password'),
+    path('customers/api/all_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
 
     # Book URLs
     path('books', books.books, name='books'),
