@@ -1,8 +1,5 @@
 {% extends "base.html" %}
-
 {% load static %}
-
-
 
 {% block content %}
 <div class="row">
@@ -10,7 +7,7 @@
 </div>
 <div class="col-sm">
 	<div class="card" id="login-card">
-		<h5 class="card-header">GST Billing Portal</h5>
+		<h5 class="card-header">GST SYNC</h5>
 		<div class="card-body">
 			<h5 class="card-title">Login and start billing now!</h5>
 		</div>
@@ -28,15 +25,34 @@
 					</tr>
 				</tbody>
 			</table>
-		
-			<input type="submit" class="btn btn-primary float-right" value="Login">
-		</form>
 
-		
+			<div class="text-right" style="margin-bottom: 5px;margin-right: 5px;">
+				<button type="submit" class="btn btn-primary"><i class="fas fa-sign-in-alt"></i></button>
+				{% if admin %}
+					<a href="#" class="btn btn-danger" onclick="signUp()"><i class="fas fa-user-plus"></i></a>
+				{% endif %}
+			</div>
+		</form>
 	</div>
-		<a href="{% url 'signup_view' %}"><input class="btn btn-danger float-right" value="Sign Up"></a>
-	</div>
+</div>
 <div class="col-sm">
 </div>
 </div>
+
+<script>
+	{% if admin %}
+		function signUp() {
+			Swal.fire({
+				title: 'Redirecting to Sign Up page',
+				text: 'You will be redirected to the Sign Up page.',
+				icon: 'info',
+				confirmButtonText: 'OK'
+			}).then((result) => {
+				if (result.isConfirmed) {
+					window.location.href = "{% url 'signup_view' %}";
+				}
+			});
+		};
+	{% endif %}
+</script>
 {% endblock %}

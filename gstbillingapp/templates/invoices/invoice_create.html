@@ -138,22 +138,43 @@
 
 	</table>
 	{% csrf_token %}
-	<button class="btn btn-primary" id="invoice-form-addrow">+</button>
-	<button type="submit" class="btn btn-primary">Submit</button>
+	<div class="d-flex justify-content-between">
+		<div>
+			<button class="btn btn-primary btn-sm" id="invoice-form-addrow"><i class="fas fa-plus"></i></button>
+		</div>
+		<div>
+			<button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check"></i></button>
+			<a href="#" class="btn btn-danger btn-sm" onclick="cancel_invoice()"><i class="fas fa-cancel"></i></a>
+		</div>
+	</div>
 
 </form>
-
-
 </div>
+
 <div id="customer_search_bar"></div>
 <div id="product_search_bar"></div>
 
-
 {% endblock %}
-
-
 
 {% block includejs %}
 <script src="{% static "gstbillingapp/js/fuse-3.4.6.min.js" %}"></script>
 <script src="{% static "gstbillingapp/js/main.js" %}"></script>
+
+<script>
+	function cancel_invoice() {
+		Swal.fire({
+			title: 'Are you sure?',
+			text: "All entered data will be lost!",
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonColor: '#3085d6',
+			cancelButtonColor: '#d33',
+			confirmButtonText: 'Yes, cancel it!'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				window.location.href = "{% url 'invoices' %}";
+			}
+		});
+	}
+</script>
 {% endblock %}

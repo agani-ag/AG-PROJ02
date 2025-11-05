@@ -22,15 +22,15 @@
         </a>
     </div>
 </div>
-<div class="alert alert-info">
+<div class="alert alert-info" id="instructions">
     <strong>Instructions:</strong>
-    <ul>
-        <li>Select the appropriate template from the dropdown.</li>
-        <li>Upload your Excel file (.xlsx, .xls, .csv).</li>
-        <li>Drag and drop to map uploaded columns to required headers.</li>
-        <li>Preview the mapped data and make any necessary edits.</li>
-        <li>Click the upload button to send data to the server.</li>
-    </ul>
+        <ul>
+            <li>Select the appropriate template from the dropdown.</li>
+            <li>Upload your Excel file (.xlsx, .xls, .csv).</li>
+            <li>Drag and drop to map uploaded columns to required headers.</li>
+            <li>Preview the mapped data and make any necessary edits.</li>
+            <li>Click the upload button to send data to the server.</li>
+        </ul>
 </div>
 <hr>
 
@@ -359,6 +359,11 @@ downloadBtn.addEventListener("click", () => {
 
 refreshBtn.addEventListener("click", () => {
     location.reload();
+});
+document.addEventListener("DOMContentLoaded", function() {
+    setTimeout(function() {
+        $("#instructions").fadeOut();
+    }, 5000);
 });
 </script>
 {% endblock %}

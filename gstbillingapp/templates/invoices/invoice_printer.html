@@ -186,7 +186,13 @@
 
 		</div>
 	</div>
-	<button onclick="window.print();" class="btn btn-primary d-print-none">Print Invoice</button>
+	<div class="text-right" style="margin-right: 5px;">
+		<button onclick="window.print();" 
+			class="btn btn-primary btn-curve d-print-none">
+			<i class="fas fa-print"></i>
+		</button>
+		<a href="{% url 'invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
+	</div>
 
 
 {% endblock %}

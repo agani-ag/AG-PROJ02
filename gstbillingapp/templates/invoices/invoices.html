@@ -15,8 +15,7 @@
 				<th>Invoice Number</th>
 				<th>Date</th>
 				<th>Customer</th>
-				<th></th>
-				<th></th>
+				<th>Actions</th>
 			</tr>
 		</thead>
 		<tbody class="two-col-form">
@@ -25,9 +24,14 @@
  				<!-- <td>{{invoice.id}}</td> -->
  				<td>{{invoice.invoice_number}}</td>
  				<td>{{invoice.invoice_date}}</td>
- 				<td>{{invoice.invoice_customer}}</td>
-				 <td><a href="{% url 'invoice_viewer' invoice.id %}"><button type="button" class="btn btn-primary">View</button></a></td>
-				 <td><button type="button" class="btn btn-danger" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{{invoice.id}}" data-invoice-number="{{invoice.invoice_number}}, for {{invoice.invoice_customer}}">Delete</button></td>
+ 				<td>{% if invoice.invoice_customer %}{{invoice.invoice_customer}}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
+				<td>
+					<div class="btn-group" role="group" aria-label="Basic example">
+						<button type="button" onclick="popup_invoice({{ invoice.id }})" class="btn btn-primary btn-sm btn-curve"><i class="fa fa-eye"></i></button>
+						<a href="{% url 'invoice_viewer' invoice.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fa fa-external-link-square"></i></a>
+						<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{{invoice.id}}" data-invoice-number="{{invoice.invoice_number}}, for {{invoice.invoice_customer}}"><i class="fa fa-trash"></i></button>
+					</div>
+				</td>
 			</tr>
 			{% endfor %}
 		</tbody>
@@ -53,8 +57,8 @@
 							</div>
 					</div>
 					<div class="modal-footer">
-						<button type="submit" class="btn btn-danger" >Yes</button>
-						<button type="button" class="btn btn-primary" data-dismiss="modal">No</button>
+						<button type="submit" class="btn btn-danger btn-sm btn-curve" >Yes</button>
+						<button type="button" class="btn btn-primary btn-sm btn-curve" data-dismiss="modal">No</button>
 					</div>
 					</form>
 				</div>
@@ -90,5 +94,18 @@
 			"paging": true
 		});
 	});
+
+	function popup_invoice(invoice) {
+		fetch("/invoice/"+invoice+"?nav=1")
+		.then(r => r.text())
+		.then(html => {
+		Swal.fire({
+			html: `<div style="height:80vh; overflow-y:auto;width:90%;margin:auto;border:2px solid #ccc;">${html}</div>`,
+			width: '80%',
+			showCloseButton: true,
+			showConfirmButton: false,
+		});
+	});
+}	
 </script>
 {% endblock %}

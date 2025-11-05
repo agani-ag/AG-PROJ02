@@ -15,6 +15,9 @@ def login_view(request):
     if request.user.is_authenticated:
         return redirect("invoice_create")
     context = {}
+    if request.GET.get("admin"):
+        context["admin"] = True
+    context["admin_password"] = settings.PRODUCT
     auth_form = AuthenticationForm(request)
     if request.method == "POST":
         auth_form = AuthenticationForm(request, data=request.POST)
@@ -30,6 +33,7 @@ def login_view(request):
 
 
 def signup_view(request):
+
     if request.user.is_authenticated:
         return redirect("invoice_create")
     context = {}
