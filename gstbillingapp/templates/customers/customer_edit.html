@@ -136,7 +136,7 @@ function resetCustomerPassword(customerId) {
 };
 
 function popup_books() {
-	fetch("{% url 'book_logs' id %}?nav=1")
+	fetch("/books/{{ id }}?nav=1")
     .then(r => r.text())
     .then(html => {
       Swal.fire({

@@ -20,7 +20,9 @@
 </head>
 
 <body>
-	{% include "navbar.html" %}
+	{% if not nav_hide %}
+		{% include "navbar.html" %}
+	{% endif %}
 
 		{% block content %}
 			CONTENT BLOCK

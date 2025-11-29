@@ -8,163 +8,188 @@
 		{% for message in messages %}
 			<div class="alert {% if message.tags == 'success' %} alert-success
 				{% elif message.tags == 'error' %} alert-danger {% else %} alert-primary {% endif %}">
-			<p>{{ message }}</p>
+			<p>{{ message.tags }}</p>
 		{% endfor %}
 	</div>
 	{% endif %}
 
-
-
 	<div class="row">
 		<div class="col">
-			<h2>Edit Purchase</h2>
+			<h2>Add Purchase</h2>
 		</div>
-		<div class="col">
-			<a href="{% url 'purchases' %}" id="add_product_btn"><button type="button" class="btn btn-primary">Purchases</button></a>
+		<div class="col text-right">
 		</div>
 	</div>
+
 	<table class="table table-bordered" id="invoice-table">
 		<form method="post">
 			{% csrf_token %}
 			<tr>
 				<th>Date</th>
-				<th><input type="datetime-local" value="{{ plog.date|date:'Y-m-d' }}T{{ plog.date|date:'H:i' }}" name="date"></th>
+				<th><input type="datetime-local" value="{{ purchase_log.date|date:"Y-m-d\TH:i" }}" name="date" ></th>
 			</tr>
-
 			<tr>
 				<th>Type</th>
 				<th>
-					<select id="ptype" name="ptype" onchange="toggleRow()">
-						{% if plog.ptype == 'purchase'%}
-							<option value="purchase" selected>Purchase</option>
-						{% else %}
-							<option value="purchase">Purchase</option>
-						{% endif %}
-						{% if plog.ptype == 'paid'%}
-							<option value="paid" selected>Paid</option>
-						{% else %}
-							<option value="paid">Paid</option>
-						{% endif %}
-					</select>
+					<label><input type="radio" name="ptype" value="0" {% if purchase_log.ptype == 0 %}checked{% endif %}> Purchase</label>
+					<label><input type="radio" name="ptype" value="1" {% if purchase_log.ptype == 1 %}checked{% endif %}> Paid</label>
 				</th>
 			</tr>
-
 			<tr id="purchase-category-row">
 				<th>Category</th>
 				<th>
-					<select id="purchase-category" name="purchase_category" onchange="toggleTextbox()">
-						{% for cat in category %}
-							{% if plog.category == cat %}
-								<option value="{{ cat }}" selected>{{ cat }}</option>
-							{% else %}
-								<option value="{{ cat }}">{{ cat }}</option>
-							{% endif %}
+					<input list="purchase_categories" id="purchase_category" name="purchase_category" value="{{ purchase_log.purchase_category }}">
+					<datalist id="purchase_categories">
+						{% for cat in purchase_categories %}
+							<option value="{{ cat }}">
 						{% endfor %}
-						<option value="Other">Other</option>
-					</select>
-					<input id="textbox" class="custom-textbox" type="text" name="other_category" 
-					style="display: none;" placeholder="Enter your option">
+					</datalist>
 				</th>
+				<!-- <th><input type="text" name="purchase_category" placeholder="Purchase Category"></th> -->
 			</tr>
-
+			{{category}}
+			<tr id="paid-category-row" style="display:none;">
+				<th>Category</th>
+				<th>
+					<input list="paid_categories" id="paid_category" name="paid_category" value="{{ purchase_log.paid_category }}">
+					<datalist id="paid_categories">
+						{% for cat in paid_categories %}
+							<option value="{{ cat }}">
+						{% endfor %}
+					</datalist>
+					<!-- <select name="paid_category">
+						<option value="Cheque">Cheque</option>
+						<option value="RTGS">RTGS</option>
+						<option value="NEFT">NEFT</option>
+					</select> -->
+				</th>
+				<!-- <th><input type="text" name="paid_category" placeholder="Paid Category"></th> -->
+			</tr>
 			<tr>
 				<th>Amount</th>
-				<th><input type="number" name="amount" value='{{plog.amount}}'required></th>
+				<th><input type="number" name="amount" value="{{ purchase_log.amount }}" required></th>
 			</tr>
-			
-			{% if plog.ptype == 'paid'%}
-			<tr id="paidRow">
-				<th>Paid Type</th>
+			<tr>
+				<th>Reference</th>
 				<th>
-					<select id="addon1" name="addon1">
-						{% if plog.addon1 == 'cheque'%}
-							<option value="cheque" selected>Cheque</option>
-						{% else %}
-							<option value="cheque">Cheque</option>
-						{% endif %}
-						{% if plog.addon1 == 'rtgs'%}
-							<option value="rtgs" selected>RTGS</option>
-						{% else %}
-							<option value="rtgs">RTGS</option>
-						{% endif %}
-						{% if plog.addon1 == 'neft'%}
-							<option value="neft" selected>NEFT</option>
-						{% else %}
-							<option value="neft">NEFT</option>
-						{% endif %}
+					<input type="text" name="paid_reference" id="paid_reference" value="{{ purchase_log.paid_reference }}">
+					<input type="text" name="purchase_reference" id="purchase_reference" value="{{ purchase_log.purchase_reference }}">
+				</th>
+			</tr>
+			<tr>
+				<th>Status</th>
+				<th>
+					<label><input type="radio" name="status" value="0" {% if purchase_log.status == 0 %}checked{% endif %}> Open</label>
+					<label><input type="radio" name="status" value="1" {% if purchase_log.status == 1 %}checked{% endif %}> Closed</label>
+				</th>
+			</tr>
+			<tr>
+				<th>Vendor</th>
+				<th>
+					<select name="vendor">
+						<option value="">Select Vendor</option>
+						{% for vendor in vendors %}
+						<option 
+							value="{{ vendor.id }}"
+							data-address="{{ vendor.vendor_address }}"
+							data-phone="{{ vendor.vendor_phone }}"
+							data-email="{{ vendor.vendor_email }}"
+							data-gst="{{ vendor.vendor_gst }}"
+							{% if vendor.id == purchase_log.vendor.id %} selected {% endif %}
+							>
+								{{ vendor.vendor_name }}
+							</option>
+						{% endfor %}
 					</select>
 				</th>
 			</tr>
-			{% else %}
-			<tr id="paidRow" style="display: none;">
-				<th>Paid Type</th>
-				<th>
-					<select id="addon1" name="addon1">
-						<option value="cheque">Cheque</option>
-						<option value="rtgs" selected>RTGS</option>
-						<option value="neft">NEFT</option>
-					</select>
-				</th>
-			</tr>
-			{% endif %}
-
-			<tr>
-				<th>Ref No</th>
-				<th><input type="text" name="addon2" value="{{plog.addon2}}" placeholder="Invoice / Cheque No"></th>
-			</tr>
-			<tr>
+			<tr class="text-right">
 				<th colspan="2">
-					<input type="submit" class="btn btn-primary" value="Update">
-					<a href="{% url 'purchases' %}" id="add_product_btn"><button type="button" class="btn btn-danger">Back</button></a>
+					<button type="submit" class="btn btn-primary btn-curve"><i class="fas fa-save"></i></button>
+					<a href="{% url 'purchases' %}" class="btn btn-danger btn-curve"><i class="fas fa-cancel"></i></a>
 				</th>
 			</tr>
 		</form>
 	</table>
-		
-	
-	<script>
-		function toggleRow() {
-		var ptype = document.getElementById('ptype').value;
-		var purchaseRow = document.getElementById('paidRow');
-		var purchasCategoryRow = document.getElementById('purchase-category-row');
-		
-		// Show the row if 'purchase' is selected, otherwise hide it
-		if (ptype === 'purchase') {
-			purchaseRow.style.display = 'none';
-			purchasCategoryRow.style.display = '';
+
+	<div id="vendorPopup" style="
+		display:none;
+		position:absolute;
+		padding:10px;
+		background:#fff;
+		border:1px solid #ccc;
+		box-shadow:0 2px 6px rgba(0,0,0,0.2);
+		width:250px;
+	"></div>
+
+<script>
+  function toggleCategoryRow() {
+    const isPurchaseSelected = document.querySelector('input[name="ptype"]:checked').value === '1';
+    if (isPurchaseSelected) {
+      document.getElementById('paid-category-row').style.display = 'table-row';
+      document.getElementById('purchase-category-row').style.display = 'none';
+	  document.getElementById('paid_reference').style.display = 'table-cell';
+	  document.getElementById('purchase_reference').style.display = 'none';
+    } else {
+      document.getElementById('paid-category-row').style.display = 'none';
+      document.getElementById('purchase-category-row').style.display = 'table-row';
+	  document.getElementById('paid_reference').style.display = 'none';
+	  document.getElementById('purchase_reference').style.display = 'table-cell';
+    }
+  }
+
+  window.onload = function() {
+    const ptypeRadios = document.querySelectorAll('input[name="ptype"]');
+    ptypeRadios.forEach(function(radio) {
+      radio.addEventListener('change', toggleCategoryRow);
+    });
+    toggleCategoryRow();
+  };
+
+  const input = document.querySelector('input#purchase_category');
+
+  // Show all options when input is focused
+  input.addEventListener('focus', () => {
+    input.setAttribute('placeholder', 'Purchase Category');
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+  });
+</script>
+
+<script>
+	function showVendorPopup() {
+		const select = document.querySelector('select[name="vendor"]');
+		const selectedOption = select.options[select.selectedIndex];
+		const address = selectedOption.getAttribute('data-address') || 'N/A';
+		const phone = selectedOption.getAttribute('data-phone') || 'N/A';
+		const email = selectedOption.getAttribute('data-email') || 'N/A';
+		const gst = selectedOption.getAttribute('data-gst') || 'N/A';
+
+		const popup = document.getElementById('vendorPopup');
+		popup.innerHTML = `
+			<strong>Address:</strong> ${address}<br>
+			<strong>Phone:</strong> ${phone}<br>
+			<strong>Email:</strong> ${email}<br>
+			<strong>GST:</strong> ${gst}
+		`;
+
+		if (select.value) {
+			popup.style.display = 'block';
+			const rect = select.getBoundingClientRect();
+			popup.style.top = (rect.bottom + window.scrollY) + 'px';
+			popup.style.left = (rect.left + window.scrollX) + 'px';
 		} else {
-			purchaseRow.style.display = '';
-			purchasCategoryRow.style.display = 'none';
+			popup.style.display = 'none';
 		}
-		}
-	</script>
+	}
 
-	<script>
-        // Check the initial value of the dropdown on page load
-        window.onload = function() {
-            toggleTextbox(); // Call the function to show/hide the textbox based on the selected value
-        };
+	document.querySelector('select[name="vendor"]').addEventListener('change', showVendorPopup);
 
-        function toggleTextbox() {
-            const dropdown = document.getElementById('purchase-category');
-            const textbox = document.getElementById('textbox');
-			var ptype = document.getElementById('ptype');
-			var purchasCategoryRow = document.getElementById('purchase-category-row');
-
-            // If the value is "Other", show the textbox
-            if (dropdown.value === 'Other' || dropdown.value === '') {
-                textbox.style.display = 'inline'; 
-            } else {
-                textbox.style.display = 'none'; 
-            }
-			if (ptype.value === 'purchase') {
-                purchasCategoryRow.style.display = ''; 
-            } else {
-                purchasCategoryRow.style.display = 'none'; 
-            }
-        }
-
-        // Event listener for change in the dropdown value
-        document.getElementById('purchase-category').addEventListener('change', toggleTextbox);
-    </script>
+	// Show popup initially if a vendor is already selected
+	window.addEventListener('DOMContentLoaded', function() {
+		setTimeout(function() {
+			showVendorPopup();
+		}, 1000);
+	});
+</script>
 {% endblock %}

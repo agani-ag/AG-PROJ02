@@ -28,50 +28,79 @@
 				<th>Date</th>
 				<th><input type="datetime-local" value="{%now "Y-m-d H:i:s"%}" name="date"></th>
 			</tr>
-
 			<tr>
 				<th>Type</th>
 				<th>
-					<select id="ptype" name="ptype" onchange="toggleRow()">
-						<option value="purchase">Purchase</option>
-						<option value="paid">Paid</option>
-					</select>
+					<label><input type="radio" name="ptype" value="0" checked> Purchase</label>
+					<label><input type="radio" name="ptype" value="1"> Paid</label>
 				</th>
 			</tr>
-
 			<tr id="purchase-category-row">
 				<th>Category</th>
 				<th>
-					<select id="purchase-category" name="purchase_category" onchange="toggleTextbox()">
-						{% for cat in category %}
-							<option value="{{ cat }}">{{ cat }}</option>
+					<input list="purchase_categories" id="purchase_category" name="purchase_category">
+					<datalist id="purchase_categories">
+						{% for cat in purchase_categories %}
+							<option value="{{ cat }}">
 						{% endfor %}
-						<option value="Other">Other</option>
-					</select>
-					<input id="textbox" class="custom-textbox" type="text" name="other_category" 
-					style="display: none;" placeholder="Enter your option">
+					</datalist>
 				</th>
+				<!-- <th><input type="text" name="purchase_category" placeholder="Purchase Category"></th> -->
 			</tr>
-
+			{{category}}
+			<tr id="paid-category-row" style="display:none;">
+				<th>Category</th>
+				<th>
+					<input list="paid_categories" id="paid_category" name="paid_category">
+					<datalist id="paid_categories">
+						{% for cat in paid_categories %}
+							<option value="{{ cat }}">
+						{% endfor %}
+					</datalist>
+					<!-- <select name="paid_category">
+						<option value="Cheque">Cheque</option>
+						<option value="RTGS">RTGS</option>
+						<option value="NEFT">NEFT</option>
+					</select> -->
+				</th>
+				<!-- <th><input type="text" name="paid_category" placeholder="Paid Category"></th> -->
+			</tr>
 			<tr>
 				<th>Amount</th>
 				<th><input type="number" name="amount" required></th>
 			</tr>
-			
-			<tr id="paidRow" style="display: none;">
-				<th>Paid Type</th>
+			<tr>
+				<th>Reference</th>
 				<th>
-					<select id="addon1" name="addon1">
-						<option value="cheque">Cheque</option>
-						<option value="rtgs">RTGS</option>
-						<option value="neft">NEFT</option>
-					</select>
+					<input type="text" name="paid_reference" id="paid_reference">
+					<input type="text" name="purchase_reference" id="purchase_reference">
 				</th>
 			</tr>
-
 			<tr>
-				<th>Ref No</th>
-				<th><input type="text"  name="addon2" placeholder="Invoice / Cheque No"></th>
+				<th>Status</th>
+				<th>
+					<label><input type="radio" name="status" value="0" checked> Open</label>
+					<label><input type="radio" name="status" value="1"> Closed</label>
+				</th>
+			</tr>
+			<tr>
+				<th>Vendor</th>
+				<th>
+					<select name="vendor">
+						<option value="">Select Vendor</option>
+						{% for vendor in vendors %}
+							<option 
+								value="{{ vendor.id }}"
+								data-address="{{ vendor.vendor_address }}"
+								data-phone="{{ vendor.vendor_phone }}"
+								data-email="{{ vendor.vendor_email }}"
+								data-gst="{{ vendor.vendor_gst }}"
+							>
+								{{ vendor.vendor_name }}
+							</option>
+						{% endfor %}
+					</select>
+				</th>
 			</tr>
 			<tr class="text-right">
 				<th colspan="2">
@@ -82,43 +111,74 @@
 		</form>
 	</table>
 
-	<script>
-		function toggleRow() {
-		var ptype = document.getElementById('ptype').value;
-		var purchaseRow = document.getElementById('paidRow');
-		var purchasCategoryRow = document.getElementById('purchase-category-row');
-		
-		// Show the row if 'purchase' is selected, otherwise hide it
-		if (ptype === 'paid') {
-			purchaseRow.style.display = '';
-			purchasCategoryRow.style.display = 'none';
+	<div id="vendorPopup" style="
+		display:none;
+		position:absolute;
+		padding:10px;
+		background:#fff;
+		border:1px solid #ccc;
+		box-shadow:0 2px 6px rgba(0,0,0,0.2);
+		width:250px;
+	"></div>
+
+<script>
+  function toggleCategoryRow() {
+    const isPurchaseSelected = document.querySelector('input[name="ptype"]:checked').value === '1';
+    if (isPurchaseSelected) {
+      document.getElementById('paid-category-row').style.display = 'table-row';
+      document.getElementById('purchase-category-row').style.display = 'none';
+	  document.getElementById('paid_reference').style.display = 'table-cell';
+	  document.getElementById('purchase_reference').style.display = 'none';
+    } else {
+      document.getElementById('paid-category-row').style.display = 'none';
+      document.getElementById('purchase-category-row').style.display = 'table-row';
+	  document.getElementById('paid_reference').style.display = 'none';
+	  document.getElementById('purchase_reference').style.display = 'table-cell';
+    }
+  }
+
+  window.onload = function() {
+    const ptypeRadios = document.querySelectorAll('input[name="ptype"]');
+    ptypeRadios.forEach(function(radio) {
+      radio.addEventListener('change', toggleCategoryRow);
+    });
+    toggleCategoryRow();
+  };
+
+  const input = document.querySelector('input#purchase_category');
+
+  // Show all options when input is focused
+  input.addEventListener('focus', () => {
+    input.setAttribute('placeholder', 'Purchase Category');
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+  });
+</script>
+
+<script>
+	document.querySelector('select[name="vendor"]').addEventListener('change', function() {
+		const selectedOption = this.options[this.selectedIndex];
+		const address = selectedOption.getAttribute('data-address') || 'N/A';
+		const phone = selectedOption.getAttribute('data-phone') || 'N/A';
+		const email = selectedOption.getAttribute('data-email') || 'N/A';
+		const gst = selectedOption.getAttribute('data-gst') || 'N/A';
+
+		const popup = document.getElementById('vendorPopup');
+		popup.innerHTML = `
+			<strong>Address:</strong> ${address}<br>
+			<strong>Phone:</strong> ${phone}<br>
+			<strong>Email:</strong> ${email}<br>
+			<strong>GST:</strong> ${gst}
+		`;
+
+		if (this.value) {
+			popup.style.display = 'block';
+			const rect = this.getBoundingClientRect();
+			popup.style.top = (rect.bottom + window.scrollY) + 'px';
+			popup.style.left = (rect.left + window.scrollX) + 'px';
 		} else {
-			purchaseRow.style.display = 'none';
-			purchasCategoryRow.style.display = '';
+			popup.style.display = 'none';
 		}
-		}
-	</script>
-
-
-	<script>
-        // Check the initial value of the dropdown on page load
-        window.onload = function() {
-            toggleTextbox(); // Call the function to show/hide the textbox based on the selected value
-        };
-
-        function toggleTextbox() {
-            const dropdown = document.getElementById('purchase-category');
-            const textbox = document.getElementById('textbox');
-
-            // If the value is "Other", show the textbox
-            if (dropdown.value === 'Other' || dropdown.value === '') {
-                textbox.style.display = 'inline';
-            } else {
-                textbox.style.display = 'none';
-            }
-        }
-
-        // Event listener for change in the dropdown value
-        document.getElementById('purchase-category').addEventListener('change', toggleTextbox);
-    </script>
+	});
+</script>
 {% endblock %}

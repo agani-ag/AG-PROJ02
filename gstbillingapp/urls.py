@@ -5,7 +5,7 @@ from django.urls import path, include
 from .views import (
     auth, profile, invoices, customers,
     books, products, inventory, purchases,
-    features, views
+    vendor_purchase, features, views
 )
 
 urlpatterns = [
@@ -69,6 +69,12 @@ urlpatterns = [
     path('purchases/add', purchases.purchases_add, name='purchases_add'),
     path('purchases/edit/<int:pid>', purchases.purchases_edit, name='purchases_edit'),
     path('purchases/delete/<int:pid>', purchases.purchases_delete, name='purchases_delete'),
+
+    # Vendor Purchase URLs
+    path('purchases/vendors', vendor_purchase.vendors_purchase, name='vendors_purchase'),
+    path('purchases/vendor/add', vendor_purchase.vendor_purchase_add, name='vendor_purchase_add'),
+    path('purchases/vendor/edit/<int:vendor_purchase_id>', vendor_purchase.vendor_purchase_edit, name='vendor_purchase_edit'),
+    path('purchases/vendor/delete', vendor_purchase.vendor_purchase_delete, name='vendor_purchase_delete'),
     
     # Features URLs
     path('feature/upload', features.excel_upload, name='feature_upload'),

@@ -49,7 +49,7 @@
 
 <script>
 function popup_inventory() {
-	fetch("{% url 'inventory_logs' id %}?nav=1")
+	fetch("/inventory/{{ id }}?nav=1")
     .then(r => r.text())
     .then(html => {
       Swal.fire({

@@ -11,6 +11,7 @@ from .models import InventoryLog
 from .models import BookLog
 from .models import Book
 from .models import PurchaseLog
+from .models import VendorPurchase
 
 # User and Billing Profile
 admin.site.register(UserProfile)
@@ -25,3 +26,4 @@ admin.site.register(InventoryLog)
 admin.site.register(Book)
 admin.site.register(BookLog)
 admin.site.register(PurchaseLog)
+admin.site.register(VendorPurchase)

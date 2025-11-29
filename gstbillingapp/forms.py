@@ -1,9 +1,8 @@
 from django.forms import ModelForm
-from .models import Customer
-from .models import Product
-from .models import UserProfile
-from .models import InventoryLog
-from .models import BookLog
+from .models import (
+    Customer, Product, UserProfile,
+    InventoryLog, BookLog, VendorPurchase
+)
 
 
 class CustomerForm(ModelForm):
@@ -40,3 +39,8 @@ class BookLogForm(ModelForm):
     class Meta:
         model = BookLog
         fields = ['date', 'change', 'change_type', 'description']
+
+class VendorPurchaseForm(ModelForm):
+    class Meta:
+        model = VendorPurchase
+        fields = ['vendor_name', 'vendor_address', 'vendor_phone', 'vendor_gst', 'vendor_email']

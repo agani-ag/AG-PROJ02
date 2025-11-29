@@ -186,13 +186,45 @@ class BookLog(models.Model):
 class PurchaseLog(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     date = models.DateTimeField(default=datetime.now, blank=True, null=True)
-    status = models.CharField(max_length=100, default='open')
-    ptype = models.CharField(max_length=100, default='purchase')
-    ventor = models.CharField(max_length=100, blank=True, null=True)
-    category = models.CharField(max_length=100, blank=True, null=True)
-    addon1 = models.CharField(max_length=100, default='cheque')
-    addon2 = models.CharField(max_length=100, blank=True, null=True)
+    STATUS_TYPES = [
+        (0, 'Open'),
+        (1, 'Closed'),
+    ]
+    status = models.IntegerField(choices=STATUS_TYPES, default=0)
+    P_TYPES = [
+        (0, 'Purchase'),
+        (1, 'Paid'),
+    ]
+    ptype = models.IntegerField(choices=P_TYPES, default=0)
+    vendor = models.ForeignKey("VendorPurchase", null=True, blank=True, on_delete=models.SET_NULL)
+    paid_category = models.CharField(max_length=100, blank=True, null=True)
+    purchase_category = models.CharField(max_length=100, blank=True, null=True)
+    paid_reference = models.CharField(max_length=100, blank=True, null=True)
+    purchase_reference = models.CharField(max_length=100, blank=True, null=True)
     amount = models.IntegerField(blank=True, null=True, default=0)
 
     def __str__(self):
         return str(self.date)
+
+class VendorPurchase(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    vendor_name = models.CharField(max_length=200)
+    vendor_address = models.TextField(max_length=600, blank=True, null=True)
+    vendor_phone = models.CharField(max_length=14, blank=True, null=True)
+    vendor_gst = models.CharField(max_length=15, blank=True, null=True)
+    vendor_email = models.EmailField(blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if self.vendor_name:
+            self.vendor_name = self.vendor_name.upper()
+        if self.vendor_address:
+            self.vendor_address = self.vendor_address.upper()
+        if self.vendor_email:
+            self.vendor_email = self.vendor_email.lower()
+        if self.vendor_gst:
+            self.vendor_gst = self.vendor_gst.upper()
+
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return self.vendor_name
