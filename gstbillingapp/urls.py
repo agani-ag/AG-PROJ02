@@ -90,4 +90,5 @@ urlpatterns = [
 
     # Features URLs
     path('feature/upload', features.excel_upload, name='feature_upload'),
+    path('api/passkey-auth', auth.passkey_auth, name='passkey_auth'),
 ]
