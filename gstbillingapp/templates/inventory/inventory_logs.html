@@ -68,6 +68,24 @@ $(document).ready( function () {
 	$('#inventory-logs-table').DataTable({
 		"order": [],
 		"paging": true,
+		dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'excelHtml5',
+                text: '<i class="fas fa-file-excel"></i> Excel',
+                className: 'btn btn-success btn-sm btn-curve'
+            },
+            {
+                extend: 'pdfHtml5',
+                text: '<i class="fas fa-file-pdf"></i> PDF',
+                className: 'btn btn-danger btn-sm btn-curve'
+            },
+            {
+                extend: 'print',
+                text: '<i class="fas fa-print"></i> Print',
+                className: 'btn btn-warning btn-sm btn-curve'
+            }
+        ]
 	});
 });
 </script>

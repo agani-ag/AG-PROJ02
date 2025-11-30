@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+{% block includecss %}
+<!-- Include Choices.js CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+<!-- Include Choices.js JS -->
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+{% endblock %}
+{% block content %}
+
+<h2>Edit Expense</h2>
+<form method="POST">
+	{% csrf_token %}
+	<table class="table">
+		<tbody class="two-col-form">
+			<tr>
+				<th scope="row" class="text-right">Date:</th>
+				<th>
+					<input type="datetime-local" name="date" value="{{ form.date.value|date:'Y-m-d\TH:i' }}" required>
+				</th>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Category:</th>
+				<td>
+					<select id="categorySelect" style="width: 200px;" onchange="toggleCategoryTextbox()">
+						{% for category in categories %}
+							<option value="{{ category }}" {% if expense_tracker_form.category.value == category %}selected{% endif %}>{{ category }}</option>
+						{% endfor %}
+						<option value="">Other (Please specify)</option>
+					</select>
+				</td>
+			</tr>
+			<tr id="customCategoryRow" style="display: none;">
+				<th scope="row" class="text-right">Custom Category:</th>
+				<td>
+					<input type="text" id="customCategory" style="width: 200px;" placeholder="Enter custom category" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Amount:</th>
+				<td class="form-input-td">{{expense_tracker_form.amount}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Reference:</th>
+				<td>
+					<select id="referenceSelect" style="width: 200px;" onchange="toggleReferenceTextbox()">
+						{% for reference in references %}
+							<option value="{{ reference }}" {% if expense_tracker_form.reference.value == reference %}selected{% endif %}>{{ reference }}</option>
+						{% endfor %}
+						<option value="">Other (Please specify)</option>
+					</select>
+				</td>
+			</tr>
+			<tr id="customReferenceRow" style="display: none;">
+				<th scope="row" class="text-right">Custom Reference:</th>
+				<td>
+					<input type="text" id="customReference" style="width: 200px;" placeholder="Enter custom reference" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Notes:</th>
+				<td class="form-input-td">{{expense_tracker_form.notes}}</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<div class="form-group text-right">
+		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+</form>
+		<a class="btn btn-danger" href="{% url 'expense_tracker' %}"><i class="fas fa-cancel"></i></a>
+	</div>
+
+<script>
+function toggleCategoryTextbox() {
+    var categorySelect = document.getElementById('categorySelect');
+    var customCategoryRow = document.getElementById('customCategoryRow');
+    var customCategoryInput = document.getElementById('customCategory');
+    
+    // Show or hide the custom category input field based on selection
+    if (categorySelect.value === "") {
+        customCategoryRow.style.display = 'table-row';
+		customCategoryInput.required = true;
+		customCategoryInput.setAttribute('name', 'category');
+		categorySelect.removeAttribute('name');
+    } else {
+        customCategoryRow.style.display = 'none';
+        // Ensure that the custom category input is cleared if it's hidden
+        customCategoryInput.value = '';
+		customCategoryInput.required = false;
+		categorySelect.setAttribute('name', 'category');
+		customCategoryInput.removeAttribute('name');
+    }
+}
+
+function toggleReferenceTextbox() {
+    var referenceSelect = document.getElementById('referenceSelect');
+    var customReferenceRow = document.getElementById('customReferenceRow');
+    var customReferenceInput = document.getElementById('customReference');
+    
+    // Show or hide the custom category input field based on selection
+    if (referenceSelect.value === "") {
+        customReferenceRow.style.display = 'table-row';
+		customReferenceInput.required = true;
+		customReferenceInput.setAttribute('name', 'reference');
+		referenceSelect.removeAttribute('name');
+    } else {
+        customReferenceRow.style.display = 'none';
+        // Ensure that the custom category input is cleared if it's hidden
+        customReferenceInput.value = '';
+		customReferenceInput.required = false;
+		referenceSelect.setAttribute('name', 'reference');
+		customReferenceInput.removeAttribute('name');
+    }
+}
+
+// Trigger toggleCategoryTextbox on page load to ensure it works with the current selection
+document.addEventListener('DOMContentLoaded', function() {
+    toggleCategoryTextbox();
+	toggleReferenceTextbox();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% load humanize %}
+{% block content %}
+
+    <div class="row">
+        <div class="col">
+            <h3>
+                Bank Details
+            </h3>
+        </div>
+
+        <div class="col text-right" style="padding-top: 0.5%;">
+            <a href="{% url 'bank_details_add' %}" class="btn btn-primary btn-sm btn-curve">
+                <i class="fas fa-plus"></i>
+            </a>
+            <a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve">
+                <i class="fas fa-file-excel"></i>
+            </a>
+        </div>
+    </div>
+    <!-- <hr> -->
+
+    <table class="table table-hover font-weight-bold" id="purchase-table">
+        <thead class="thead-dark">
+            <tr>
+                <th>Account Name</th>
+                <th>Account Number</th>
+                <th>Bank Name</th>
+                <th>IFSC Code</th>
+                <th>Category</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody class="two-col-form">
+            {% for bank_detail in bank_details %}
+            <tr class="{% if purchase.amount > 0 %} table-success {% else %} table-danger {% endif %}">
+                <td>{{bank_detail.account_name}}</td>
+                <td>{{bank_detail.account_number }}</td>
+                <td>{% if bank_detail.bank_name %}{{bank_detail.bank_name}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                <td>{% if bank_detail.ifsc_code %}{{bank_detail.ifsc_code}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                <td>{{bank_detail.get_whom_account_display}}</td>
+                <td>
+                    <div class="btn-group" role="group" aria-label="Basic example">
+                        <a href="{% url 'bank_details_edit' bank_detail.pk %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
+                        <a href="#" class="btn btn-danger btn-sm btn-curve" onclick="deleteBankDetail({{ bank_detail.pk }}, '{{ bank_detail.account_name }}', '{{ bank_detail.account_number }}')"><i class="fas fa-trash"></i></a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
+
+
+{% block includejs %}
+<script type="text/javascript">
+	$(document).ready( function () {
+		$('#purchase-table').DataTable({
+			"order": [],
+			"columnDefs": [ {
+				"targets": 3,
+				"sortable": false,
+				"searchable": false
+			} ],
+			"paging": true
+		});
+	});
+
+    function deleteBankDetail(bankDetailId,AccountName,AccountNumber) {
+		swal.fire({
+			title: 'Delete Bank Detail',
+            html: '<b>Are you sure you want to delete the bank detail for ' + AccountName + ' with account number ' + AccountNumber + '?</b>',
+			icon: 'warning',
+			confirmButtonText: 'OK'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				window.location.href = "/bank_details/delete/" + bankDetailId;
+			}
+		});
+	};
+</script>
+{% endblock %}

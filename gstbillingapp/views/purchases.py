@@ -7,6 +7,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 # Models
 from ..models import UserProfile
 from ..models import PurchaseLog
+from ..models import VendorPurchase
 
 # Third-party libraries
 import json
@@ -17,127 +18,72 @@ import datetime
 def purchases(request):
     context = {}
     # context['purchases'] = PurchaseLog.objects.filter(user=request.user).order_by('-date')
-    context['total_p'] = PurchaseLog.objects.filter(user=request.user, ptype="purchase").aggregate(Sum('amount'))['amount__sum']
-    context['total_pp'] = PurchaseLog.objects.filter(user=request.user, ptype="paid").aggregate(Sum('amount'))['amount__sum']
+    context['total_p'] = PurchaseLog.objects.filter(user=request.user, ptype=0).aggregate(Sum('amount'))['amount__sum']
+    context['total_pp'] = PurchaseLog.objects.filter(user=request.user, ptype=1).aggregate(Sum('amount'))['amount__sum']
     context['total_pb'] = PurchaseLog.objects.filter(user=request.user).aggregate(Sum('amount'))['amount__sum']
-
-    current_date = datetime.datetime.now().date()
-    purchases = PurchaseLog.objects.filter(user=request.user).order_by('date')
-    purchases_with_days = []
-    temp1,temp2 = 0, 0
-    total_paid = context['total_pp'] if context['total_pp'] else 0
-    for purchase in purchases:
-        days_difference = (current_date - purchase.date.date()).days
-        if purchase.ptype == 'purchase':
-            total_paid = total_paid + purchase.amount
-            if total_paid < 0 and temp2 == 0:
-                temp1 = abs(total_paid)
-                temp2 = 1
-            else:
-                temp1 = 'colour2'
-            colour = temp1 if total_paid < 0 else 'colour1'
-        else:
-            colour = 'colour2' if total_paid < 0 else 'colour1'
-        purchase_data = purchase.__dict__
-        purchase_data['days'] = days_difference
-        purchase_data['colour'] = colour
-        if purchase_data['days'] > 80 and purchase.ptype == 'purchase':
-            if purchase_data['colour'] != 'colour1':
-                messages.error(request, f'You Have Pending Purchase Bill of ₹{abs(purchase.amount)} - Ref.No {purchase.addon2}')
-
-        purchases_with_days.append(purchase_data)
-    context['purchases'] = purchases_with_days[::-1]
-    # context['purchases'] = purchases_with_days
     
+    context['purchases'] = PurchaseLog.objects.filter(user=request.user).order_by('-date')
     return render(request, 'purchases/purchases.html', context)
 
 @login_required
 def purchases_add(request):
-    data = {}
+    context = {}
+    context['vendors'] = VendorPurchase.objects.filter(user=request.user)
+    context['paid_categories'] = PurchaseLog.objects.filter(user=request.user).values_list('paid_category', flat=True).distinct()
+    context['purchase_categories'] = PurchaseLog.objects.filter(user=request.user).values_list('purchase_category', flat=True).distinct()
     if request.method == 'POST':
-        date = request.POST['date']
-        ptype = request.POST['ptype']
-        amount = request.POST['amount']
-        addon1 = request.POST['addon1']
-        addon2 = request.POST['addon2']
-        category = request.POST['purchase_category']
-        category_other = request.POST['other_category']
-        if category == 'Other' and ptype == 'purchase':
-            if not category_other:
-                messages.error(request, 'Please provide a valid category name.')
-                return redirect('purchases_add')
-            category_save = category_other
-            business_config = get_object_or_404(UserProfile, user=request.user)
-            bc = json.loads(business_config.business_config)
-            bc['purchase_category'].append(category_other)
-            business_config.business_config = json.dumps(bc)
-            business_config.save()
-        else:
-            category_save = category
-        if ptype == 'purchase':
-            if int(amount) > 0 :
-                amount = -int(amount)
-        else:
-            amount = abs(int(amount))
-        purchase_log = PurchaseLog(user=request.user, date=date, ptype=ptype,
-                category=category_save, amount=amount, addon1=addon1, addon2=addon2)
-        purchase_log.save()
+        date = request.POST.get('date')
+        ptype = request.POST.get('ptype')
+        paid_reference = request.POST.get('paid_reference')
+        purchase_reference = request.POST.get('purchase_reference')
+        amount = request.POST.get('amount')
+        status = request.POST.get('status')
+        vendor = request.POST.get('vendor')
+        paid_category = request.POST.get('paid_category')
+        purchase_category = request.POST.get('purchase_category')
+        
+        purchase = PurchaseLog(
+            user = request.user,
+            date = date,
+            ptype = int(ptype),
+            status = status,
+            paid_category = paid_category,
+            paid_reference = paid_reference,
+            purchase_category = purchase_category,
+            purchase_reference = purchase_reference,
+            amount = get_ptype_amount(ptype, amount),
+            vendor = get_vendor_instance(vendor, request),
+        )
+        purchase.save()
         return redirect('purchases')
-    
-    data['category'] = UserProfile.objects.filter(user=request.user).values('business_config').first()
-    if not data['category']['business_config']:
-        business_config = get_object_or_404(UserProfile, user=request.user)
-        business_config.business_config=json.dumps({'category': []})
-        business_config.save()
-        data['category'] = []
-        return render(request,'purchases/purchase_add.html',data)
-    data['category'] = json.loads(data['category']['business_config']).get('purchase_category')
-    return render(request,'purchases/purchase_add.html',data)
+    return render(request,'purchases/purchase_add.html',context)
 
 @login_required
 def purchases_edit(request,pid):
-    data = {}
+    context = {}
     purchase_log = get_object_or_404(PurchaseLog, user=request.user, id=pid)
-    data['plog'] = purchase_log
+    context['purchase_log'] = purchase_log
+    context['vendors'] = VendorPurchase.objects.filter(user=request.user)
+    context['paid_categories'] = PurchaseLog.objects.filter(user=request.user).values_list('paid_category', flat=True).distinct()
+    context['purchase_categories'] = PurchaseLog.objects.filter(user=request.user).values_list('purchase_category', flat=True).distinct()
     if request.method == 'POST':
-        pid = int(pid)
-        date = request.POST['date']
-        ptype = request.POST['ptype']
-        amount = request.POST['amount']
-        addon1 = request.POST['addon1']
-        addon2 = request.POST['addon2']
-        category = request.POST['purchase_category']
-        category_other = request.POST['other_category']
-        print(category, category_other)
-        if category == 'Other' and ptype == 'purchase':
-            if not category_other:
-                messages.error(request, 'Please provide a valid category name.')
-                return redirect('purchases_edit', pid=pid)
-            category_save = category_other
-            business_config = get_object_or_404(UserProfile, user=request.user)
-            bc = json.loads(business_config.business_config)
-            bc['purchase_category'].append(category_other)
-            business_config.business_config = json.dumps(bc)
-            business_config.save()
-        else:
-            category_save = category
-        if ptype == 'purchase':
-            if int(amount) > 0 :
-                amount = -int(amount)
-        else:
-            amount = abs(int(amount))
-        purchase_log.date = date
-        purchase_log.ptype=ptype
-        purchase_log.amount=amount
-        purchase_log.addon1=addon1
-        purchase_log.addon2=addon2
-        purchase_log.category=category_save
+        ptype = request.POST.get('ptype')
+        amount = request.POST.get('amount')
+        vendor = request.POST.get('vendor')
+        
+        purchase_log.ptype = int(ptype)
+        purchase_log.date = request.POST.get('date')
+        purchase_log.status = request.POST.get('status')
+        purchase_log.amount = get_ptype_amount(ptype, amount)
+        purchase_log.vendor = get_vendor_instance(vendor, request)
+        purchase_log.paid_category = request.POST.get('paid_category')
+        purchase_log.paid_reference = request.POST.get('paid_reference')
+        purchase_log.purchase_category = request.POST.get('purchase_category')
+        purchase_log.purchase_reference = request.POST.get('purchase_reference')
+        
         purchase_log.save()
-        messages.success(request, 'Your changes have been saved successfully.')
-        return redirect('purchases_edit',pid)
-    data['category'] = UserProfile.objects.filter(user=request.user).values('business_config').first()
-    data['category'] = json.loads(data['category']['business_config']).get('purchase_category')
-    return render(request,'purchases/purchase_edit.html',data)
+        return redirect('purchases')
+    return render(request,'purchases/purchase_edit.html',context)
 
 @login_required
 def purchases_delete(request,pid):
@@ -145,3 +91,19 @@ def purchases_delete(request,pid):
         purchases_obj = get_object_or_404(PurchaseLog, user=request.user, id=pid)
         purchases_obj.delete()
     return redirect('purchases')
+
+# ================= Utilities ====================================
+def get_ptype_amount(ptype, amount):
+    if ptype == '0':
+        if int(amount) > 0:
+            amount = -int(amount)
+    else:
+        amount = abs(int(amount))
+    return amount
+
+def get_vendor_instance(vendor, request):
+    if vendor == '':
+        vendor_instance = None
+    else:
+        vendor_instance = VendorPurchase.objects.get(user=request.user, id=vendor)
+    return vendor_instance

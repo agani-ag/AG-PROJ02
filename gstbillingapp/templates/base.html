@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>
         {% block title %}
-        GST Sync
+            GST Sync
         {% endblock %}
     </title>
 
@@ -37,31 +37,33 @@
     <div class="container">
         <!-- Content here -->
         {% if user.is_authenticated %}
-            {% include "navbar.html" %}
+            {% if not nav_hide %}
+                {% include "navbar.html" %}
+            {% endif %}
         {% endif %}
 
         {% if error_message %}
-        <div class="alert alert-danger" role="alert">
-            {{ error_message }}
-        </div>
+            <div class="alert alert-danger" role="alert">
+                {{ error_message }}
+            </div>
         {% endif %}
 
         {% if success_message %}
-        <div class="alert alert-success" role="alert">
-            {{ success_message }}
-        </div>
+            <div class="alert alert-success" role="alert">
+                {{ success_message }}
+            </div>
         {% endif %}
 
         {% if messages %}
             {% for message in messages %}
                 <div class="alert alert-{{ message.tags }}" role="alert">
-                {{ message }}
+                    {{ message }}
                 </div>
             {% endfor %}
         {% endif %}
 
         {% block content %}
-        CONTENT BLOCK
+            CONTENT BLOCK
         {% endblock %}
 
     </div>
@@ -96,15 +98,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
     {% block includejs %}
     {% endblock %}
-
-    <!-- Global site tag (gtag.js) - Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-159304253-1"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag() { dataLayer.push(arguments); }
-        gtag('js', new Date());
-        gtag('config', 'UA-159304253-1');
-    </script>
 
 </body>
 </html>

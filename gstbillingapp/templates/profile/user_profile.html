@@ -11,8 +11,8 @@
                 <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                     <h4 class="mb-0">Business Profile</h4>
 					<div>
-						<a href="{% url 'user_profile_edit' %}" class="btn btn-light btn-sm mr-2"><b>Edit</b></a>
-                    	<a href="{% url 'logout_view' %}" class="btn btn-light btn-sm mr-2"><b>Logout</b></a>
+						<a href="{% url 'user_profile_edit' %}" class="btn btn-light btn-sm"><b><i class="fas fa-edit"></i></b></a>
+                    	<a href="{% url 'logout_view' %}" class="btn btn-light btn-sm"><b><i class="fas fa-sign-out-alt"></i></b></a>
 					</div>
                 </div>
                 <div class="card-body">
@@ -45,6 +45,18 @@
                             <tr>
                                 <th scope="row" class="text-right">UserID:</th>
                                 <td style="color: green;">{{ user_profile.business_uid }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="text-right">Latitude:</th>
+                                <td>{% if user_profile.business_latitude %}{{ user_profile.business_latitude }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="text-right">Longitude:</th>
+                                <td>{% if user_profile.business_longitude %}{{ user_profile.business_longitude }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="text-right">Bank Detail:</th>
+                                <td>{% if user_profile.bankdetails %}{{ user_profile.bankdetails }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
                             </tr>
                         </tbody>
                     </table>

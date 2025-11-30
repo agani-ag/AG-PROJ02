@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<h2>Edit Vendor Purchase</h2>
+<form method="POST">
+	{% csrf_token %}
+	<table class="table">
+		<tbody class="two-col-form">
+			<tr>
+				<th scope="row" class="text-right">Vendor Name:</th>
+				<td class="form-input-td">{{vendor_purchase_form.vendor_name}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Address:</th>
+				<td class="form-input-td">{{vendor_purchase_form.vendor_address}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Phone</th>
+				<td class="form-input-td">
+					<input type="tel" name="vendor_phone" pattern="^[6-9][0-9]{9}$"
+					value="{{vendor_purchase_form.vendor_phone.value|default:''}}">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">GST %:</th>
+				<td class="form-input-td">
+					<input type="text" name="vendor_gst" value="{{vendor_purchase_form.vendor_gst.value|default:''}}" 
+						   pattern="^$|^[A-Za-z0-9]{15}$" 
+						   title="GST number must be exactly 15 alphanumeric characters or left empty">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Email:</th>
+				<td class="form-input-td">{{vendor_purchase_form.vendor_email}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Latitude:</th>
+				<td class="form-input-td">
+					<input type="number" step="0.000001" name="vendor_latitude" 
+					value="{{vendor_purchase_form.vendor_latitude.value|default:''}}">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Longitude:</th>
+				<td class="form-input-td">
+					<input type="number" step="0.000001" name="vendor_longitude" 
+					value="{{vendor_purchase_form.vendor_longitude.value|default:''}}">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Bank Details:</th>
+				<td class="form-input-td">{{vendor_purchase_form.bankdetails}}</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<div class="form-group text-right">
+		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+</form>
+		<a class="btn btn-danger" href="{% url 'vendors_purchase' %}"><i class="fas fa-cancel"></i></a>
+	</div>
+
+{% endblock %}

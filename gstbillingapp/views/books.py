@@ -30,7 +30,6 @@ def books(request):
     context['book_list'] = Book.objects.filter(user=request.user).exclude(customer_id__isnull=True)
     return render(request, 'books/books.html', context)
 
-
 @login_required
 def book_logs(request, book_id):
     context = {}
@@ -38,6 +37,7 @@ def book_logs(request, book_id):
     book_logs = BookLog.objects.filter(parent_book=book).order_by('-date')
     context['book'] = book
     context['book_logs'] = book_logs
+    context['nav_hide'] = request.GET.get('nav') or ''
     return render(request, 'books/book_logs.html', context)
 
 

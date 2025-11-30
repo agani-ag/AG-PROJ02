@@ -2,59 +2,41 @@
 <!doctype html>
 <html lang="en">
 <head>
-
 	<!-- Required meta tags -->
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 	<title>
 		{% block title %}
-		GST Billing
+			GST Billing
 		{% endblock %}
 	</title>
 
-
-
 	<!-- Bootstrap CSS -->
-	<link rel="stylesheet" href="{% static "gstbillingapp/bootstrap-4.4.1-dist/css/bootstrap-cosmo.min.css" %}">
-	<link rel="stylesheet" href="{% static "gstbillingapp/main.css" %}">
-
-	<!-- DataTables CSS  -->
-	<link rel="stylesheet" href="{% static "gstbillingapp/DataTables/jquery.dataTables.min.css" %}">
-	<link rel="stylesheet" href="{% static "gstbillingapp/DataTables/dataTables.bootstrap4.min.css" %}">
-
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+	<link rel="stylesheet" href="{% static 'gstbillingapp/main.css' %}">
 	{% block includecss %}
 	{% endblock %}
-
 </head>
 
 <body>
-
-	{% include "navbar.html" %}
-
-
-
-
+	{% if not nav_hide %}
+		{% include "navbar.html" %}
+	{% endif %}
 
 		{% block content %}
-		CONTENT BLOCK
+			CONTENT BLOCK
 		{% endblock %}
 
-
-
-
-
-	<!-- jQuery first, then Popper.js, then Bootstrap JS -->
-	<script src="{% static "gstbillingapp/js/jquery-3.4.1.min.js" %}"></script>
-	<script src="{% static "gstbillingapp/js/popper.min.js" %}"></script>
-
-	<script src="{% static "gstbillingapp/bootstrap-4.4.1-dist/js/bootstrap.min.js" %}"></script>
-
-	<!-- DataTables  -->
-	<script src="{% static "gstbillingapp/DataTables/jquery.dataTables.min.js" %}"></script>
+	<!-- ONLINE MODE -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.12.1/js/jquery.dataTables.min.js"></script>
 
 	{% block includejs %}
 	{% endblock %}
-
 </body>
 
 

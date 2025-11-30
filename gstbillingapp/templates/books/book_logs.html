@@ -61,6 +61,66 @@ $(document).ready( function () {
 	$('#inventory-logs-table').DataTable({
 		"order": [],
 		"paging": true,
+		dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'excelHtml5',
+                text: '<i class="fas fa-file-excel"></i> Excel',
+                className: 'btn btn-success btn-sm btn-curve'
+            },
+            {
+                extend: 'pdfHtml5',
+                text: '<i class="fas fa-file-pdf"></i> PDF',
+                className: 'btn btn-danger btn-sm btn-curve'
+            },
+            {
+                extend: 'print',
+                text: '<i class="fas fa-print"></i> Print',
+                className: 'btn btn-warning btn-sm btn-curve',
+				title: '', // Leave empty to avoid default title
+                customize: function (win) {
+
+                    // Add custom header HTML
+                    $(win.document.body).prepend(`
+                        <div id="customHeader" style="text-align:center; margin-bottom:20px;">
+                            <h2 style="margin:0;">Inventory Logs Report</h2>
+                            <h4 style="margin:0;">{{book.customer.customer_name}}</h3>
+                            <h4 style="margin:0;">Current Balance: {{ book.current_balance }}</h3>
+                            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                            <hr style="border:1px solid #000;">
+                        </div>
+                    `);
+
+                    // Add print-specific CSS for repeating header
+                    const css = `
+                        <style>
+                            @media print {
+                                #customHeader {
+                                    position: running(header);
+                                }
+                                body {
+                                    counter-reset: page;
+                                }
+                                @page {
+                                    @top-center {
+                                        content: element(header);
+                                    }
+                                    margin-top: 100px;
+                                }
+                            }
+                        </style>
+                    `;
+
+                    $(win.document.head).append(css);
+
+                    // Style table
+                    $(win.document.body).find('table')
+                        .addClass('compact')
+                        .css('font-size', 'inherit')
+                        .css('width', '100%');
+                }
+            }
+        ]
 	});
 });
 </script>

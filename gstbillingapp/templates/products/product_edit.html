@@ -41,10 +41,24 @@
 	<div class="form-group text-right">
 		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
 </form>
-		<a class="btn btn-danger" href="{% url 'products' %}"><i class="fas fa-reply"></i></a>
+		<a class="btn btn-danger" href="{% url 'products' %}"><i class="fas fa-cancel"></i></a>
 		{% if id %}
-			<a class="btn btn-warning" href="{% url 'inventory_logs' id %}"><i class="fas fa-file-alt"></i></a>
+			<a class="btn btn-warning" href="#" onclick="popup_inventory()"><i class="fas fa-file-alt"></i></a>
 		{% endif %}
 	</div>
 
+<script>
+function popup_inventory() {
+	fetch("/inventory/{{ id }}?nav=1")
+    .then(r => r.text())
+    .then(html => {
+      Swal.fire({
+        html: `<div style="height:80vh; overflow-y:auto;width:90%;margin:auto;border:2px solid #ccc;">${html}</div>`,
+        width: '80%',
+        showCloseButton: true,
+        showConfirmButton: false,
+      });
+    });
+}	
+</script>
 {% endblock %}
