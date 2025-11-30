@@ -20,6 +20,9 @@ class UserProfile(models.Model):
     business_brand = models.CharField(max_length=30, blank=True, null=True, default=None)
     business_config = models.TextField(blank=True, null=True, default=None)
     business_uid = models.TextField(blank=True, null=True)
+    business_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    business_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    bankdetails = models.ForeignKey('BankDetails', blank=True, null=True, on_delete=models.SET_NULL)
 
     def save(self, *args, **kwargs):
         if self.business_title:
@@ -34,6 +37,9 @@ class UserProfile(models.Model):
             self.business_brand = self.business_brand.upper()
 
         super().save(*args, **kwargs)
+    
+    def get_bank_details(self):
+        return BankDetails.objects.filter(whom_account=0, business_account=self)
     
     def __str__(self):
         return self.user.username
@@ -66,6 +72,9 @@ class Customer(models.Model):
     customer_password = models.CharField(max_length=15, null=True, blank=True)
     customer_userid = models.CharField(max_length=15, null=True, blank=True)
     is_mobile_user = models.BooleanField(default=False)
+    customer_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    customer_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    bankdetails = models.ForeignKey('BankDetails', blank=True, null=True, on_delete=models.SET_NULL)
 
     def save(self, *args, **kwargs):
         if self.customer_name:
@@ -78,7 +87,10 @@ class Customer(models.Model):
             self.customer_gst = self.customer_gst.upper()
 
         super().save(*args, **kwargs)
-        
+    
+    def get_bank_details(self):
+        return BankDetails.objects.filter(whom_account=1, customer_account=self)
+    
     def __str__(self):
         return self.customer_name
 
@@ -213,6 +225,9 @@ class VendorPurchase(models.Model):
     vendor_phone = models.CharField(max_length=14, blank=True, null=True)
     vendor_gst = models.CharField(max_length=15, blank=True, null=True)
     vendor_email = models.EmailField(blank=True, null=True)
+    vendor_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    vendor_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    bankdetails = models.ForeignKey('BankDetails', blank=True, null=True, on_delete=models.SET_NULL)
 
     def save(self, *args, **kwargs):
         if self.vendor_name:
@@ -226,5 +241,65 @@ class VendorPurchase(models.Model):
 
         super().save(*args, **kwargs)
     
+    def get_bank_details(self):
+        return BankDetails.objects.filter(whom_account=2, vendor_account=self)
+    
     def __str__(self):
         return self.vendor_name
+
+# ========================= Expense Tracker Data models ====================================
+class ExpenseTracker(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    date = models.DateTimeField(default=datetime.now, blank=True, null=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    category = models.CharField(max_length=100)
+    notes = models.TextField(blank=True, null=True)
+    reference = models.CharField(max_length=100)
+
+    def save(self, *args, **kwargs):
+        if self.category:
+            self.category = self.category.upper()
+        if self.reference:
+            self.reference = self.reference.upper()
+        if self.amount:
+            self.amount = abs(round(self.amount, 2))
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.reference + " | " + str(self.amount) + " | " + str(self.category)
+
+# ========================= Bank Data models ========================================
+class BankDetails(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    account_name = models.CharField(max_length=200)
+    account_number = models.CharField(max_length=50)
+    bank_name = models.CharField(max_length=100)
+    branch_name = models.CharField(max_length=100, blank=True, null=True)
+    ifsc_code = models.CharField(max_length=20, blank=True, null=True)
+    upi_id = models.CharField(max_length=255, blank=True, null=True)
+    upi_name = models.CharField(max_length=255, blank=True, null=True)
+    WHOM_ACCOUNT = [
+        (0, 'Business'),
+        (1, 'Customer'),
+        (2, 'Vendor'),
+    ]
+    whom_account = models.IntegerField(choices=WHOM_ACCOUNT, default=0)
+    business_account = models.ForeignKey(UserProfile, blank=True, null=True, on_delete=models.SET_NULL, related_name='bank_details_business')
+    customer_account = models.ForeignKey(Customer, blank=True, null=True, on_delete=models.SET_NULL, related_name='bank_details_customer')
+    vendor_account = models.ForeignKey(VendorPurchase, blank=True, null=True, on_delete=models.SET_NULL, related_name='bank_details_vendor')
+
+    def save(self, *args, **kwargs):
+        if self.account_name:
+            self.account_name = self.account_name.upper()
+        if self.bank_name:
+            self.bank_name = self.bank_name.upper()
+        if self.ifsc_code:
+            self.ifsc_code = self.ifsc_code.upper()
+        if self.upi_id:
+            self.upi_id = self.upi_id.lower()
+        if self.upi_name:
+            self.upi_name = self.upi_name.upper()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return self.account_number + " - " + self.account_name

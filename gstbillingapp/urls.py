@@ -5,7 +5,8 @@ from django.urls import path, include
 from .views import (
     auth, profile, invoices, customers,
     books, products, inventory, purchases,
-    vendor_purchase, features, views
+    vendor_purchase, features, views,
+    expense_tracker, bank_details
 )
 
 urlpatterns = [
@@ -76,6 +77,17 @@ urlpatterns = [
     path('purchases/vendor/edit/<int:vendor_purchase_id>', vendor_purchase.vendor_purchase_edit, name='vendor_purchase_edit'),
     path('purchases/vendor/delete', vendor_purchase.vendor_purchase_delete, name='vendor_purchase_delete'),
     
+    # Expense Tracker URLs
+    path('expensetracker', expense_tracker.expense_tracker, name='expense_tracker'),
+    path('expensetracker/add', expense_tracker.expense_tracker_add, name='expense_tracker_add'),
+    path('expensetracker/delete/<int:expense_id>', expense_tracker.expense_tracker_delete, name='expense_tracker_delete'),
+
+    # Bank Details URLs
+    path('bank_details', bank_details.bank_details, name='bank_details'),
+    path('bank_details/add', bank_details.bank_details_add, name='bank_details_add'),
+    path('bank_details/edit/<int:pk>', bank_details.bank_details_edit, name='bank_details_edit'),
+    path('bank_details/delete/<int:pk>', bank_details.bank_details_delete, name='bank_details_delete'),
+
     # Features URLs
     path('feature/upload', features.excel_upload, name='feature_upload'),
 ]

@@ -58,6 +58,22 @@
 					</label>
 				</td>
 			</tr>
+			<tr>
+				<th scope="row" class="text-right">Customer Latitude:</th>
+				<td class="form-input-td">
+					<input type="number" step="0.000001" name="customer_latitude" value="{{customer_form.customer_latitude.value|default:''}}">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Customer Longitude:</th>
+				<td class="form-input-td">
+					<input type="number" step="0.000001" name="customer_longitude" value="{{customer_form.customer_longitude.value|default:''}}">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Bank Details:</th>
+				<td class="form-input-td">{{ customer_form.bankdetails }}</td>
+			</tr>
 		</tbody>
 	</table>
 

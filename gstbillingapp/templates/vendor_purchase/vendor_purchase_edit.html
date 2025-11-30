@@ -34,6 +34,24 @@
 				<th scope="row" class="text-right">Email:</th>
 				<td class="form-input-td">{{vendor_purchase_form.vendor_email}}</td>
 			</tr>
+			<tr>
+				<th scope="row" class="text-right">Latitude:</th>
+				<td class="form-input-td">
+					<input type="number" step="0.000001" name="vendor_latitude" 
+					value="{{vendor_purchase_form.vendor_latitude.value|default:''}}">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Longitude:</th>
+				<td class="form-input-td">
+					<input type="number" step="0.000001" name="vendor_longitude" 
+					value="{{vendor_purchase_form.vendor_longitude.value|default:''}}">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Bank Details:</th>
+				<td class="form-input-td">{{vendor_purchase_form.bankdetails}}</td>
+			</tr>
 		</tbody>
 	</table>
 

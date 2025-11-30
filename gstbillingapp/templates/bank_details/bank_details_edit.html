@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<h2>Edit Bank Details</h2>
+<form method="POST">
+    {% csrf_token %}
+    <table class="table">
+        <tbody class="two-col-form">
+            <tr>
+                <th scope="row" class="text-right">Account Name:</th>
+                <td class="form-input-td">{{ bank_details_form.account_name }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="text-right">Account Number:</th>
+                <td class="form-input-td">{{ bank_details_form.account_number }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="text-right">Bank Name:</th>
+                <td class="form-input-td">{{ bank_details_form.bank_name }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="text-right">Branch Name:</th>
+                <td class="form-input-td">{{ bank_details_form.branch_name }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="text-right">IFSC Code:</th>
+                <td class="form-input-td">{{ bank_details_form.ifsc_code }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="text-right">UPI ID:</th>
+                <td class="form-input-td">{{ bank_details_form.upi_id }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="text-right">UPI Name:</th>
+                <td class="form-input-td">{{ bank_details_form.upi_name }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="text-right">Whom's Account:</th>
+                <td class="form-input-td">
+                    {{ bank_details_form.whom_account }}
+                </td>
+            </tr>
+            <!-- <tr class="mapped-field" id="mapped-business-row">
+                <th scope="row" class="text-right">Mapped Business:</th>
+                <td class="form-input-td">{{ bank_details_form.business_account }}</td>
+            </tr>
+            <tr class="mapped-field" id="mapped-customer-row">
+                <th scope="row" class="text-right">Mapped Customer:</th>
+                <td class="form-input-td">{{ bank_details_form.customer_account }}</td>
+            </tr>
+            <tr class="mapped-field" id="mapped-vendor-row">
+                <th scope="row" class="text-right">Mapped Vendor:</th>
+                <td class="form-input-td">{{ bank_details_form.vendor_account }}</td>
+            </tr> -->
+        </tbody>
+    </table>
+
+    <div class="form-group text-right">
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+        <a class="btn btn-danger" href="{% url 'bank_details' %}"><i class="fas fa-cancel"></i></a>
+    </div>
+</form>
+
+<script>
+    // Function to update the visibility of mapped fields
+    function updateMappedFields() {
+        var whomAccountValue = document.getElementById("id_whom_account").value;
+
+        // Hide all mapped fields
+        var businessRow = document.getElementById("mapped-business-row");
+        var customerRow = document.getElementById("mapped-customer-row");
+        var vendorRow = document.getElementById("mapped-vendor-row");
+
+        // Show the relevant field based on whom_account value
+        if (whomAccountValue == "0") {
+            businessRow.style.display = "table-row";
+            customerRow.style.display = "none";
+            vendorRow.style.display = "none";
+        } else if (whomAccountValue == "1") {
+            businessRow.style.display = "none";
+            customerRow.style.display = "table-row";
+            vendorRow.style.display = "none";
+        } else if (whomAccountValue == "2") {
+            businessRow.style.display = "none";
+            customerRow.style.display = "none";
+            vendorRow.style.display = "table-row";
+        }
+    }
+
+    // Call the function on page load to set the initial visibility
+    window.onload = function() {
+        updateMappedFields();
+        
+        // Add event listener to update fields when `whom_account` changes
+        document.getElementById("id_whom_account").addEventListener("change", updateMappedFields);
+    };
+</script>
+
+{% endblock %}

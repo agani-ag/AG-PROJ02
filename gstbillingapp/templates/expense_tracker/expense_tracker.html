@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% load humanize %}
+{% block content %}
+
+    <div class="row">
+        <div class="col">
+            <h3>
+                Expenses: 
+                    <span class="font-weight-bold">₹ {{ total_exp | default:0 | intcomma }}</span>
+            </h3>
+        </div>
+
+        <div class="col text-right" style="padding-top: 0.5%;">
+            <a href="{% url 'expense_tracker_add' %}" class="btn btn-primary btn-sm btn-curve">
+                <i class="fas fa-plus"></i>
+            </a>
+            <a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve">
+                <i class="fas fa-file-excel"></i>
+            </a>
+        </div>
+    </div>
+    <!-- <hr> -->
+
+    <table class="table table-hover font-weight-bold" id="purchase-table">
+        <thead class="thead-dark">
+            <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Amount</th>
+                <th>Reference</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody class="two-col-form">
+            {% for expense in expenses %}
+            <tr class="{% if purchase.amount > 0 %} table-success {% else %} table-danger {% endif %}">
+                <td>{{expense.date}}</td>
+                <td>{{expense.category }}</td>
+                <td>{% if expense.amount %}₹ {{expense.amount}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                <td>{{expense.reference}}</td>
+                <td>
+                    <div class="btn-group" role="group" aria-label="Basic example">
+                        <a href="{% url 'expense_tracker_delete' expense.id %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-trash"></i></a>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
+
+
+{% block includejs %}
+<script type="text/javascript">
+	$(document).ready( function () {
+		$('#purchase-table').DataTable({
+			"order": [],
+			"columnDefs": [ {
+				"targets": 3,
+				"sortable": false,
+				"searchable": false
+			} ],
+			"paging": true
+		});
+	});
+</script>
+{% endblock %}

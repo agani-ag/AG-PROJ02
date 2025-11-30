@@ -18,7 +18,7 @@
 			<tr>
 				<th scope="row" class="text-right">Address:</th>
 				<td class="form-input-td">
-					<textarea name="customer_address" rows="4" cols="30">{{user_profile_form.business_address.value|default:''}}</textarea>
+					<textarea name="customer_address" rows="2" cols="35">{{user_profile_form.business_address.value|default:''}}</textarea>
 				</td>
 			</tr>
 			<tr>
@@ -40,6 +40,18 @@
 			<tr>
 				<th scope="row" class="text-right">UserID:</th>
 				<td class="form-input-td" style="color: green;">{{business_uid}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Latitude:</th>
+				<td class="form-input-td">{{user_profile_form.business_latitude}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Longitude:</th>
+				<td class="form-input-td">{{user_profile_form.business_longitude}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Bank Details:</th>
+				<td class="form-input-td">{{user_profile_form.bankdetails}}</td>
 			</tr>
 		</tbody>
 	</table>
