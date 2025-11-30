@@ -17,7 +17,9 @@
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Address:</th>
-				<td class="form-input-td">{{user_profile_form.business_address}}</td>
+				<td class="form-input-td">
+					<textarea name="customer_address" rows="2" cols="35">{{user_profile_form.business_address.value|default:''}}</textarea>
+				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Email:</th>
@@ -39,10 +41,25 @@
 				<th scope="row" class="text-right">UserID:</th>
 				<td class="form-input-td" style="color: green;">{{business_uid}}</td>
 			</tr>
+			<tr>
+				<th scope="row" class="text-right">Latitude:</th>
+				<td class="form-input-td">{{user_profile_form.business_latitude}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Longitude:</th>
+				<td class="form-input-td">{{user_profile_form.business_longitude}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Bank Details:</th>
+				<td class="form-input-td">{{user_profile_form.bankdetails}}</td>
+			</tr>
 		</tbody>
 	</table>
 
-	<input type="submit" class="btn btn-primary float-right" value="Save Changes">
+	<div class="text-right">
+		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+		<a href="{% url 'user_profile' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
+	</div>
 </form>
 
 {% endblock %}

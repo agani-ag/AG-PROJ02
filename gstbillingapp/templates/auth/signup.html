@@ -31,7 +31,9 @@
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Address:</th>
-				<td class="form-input-td">{{profile_edit_form.business_address}}</td>
+				<td class="form-input-td">
+					<textarea name="customer_address" rows="4" cols="30">{{profile_edit_form.business_address.value|default:''}}</textarea>
+				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Email:</th>
@@ -56,7 +58,24 @@
 		</tbody>
 	</table>
 
-	<input type="submit" class="btn btn-primary float-right" value="Submit">
+	<div class="text-right">
+		<button type="submit" class="btn btn-primary"><i class="fas fa-user-plus"></i></button>
+		<a href="#" class="btn btn-danger" onclick="cancelSignUp()"><i class="fas fa-cancel"></i></a>
+	</div>
 </form>
 
+<script>
+	function cancelSignUp() {
+		swal.fire({
+			title: 'Cancel Sign Up',
+			text: 'You will be redirected to the Login page.',
+			icon: 'warning',
+			confirmButtonText: 'OK'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				window.location.href = "{% url 'login_view' %}";
+			}
+		});
+	};
+</script>
 {% endblock %}

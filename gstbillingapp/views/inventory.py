@@ -36,6 +36,7 @@ def inventory_logs(request, inventory_id):
     inventory_logs = InventoryLog.objects.filter(user=request.user, product=inventory.product).order_by('-id')
     context['inventory'] = inventory
     context['inventory_logs'] = inventory_logs
+    context['nav_hide'] = request.GET.get('nav') or ''
     return render(request, 'inventory/inventory_logs.html', context)
 
 
@@ -62,7 +63,6 @@ def inventory_logs_add(request, inventory_id):
                 context['form'] = inventory_log_form
                 return render(request, 'inventory/inventory_logs_add.html', context)
 
-
         inventory_log = inventory_log_form.save(commit=False)
         inventory_log.user = request.user
         inventory_log.product = inventory.product
@@ -73,8 +73,6 @@ def inventory_logs_add(request, inventory_id):
         inventory.last_log = inventory_log
         inventory.save()
         return redirect('inventory_logs', inventory.id)
-
-    
     return render(request, 'inventory/inventory_logs_add.html', context)
 
 @login_required

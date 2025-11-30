@@ -131,6 +131,7 @@ def invoice_viewer(request, invoice_id):
     context['currency'] = "₹"
     context['total_in_words'] = num2words.num2words(int(context['invoice_data']['invoice_total_amt_with_gst']), lang='en_IN').title()
     context['user_profile'] = user_profile
+    context['nav_hide'] = request.GET.get('nav') or ''
     return render(request, 'invoices/invoice_printer.html', context)
 
 

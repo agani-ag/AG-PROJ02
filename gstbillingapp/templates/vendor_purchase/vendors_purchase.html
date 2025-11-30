@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+
+
+{% block content %}
+		<div class="row">
+			<div class="col">
+				<h2>Vendor Purchase</h2>
+			</div>
+			<div class="col text-right" style="padding-top: 0.5%;">
+				<a href="{% url 'vendor_purchase_add' %}" class="btn btn-primary btn-sm btn-curve">
+					<i class="fas fa-plus"></i>
+				</a>
+				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" style="text-decoration: none;">
+					<i class="fas fa-file-excel"></i>
+				</a>
+			</div>
+		</div>
+
+		<table class="table table-bordered" id="vendor_purchase-table">
+			<thead>
+				<tr>
+					<th>Vendor Name</th>
+					<th>Address</th>
+					<th>Phone</th>
+					<th>GST%</th>
+					<th>Actions</th>
+				</tr>
+			</thead>
+			<tbody class="two-col-form">
+				{% for vendor in vendors %}
+				<tr>
+	 				<td>{{vendor.vendor_name}}</td>
+	 				<td>{% if vendor.vendor_address %}{{vendor.vendor_address}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+	 				<td>{% if vendor.vendor_phone %}{{vendor.vendor_phone}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+	 				<td>{% if vendor.vendor_gst %}{{vendor.vendor_gst}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+	 				<td>
+						<div class="btn-group" role="group" aria-label="Basic example">
+							<a href="{% url 'vendor_purchase_edit' vendor.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
+							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#vendorPurchaseDeleteModal" data-vendor-purchase-id="{{vendor.id}}" data-vendor-purchase-name="{{vendor.vendor_name}}"><i class="fas fa-trash"></i></button>
+						</div>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+
+<div class="modal fade" id="vendorPurchaseDeleteModal" tabindex="-1" role="dialog" aria-labelledby="vendorPurchaseDeleteModalLabel" aria-hidden="true">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="vendorPurchaseDeleteModalLabel">Are you sure?</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form method="POST" action="{% url 'vendor_purchase_delete' %}">
+			{% csrf_token %}
+			<div class="modal-body">
+				Are you sure you want to delete <b><span class="vendor-purchase-name"></span></b>?
+					<div class="form-group">
+						<input hidden="true" type="text" class="form-control" name="vendor_purchase_id">
+					</div>
+			</div>
+			<div class="modal-footer">
+				<button type="submit" class="btn btn-danger btn-sm btn-curve" >Yes</button>
+				<button type="button" class="btn btn-primary btn-sm btn-curve" data-dismiss="modal">No</button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% endblock %}
+
+
+
+
+
+{% block includejs %}
+<script type="text/javascript">
+$('#vendorPurchaseDeleteModal').on('show.bs.modal', function (event) {
+	var button = $(event.relatedTarget) // Button that triggered the modal
+	var vendor_purchase_id = button.data('vendor-purchase-id') // Extract info from data-* attributes
+	var model_no = button.data('vendor-purchase-name') // Extract info from data-* attributes
+	// If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
+	// Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
+	var modal = $(this)
+	modal.find('.modal-body input').val(vendor_purchase_id)
+	console.log(model_no)
+	modal.find('.vendor-purchase-name').html(model_no)
+})
+
+$(document).ready( function () {
+	$('#vendor_purchase-table').DataTable({
+		"order": [],
+		"columnDefs": [ {
+			"targets": 4,
+			"sortable": false,
+			"searchable": false
+		}],
+		"paging": true,
+		dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'excelHtml5',
+                text: '<i class="fas fa-file-excel"></i> Excel',
+                className: 'btn btn-success btn-sm btn-curve'
+            },
+            {
+                extend: 'pdfHtml5',
+                text: '<i class="fas fa-file-pdf"></i> PDF',
+                className: 'btn btn-danger btn-sm btn-curve'
+            },
+            {
+                extend: 'print',
+                text: '<i class="fas fa-print"></i> Print',
+                className: 'btn btn-warning btn-sm btn-curve'
+            }
+        ]
+	});
+});
+
+</script>
+{% endblock %}

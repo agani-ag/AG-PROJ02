@@ -1,6 +1,6 @@
 # Django imports
 from django.contrib.auth import login, logout
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 
 # Project imports
@@ -15,6 +15,9 @@ def login_view(request):
     if request.user.is_authenticated:
         return redirect("invoice_create")
     context = {}
+    if request.GET.get("admin"):
+        context["admin"] = True
+    context["admin_password"] = settings.PRODUCT
     auth_form = AuthenticationForm(request)
     if request.method == "POST":
         auth_form = AuthenticationForm(request, data=request.POST)
@@ -63,3 +66,46 @@ def signup_view(request):
 def logout_view(request):
     logout(request)
     return redirect('login_view')
+
+# ================= Auth API Views ===========================
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from ..models import UserProfile
+import json
+@csrf_exempt
+def passkey_auth(request):
+    # Only allow POST requests
+    if request.method == "POST":
+        try:
+            # Parse the incoming JSON body
+            data = json.loads(request.body)
+            passkey = data.get("passkey")
+
+            # Define valid passkeys
+            passkeys = {
+                "66666": 1,
+                "77777": 2,
+                "88888": 3
+            }
+
+            # Check if the passkey is valid
+            user_id = passkeys.get(passkey)
+
+            if not user_id:
+                return JsonResponse({"error": "Invalid passkey"}, status=400)
+
+            # Look up the user profile using the user_id
+            user_profile = get_object_or_404(UserProfile, user__id=user_id)
+
+            # Log the user in
+            login(request, user_profile.user, backend='django.contrib.auth.backends.ModelBackend')
+
+            # Return a successful response
+            return JsonResponse({"message": "Passkey authentication successful"}, status=200)
+
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON payload"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)

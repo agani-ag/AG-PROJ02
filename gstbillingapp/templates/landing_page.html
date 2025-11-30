@@ -15,7 +15,7 @@ GSTSync
 
 <meta property="og:title" content="BillGST - Simplest GST invoicing | Inventory Management | Book keeping" />
 <meta property="og:url" content="https://billgst.in" />
-<meta property="og:image" content="https://billgst.in{% static "gstbillingapp/images/screenshot_interface.png" %}" />
+<meta property="og:image" content="https://billgst.in{% static 'gstbillingapp/images/screenshot_interface.png' %}" />
 {% endblock %}
 
 {% block content %}
@@ -23,7 +23,7 @@ GSTSync
 <div class="jumbotron">
 	<h2 class="display-6"><b>GST Sync</b></h2>
 	<h4 class="display-8">Smart Invoicing. Easy GST.</h4>
-	<a class="btn btn-primary btn-lg" href="{% url 'invoice_create' %}" role="button">Log In</a>
+	<a class="btn btn-primary btn-lg" href="{% url 'invoice_create' %}" role="button"><i class="fas fa-sign-in"></i></a>
 	<hr class="my-4">
 	<div class="col d-flex align-items-stretch">
 		<div class="card text-white bg-primary mb-3">
@@ -31,9 +31,7 @@ GSTSync
 			<img class="img-fluid" src="{% static 'gstbillingapp/images/screenshot_interface.png' %}" alt="Simple Interface">
 			</div>
 		</div>
-</div>
-
-
+	</div>
 </div>
 
 {% endblock %}
