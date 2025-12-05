@@ -91,4 +91,5 @@ urlpatterns = [
     # Features URLs
     path('feature/upload', features.excel_upload, name='feature_upload'),
     path('api/passkey-auth', auth.passkey_auth, name='passkey_auth'),
+    path('download/sqlite', features.download_sqlite, name='download_sqlite'),
 ]

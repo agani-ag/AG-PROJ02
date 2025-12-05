@@ -15,7 +15,7 @@
 </div>
 
 <table class="table table-bordered" id="customer-table">
-	<thead>
+	<thead class="thead-dark">
 		<tr>
 			<th>Customer Name</th>
 			<th>Address</th>
@@ -32,7 +32,7 @@
 			<td>{% if customer.customer_address %}{{customer.customer_address}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 			<td>{% if customer.customer_phone %}{{customer.customer_phone}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 			<td>{% if customer.customer_gst %}{{customer.customer_gst}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-			<td class="text-center">
+			<td>
 				{% if customer.is_mobile_user %}
 					<a href="#" class="btn btn-orange-on btn-sm btn-curve"><i class="fas fa-toggle-on"></i></a>
 				{% else %}
@@ -143,7 +143,7 @@ $('#set-allcustomer-userid').click(function(){
 		if (result.isConfirmed) {
 			$.ajax({
 				type: "POST",
-				url: "{% url 'customer_default_password' %}",
+				url: "/customers/api/all_userid_set",
 				data: {
 					'customer_userid': '{{ user.id }}',
 				},

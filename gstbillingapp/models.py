@@ -183,6 +183,7 @@ class BookLog(models.Model):
         (0, 'Paid'),
         (1, 'Purchased Items'),
         (2, 'Sold Items'),
+        (3, 'Returned Items'),
         (4, 'Other'),
     ]
     change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)
@@ -214,6 +215,14 @@ class PurchaseLog(models.Model):
     paid_reference = models.CharField(max_length=100, blank=True, null=True)
     purchase_reference = models.CharField(max_length=100, blank=True, null=True)
     amount = models.IntegerField(blank=True, null=True, default=0)
+
+    def save(self, *args, **kwargs):
+        if self.purchase_category:
+            self.purchase_category = self.purchase_category.upper()
+        if self.paid_category:
+            self.paid_category = self.paid_category.upper()
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return str(self.date)

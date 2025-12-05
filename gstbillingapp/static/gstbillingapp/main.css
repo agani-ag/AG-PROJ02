@@ -187,6 +187,9 @@ input:checked + .slider:before {
 	transform: translateX(16px);
 }
 /* Custom CSS for Customer Mobile Toggle Buttons */
+.btn-orange {
+	background-color: darkorange;
+}
 .btn-orange-on {
 	background-color: orange;
 	color: white;
@@ -196,4 +199,8 @@ input:checked + .slider:before {
 }
 .btn-orange-off:hover {
 	color: white;
+}
+/* Vertical Align Middle Class */
+.v-align-middle {
+    vertical-align: middle;
 }

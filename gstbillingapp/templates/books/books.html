@@ -12,7 +12,7 @@
 </div>
 
 <table class="table table-hover font-weight-bold" id="book-table">
-	<thead>
+	<thead class="thead-dark">
 		<tr>
 			<th>Customer</th>
 			<th>Current Balance</th>
@@ -24,9 +24,9 @@
 		<tr onclick="window.location='{% url 'book_logs' book.id %}';">
 			<td><a href="{% url 'book_logs' book.id %}">{{book.customer.customer_name}}</a></td>
 			<td>{% if book.current_balance > 0 %}
-                <span class="text-success">{{ book.current_balance }}</span>
+                <span class="text-success">{{ book.current_balance|floatformat:2 }}</span>
             {% else %}
-                <span class="text-danger">{{ book.current_balance }}</span>
+                <span class="text-danger">{{ book.current_balance|floatformat:2 }}</span>
             {% endif %}
 			</td>
 			<td>{{book.last_log}}</td>
@@ -45,11 +45,7 @@
 $(document).ready( function () {
 	$('#book-table').DataTable({
 		"order": [],
-		"columnDefs": [ {
-			"targets": 3,
-			"sortable": false,
-			"searchable": false
-		} ],
+		"columnDefs": [],
 		"paging": true
 	});
 });

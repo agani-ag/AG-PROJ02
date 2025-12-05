@@ -1,10 +1,10 @@
 # Django imports
+from gstbilling import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password, check_password
-
 # Models
 from ..models import Customer, UserProfile
 
@@ -26,7 +26,7 @@ CPASSWORD = 'password123'
 @login_required
 def customers(request):
     context = {}
-    context['customers'] = Customer.objects.filter(user=request.user)
+    context['customers'] = Customer.objects.filter(user=request.user).order_by('customer_name')
     return render(request, 'customers/customers.html', context)
 
 
@@ -79,6 +79,8 @@ def customer_edit(request, customer_id):
     context['customer_form'] = CustomerForm(instance=customer_obj)
     context['is_mobile_user'] = customer_obj.is_mobile_user
     context['customer_userid'] = customer_obj.customer_userid
+    if not customer_obj.customer_password:
+        customer_obj.customer_password = make_password(CPASSWORD)
     if check_password(CPASSWORD, customer_obj.customer_password):
         customer_password = [True,'Unchanged','red']
     else:
@@ -122,9 +124,10 @@ def customerall_userid_set(request):
         customer_count = list(Customer.objects.filter(user_id=customer_user))
         customer_obj = Customer.objects.filter(user_id=customer_user)
         for customer in customer_obj:
-            add_customer_userid(customer)
+            # customer.is_mobile_user = f"{settings.PRODUCT_PREFIX}{customer.user.id}C{customer.id}"
             customer.is_mobile_user = True
             customer.save()
+            add_customer_userid(customer)
         return JsonResponse({'status': 'success', 'message': f'{len(customer_count)} Customer User IDs set successfully.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to set customer user IDs.'})
 
