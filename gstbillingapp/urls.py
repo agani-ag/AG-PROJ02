@@ -25,6 +25,7 @@ urlpatterns = [
 
     # Invoice URLs
     path('invoices', invoices.invoices, name='invoices'),
+    path('invoices/nongst', invoices.non_gst_invoices, name='non_gst_invoices'),
     path('invoices/new', invoices.invoice_create, name='invoice_create'),
     path('invoice/<int:invoice_id>', invoices.invoice_viewer, name='invoice_viewer'),
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),

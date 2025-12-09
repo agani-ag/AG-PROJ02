@@ -176,5 +176,14 @@
 			}
 		});
 	}
-</script>
+
+	document.getElementById("nongstcheck").addEventListener("change", function() {
+		var invoiceNumberInput = document.querySelector('input[name="invoice-number"]');
+		if (this.checked) {
+			invoiceNumberInput.value = "{{non_gst_invoice_number}}";
+		} else {
+			invoiceNumberInput.value = "{{default_invoice_number}}";
+		}
+	});
+	</script>
 {% endblock %}

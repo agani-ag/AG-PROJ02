@@ -97,7 +97,8 @@ class Customer(models.Model):
 
 class Invoice(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
-    invoice_number = models.IntegerField()
+    # invoice_number = models.IntegerField()
+    invoice_number = models.IntegerField(null=True, blank=True, default=None)
     invoice_date = models.DateField()
     invoice_customer = models.ForeignKey(
         'Customer',
@@ -108,6 +109,15 @@ class Invoice(models.Model):
     inventory_reflected = models.BooleanField(default=True)
     books_reflected = models.BooleanField(default=True)
     non_gst_mode = models.BooleanField(default=False)
+    non_gst_invoice_number = models.IntegerField(null=True, blank=True, default=None)
+    
+    def save(self, *args, **kwargs):
+        if self.non_gst_mode:
+            self.non_gst_invoice_number = self.invoice_number
+            self.invoice_number = None
+        
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return str(self.invoice_number) + " | " + str(self.invoice_date)
 
