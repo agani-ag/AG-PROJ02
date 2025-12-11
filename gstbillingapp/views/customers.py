@@ -59,6 +59,9 @@ def customer_add(request):
 @login_required
 def customer_edit(request, customer_id):
     customer_obj = get_object_or_404(Customer, user=request.user, id=customer_id)
+    if not customer_obj.customer_password:
+        customer_obj.customer_password = make_password(CPASSWORD)
+        customer_obj.save()
     if request.method == "POST":
         context = {}
         customer_form = CustomerForm(request.POST, instance=customer_obj)
@@ -79,13 +82,7 @@ def customer_edit(request, customer_id):
     context['customer_form'] = CustomerForm(instance=customer_obj)
     context['is_mobile_user'] = customer_obj.is_mobile_user
     context['customer_userid'] = customer_obj.customer_userid
-    if not customer_obj.customer_password:
-        customer_obj.customer_password = make_password(CPASSWORD)
-    if check_password(CPASSWORD, customer_obj.customer_password):
-        customer_password = [True,'Unchanged','red']
-    else:
-        customer_password = [True,'Changed','green']
-    context['customer_password'] = customer_password
+    context['customer_password'] = customer_obj.customer_password
     context['id'] = customer_obj.id
     return render(request, 'customers/customer_edit.html', context)
 
