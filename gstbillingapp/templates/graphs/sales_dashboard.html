@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<h2>Sales Dashboard</h2>
+<h5>Monthly Performance Overview {{ selected_year }}</h5>
+
+<form method="GET" id="yearForm">
+    <label>Select Year:</label>
+    <select name="year" onchange="document.getElementById('yearForm').submit()">
+        {% for y in years %}
+            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+    </select>
+</form>
+
+<br>
+
+<script src="https://www.gstatic.com/charts/loader.js"></script>
+<div id="chart_div"></div>
+<script>
+google.charts.load('current', {'packages':['bar']});
+google.charts.setOnLoadCallback(drawChart);
+
+function drawChart() {
+    var data = google.visualization.arrayToDataTable([
+        ['Month', 'Sales', 'Received', 'Expenses', 'Profit'],
+        {% for row in chart_data %}
+            ['{{ row.month }}', {{ row.sales }}, {{ row.received }}, {{ row.expenses }}, {{ row.profit }}],
+        {% endfor %}
+    ]);
+
+    var formatter = new google.visualization.NumberFormat({
+        prefix: '₹ ',
+        groupingSymbol: ',',
+        fractionDigits: 0
+    });
+
+    formatter.format(data, 1); // Sales
+    formatter.format(data, 2); // Received
+    formatter.format(data, 3); // Expenses
+    formatter.format(data, 4); // Profit
+
+    var options = {
+        bars: 'vertical',
+        height: 400,
+        colors: ['#1b9e77', '#1f77b4', '#d95f02', '#7570b3'], // Sales, Received, Expenses, Profit
+        vAxis: { format: '₹ #,###' }
+    };
+
+    var chart = new google.charts.Bar(document.getElementById('chart_div'));
+    chart.draw(data, google.charts.Bar.convertOptions(options));
+}
+</script>
+
+{% endblock %}

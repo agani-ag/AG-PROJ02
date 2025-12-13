@@ -1,15 +1,16 @@
 {% extends "base.html" %}
-
 {% load static %}
-
-
 
 {% block content %}
 
+	{% if non_gst_mode %}	
+		<h2> Non-GST Invoices</h2>
+	{% else %}
 		<h2>Invoices</h2>
+	{% endif %}
 
 		<table class="table table-bordered" id="invoice-table">
-		<thead>
+		<thead class="thead-dark">
 			<tr>
 				<!-- <th>Incoice ID</th> -->
 				<th>Invoice Number</th>
@@ -22,13 +23,33 @@
 			{% for invoice in invoices %}
 			<tr>
  				<!-- <td>{{invoice.id}}</td> -->
- 				<td>{{invoice.invoice_number}}</td>
+ 				<td>
+					{% if invoice.non_gst_mode %}
+						{% if invoice.non_gst_invoice_number %}
+							<span class="text-danger font-weight-bold">NG{{invoice.non_gst_invoice_number}}</span>
+						{% else %}
+							<span class="text-muted font-weight-bold">N/A</span>
+						{% endif %}
+					{% else %}
+						{{invoice.invoice_number}}
+					{% endif %}
+				</td>
  				<td>{{invoice.invoice_date}}</td>
- 				<td>{% if invoice.invoice_customer %}{{invoice.invoice_customer}}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
+ 				<td>
+					{% if invoice.invoice_customer %}
+						<a href="{% url 'book_logs' invoice.invoice_customer.id %}" style="text-decoration: none;color: black;">
+							{{invoice.invoice_customer}}</a>
+					{% else %}
+						<span class="text-danger">N/A</span>
+					{% endif %}
+				</td>
 				<td>
 					<div class="btn-group" role="group" aria-label="Basic example">
 						<button type="button" onclick="popup_invoice({{ invoice.id }})" class="btn btn-primary btn-sm btn-curve"><i class="fa fa-eye"></i></button>
 						<a href="{% url 'invoice_viewer' invoice.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fa fa-external-link-square"></i></a>
+						{% if invoice.invoice_customer %}
+							<a href="{% url 'customer_edit' invoice.invoice_customer.id %}" class="btn btn-orange btn-sm btn-curve"><i class="fa fa-user"></i></a>
+						{% endif %}
 						<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{{invoice.id}}" data-invoice-number="{{invoice.invoice_number}}, for {{invoice.invoice_customer}}"><i class="fa fa-trash"></i></button>
 					</div>
 				</td>

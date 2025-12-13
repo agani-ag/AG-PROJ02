@@ -9,10 +9,11 @@
 <hr>
 <div class="row">
 	<div class="col">
-		<h3>Customer: {{book.customer.customer_name}}</h3>
-		<h3>Current Balance: {% if book.current_balance > 0 %}
-			<span class="text-success">{{ book.current_balance }}</span>
-			{% else %}<span class="text-danger">{{ book.current_balance }}</span>{% endif %}</h3>
+		<h3>Customer: <span class="text-primary">{{book.customer.customer_name}}</span></h3>
+        <h3>Current Balance: {% if book.current_balance > 0 %}
+            <span class="text-success">{{ book.current_balance|floatformat:2 }}</span>
+            {% else %}<span class="text-danger">{{ book.current_balance|floatformat:2 }}</span>{% endif %}</h3>
+
 	</div>
 	<div class="col text-right">
 		<a href="{% url 'book_logs_add' book.id %}" class="btn btn-primary btn-sm btn-curve">
@@ -23,7 +24,7 @@
 </div>
 <hr>
 <table class="table table-hover font-weight-bold" id="inventory-logs-table">
-	<thead>
+	<thead class="thead-dark">
 		<tr>
 			<th>Date</th>
 			<th>Type</th>
@@ -36,11 +37,15 @@
 		{% for item in book_logs %}
 		<tr class="{% if item.change < 0 %}table-danger{% else %}table-success{%endif%}">
 			<td>{{item.date}}</td>
-			<td>{{item.get_change_type_display}} {% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}">[INVOICE]</a>{% endif %}</td>
-			<td>{{item.change}} &emsp; {{inventory.product.product_hsn}}</td>
+			<td>{{item.get_change_type_display}}</td>
+			<td>{{item.change}}</td>
 			<td>{{item.description}}</td>
 			<td>
-				{% if not item.associated_invoice %}
+				{% if item.associated_invoice %}
+                    <a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="btn btn-primary btn-sm btn-curve">
+                        <i class="fas fa-file-invoice"></i>
+                    </a>
+				{% else %}
 					<a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
 						<i class="fas fa-trash"></i>
 					</a>
@@ -60,6 +65,11 @@
 $(document).ready( function () {
 	$('#inventory-logs-table').DataTable({
 		"order": [],
+        "columnDefs": [ {
+            "targets": 4,
+            "sortable": false,
+            "searchable": false
+        } ],
 		"paging": true,
 		dom: 'Bfrtip',
         buttons: [

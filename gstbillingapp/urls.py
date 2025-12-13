@@ -6,7 +6,7 @@ from .views import (
     auth, profile, invoices, customers,
     books, products, inventory, purchases,
     vendor_purchase, features, views,
-    expense_tracker, bank_details
+    expense_tracker, bank_details, graphs
 )
 
 urlpatterns = [
@@ -25,6 +25,7 @@ urlpatterns = [
 
     # Invoice URLs
     path('invoices', invoices.invoices, name='invoices'),
+    path('invoices/nongst', invoices.non_gst_invoices, name='non_gst_invoices'),
     path('invoices/new', invoices.invoice_create, name='invoice_create'),
     path('invoice/<int:invoice_id>', invoices.invoice_viewer, name='invoice_viewer'),
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),
@@ -91,4 +92,8 @@ urlpatterns = [
     # Features URLs
     path('feature/upload', features.excel_upload, name='feature_upload'),
     path('api/passkey-auth', auth.passkey_auth, name='passkey_auth'),
+    path('download/sqlite', features.download_sqlite, name='download_sqlite'),
+
+    # Graphs and Analytics URLs
+    path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
 ]

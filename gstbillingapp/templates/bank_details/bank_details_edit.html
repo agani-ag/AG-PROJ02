@@ -28,11 +28,11 @@
                 <td class="form-input-td">{{ bank_details_form.ifsc_code }}</td>
             </tr>
             <tr>
-                <th scope="row" class="text-right">UPI ID:</th>
+                <th scope="row" class="text-right" id="upi-id">UPI ID:</th>
                 <td class="form-input-td">{{ bank_details_form.upi_id }}</td>
             </tr>
             <tr>
-                <th scope="row" class="text-right">UPI Name:</th>
+                <th scope="row" class="text-right" id="upi-name">UPI Name:</th>
                 <td class="form-input-td">{{ bank_details_form.upi_name }}</td>
             </tr>
             <tr>
@@ -95,6 +95,21 @@
         // Add event listener to update fields when `whom_account` changes
         document.getElementById("id_whom_account").addEventListener("change", updateMappedFields);
     };
+
+    function updateUpiNameRequired() {
+        var upiIdInput = document.getElementById("id_upi_id");
+        var upiNameInput = document.getElementById("id_upi_name");
+        if (upiIdInput.value.trim() !== "") {
+            upiNameInput.required = true;
+        } else {
+            upiNameInput.required = false;
+        }
+    }
+    window.addEventListener("DOMContentLoaded", function() {
+        var upiIdInput = document.getElementById("id_upi_id");
+        upiIdInput.addEventListener("input", updateUpiNameRequired);
+        updateUpiNameRequired();
+    });
 </script>
 
 {% endblock %}

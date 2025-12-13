@@ -20,7 +20,7 @@ import json
 @login_required
 def products(request):
     context = {}
-    context['products'] = Product.objects.filter(user=request.user)
+    context['products'] = Product.objects.filter(user=request.user).order_by('-id')
     return render(request, 'products/products.html', context)
 
 

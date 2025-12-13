@@ -56,7 +56,27 @@
                             </tr>
                             <tr>
                                 <th scope="row" class="text-right">Bank Detail:</th>
-                                <td>{% if user_profile.bankdetails %}{{ user_profile.bankdetails }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
+                                <td>
+                                    {% if user_profile.bankdetails %}
+                                        {{ user_profile.bankdetails }}
+                                    {% else %}
+                                        <span style="color:red;">N/A</span>
+                                    {% endif %}
+                                    <!-- UPI QR Code -->
+                                    {% if user_profile.bankdetails.upi_id %}
+                                        <br>
+                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am=100"></div>
+                                        <strong>UPI ID:</strong> {{ user_profile.bankdetails.upi_id }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% if user_profile.business_latitude and user_profile.business_longitude %}
+                            <tr>
+                                <th colspan="2">
+                                    <div id="map" style="height: 250px;width: 100%;"></div>
+                                </th>
+                            </tr>
+                            {% endif %}
                             </tr>
                         </tbody>
                     </table>
@@ -65,4 +85,38 @@
         </div>
     </div>
 </div>
+{% endblock %}
+{% block includejs %}
+<script>
+    var latitude = {{ user_profile.business_latitude }};
+    var longitude = {{ user_profile.business_longitude }};
+    var name = "{{ user_profile.business_title }}";
+
+    var map = L.map('map').setView([latitude, longitude], 20);
+
+    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; <a href="https://www.esri.com/en-us/arcgis/about-arcgis/overview">Esri</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    satelliteLayer.addTo(map);
+
+    L.marker([latitude, longitude]).addTo(map)
+        .bindTooltip(name, {permanent: true, offset: [0, -15], direction: 'top'})
+        .openPopup();
+</script>
+<script>
+    const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
+    const qr = new QRCodeStyling({
+        width: 100,
+        height: 100,
+        data: upiQR,
+        dotsOptions: { color: "#000", type: "rounded" }
+    });
+
+    qr.append(document.getElementById("upi_qr"));
+</script>
 {% endblock %}

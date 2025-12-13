@@ -36,19 +36,10 @@
 				<th scope="row" class="text-right">Customer Email:</th>
 				<td class="form-input-td">{{customer_form.customer_email}}</td>
 			</tr>
-			{% if customer_password.0 %}
 			<tr>
 				<th scope="row" class="text-right">Customer Login ID:</th>
 				<td class="form-input-td" aria-readonly="true">{{customer_userid | upper}}</td>
 			</tr>
-			<tr>
-				<th scope="row" class="text-right">Customer Password:</th>
-				<td class="form-input-td" readonly style="color: {{customer_password.2}};">{{customer_password.1}}
-					<!-- <a href="#" class="btn btn-dark btn-sm btn-curve" data-toggle="modal" data-target="#customerResetPasswordModal"><i class="fas fa-redo"></i></a> -->
-					<a onclick="resetCustomerPassword('{{ customer_id }}')" class="btn btn-dark btn-sm btn-curve"><i class="fas fa-redo"></i></a>
-				</td>
-			</tr>
-			{% endif %}
 			<tr>
 				<th scope="row" class="text-right">Is Mobile User:</th>
 				<td class="form-input-td">
@@ -74,10 +65,19 @@
 				<th scope="row" class="text-right">Bank Details:</th>
 				<td class="form-input-td">{{ customer_form.bankdetails }}</td>
 			</tr>
+			<tr>
+				<td colspan="2">
+					<div id="map" style="height: 350px; width: 100%; border: 1px solid #ccc;"></div>
+				</td>
+			</tr>
 		</tbody>
 	</table>
 
 	<div class="form-group text-right">
+		<button type="button" id="toggleEditBtn" class="btn btn-success"><i class="fas fa-map-marker-alt"></i></button>
+		{% if customer_password %}
+			<a onclick="resetCustomerPassword('{{ customer_id }}')" class="btn btn-dark"><i class="fas fa-redo"></i></a>
+		{% endif %}
 		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
 </form>
 		<a class="btn btn-danger" href="{% url 'customers' %}"><i class="fas fa-cancel"></i></a>
@@ -126,7 +126,7 @@ function resetCustomerPassword(customerId) {
 		if (result.isConfirmed) {
 			$.ajax({
 				type: "POST",
-				url: "{% url 'customer_default_password' %}",
+				url: "/customers/api/default_password",
 				data: {
 					'customer_userid': '{{ customer_userid }}',
 				},
@@ -163,5 +163,60 @@ function popup_books() {
       });
     });
 }	
+</script>
+{% endblock %}
+{% block includejs %}
+<script>
+    var latitude = document.querySelector("input[name='customer_latitude']").value;
+    if (!latitude) latitude = 12.602429;
+    else latitude = parseFloat(latitude);
+
+    var longitude = document.querySelector("input[name='customer_longitude']").value;
+    if (!longitude) longitude = 78.595726;
+    else longitude = parseFloat(longitude);
+
+    var name = document.querySelector("input[name='customer_name']").value;
+
+    var map = L.map('map').setView([latitude, longitude], 20);
+
+    // SATELLITE LAYER
+    var satelliteLayer = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { attribution: '&copy; Esri & contributors' }
+    ).addTo(map);
+
+    // LABELS LAYER
+    var labelsLayer = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+        { attribution: '&copy; Esri' }
+    ).addTo(map);
+
+    // MARKER
+    var marker = L.marker([latitude, longitude])
+        .addTo(map)
+        .bindTooltip(name, { permanent: true, offset: [0, -15], direction: 'top' });
+
+    // --- EDIT MODE ---
+    let editMode = false;
+
+    const toggleBtn = document.getElementById("toggleEditBtn");
+    toggleBtn.addEventListener("click", function () {
+        editMode = !editMode;
+        toggleBtn.className = editMode ? "btn btn-warning" : "btn btn-success";
+    });
+
+    // CLICK ONLY WORKS IN EDIT MODE
+    map.on('click', function (e) {
+        if (!editMode) return;
+
+        const lat = e.latlng.lat.toFixed(6);
+        const lon = e.latlng.lng.toFixed(6);
+
+        document.querySelector("input[name='customer_latitude']").value = lat;
+        document.querySelector("input[name='customer_longitude']").value = lon;
+
+        marker.setLatLng([lat, lon]);
+        marker.bindTooltip(lat + ", " + lon, { permanent: true }).openTooltip();
+    });
 </script>
 {% endblock %}
