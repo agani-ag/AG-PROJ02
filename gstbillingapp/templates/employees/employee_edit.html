@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit Employee - GST Billing{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-user-edit"></i> Edit Employee: {{ employee.employee_name }}</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        
+                        <!-- Basic Information -->
+                        <h5 class="border-bottom pb-2 mb-3">Basic Information</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="employee_name">Employee Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="employee_name" 
+                                           name="employee_name" value="{{ employee.employee_name }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="employee_phone">Phone Number <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="employee_phone" 
+                                           name="employee_phone" value="{{ employee.employee_phone }}" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="employee_email">Email Address (Optional)</label>
+                            <input type="email" class="form-control" id="employee_email" 
+                                   name="employee_email" value="{{ employee.employee_email }}">
+                        </div>
+                        
+                        <!-- Login Credentials -->
+                        <h5 class="border-bottom pb-2 mb-3 mt-4">Login Credentials</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="employee_userid">Employee ID</label>
+                                    <input type="text" class="form-control" id="employee_userid" 
+                                           value="{{ employee.employee_userid|upper }}" disabled>
+                                    <small class="form-text text-muted">Employee ID cannot be changed</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="employee_password">New Password (Optional)</label>
+                                    <input type="password" class="form-control" id="employee_password" 
+                                           name="employee_password" minlength="6">
+                                    <small class="form-text text-muted">Leave blank to keep current password</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Role & Status -->
+                        <h5 class="border-bottom pb-2 mb-3 mt-4">Role & Status</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="role">Role <span class="text-danger">*</span></label>
+                                    <select class="form-control" id="role" name="role" required>
+                                        <option value="admin" {% if employee.role == 'admin' %}selected{% endif %}>Admin - Full Access</option>
+                                        <option value="manager" {% if employee.role == 'manager' %}selected{% endif %}>Manager - Most Operations</option>
+                                        <option value="accountant" {% if employee.role == 'accountant' %}selected{% endif %}>Accountant - Financial Operations</option>
+                                        <option value="sales" {% if employee.role == 'sales' %}selected{% endif %}>Sales Person - Invoices & Customers</option>
+                                        <option value="inventory" {% if employee.role == 'inventory' %}selected{% endif %}>Inventory Manager - Stock Management</option>
+                                        <option value="cashier" {% if employee.role == 'cashier' %}selected{% endif %}>Cashier - Billing Only</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Status</label>
+                                    <div class="custom-control custom-switch" style="padding-top: 8px;">
+                                        <input type="checkbox" class="custom-control-input" 
+                                               id="is_active" name="is_active" 
+                                               {% if employee.is_active %}checked{% endif %}>
+                                        <label class="custom-control-label" for="is_active">
+                                            Active Employee
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Permissions -->
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="mb-3">Specific Permissions</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_create_invoice" name="can_create_invoice"
+                                                   {% if employee.can_create_invoice %}checked{% endif %}>
+                                            <label class="custom-control-label" for="can_create_invoice">
+                                                <i class="fas fa-file-invoice"></i> Can Create Invoice
+                                            </label>
+                                        </div>
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_delete_invoice" name="can_delete_invoice"
+                                                   {% if employee.can_delete_invoice %}checked{% endif %}>
+                                            <label class="custom-control-label" for="can_delete_invoice">
+                                                <i class="fas fa-trash"></i> Can Delete Invoice
+                                            </label>
+                                        </div>
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_view_reports" name="can_view_reports"
+                                                   {% if employee.can_view_reports %}checked{% endif %}>
+                                            <label class="custom-control-label" for="can_view_reports">
+                                                <i class="fas fa-chart-bar"></i> Can View Reports
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_manage_inventory" name="can_manage_inventory"
+                                                   {% if employee.can_manage_inventory %}checked{% endif %}>
+                                            <label class="custom-control-label" for="can_manage_inventory">
+                                                <i class="fas fa-boxes"></i> Can Manage Inventory
+                                            </label>
+                                        </div>
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_manage_customers" name="can_manage_customers"
+                                                   {% if employee.can_manage_customers %}checked{% endif %}>
+                                            <label class="custom-control-label" for="can_manage_customers">
+                                                <i class="fas fa-users"></i> Can Manage Customers
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Employee Info -->
+                        <div class="alert alert-info mt-3">
+                            <strong><i class="fas fa-info-circle"></i> Employee Information:</strong><br>
+                            <small>
+                                <strong>Date Joined:</strong> {{ employee.date_joined|date:"d M, Y H:i" }}<br>
+                                {% if employee.last_login %}
+                                <strong>Last Login:</strong> {{ employee.last_login|date:"d M, Y H:i" }}
+                                {% else %}
+                                <strong>Last Login:</strong> Never
+                                {% endif %}
+                            </small>
+                        </div>
+                        
+                        <!-- Submit Buttons -->
+                        <div class="form-group mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> Update Employee
+                            </button>
+                            <a href="{% url 'employees' %}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

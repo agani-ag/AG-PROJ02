@@ -1,0 +1,286 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}My Ledger - Customer Portal{% endblock %}
+
+{% block content %}
+<style>
+    .mobile-ledger-page {
+        padding-bottom: 60px;
+        background: linear-gradient(135deg, #e0f7fa 0%, #b2dfdb 100%);
+        min-height: 100vh;
+    }
+    
+    .page-header {
+        background: linear-gradient(135deg, #00acc1 0%, #00bfa5 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 0 0 20px 20px;
+        margin: -10px -10px 20px -10px;
+        box-shadow: 0 4px 12px rgba(0, 172, 193, 0.3);
+    }
+    
+    .page-header h5 {
+        font-weight: 700;
+        margin-bottom: 0;
+    }
+    
+    .back-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: white !important;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+    
+    .back-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+    
+    .balance-card {
+        background: white;
+        border-radius: 20px;
+        padding: 30px 20px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 25px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .balance-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        background: linear-gradient(90deg, #00acc1, #00bfa5);
+    }
+    
+    .balance-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-bottom: 15px;
+        font-weight: 500;
+    }
+    
+    .balance-amount {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 15px;
+    }
+    
+    .balance-amount.due {
+        color: #dc3545;
+    }
+    
+    .balance-amount.clear {
+        color: #28a745;
+    }
+    
+    .balance-status {
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        display: inline-block;
+        font-weight: 600;
+    }
+    
+    .balance-status.due {
+        background: #ffe6e6;
+        color: #dc3545;
+    }
+    
+    .balance-status.clear {
+        background: #e6ffe6;
+        color: #28a745;
+    }
+    
+    .section-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-title i {
+        margin-right: 10px;
+        color: #00acc1;
+    }
+    
+    .transaction-item {
+        background: white;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border-left: 4px solid #e0e0e0;
+    }
+    
+    .transaction-item.credit {
+        border-left-color: #28a745;
+    }
+    
+    .transaction-item.debit {
+        border-left-color: #dc3545;
+    }
+    
+    .transaction-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+    }
+    
+    .transaction-type {
+        font-weight: 700;
+        color: #2c3e50;
+        font-size: 1rem;
+        margin-bottom: 5px;
+    }
+    
+    .transaction-date {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .transaction-amount {
+        font-size: 1.2rem;
+        font-weight: 700;
+        text-align: right;
+    }
+    
+    .transaction-amount.credit {
+        color: #28a745;
+    }
+    
+    .transaction-amount.debit {
+        color: #dc3545;
+    }
+    
+    .transaction-balance {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+    
+    .transaction-description {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #f0f0f0;
+    }
+    
+    .empty-state {
+        background: white;
+        border-radius: 15px;
+        padding: 50px 20px;
+        text-align: center;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        color: #e0e0e0;
+        margin-bottom: 20px;
+    }
+</style>
+
+<div class="container-fluid mobile-ledger-page">
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5><i class="fas fa-book"></i> My Ledger</h5>
+            <a href="{% url 'mobile_customer_dashboard' %}" class="back-btn">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Current Balance Card -->
+    {% if book %}
+    <div class="balance-card">
+        <div class="balance-label">Current Account Balance</div>
+        <div class="balance-amount {% if book.current_balance > 0 %}due{% else %}clear{% endif %}">
+            ₹{{ book.current_balance|floatformat:2|intcomma }}
+        </div>
+        <div class="balance-status {% if book.current_balance > 0 %}due{% else %}clear{% endif %}">
+            {% if book.current_balance > 0 %}
+            <i class="fas fa-exclamation-circle"></i> Amount Due
+            {% else %}
+            <i class="fas fa-check-circle"></i> All Clear
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Transaction History -->
+    <div class="section-title">
+        <i class="fas fa-history"></i> Transaction History
+    </div>
+    
+    {% if book_logs %}
+        {% for log in book_logs %}
+        <div class="transaction-item {% if log.credit_amount > 0 %}credit{% elif log.debit_amount > 0 %}debit{% endif %}">
+            <div class="transaction-header">
+                <div>
+                    <div class="transaction-type">
+                        {% if log.change_type == 0 %}
+                            <i class="fas fa-plus-circle" style="color: #28a745;"></i> Opening Balance
+                        {% elif log.change_type == 1 %}
+                            <i class="fas fa-shopping-cart" style="color: #00acc1;"></i> Invoice
+                        {% elif log.change_type == 2 %}
+                            <i class="fas fa-money-bill-wave" style="color: #28a745;"></i> Payment Received
+                        {% elif log.change_type == 3 %}
+                            <i class="fas fa-undo" style="color: #ff9800;"></i> Return
+                        {% elif log.change_type == 4 %}
+                            <i class="fas fa-gift" style="color: #9c27b0;"></i> Discount
+                        {% else %}
+                            <i class="fas fa-circle" style="color: #6c757d;"></i> Other
+                        {% endif %}
+                    </div>
+                    <div class="transaction-date">
+                        <i class="far fa-calendar"></i> {{ log.date|date:"d M, Y" }}
+                    </div>
+                </div>
+                <div>
+                    {% if log.debit_amount > 0 %}
+                    <div class="transaction-amount debit">
+                        -₹{{ log.debit_amount|floatformat:2|intcomma }}
+                    </div>
+                    {% endif %}
+                    {% if log.credit_amount > 0 %}
+                    <div class="transaction-amount credit">
+                        +₹{{ log.credit_amount|floatformat:2|intcomma }}
+                    </div>
+                    {% endif %}
+                    <div class="transaction-balance">
+                        Balance: ₹{{ log.balance|floatformat:2|intcomma }}
+                    </div>
+                </div>
+            </div>
+            {% if log.description %}
+            <div class="transaction-description">
+                <i class="fas fa-sticky-note"></i> {{ log.description }}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-inbox"></i>
+        <p>No transactions found</p>
+        <small class="text-muted">Your transaction history will appear here</small>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

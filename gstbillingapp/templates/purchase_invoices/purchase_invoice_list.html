@@ -99,6 +99,7 @@
                             <th>IGST</th>
                             <th>Total</th>
                             <th>ITC Claimed</th>
+                            <th>Purchase Log</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -121,14 +122,30 @@
                                 {% endif %}
                             </td>
                             <td>
+                                {% if invoice.related_purchase_log %}
+                                    <span class="badge badge-success" title="Linked to Purchase Log">
+                                        <i class="fas fa-check"></i> Pushed
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-warning" title="Not linked to Purchase Log">
+                                        <i class="fas fa-exclamation-triangle"></i> Not Pushed
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
                                 <a href="{% url 'purchase_invoice_view' invoice.id %}" class="btn btn-sm btn-info">View</a>
                                 <a href="{% url 'purchase_invoice_edit' invoice.id %}" class="btn btn-sm btn-warning">Edit</a>
+                                {% if not invoice.related_purchase_log %}
+                                    <button class="btn btn-sm btn-success" onclick="pushToPurchaseLog({{ invoice.id }})" title="Push to Purchase Log">
+                                        <i class="fas fa-upload"></i> Push
+                                    </button>
+                                {% endif %}
                                 <a href="{% url 'purchase_invoice_delete' invoice.id %}" class="btn btn-sm btn-danger">Delete</a>
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="10" class="text-center">No purchase invoices found</td>
+                            <td colspan="11" class="text-center">No purchase invoices found</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -137,4 +154,58 @@
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+function pushToPurchaseLog(invoiceId) {
+    Swal.fire({
+        title: 'Push to Purchase Log?',
+        text: 'This will create a purchase log entry for this invoice.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Push it!',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`/purchase-invoices/${invoiceId}/push-to-log`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: data.message,
+                        confirmButtonColor: '#28a745'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message,
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            })
+            .catch(error => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'An error occurred while pushing to purchase log.',
+                    confirmButtonColor: '#dc3545'
+                });
+            });
+        }
+    });
+}
+</script>
 {% endblock %}

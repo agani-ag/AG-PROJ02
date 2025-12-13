@@ -8,7 +8,7 @@ from .views import (
     vendor_purchase, features, views,
     expense_tracker, bank_details, graphs,
     purchase_invoices, gst_returns, gst_reconciliation,
-    returns, customer_transactions
+    returns, customer_transactions, employees
 )
 
 urlpatterns = [
@@ -114,6 +114,7 @@ urlpatterns = [
     path('purchase-invoices/<int:pk>', purchase_invoices.purchase_invoice_view, name='purchase_invoice_view'),
     path('purchase-invoices/<int:pk>/delete', purchase_invoices.purchase_invoice_delete, name='purchase_invoice_delete'),
     path('purchase-invoices/api/add', purchase_invoices.purchase_invoice_api_add, name='purchase_invoice_api_add'),
+    path('purchase-invoices/<int:pk>/push-to-log', purchase_invoices.push_to_purchase_log, name='push_to_purchase_log'),
     
     # ITC Ledger
     path('gst/itc-ledger', purchase_invoices.itc_ledger, name='itc_ledger'),
@@ -138,14 +139,24 @@ urlpatterns = [
     path('returns/<int:return_id>', returns.return_invoice_detail, name='return_invoice_detail'),
     path('returns/<int:return_id>/print', returns.return_invoice_printer, name='return_invoice_printer'),
     path('returns/<int:return_id>/process', returns.return_invoice_process, name='return_invoice_process'),
+    path('returns/<int:return_id>/delete', returns.return_invoice_delete, name='return_invoice_delete'),
     
     # Customer Payment URLs
     path('customers/payments', customer_transactions.customer_payments_list, name='customer_payments_list'),
     path('customers/payments/add', customer_transactions.customer_payment_add, name='customer_payment_add'),
     path('customers/payments/add/<int:customer_id>', customer_transactions.customer_payment_add, name='customer_payment_add_for_customer'),
+    path('customers/payments/<int:payment_id>/delete', customer_transactions.customer_payment_delete, name='customer_payment_delete'),
     
     # Customer Discount URLs
     path('customers/discounts', customer_transactions.customer_discounts_list, name='customer_discounts_list'),
     path('customers/discounts/add', customer_transactions.customer_discount_add, name='customer_discount_add'),
     path('customers/discounts/add/<int:customer_id>', customer_transactions.customer_discount_add, name='customer_discount_add_for_customer'),
+    path('customers/discounts/<int:discount_id>/delete', customer_transactions.customer_discount_delete, name='customer_discount_delete'),
+    
+    # Employee URLs
+    path('employees', employees.employees, name='employees'),
+    path('employees/add', employees.employee_add, name='employee_add'),
+    path('employees/<int:employee_id>/edit', employees.employee_edit, name='employee_edit'),
+    path('employees/delete', employees.employee_delete, name='employee_delete'),
+    path('employees/toggle-status', employees.employee_toggle_status, name='employee_toggle_status'),
 ]

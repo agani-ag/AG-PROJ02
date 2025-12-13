@@ -128,10 +128,11 @@ def purchase_invoice_add(request):
             purchase_invoice.user = request.user
             
             # Link to purchase log if provided
-            log_id = request.POST.get('related_purchase_log')
+            log_id = request.POST.get('related_purchase_log') or purchase_log_id
             if log_id:
                 try:
-                    purchase_invoice.related_purchase_log = PurchaseLog.objects.get(id=log_id, user=request.user)
+                    purchase_log = PurchaseLog.objects.get(id=log_id, user=request.user)
+                    purchase_invoice.related_purchase_log = purchase_log
                 except PurchaseLog.DoesNotExist:
                     pass
             
@@ -176,6 +177,15 @@ def purchase_invoice_edit(request, pk):
             
             updated_invoice = form.save()
             
+            # Sync with linked purchase log if exists
+            if updated_invoice.related_purchase_log:
+                purchase_log = updated_invoice.related_purchase_log
+                purchase_log.vendor = updated_invoice.vendor
+                purchase_log.date = datetime.combine(updated_invoice.invoice_date, datetime.min.time())
+                purchase_log.amount = -abs(float(updated_invoice.total_amount))  # Negative for purchase
+                purchase_log.purchase_reference = updated_invoice.invoice_number
+                purchase_log.save()
+            
             # Create audit log
             new_values = {
                 'invoice_number': updated_invoice.invoice_number,
@@ -219,13 +229,19 @@ def purchase_invoice_delete(request, pk):
     
     if request.method == 'POST':
         invoice_number = invoice.invoice_number
+        related_log = invoice.related_purchase_log
         
         # Create audit log before deletion
         create_audit_log(request, 'DELETE', 'PurchaseInvoice', invoice.id, str(invoice))
         
         invoice.delete()
         
-        messages.success(request, f'Purchase invoice {invoice_number} deleted successfully!')
+        # If there was a linked purchase log, inform user
+        if related_log:
+            messages.warning(request, f'Purchase invoice {invoice_number} deleted. Purchase log #{related_log.id} is now unlinked.')
+        else:
+            messages.success(request, f'Purchase invoice {invoice_number} deleted successfully!')
+        
         return redirect('purchase_invoice_list')
     
     context = {
@@ -324,6 +340,55 @@ def itc_ledger(request):
     }
     
     return render(request, 'purchase_invoices/itc_ledger.html', context)
+
+
+@login_required
+def push_to_purchase_log(request, pk):
+    """Push purchase invoice to purchase log"""
+    if request.method == 'POST':
+        try:
+            invoice = get_object_or_404(PurchaseInvoice, pk=pk, user=request.user)
+            
+            # Check if already linked
+            if invoice.related_purchase_log:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'This invoice is already linked to a purchase log.'
+                })
+            
+            # Create new purchase log entry
+            purchase_log = PurchaseLog(
+                user=request.user,
+                date=datetime.combine(invoice.invoice_date, datetime.min.time()),
+                ptype=0,  # Purchase type
+                vendor=invoice.vendor,
+                purchase_category='GST INVOICE',
+                purchase_reference=invoice.invoice_number,
+                amount=-abs(float(invoice.total_amount)),  # Negative for purchase
+                status=0  # Open
+            )
+            purchase_log.save()
+            
+            # Link the invoice to the purchase log
+            invoice.related_purchase_log = purchase_log
+            invoice.save()
+            
+            # Create audit log
+            create_audit_log(request, 'LINK', 'PurchaseInvoice', invoice.id, 
+                           f'Pushed invoice {invoice.invoice_number} to purchase log {purchase_log.id}')
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Invoice pushed to purchase log successfully! (Log ID: {purchase_log.id})'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error: {str(e)}'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
 
 
 # ================= Helper Functions =============================

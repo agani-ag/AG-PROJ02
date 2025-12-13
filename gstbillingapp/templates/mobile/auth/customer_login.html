@@ -1,0 +1,79 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+
+{% block title %}Customer Login - GST Billing{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-6">
+            <!-- Back Button -->
+            <div class="mb-3">
+                <a href="{% url 'mobile_login_selection' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+            </div>
+
+            <div class="card shadow mobile-login-card">
+                <div class="card-header bg-info text-white text-center">
+                    <i class="fas fa-user fa-3x mb-2"></i>
+                    <h4 class="mb-0">Customer Login</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="customer_userid"><i class="fas fa-id-card"></i> Customer ID</label>
+                            <input type="text" class="form-control form-control-lg" 
+                                   id="customer_userid" name="customer_userid" 
+                                   value="{{ customer_userid }}"
+                                   placeholder="Enter your customer ID" required autofocus>
+                        </div>
+                        <div class="form-group">
+                            <label for="customer_password"><i class="fas fa-lock"></i> Password</label>
+                            <input type="password" class="form-control form-control-lg" 
+                                   id="customer_password" name="customer_password" 
+                                   placeholder="Enter your password" required>
+                        </div>
+                        <button type="submit" class="btn btn-info btn-block btn-lg mt-4">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </button>
+                    </form>
+                </div>
+                <div class="card-footer text-center">
+                    <div class="row">
+                        <div class="col-6">
+                            <a href="{% url 'mfind_user_view' %}" class="text-info">
+                                <small><i class="fas fa-search"></i> Find User</small>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="{% url 'mforgot_password_view' %}?customer_userid={{ customer_userid }}" class="text-info">
+                                <small><i class="fas fa-key"></i> Forgot Password</small>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .mobile-login-card {
+        border-radius: 15px;
+        border: none;
+    }
+    
+    .form-control-lg {
+        border-radius: 10px;
+        padding: 15px;
+    }
+    
+    .btn-lg {
+        border-radius: 10px;
+        padding: 15px;
+        font-size: 1.1rem;
+    }
+</style>
+{% endblock %}

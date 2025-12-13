@@ -75,29 +75,60 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block includejs %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-$('#discountForm').on('submit', function(e) {
-    e.preventDefault();
-    $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+$(document).ready(function() {
+    console.log('Discount form ready, jQuery version:', $.fn.jquery);
     
-    $.ajax({
-        url: window.location.href,
-        type: 'POST',
-        data: $(this).serialize(),
-        success: function(response) {
-            if (response.status === 'success') {
-                alert(response.message);
-                window.location.href = response.redirect_url;
-            } else {
-                alert('Error: ' + response.message);
+    $('#discountForm').on('submit', function(e) {
+        e.preventDefault();
+        console.log('Form submitted via AJAX');
+        $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+        
+        $.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: $(this).serialize(),
+            dataType: 'json',
+            success: function(response) {
+                console.log('Response:', response);
+                if (response.status === 'success') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success!',
+                        text: response.message,
+                        confirmButtonColor: '#ffc107',
+                        allowOutsideClick: false
+                    }).then((result) => {
+                        console.log('Redirecting to:', response.redirect_url);
+                        window.location.href = response.redirect_url;
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: response.message,
+                        confirmButtonColor: '#dc3545'
+                    });
+                    $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Record Discount');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('AJAX Error:', status, error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error recording discount: ' + error,
+                    confirmButtonColor: '#dc3545'
+                });
                 $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Record Discount');
             }
-        },
-        error: function() {
-            alert('Error recording discount');
-            $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Record Discount');
-        }
+        });
+        
+        return false; // Extra safeguard
     });
 });
 </script>

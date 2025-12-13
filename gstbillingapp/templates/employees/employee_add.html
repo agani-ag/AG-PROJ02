@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Add Employee - GST Billing{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-user-plus"></i> Add New Employee</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="employeeForm">
+                        {% csrf_token %}
+                        
+                        <!-- Basic Information -->
+                        <h5 class="border-bottom pb-2 mb-3">Basic Information</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="employee_name">Employee Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="employee_name" 
+                                           name="employee_name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="employee_phone">Phone Number <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="employee_phone" 
+                                           name="employee_phone" required maxlength="14">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="employee_email">Email Address (Optional)</label>
+                            <input type="email" class="form-control" id="employee_email" 
+                                   name="employee_email">
+                        </div>
+                        
+                        <!-- Login Credentials -->
+                        <h5 class="border-bottom pb-2 mb-3 mt-4">Login Credentials</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="employee_userid">Employee ID <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="employee_userid" 
+                                           name="employee_userid" value="{{ suggested_id }}" required>
+                                    <small class="form-text text-muted">Suggested: {{ suggested_id }}</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="employee_password">Password <span class="text-danger">*</span></label>
+                                    <input type="password" class="form-control" id="employee_password" 
+                                           name="employee_password" required minlength="6">
+                                    <small class="form-text text-muted">Minimum 6 characters</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Role Selection -->
+                        <h5 class="border-bottom pb-2 mb-3 mt-4">Role & Permissions</h5>
+                        <div class="form-group">
+                            <label for="role">Role <span class="text-danger">*</span></label>
+                            <select class="form-control" id="role" name="role" required>
+                                <option value="admin">Admin - Full Access</option>
+                                <option value="manager">Manager - Most Operations</option>
+                                <option value="accountant">Accountant - Financial Operations</option>
+                                <option value="sales" selected>Sales Person - Invoices & Customers</option>
+                                <option value="inventory">Inventory Manager - Stock Management</option>
+                                <option value="cashier">Cashier - Billing Only</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Permissions -->
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="mb-3">Specific Permissions</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_create_invoice" name="can_create_invoice" checked>
+                                            <label class="custom-control-label" for="can_create_invoice">
+                                                <i class="fas fa-file-invoice"></i> Can Create Invoice
+                                            </label>
+                                        </div>
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_delete_invoice" name="can_delete_invoice">
+                                            <label class="custom-control-label" for="can_delete_invoice">
+                                                <i class="fas fa-trash"></i> Can Delete Invoice
+                                            </label>
+                                        </div>
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_view_reports" name="can_view_reports">
+                                            <label class="custom-control-label" for="can_view_reports">
+                                                <i class="fas fa-chart-bar"></i> Can View Reports
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_manage_inventory" name="can_manage_inventory">
+                                            <label class="custom-control-label" for="can_manage_inventory">
+                                                <i class="fas fa-boxes"></i> Can Manage Inventory
+                                            </label>
+                                        </div>
+                                        <div class="custom-control custom-checkbox mb-2">
+                                            <input type="checkbox" class="custom-control-input" 
+                                                   id="can_manage_customers" name="can_manage_customers" checked>
+                                            <label class="custom-control-label" for="can_manage_customers">
+                                                <i class="fas fa-users"></i> Can Manage Customers
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Buttons -->
+                        <div class="form-group mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-save"></i> Create Employee
+                            </button>
+                            <a href="{% url 'employees' %}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+$(document).ready(function() {
+    // Auto-set permissions based on role
+    $('#role').on('change', function() {
+        const role = $(this).val();
+        
+        // Reset all checkboxes
+        $('input[type="checkbox"]').prop('checked', false);
+        
+        // Set based on role
+        if (role === 'admin' || role === 'manager') {
+            $('input[type="checkbox"]').prop('checked', true);
+        } else if (role === 'accountant') {
+            $('#can_create_invoice, #can_view_reports').prop('checked', true);
+        } else if (role === 'sales') {
+            $('#can_create_invoice, #can_manage_customers').prop('checked', true);
+        } else if (role === 'inventory') {
+            $('#can_manage_inventory').prop('checked', true);
+        } else if (role === 'cashier') {
+            $('#can_create_invoice').prop('checked', true);
+        }
+    });
+    
+    // Form validation
+    $('#employeeForm').on('submit', function(e) {
+        const password = $('#employee_password').val();
+        if (password.length < 6) {
+            e.preventDefault();
+            alert('Password must be at least 6 characters long.');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

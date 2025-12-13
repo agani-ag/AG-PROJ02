@@ -1,0 +1,316 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Invoice Details - Customer Portal{% endblock %}
+
+{% block content %}
+<style>
+    .mobile-invoice-detail {
+        padding-bottom: 60px;
+        background: linear-gradient(135deg, #e0f7fa 0%, #b2dfdb 100%);
+        min-height: 100vh;
+    }
+    
+    .page-header {
+        background: linear-gradient(135deg, #00acc1 0%, #00bfa5 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 0 0 20px 20px;
+        margin: -10px -10px 20px -10px;
+        box-shadow: 0 4px 12px rgba(0, 172, 193, 0.3);
+    }
+    
+    .page-header h5 {
+        font-weight: 700;
+        margin-bottom: 0;
+        font-size: 1.2rem;
+    }
+    
+    .back-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: white !important;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+    
+    .info-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    
+    .card-title {
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 15px;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+    }
+    
+    .card-title i {
+        margin-right: 10px;
+        color: #00acc1;
+    }
+    
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 0.9rem;
+    }
+    
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .info-label {
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    .info-value {
+        color: #2c3e50;
+        font-weight: 600;
+        text-align: right;
+    }
+    
+    .amount-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 30px 20px;
+        text-align: center;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    .amount-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+        margin-bottom: 10px;
+    }
+    
+    .amount-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+    
+    .amount-breakdown {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+        font-size: 0.85rem;
+    }
+    
+    .breakdown-item {
+        text-align: center;
+    }
+    
+    .breakdown-label {
+        opacity: 0.8;
+        margin-bottom: 5px;
+    }
+    
+    .breakdown-value {
+        font-weight: 700;
+        font-size: 1rem;
+    }
+    
+    .items-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    
+    .item-row {
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .item-row:last-child {
+        border-bottom: none;
+    }
+    
+    .item-name {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    
+    .item-details {
+        font-size: 0.85rem;
+        color: #6c757d;
+        display: flex;
+        justify-content: space-between;
+    }
+    
+    .item-amount {
+        font-weight: 700;
+        color: #00acc1;
+        font-size: 1rem;
+        margin-top: 5px;
+    }
+    
+    .action-btn {
+        background: white;
+        border: 2px solid #00acc1;
+        color: #00acc1;
+        padding: 15px;
+        border-radius: 12px;
+        font-weight: 600;
+        text-align: center;
+        text-decoration: none;
+        display: block;
+        transition: all 0.3s;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .action-btn:hover {
+        background: #00acc1;
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 172, 193, 0.3);
+        text-decoration: none;
+    }
+    
+    .action-btn.primary {
+        background: linear-gradient(135deg, #00acc1 0%, #00bfa5 100%);
+        color: white;
+        border: none;
+    }
+    
+    .action-btn.primary:hover {
+        transform: scale(1.05);
+    }
+</style>
+
+<div class="container-fluid mobile-invoice-detail">
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5><i class="fas fa-file-invoice"></i> Invoice #{{ invoice.invoice_number }}</h5>
+            <a href="{% url 'mobile_customer_invoices' %}" class="back-btn">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Parse Invoice JSON -->
+    {% if invoice_data %}
+        
+        <!-- Amount Card -->
+        <div class="amount-card">
+            <div class="amount-label">Total Invoice Amount</div>
+            <div class="amount-value">₹{{ invoice_data.invoice_total_amt_with_gst|floatformat:2|intcomma }}</div>
+            <div class="amount-breakdown">
+                <div class="breakdown-item">
+                    <div class="breakdown-label">Base Amount</div>
+                    <div class="breakdown-value">₹{{ invoice_data.invoice_total_amt_without_gst|floatformat:0|intcomma }}</div>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-label">Tax Amount</div>
+                    {% with sgst=invoice_data.invoice_total_amt_sgst|default:0 cgst=invoice_data.invoice_total_amt_cgst|default:0 igst=invoice_data.invoice_total_amt_igst|default:0 %}
+                    <div class="breakdown-value">₹{{ sgst|add:cgst|add:igst|floatformat:0|intcomma }}</div>
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Invoice Information -->
+        <div class="info-card">
+            <div class="card-title"><i class="fas fa-info-circle"></i> Invoice Details</div>
+            <div class="info-row">
+                <span class="info-label">Invoice Number</span>
+                <span class="info-value">{{ invoice.invoice_number }}</span>
+            </div>
+            {% if invoice.non_gst_invoice_number %}
+            <div class="info-row">
+                <span class="info-label">Non-GST Number</span>
+                <span class="info-value">{{ invoice.non_gst_invoice_number }}</span>
+            </div>
+            {% endif %}
+            <div class="info-row">
+                <span class="info-label">Invoice Date</span>
+                <span class="info-value">{{ invoice.invoice_date|date:"d M, Y" }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Invoice Type</span>
+                <span class="info-value">{% if invoice.non_gst_invoice_number %}Non-GST{% else %}GST Invoice{% endif %}</span>
+            </div>
+        </div>
+        
+        <!-- Items List -->
+        <div class="items-card">
+            <div class="card-title"><i class="fas fa-box"></i> Items ({{ invoice_data.items|length }})</div>
+            {% for item in invoice_data.items %}
+            <div class="item-row">
+                <div class="item-name">{{ item.invoice_product }}</div>
+                <div class="item-details">
+                    <span>Qty: {{ item.invoice_qty }} {{ item.invoice_unit }}</span>
+                    <span>Rate: ₹{{ item.invoice_rate_with_gst|floatformat:2 }}</span>
+                    {% if item.invoice_dis > 0 %}
+                    <span class="text-danger">Disc: {{ item.invoice_dis }}%</span>
+                    {% endif %}
+                </div>
+                <div class="item-amount">₹{{ item.invoice_amt_with_gst|floatformat:2|intcomma }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Tax Breakdown -->
+        {% if not invoice.non_gst_invoice_number %}
+        <div class="info-card">
+            <div class="card-title"><i class="fas fa-percentage"></i> Tax Breakdown</div>
+            {% if invoice_data.invoice_total_amt_sgst > 0 %}
+            <div class="info-row">
+                <span class="info-label">SGST</span>
+                <span class="info-value">₹{{ invoice_data.invoice_total_amt_sgst|floatformat:2|intcomma }}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">CGST</span>
+                <span class="info-value">₹{{ invoice_data.invoice_total_amt_cgst|floatformat:2|intcomma }}</span>
+            </div>
+            {% endif %}
+            {% if invoice_data.invoice_total_amt_igst > 0 %}
+            <div class="info-row">
+                <span class="info-label">IGST</span>
+                <span class="info-value">₹{{ invoice_data.invoice_total_amt_igst|floatformat:2|intcomma }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    {% else %}
+        <div class="info-card">
+            <p class="text-center text-muted">Invoice data not available</p>
+        </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="row">
+        <div class="col-6 mb-2">
+            <a href="{% url 'invoice_viewer' invoice.id %}" class="action-btn primary">
+                <i class="fas fa-eye"></i> View Full Invoice
+            </a>
+        </div>
+        <div class="col-6 mb-2">
+            <a href="{% url 'invoice_viewer' invoice.id %}" target="_blank" class="action-btn">
+                <i class="fas fa-print"></i> Print Invoice
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

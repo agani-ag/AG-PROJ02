@@ -1,0 +1,529 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Customer Dashboard - GST Billing{% endblock %}
+
+{% block content %}
+<style>
+    .mobile-customer-dashboard {
+        padding-bottom: 60px;
+        background: linear-gradient(135deg, #e0f7fa 0%, #b2dfdb 100%);
+        min-height: 100vh;
+    }
+    
+    .customer-header {
+        background: linear-gradient(135deg, #00acc1 0%, #00bfa5 100%);
+        border-radius: 0 0 30px 30px;
+        padding: 25px 20px;
+        color: white;
+        box-shadow: 0 4px 12px rgba(0, 172, 193, 0.3);
+        margin: -10px -10px 20px -10px;
+    }
+    
+    .customer-header h5 {
+        font-weight: 700;
+        font-size: 1.3rem;
+        margin-bottom: 5px;
+    }
+    
+    .customer-id {
+        font-size: 0.85rem;
+        opacity: 0.9;
+        margin-top: 3px;
+    }
+    
+    .logout-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        padding: 8px 16px;
+        border-radius: 25px;
+        color: white !important;
+        text-decoration: none;
+        font-size: 0.85rem;
+        transition: all 0.3s;
+    }
+    
+    .logout-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+    
+    .balance-card {
+        background: white;
+        border-radius: 20px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .balance-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        background: linear-gradient(90deg, #00acc1, #00bfa5);
+    }
+    
+    .balance-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        margin-bottom: 10px;
+        font-weight: 500;
+    }
+    
+    .balance-amount {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+    
+    .balance-amount.due {
+        color: #dc3545;
+    }
+    
+    .balance-amount.clear {
+        color: #28a745;
+    }
+    
+    .balance-status {
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        display: inline-block;
+        font-weight: 600;
+    }
+    
+    .balance-status.due {
+        background: #ffe6e6;
+        color: #dc3545;
+    }
+    
+    .balance-status.clear {
+        background: #e6ffe6;
+        color: #28a745;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        margin-bottom: 15px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+    }
+    
+    .stat-card.purchases::before {
+        background: linear-gradient(180deg, #667eea, #764ba2);
+    }
+    
+    .stat-card.payments::before {
+        background: linear-gradient(180deg, #11998e, #38ef7d);
+    }
+    
+    .stat-icon {
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 3rem;
+        opacity: 0.1;
+    }
+    
+    .stat-icon.purchases {
+        color: #667eea;
+    }
+    
+    .stat-icon.payments {
+        color: #11998e;
+    }
+    
+    .stat-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+    
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 2px;
+    }
+    
+    .stat-value.purchases {
+        color: #667eea;
+    }
+    
+    .stat-value.payments {
+        color: #11998e;
+    }
+    
+    .stat-sub {
+        font-size: 0.8rem;
+        color: #999;
+    }
+    
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-title i {
+        margin-right: 10px;
+        color: #00acc1;
+    }
+
+    
+    .action-btn {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 15px;
+        padding: 20px 15px;
+        text-align: center;
+        transition: all 0.3s;
+        text-decoration: none;
+        display: block;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .action-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0, 172, 193, 0.2);
+        border-color: #00acc1;
+    }
+    
+    .action-btn i {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+        display: block;
+        background: linear-gradient(135deg, #00acc1 0%, #00bfa5 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .action-btn span {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+    
+    .invoice-card {
+        background: white;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: all 0.3s;
+        text-decoration: none;
+        display: block;
+        border-left: 4px solid #00acc1;
+    }
+    
+    .invoice-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        text-decoration: none;
+    }
+    
+    .invoice-number {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    
+    .invoice-date {
+        font-size: 0.8rem;
+        color: #999;
+        margin-bottom: 8px;
+    }
+    
+    .invoice-amount {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #00acc1;
+        margin-bottom: 5px;
+    }
+    
+    .invoice-badge {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+    
+    .invoice-badge.gst {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+    
+    .invoice-badge.non-gst {
+        background: #f3e5f5;
+        color: #7b1fa2;
+    }
+    
+    .payment-card {
+        background: white;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border-left: 4px solid #28a745;
+    }
+    
+    .payment-amount {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #28a745;
+    }
+    
+    .info-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    .info-card h6 {
+        font-weight: 700;
+        margin-bottom: 15px;
+        font-size: 1rem;
+    }
+    
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        font-size: 0.9rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6c757d;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        opacity: 0.3;
+        margin-bottom: 15px;
+    }
+    
+    .view-all-btn {
+        background: linear-gradient(135deg, #00acc1 0%, #00bfa5 100%);
+        color: white !important;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+    
+    .view-all-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 2px 8px rgba(0, 172, 193, 0.3);
+    }
+</style>
+
+<div class="container-fluid mobile-customer-dashboard">
+    <!-- Header -->
+    <div class="customer-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h5><i class="fas fa-user"></i> {{ customer.customer_name }}</h5>
+                <div class="customer-id">
+                    <i class="fas fa-id-card"></i> ID: {{ customer.customer_userid }}
+                </div>
+            </div>
+            <a href="{% url 'logout_view' %}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </div>
+    
+    <!-- Account Balance -->
+    <div class="balance-card">
+        <div class="balance-label">Account Balance</div>
+        <div class="balance-amount {% if current_balance > 0 %}due{% else %}clear{% endif %}">
+            ₹{{ current_balance|floatformat:2|intcomma }}
+        </div>
+        <div class="balance-status {% if current_balance > 0 %}due{% else %}clear{% endif %}">
+            {% if current_balance > 0 %}
+                <i class="fas fa-exclamation-circle"></i> Amount Due
+            {% else %}
+                <i class="fas fa-check-circle"></i> All Clear
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Financial Stats -->
+    <div class="section-title">
+        <i class="fas fa-chart-pie"></i> Financial Overview
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <div class="stat-card purchases">
+                <i class="fas fa-shopping-cart stat-icon purchases"></i>
+                <div class="stat-label">Total Purchases</div>
+                <div class="stat-value purchases">₹{{ total_purchases|floatformat:0|intcomma }}</div>
+                <div class="stat-sub">Lifetime transactions</div>
+            </div>
+        </div>
+        <div class="col-12">
+            <div class="stat-card payments">
+                <i class="fas fa-credit-card stat-icon payments"></i>
+                <div class="stat-label">Total Payments</div>
+                <div class="stat-value payments">₹{{ total_payments|floatformat:0|intcomma }}</div>
+                <div class="stat-sub">Lifetime payments made</div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Quick Access -->
+    <div class="section-title mt-3">
+        <i class="fas fa-bolt"></i> Quick Access
+    </div>
+    <div class="row">
+        <div class="col-6">
+            <a href="{% url 'mobile_customer_invoices' %}" class="action-btn">
+                <i class="fas fa-file-invoice"></i>
+                <span>My<br>Invoices</span>
+            </a>
+        </div>
+        <div class="col-6">
+            <a href="{% url 'mobile_customer_ledger' %}" class="action-btn">
+                <i class="fas fa-book"></i>
+                <span>My<br>Ledger</span>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Recent Invoices -->
+    <div class="section-title mt-3">
+        <i class="fas fa-file-alt"></i> Recent Invoices
+        {% if recent_invoices %}
+        <a href="{% url 'mobile_customer_invoices' %}" class="view-all-btn ml-auto">View All</a>
+        {% endif %}
+    </div>
+    {% if recent_invoices %}
+        {% for invoice in recent_invoices %}
+        <a href="{% url 'mobile_customer_invoice_detail' invoice.id %}" class="invoice-card">
+            <div class="d-flex justify-content-between align-items-start">
+                <div style="flex: 1;">
+                    <div class="invoice-number">#{{ invoice.invoice_number }}</div>
+                    <div class="invoice-date">
+                        <i class="far fa-calendar"></i> {{ invoice.invoice_date|date:"d M, Y" }}
+                    </div>
+                </div>
+                <div class="text-right">
+                    {% if invoice.data %}
+                        <div class="invoice-amount">₹{{ invoice.data.invoice_total_amt_with_gst|floatformat:0|intcomma }}</div>
+                    {% else %}
+                        <div class="invoice-amount">₹0</div>
+                    {% endif %}
+                    {% if invoice.non_gst_invoice_number %}
+                    <div class="invoice-badge non-gst">Non-GST</div>
+                    {% else %}
+                    <div class="invoice-badge gst">GST</div>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <i class="fas fa-inbox"></i>
+            <p>No invoices found</p>
+        </div>
+    {% endif %}
+    
+    <!-- Recent Payments -->
+    {% if recent_payments %}
+    <div class="section-title mt-3">
+        <i class="fas fa-money-bill-wave"></i> Recent Payments
+    </div>
+    {% for payment in recent_payments %}
+    <div class="payment-card">
+        <div class="d-flex justify-content-between align-items-center">
+            <div style="flex: 1;">
+                <div style="font-weight: 600; color: #2c3e50; margin-bottom: 5px;">
+                    <i class="fas fa-check-circle" style="color: #28a745;"></i> Payment Received
+                </div>
+                <div style="font-size: 0.8rem; color: #999;">
+                    <i class="far fa-calendar"></i> {{ payment.payment_date|date:"d M, Y" }}
+                </div>
+                <div style="font-size: 0.85rem; color: #6c757d; margin-top: 5px;">
+                    <i class="fas fa-money-check-alt"></i> {{ payment.payment_mode }}
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="payment-amount">₹{{ payment.amount|floatformat:0|intcomma }}</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+
+    <!-- Customer Information -->
+    <div class="section-title mt-3">
+        <i class="fas fa-address-card"></i> Your Information
+    </div>
+    <div class="info-card">
+        <h6><i class="fas fa-info-circle"></i> Contact Details</h6>
+        <div class="info-row">
+            <span><i class="fas fa-phone"></i> Phone</span>
+            <strong>{{ customer.customer_phone }}</strong>
+        </div>
+        {% if customer.customer_email %}
+        <div class="info-row">
+            <span><i class="fas fa-envelope"></i> Email</span>
+            <strong>{{ customer.customer_email }}</strong>
+        </div>
+        {% endif %}
+        {% if customer.customer_gst %}
+        <div class="info-row">
+            <span><i class="fas fa-file-invoice"></i> GST Number</span>
+            <strong>{{ customer.customer_gst }}</strong>
+        </div>
+        {% endif %}
+        <div class="info-row">
+            <span><i class="fas fa-map-marker-alt"></i> Address</span>
+            <strong style="text-align: right;">{{ customer.customer_address|truncatewords:8 }}</strong>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col">
+            <h2>Purchase Invoice Details</h2>
+        </div>
+        <div class="col text-right">
+            <a href="{% url 'purchase_invoice_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to List
+            </a>
+            <a href="{% url 'purchase_invoice_edit' invoice.id %}" class="btn btn-primary">
+                <i class="fas fa-edit"></i> Edit
+            </a>
+            <button onclick="window.print()" class="btn btn-info">
+                <i class="fas fa-print"></i> Print
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <!-- Vendor Information -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5 class="text-primary">Vendor Information</h5>
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">Vendor Name:</th>
+                            <td>{{ invoice.vendor.vendor_name }}</td>
+                        </tr>
+                        <tr>
+                            <th>GSTIN:</th>
+                            <td>{{ invoice.vendor.vendor_gstin|default:"N/A" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Address:</th>
+                            <td>{{ invoice.vendor.vendor_address|default:"N/A" }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="text-primary">Invoice Information</h5>
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="40%">Invoice Number:</th>
+                            <td><strong>{{ invoice.invoice_number }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Invoice Date:</th>
+                            <td>{{ invoice.invoice_date|date:"d-M-Y" }}</td>
+                        </tr>
+                        <tr>
+                            <th>Invoice Type:</th>
+                            <td>{{ invoice.get_invoice_type_display }}</td>
+                        </tr>
+                        <tr>
+                            <th>Place of Supply:</th>
+                            <td>{{ invoice.place_of_supply }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Items Table -->
+            <h5 class="text-primary">Items</h5>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Description</th>
+                            <th>HSN/SAC</th>
+                            <th class="text-right">Quantity</th>
+                            <th class="text-right">Rate</th>
+                            <th class="text-right">Taxable Value</th>
+                            <th class="text-right">GST %</th>
+                            <th class="text-right">CGST</th>
+                            <th class="text-right">SGST</th>
+                            <th class="text-right">IGST</th>
+                            <th class="text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in invoice.items.all %}
+                        <tr>
+                            <td>{{ item.description }}</td>
+                            <td>{{ item.hsn_sac }}</td>
+                            <td class="text-right">{{ item.quantity }}</td>
+                            <td class="text-right">₹{{ item.rate|floatformat:2|intcomma }}</td>
+                            <td class="text-right">₹{{ item.taxable_value|floatformat:2|intcomma }}</td>
+                            <td class="text-right">{{ item.gst_rate }}%</td>
+                            <td class="text-right">₹{{ item.cgst_amount|floatformat:2|intcomma }}</td>
+                            <td class="text-right">₹{{ item.sgst_amount|floatformat:2|intcomma }}</td>
+                            <td class="text-right">₹{{ item.igst_amount|floatformat:2|intcomma }}</td>
+                            <td class="text-right"><strong>₹{{ item.total_amount|floatformat:2|intcomma }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="font-weight-bold">
+                        <tr>
+                            <td colspan="4" class="text-right">Totals:</td>
+                            <td class="text-right">₹{{ invoice.taxable_amount|floatformat:2|intcomma }}</td>
+                            <td></td>
+                            <td class="text-right">₹{{ invoice.cgst_amount|floatformat:2|intcomma }}</td>
+                            <td class="text-right">₹{{ invoice.sgst_amount|floatformat:2|intcomma }}</td>
+                            <td class="text-right">₹{{ invoice.igst_amount|floatformat:2|intcomma }}</td>
+                            <td class="text-right text-success">₹{{ invoice.total_amount|floatformat:2|intcomma }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- ITC Details -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <h5 class="text-primary">Input Tax Credit (ITC)</h5>
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="50%">ITC Eligibility:</th>
+                            <td>
+                                {% if invoice.is_eligible_for_itc %}
+                                    <span class="badge badge-success">Eligible</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">Not Eligible</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if invoice.is_eligible_for_itc %}
+                        <tr>
+                            <th>ITC Claimed:</th>
+                            <td>₹{{ invoice.itc_claimed|floatformat:2|intcomma|default:"0.00" }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="text-primary">Additional Information</h5>
+                    <table class="table table-sm">
+                        <tr>
+                            <th width="50%">Reverse Charge:</th>
+                            <td>{{ invoice.is_reverse_charge|yesno:"Yes,No" }}</td>
+                        </tr>
+                        {% if invoice.notes %}
+                        <tr>
+                            <th>Notes:</th>
+                            <td>{{ invoice.notes }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if invoice.purchase_log %}
+                        <tr>
+                            <th>Linked Purchase:</th>
+                            <td>
+                                <a href="{% url 'purchases_edit' invoice.purchase_log.id %}">
+                                    Purchase #{{ invoice.purchase_log.id }}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @media print {
+        .btn, .d-print-none {
+            display: none !important;
+        }
+    }
+</style>
+{% endblock %}

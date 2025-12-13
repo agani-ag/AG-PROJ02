@@ -1,0 +1,453 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Employee Dashboard - GST Billing{% endblock %}
+
+{% block content %}
+<style>
+    .mobile-employee-dashboard {
+        padding-bottom: 60px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        min-height: 100vh;
+    }
+    
+    .employee-header {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        border-radius: 0 0 30px 30px;
+        padding: 25px 20px;
+        color: white;
+        box-shadow: 0 4px 12px rgba(17, 153, 142, 0.3);
+        margin: -10px -10px 20px -10px;
+    }
+    
+    .employee-header h5 {
+        font-weight: 700;
+        font-size: 1.3rem;
+        margin-bottom: 5px;
+    }
+    
+    .employee-role {
+        background: rgba(255, 255, 255, 0.25);
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        display: inline-block;
+        margin-top: 5px;
+    }
+    
+    .employee-id {
+        font-size: 0.85rem;
+        opacity: 0.9;
+        margin-top: 3px;
+    }
+    
+    .logout-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        padding: 8px 16px;
+        border-radius: 25px;
+        color: white !important;
+        text-decoration: none;
+        font-size: 0.85rem;
+        transition: all 0.3s;
+    }
+    
+    .logout-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+    
+    .performance-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        margin-bottom: 15px;
+        position: relative;
+        overflow: hidden;
+        border: none;
+    }
+    
+    .performance-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+    
+    .performance-icon {
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 3rem;
+        opacity: 0.1;
+        color: #11998e;
+    }
+    
+    .performance-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+    
+    .performance-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #11998e;
+        margin-bottom: 2px;
+    }
+    
+    .performance-sub {
+        font-size: 0.8rem;
+        color: #999;
+    }
+    
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .section-title i {
+        margin-right: 10px;
+        color: #11998e;
+    }
+
+    
+    .action-btn {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 15px;
+        padding: 20px 15px;
+        text-align: center;
+        transition: all 0.3s;
+        text-decoration: none;
+        display: block;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    
+    .action-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.2);
+        border-color: #11998e;
+    }
+    
+    .action-btn i {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+        display: block;
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .action-btn span {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+    
+    .permission-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        margin-bottom: 15px;
+    }
+    
+    .permission-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        align-items: center;
+        font-size: 0.95rem;
+    }
+    
+    .permission-item:last-child {
+        border-bottom: none;
+    }
+    
+    .permission-item i {
+        margin-right: 12px;
+        font-size: 1.2rem;
+    }
+    
+    .permission-enabled {
+        color: #11998e;
+    }
+    
+    .permission-disabled {
+        color: #dc3545;
+        opacity: 0.5;
+    }
+    
+    .invoice-card {
+        background: white;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: all 0.3s;
+        text-decoration: none;
+        display: block;
+        border-left: 4px solid #11998e;
+    }
+    
+    .invoice-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        text-decoration: none;
+    }
+    
+    .invoice-number {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    
+    .invoice-customer {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 8px;
+    }
+    
+    .invoice-amount {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #11998e;
+    }
+    
+    .invoice-date {
+        font-size: 0.8rem;
+        color: #999;
+        margin-top: 5px;
+    }
+    
+    .info-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    .info-card h6 {
+        font-weight: 700;
+        margin-bottom: 10px;
+        font-size: 1rem;
+    }
+    
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        font-size: 0.9rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .info-row:last-child {
+        border-bottom: none;
+    }
+</style>
+
+<div class="container-fluid mobile-employee-dashboard">
+    <!-- Header -->
+    <div class="employee-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h5><i class="fas fa-user-circle"></i> {{ employee.employee_name }}</h5>
+                <div class="employee-id">ID: {{ employee.employee_id }}</div>
+                <div class="employee-role">
+                    <i class="fas fa-id-badge"></i> {{ employee.get_role_display }}
+                </div>
+            </div>
+            <a href="{% url 'logout_view' %}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </div>
+
+
+    <!-- Performance Stats -->
+    {% if employee.can_create_invoice or employee.can_manage_inventory %}
+    <div class="section-title">
+        <i class="fas fa-chart-line"></i> Today's Performance
+    </div>
+    <div class="row">
+        {% if employee.can_create_invoice %}
+        <div class="col-12">
+            <div class="performance-card">
+                <i class="fas fa-rupee-sign performance-icon"></i>
+                <div class="performance-label">Today's Sales</div>
+                <div class="performance-value">₹{{ today_sales|floatformat:0|intcomma }}</div>
+                <div class="performance-sub">{{ today_sales_count }} invoices created</div>
+            </div>
+        </div>
+        {% endif %}
+        {% if employee.can_manage_inventory %}
+        <div class="col-12">
+            <div class="performance-card">
+                <i class="fas fa-exclamation-triangle performance-icon"></i>
+                <div class="performance-label">Low Stock Alert</div>
+                <div class="performance-value">{{ low_stock_count }}</div>
+                <div class="performance-sub">Items need restocking</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <!-- Quick Actions -->
+    <div class="section-title mt-3">
+        <i class="fas fa-bolt"></i> Quick Actions
+    </div>
+    <div class="row">
+        {% if employee.can_create_invoice %}
+        <div class="col-6">
+            <a href="{% url 'invoice_create' %}" class="action-btn">
+                <i class="fas fa-file-invoice"></i>
+                <span>Create<br>Invoice</span>
+            </a>
+        </div>
+        <div class="col-6">
+            <a href="{% url 'invoices' %}" class="action-btn">
+                <i class="fas fa-list"></i>
+                <span>View<br>Invoices</span>
+            </a>
+        </div>
+        {% endif %}
+        {% if employee.can_manage_customers %}
+        <div class="col-6">
+            <a href="{% url 'customers' %}" class="action-btn">
+                <i class="fas fa-users"></i>
+                <span>Manage<br>Customers</span>
+            </a>
+        </div>
+        {% endif %}
+        {% if employee.can_manage_inventory %}
+        <div class="col-6">
+            <a href="{% url 'inventory' %}" class="action-btn">
+                <i class="fas fa-boxes"></i>
+                <span>Manage<br>Inventory</span>
+            </a>
+        </div>
+        {% endif %}
+        {% if employee.can_view_reports %}
+        <div class="col-6">
+            <a href="{% url 'sales_dashboard' %}" class="action-btn">
+                <i class="fas fa-chart-bar"></i>
+                <span>View<br>Reports</span>
+            </a>
+        </div>
+        {% endif %}
+        <div class="col-6">
+            <a href="{% url 'products' %}" class="action-btn">
+                <i class="fas fa-shopping-bag"></i>
+                <span>View<br>Products</span>
+            </a>
+        </div>
+    </div>
+
+
+    <!-- Employee Information -->
+    <div class="section-title mt-3">
+        <i class="fas fa-id-card"></i> Employee Details
+    </div>
+    <div class="info-card">
+        <h6><i class="fas fa-info-circle"></i> Your Information</h6>
+        <div class="info-row">
+            <span><i class="fas fa-phone"></i> Phone</span>
+            <strong>{{ employee.phone|default:"Not Set" }}</strong>
+        </div>
+        <div class="info-row">
+            <span><i class="fas fa-envelope"></i> Email</span>
+            <strong>{{ employee.email|default:"Not Set" }}</strong>
+        </div>
+        <div class="info-row">
+            <span><i class="fas fa-calendar"></i> Joined</span>
+            <strong>{{ employee.user.date_joined|date:"d M, Y" }}</strong>
+        </div>
+        <div class="info-row">
+            <span><i class="fas fa-clock"></i> Last Login</span>
+            <strong>{{ employee.user.last_login|date:"d M, Y H:i"|default:"Never" }}</strong>
+        </div>
+    </div>
+    
+    <!-- Permissions -->
+    <div class="section-title mt-3">
+        <i class="fas fa-key"></i> Your Permissions
+    </div>
+    <div class="permission-card">
+        <div class="permission-item {% if employee.can_create_invoice %}permission-enabled{% else %}permission-disabled{% endif %}">
+            <i class="fas {% if employee.can_create_invoice %}fa-check-circle{% else %}fa-times-circle{% endif %}"></i>
+            <span>Create Invoice</span>
+        </div>
+        <div class="permission-item {% if employee.can_delete_invoice %}permission-enabled{% else %}permission-disabled{% endif %}">
+            <i class="fas {% if employee.can_delete_invoice %}fa-check-circle{% else %}fa-times-circle{% endif %}"></i>
+            <span>Delete Invoice</span>
+        </div>
+        <div class="permission-item {% if employee.can_manage_inventory %}permission-enabled{% else %}permission-disabled{% endif %}">
+            <i class="fas {% if employee.can_manage_inventory %}fa-check-circle{% else %}fa-times-circle{% endif %}"></i>
+            <span>Manage Inventory</span>
+        </div>
+        <div class="permission-item {% if employee.can_manage_customers %}permission-enabled{% else %}permission-disabled{% endif %}">
+            <i class="fas {% if employee.can_manage_customers %}fa-check-circle{% else %}fa-times-circle{% endif %}"></i>
+            <span>Manage Customers</span>
+        </div>
+        <div class="permission-item {% if employee.can_view_reports %}permission-enabled{% else %}permission-disabled{% endif %}">
+            <i class="fas {% if employee.can_view_reports %}fa-check-circle{% else %}fa-times-circle{% endif %}"></i>
+            <span>View Reports</span>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    {% if recent_invoices %}
+    <div class="section-title mt-3">
+        <i class="fas fa-clock"></i> Recent Activity
+    </div>
+    {% for invoice in recent_invoices %}
+    <a href="{% url 'invoice_viewer' invoice.id %}" class="invoice-card">
+        <div class="d-flex justify-content-between align-items-start">
+            <div style="flex: 1;">
+                <div class="invoice-number">#{{ invoice.invoice_number }}</div>
+                <div class="invoice-customer">{{ invoice.invoice_customer.customer_name }}</div>
+                <div class="invoice-date">
+                    <i class="far fa-calendar"></i> {{ invoice.invoice_date|date:"d M, Y" }}
+                </div>
+            </div>
+            <div class="text-right">
+                {% if invoice.invoice_json %}
+                    {% with invoice_data=invoice.invoice_json|safe %}
+                        <div class="invoice-amount">₹{{ invoice_data.invoice_total_amt_with_gst|floatformat:0|intcomma }}</div>
+                    {% endwith %}
+                {% else %}
+                    <div class="invoice-amount">₹0</div>
+                {% endif %}
+                <div class="invoice-date">
+                    <span class="badge badge-success">Paid</span>
+                </div>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+    {% else %}
+    <div class="permission-card text-center text-muted">
+        <i class="fas fa-inbox fa-3x mb-3" style="opacity: 0.3;"></i>
+        <p>No recent activity</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

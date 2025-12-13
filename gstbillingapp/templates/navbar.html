@@ -1,4 +1,4 @@
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top d-none d-lg-flex">
   <!-- Branding with logo -->
   <a class="navbar-brand d-flex align-items-center" href="{% url 'landing_page' %}">
     {% if user_profile.business_brand %}
@@ -66,6 +66,13 @@
               <i class="fas fa-percent"></i> Discounts
             </a>
           </div>
+        </li>
+
+        <!-- Employees Link -->
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'employees' %}">
+            <i class="fas fa-users"></i> Employees
+          </a>
         </li>
 
         <!-- Accounts Dropdown -->

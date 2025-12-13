@@ -37,6 +37,7 @@
                             <th>Type</th>
                             <th>Reason</th>
                             <th>Notes</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -48,10 +49,15 @@
                             <td><span class="badge badge-warning">{{ discount.get_discount_type_display }}</span></td>
                             <td>{{ discount.reason|truncatewords:10 }}</td>
                             <td>{{ discount.notes|truncatewords:10 }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger delete-discount" data-id="{{ discount.id }}" data-customer="{{ discount.customer.customer_name }}" data-amount="{{ discount.amount }}" title="Delete Discount">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="text-center text-muted">No discounts recorded yet</td>
+                            <td colspan="7" class="text-center text-muted">No discounts recorded yet</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -61,11 +67,70 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block includejs %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 $(document).ready(function() {
     $('#discountsTable').DataTable({
         "order": [[0, "desc"]],
         "pageLength": 25
+    });
+    
+    // Delete discount handler
+    $(document).on('click', '.delete-discount', function() {
+        const discountId = $(this).data('id');
+        const customerName = $(this).data('customer');
+        const amount = $(this).data('amount');
+        
+        Swal.fire({
+            title: 'Delete Discount?',
+            html: `Are you sure you want to delete this discount?<br><br><strong>Customer:</strong> ${customerName}<br><strong>Amount:</strong> ₹${amount}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: `/customers/discounts/${discountId}/delete`,
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Deleted!',
+                                text: response.message,
+                                confirmButtonColor: '#28a745'
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: response.message,
+                                confirmButtonColor: '#dc3545'
+                            });
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Failed to delete discount: ' + error,
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                });
+            }
+        });
     });
 });
 </script>

@@ -128,7 +128,9 @@ def return_invoice_create(request, invoice_id):
                         # Find original item data
                         original_item = None
                         for item in invoice_data['items']:
-                            if item['invoice_model_no'] == model_no:
+                            # Check both invoice_product and invoice_model_no for compatibility
+                            item_key = item.get('invoice_product', item.get('invoice_model_no', ''))
+                            if item_key == model_no:
                                 original_item = item
                                 break
                         
@@ -150,13 +152,13 @@ def return_invoice_create(request, invoice_id):
                             
                             return_items.append({
                                 'invoice_model_no': model_no,
-                                'invoice_product': original_item['invoice_product'],
-                                'invoice_hsn': original_item['invoice_hsn'],
+                                'invoice_product': original_item.get('invoice_product', original_item.get('invoice_model_no', model_no)),
+                                'invoice_hsn': original_item.get('invoice_hsn', ''),
                                 'return_qty': return_qty,
-                                'original_qty': original_item['invoice_qty'],
-                                'invoice_rate_with_gst': original_item['invoice_rate_with_gst'],
-                                'invoice_rate_without_gst': original_item['invoice_rate_without_gst'],
-                                'invoice_gst_percentage': original_item['invoice_gst_percentage'],
+                                'original_qty': original_item.get('invoice_qty', 0),
+                                'invoice_rate_with_gst': original_item.get('invoice_rate_with_gst', 0),
+                                'invoice_rate_without_gst': original_item.get('invoice_rate_without_gst', 0),
+                                'invoice_gst_percentage': original_item.get('invoice_gst_percentage', 0),
                                 'invoice_discount': original_item.get('invoice_discount', 0.0)
                             })
             
@@ -205,7 +207,7 @@ def return_invoice_create(request, invoice_id):
                 'status': 'success',
                 'message': 'Return invoice created successfully',
                 'return_invoice_id': return_invoice.id,
-                'redirect_url': f'/returns/{return_invoice.id}/'
+                'redirect_url': f'/returns/{return_invoice.id}'
             })
             
         except Exception as e:
@@ -301,3 +303,80 @@ def return_invoice_printer(request, return_id):
     }
     
     return render(request, 'returns/return_invoice_printer.html', context)
+
+
+@login_required
+def return_invoice_delete(request, return_id):
+    """Delete a return invoice and reverse all its effects"""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+    
+    try:
+        user_profile = request.user.userprofile
+        return_invoice = get_object_or_404(ReturnInvoice, id=return_id, user=user_profile)
+        
+        return_data = json.loads(return_invoice.return_items_json)
+        customer = return_invoice.customer
+        
+        # Reverse inventory if it was reflected
+        if return_invoice.inventory_reflected:
+            for item in return_data:
+                product_id = item.get('product_id')
+                return_qty = float(item.get('return_qty', 0))
+                
+                if product_id and return_qty > 0:
+                    try:
+                        product = Product.objects.get(id=product_id, user=request.user)
+                        inventory = Inventory.objects.get(product=product)
+                        
+                        # Reverse the inventory increase (subtract the returned quantity)
+                        inventory.current_stock -= return_qty
+                        inventory.save()
+                    except (Product.DoesNotExist, Inventory.DoesNotExist):
+                        pass  # Product or inventory might have been deleted
+        
+        # Reverse books if they were reflected
+        if return_invoice.books_reflected:
+            try:
+                book = Book.objects.get(user=request.user, customer=customer)
+                
+                # Find and delete the associated book log
+                book_logs = BookLog.objects.filter(
+                    parent_book=book,
+                    date=return_invoice.return_date,
+                    change_type=3,  # 3 = Returned Items (correct type)
+                    change=return_invoice.return_total_amt_with_gst
+                ).order_by('-created_at')
+                
+                if book_logs.exists():
+                    book_log = book_logs.first()
+                    
+                    # Reverse the credit (add back to customer debt)
+                    book.current_balance -= return_invoice.return_total_amt_with_gst
+                    
+                    # Update last_log if this was the last entry
+                    if book.last_log and book.last_log.id == book_log.id:
+                        previous_log = BookLog.objects.filter(
+                            parent_book=book
+                        ).exclude(id=book_log.id).order_by('-date', '-created_at').first()
+                        book.last_log = previous_log
+                    
+                    book.save()
+                    book_log.delete()
+                    
+            except Book.DoesNotExist:
+                pass  # Book might have been deleted
+        
+        # Delete the return invoice
+        return_invoice.delete()
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Return invoice deleted successfully'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error deleting return invoice: {str(e)}'
+        })

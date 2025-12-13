@@ -1,0 +1,67 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+
+{% block title %}Owner Login - GST Billing{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-6">
+            <!-- Back Button -->
+            <div class="mb-3">
+                <a href="{% url 'mobile_login_selection' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+            </div>
+
+            <div class="card shadow mobile-login-card">
+                <div class="card-header bg-primary text-white text-center">
+                    <i class="fas fa-user-tie fa-3x mb-2"></i>
+                    <h4 class="mb-0">Business Owner Login</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="username"><i class="fas fa-user"></i> Username</label>
+                            <input type="text" class="form-control form-control-lg" 
+                                   id="username" name="username" 
+                                   placeholder="Enter your username" required autofocus>
+                        </div>
+                        <div class="form-group">
+                            <label for="password"><i class="fas fa-lock"></i> Password</label>
+                            <input type="password" class="form-control form-control-lg" 
+                                   id="password" name="password" 
+                                   placeholder="Enter your password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block btn-lg mt-4">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </button>
+                    </form>
+                </div>
+                <div class="card-footer text-center text-muted">
+                    <small><i class="fas fa-shield-alt"></i> Secure business owner access</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .mobile-login-card {
+        border-radius: 15px;
+        border: none;
+    }
+    
+    .form-control-lg {
+        border-radius: 10px;
+        padding: 15px;
+    }
+    
+    .btn-lg {
+        border-radius: 10px;
+        padding: 15px;
+        font-size: 1.1rem;
+    }
+</style>
+{% endblock %}

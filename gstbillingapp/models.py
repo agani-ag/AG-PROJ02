@@ -60,6 +60,48 @@ class BillingProfile(models.Model):
     def __str__(self):
         return self.user.username
 
+
+class Employee(models.Model):
+    """Employee model for staff members who work at the business"""
+    ROLE_CHOICES = [
+        ('admin', 'Admin'),
+        ('manager', 'Manager'),
+        ('accountant', 'Accountant'),
+        ('sales', 'Sales Person'),
+        ('inventory', 'Inventory Manager'),
+        ('cashier', 'Cashier'),
+    ]
+    
+    user_profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='employees')
+    employee_name = models.CharField(max_length=200)
+    employee_phone = models.CharField(max_length=14)
+    employee_email = models.EmailField(blank=True, null=True)
+    employee_userid = models.CharField(max_length=50, unique=True)
+    employee_password = models.CharField(max_length=128)  # Hashed password
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='sales')
+    is_active = models.BooleanField(default=True)
+    date_joined = models.DateTimeField(auto_now_add=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+    
+    # Permissions
+    can_create_invoice = models.BooleanField(default=True)
+    can_delete_invoice = models.BooleanField(default=False)
+    can_view_reports = models.BooleanField(default=False)
+    can_manage_inventory = models.BooleanField(default=False)
+    can_manage_customers = models.BooleanField(default=True)
+    
+    def save(self, *args, **kwargs):
+        if self.employee_name:
+            self.employee_name = self.employee_name.upper()
+        if self.employee_email:
+            self.employee_email = self.employee_email.lower()
+        if self.employee_userid:
+            self.employee_userid = self.employee_userid.lower()
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.employee_name} ({self.role})"
+
 # ======================= Invoice Data models =================================
 
 class Customer(models.Model):
@@ -640,7 +682,7 @@ class CustomerPayment(models.Model):
         
         # Auto-create BookLog on first save
         if is_new and not self.book_log:
-            book = Book.objects.get(user=self.user, customer=self.customer)
+            book = Book.objects.get(user=self.user.user, customer=self.customer)
             book_log = BookLog(
                 parent_book=book,
                 date=self.payment_date,
@@ -698,7 +740,7 @@ class CustomerDiscount(models.Model):
         
         # Auto-create BookLog on first save
         if is_new and not self.book_log:
-            book = Book.objects.get(user=self.user, customer=self.customer)
+            book = Book.objects.get(user=self.user.user, customer=self.customer)
             book_log = BookLog(
                 parent_book=book,
                 date=self.discount_date,

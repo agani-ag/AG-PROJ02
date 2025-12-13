@@ -85,7 +85,7 @@ def customer_payment_add(request, customer_id=None):
                     'message': 'Please provide valid customer, date, and amount'
                 })
             
-            customer = get_object_or_404(Customer, user=user_profile, id=customer_id)
+            customer = get_object_or_404(Customer, user=request.user, id=customer_id)
             
             # Create payment record
             payment = CustomerPayment(
@@ -102,7 +102,7 @@ def customer_payment_add(request, customer_id=None):
             return JsonResponse({
                 'status': 'success',
                 'message': 'Payment recorded successfully',
-                'redirect_url': '/customers/payments/'
+                'redirect_url': '/customers/payments'
             })
             
         except Exception as e:
@@ -192,7 +192,7 @@ def customer_discount_add(request, customer_id=None):
                     'message': 'Please provide a reason for the discount'
                 })
             
-            customer = get_object_or_404(Customer, user=user_profile, id=customer_id)
+            customer = get_object_or_404(Customer, user=request.user, id=customer_id)
             
             # Create discount record
             discount = CustomerDiscount(
@@ -209,7 +209,7 @@ def customer_discount_add(request, customer_id=None):
             return JsonResponse({
                 'status': 'success',
                 'message': 'Discount recorded successfully',
-                'redirect_url': '/customers/discounts/'
+                'redirect_url': '/customers/discounts'
             })
             
         except Exception as e:
@@ -217,3 +217,101 @@ def customer_discount_add(request, customer_id=None):
                 'status': 'error',
                 'message': f'Error recording discount: {str(e)}'
             })
+
+
+@login_required
+def customer_payment_delete(request, payment_id):
+    """Delete a customer payment"""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+    
+    try:
+        user_profile = request.user.userprofile
+        payment = get_object_or_404(CustomerPayment, id=payment_id, user=user_profile)
+        
+        # Get associated book log before deleting
+        book_log = payment.book_log
+        customer = payment.customer
+        amount = payment.amount
+        
+        # Reverse the book entry BEFORE deleting payment
+        if book_log:
+            book = book_log.parent_book
+            # Reverse the payment (subtract from balance since payment reduces debt)
+            book.current_balance -= amount
+            
+            # Update last_log if this was the last entry
+            if book.last_log and book.last_log.id == book_log.id:
+                # Find previous log
+                previous_log = BookLog.objects.filter(
+                    parent_book=book
+                ).exclude(id=book_log.id).order_by('-date', '-created_at').first()
+                book.last_log = previous_log
+            
+            book.save()
+            
+            # Manually delete the BookLog
+            book_log.delete()
+        
+        # Now delete payment
+        payment.delete()
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Payment deleted successfully'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error deleting payment: {str(e)}'
+        })
+
+
+@login_required
+def customer_discount_delete(request, discount_id):
+    """Delete a customer discount"""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+    
+    try:
+        user_profile = request.user.userprofile
+        discount = get_object_or_404(CustomerDiscount, id=discount_id, user=user_profile)
+        
+        # Get associated book log before deleting
+        book_log = discount.book_log
+        customer = discount.customer
+        amount = discount.amount
+        
+        # Reverse the book entry BEFORE deleting discount
+        if book_log:
+            book = book_log.parent_book
+            # Reverse the discount (subtract from balance since discount reduces debt)
+            book.current_balance -= amount
+            
+            # Update last_log if this was the last entry
+            if book.last_log and book.last_log.id == book_log.id:
+                # Find previous log
+                previous_log = BookLog.objects.filter(
+                    parent_book=book
+                ).exclude(id=book_log.id).order_by('-date', '-created_at').first()
+                book.last_log = previous_log
+            
+            book.save()
+            
+            # Manually delete the BookLog
+            book_log.delete()
+        
+        # Now delete discount
+        discount.delete()
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Discount deleted successfully'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error deleting discount: {str(e)}'
+        })

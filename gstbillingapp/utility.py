@@ -272,19 +272,43 @@ def update_inventory_for_return(return_invoice, request):
     # Get the User instance from UserProfile
     user = return_invoice.user.user
     
-    for item in return_data['items']:
-        # Get product
-        product = Product.objects.get(
-            user=user,
-            model_no=item['invoice_model_no'],
-            product_name=item['invoice_product'],
-            product_hsn=item['invoice_hsn'],
-            product_gst_percentage=item['invoice_gst_percentage']
-        )
-        inventory = Inventory.objects.get(user=user, product=product)
+    for item in return_data.get('items', []):
+        # Get product key (support both old and new formats)
+        model_no = item.get('invoice_model_no', item.get('invoice_product', ''))
+        product_name = item.get('invoice_product', '')
+        product_hsn = item.get('invoice_hsn', '')
+        gst_percentage = item.get('invoice_gst_percentage', 0)
+        
+        if not model_no or not product_name:
+            continue  # Skip if essential data is missing
+        
+        try:
+            # Try to find product by model_no first
+            product = Product.objects.get(user=user, model_no=model_no)
+        except Product.DoesNotExist:
+            # If not found, try by product name and other attributes
+            try:
+                product = Product.objects.get(
+                    user=user,
+                    product_name=product_name,
+                    product_hsn=product_hsn,
+                    product_gst_percentage=gst_percentage
+                )
+            except Product.DoesNotExist:
+                # Product doesn't exist, skip this item
+                continue
+        
+        try:
+            inventory = Inventory.objects.get(user=user, product=product)
+        except Inventory.DoesNotExist:
+            # Create inventory if it doesn't exist
+            inventory = Inventory.objects.create(user=user, product=product, current_stock=0)
         
         # POSITIVE change for returns (add stock back)
-        change = int(item['return_qty'])  # POSITIVE: +5 for 5 items returned
+        change = int(item.get('return_qty', 0))  # POSITIVE: +5 for 5 items returned
+        
+        if change <= 0:
+            continue  # Skip if no quantity to return
         
         # Create InventoryLog with change_type=3 (Return)
         inventory_log = InventoryLog(
@@ -350,14 +374,18 @@ def calculate_available_return_items(parent_invoice):
     returned_quantities = {}
     for return_inv in previous_returns:
         return_data = json.loads(return_inv.return_items_json)
-        for item in return_data['items']:
-            key = item['invoice_model_no']
-            returned_quantities[key] = returned_quantities.get(key, 0) + item['return_qty']
+        for item in return_data.get('items', []):
+            key = item.get('invoice_product', item.get('invoice_model_no', ''))
+            if key:
+                returned_quantities[key] = returned_quantities.get(key, 0) + item.get('return_qty', 0)
     
     # Calculate available quantities
-    for item in invoice_data['items']:
-        key = item['invoice_model_no']
-        original_qty = item['invoice_qty']
+    for item in invoice_data.get('items', []):
+        key = item.get('invoice_product', item.get('invoice_model_no', ''))
+        if not key:
+            continue
+            
+        original_qty = item.get('invoice_qty', 0)
         returned_qty = returned_quantities.get(key, 0)
         available_qty = original_qty - returned_qty
         

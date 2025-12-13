@@ -1,0 +1,85 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Sales Report - Owner Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5><i class="fas fa-chart-line"></i> Sales Report</h5>
+        <a href="{% url 'mobile_owner_dashboard' %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-home"></i> Dashboard
+        </a>
+    </div>
+
+    <!-- Date Filter -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <form method="GET" class="row">
+                <div class="col-6">
+                    <label>From Date</label>
+                    <input type="date" class="form-control" name="from_date" value="{{ from_date }}">
+                </div>
+                <div class="col-6">
+                    <label>To Date</label>
+                    <input type="date" class="form-control" name="to_date" value="{{ to_date }}">
+                </div>
+                <div class="col-12 mt-2">
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-filter"></i> Apply Filter
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Card -->
+    <div class="card mb-3 bg-success text-white">
+        <div class="card-body text-center">
+            <h6>Total Sales</h6>
+            <h3>₹{{ totals.total_amount|floatformat:0|intcomma }}</h3>
+            <small>{{ totals.total_count }} invoices</small>
+        </div>
+    </div>
+
+    <!-- Invoice List -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">Invoice Details</h6>
+        </div>
+        <div class="card-body p-0">
+            {% if invoices %}
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Customer</th>
+                            <th>Date</th>
+                            <th class="text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td><strong>#{{ invoice.invoice_number }}</strong></td>
+                            <td>{{ invoice.customer_name|truncatewords:2 }}</td>
+                            <td><small>{{ invoice.date|date:"d M" }}</small></td>
+                            <td class="text-right"><strong>₹{{ invoice.invoice_total_amt_with_gst|floatformat:0|intcomma }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-3 text-center text-muted">
+                <i class="fas fa-inbox fa-2x mb-2"></i>
+                <p>No invoices found for selected period</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

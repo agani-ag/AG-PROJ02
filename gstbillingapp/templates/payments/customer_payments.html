@@ -37,6 +37,7 @@
                             <th>Payment Mode</th>
                             <th>Reference</th>
                             <th>Notes</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -48,10 +49,15 @@
                             <td><span class="badge badge-info">{{ payment.get_payment_mode_display }}</span></td>
                             <td>{{ payment.reference_number|default:"-" }}</td>
                             <td>{{ payment.notes|truncatewords:10 }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger delete-payment" data-id="{{ payment.id }}" data-customer="{{ payment.customer.customer_name }}" data-amount="{{ payment.amount }}" title="Delete Payment">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="text-center text-muted">No payments recorded yet</td>
+                            <td colspan="7" class="text-center text-muted">No payments recorded yet</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -61,11 +67,70 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block includejs %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 $(document).ready(function() {
     $('#paymentsTable').DataTable({
         "order": [[0, "desc"]],
         "pageLength": 25
+    });
+    
+    // Delete payment handler
+    $(document).on('click', '.delete-payment', function() {
+        const paymentId = $(this).data('id');
+        const customerName = $(this).data('customer');
+        const amount = $(this).data('amount');
+        
+        Swal.fire({
+            title: 'Delete Payment?',
+            html: `Are you sure you want to delete this payment?<br><br><strong>Customer:</strong> ${customerName}<br><strong>Amount:</strong> ₹${amount}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: `/customers/payments/${paymentId}/delete`,
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Deleted!',
+                                text: response.message,
+                                confirmButtonColor: '#28a745'
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: response.message,
+                                confirmButtonColor: '#dc3545'
+                            });
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Failed to delete payment: ' + error,
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                });
+            }
+        });
     });
 });
 </script>

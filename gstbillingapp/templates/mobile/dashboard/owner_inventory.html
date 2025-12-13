@@ -1,0 +1,64 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Inventory - Owner Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5><i class="fas fa-boxes"></i> Inventory Status</h5>
+        <a href="{% url 'mobile_owner_dashboard' %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-home"></i> Dashboard
+        </a>
+    </div>
+
+    <!-- Filter Buttons -->
+    <div class="btn-group btn-group-toggle w-100 mb-3" data-toggle="buttons">
+        <a href="?filter=all" class="btn btn-outline-primary {% if stock_filter == 'all' %}active{% endif %}">
+            All Stock
+        </a>
+        <a href="?filter=low" class="btn btn-outline-warning {% if stock_filter == 'low' %}active{% endif %}">
+            Low Stock
+        </a>
+        <a href="?filter=out" class="btn btn-outline-danger {% if stock_filter == 'out' %}active{% endif %}">
+            Out of Stock
+        </a>
+    </div>
+
+    <!-- Inventory List -->
+    <div class="card">
+        <div class="card-body p-0">
+            {% if inventory_items %}
+            <div class="list-group list-group-flush">
+                {% for item in inventory_items %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ item.product.product_name }}</strong>
+                            <br><small class="text-muted">{{ item.product.product_model_no }}</small>
+                        </div>
+                        <div class="text-right">
+                            <h5 class="mb-0 
+                                {% if item.stock == 0 %}text-danger
+                                {% elif item.stock <= 10 %}text-warning
+                                {% else %}text-success{% endif %}">
+                                {{ item.stock }}
+                            </h5>
+                            <small class="text-muted">units</small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="p-3 text-center text-muted">
+                <i class="fas fa-inbox fa-2x mb-2"></i>
+                <p>No items found</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

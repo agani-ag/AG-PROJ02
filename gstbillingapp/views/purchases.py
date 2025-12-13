@@ -22,7 +22,7 @@ def purchases(request):
     context['total_pp'] = PurchaseLog.objects.filter(user=request.user, ptype=1).aggregate(Sum('amount'))['amount__sum']
     context['total_pb'] = PurchaseLog.objects.filter(user=request.user).aggregate(Sum('amount'))['amount__sum']
     
-    context['purchases'] = PurchaseLog.objects.filter(user=request.user).order_by('-date')
+    context['purchases'] = PurchaseLog.objects.filter(user=request.user).select_related('vendor').prefetch_related('gst_invoice').order_by('-date')
     return render(request, 'purchases/purchases.html', context)
 
 @login_required
@@ -82,6 +82,19 @@ def purchases_edit(request,pid):
         purchase_log.purchase_reference = request.POST.get('purchase_reference')
         
         purchase_log.save()
+        
+        # Sync with linked purchase invoice if exists
+        linked_invoice = purchase_log.gst_invoice.first()
+        if linked_invoice:
+            # Update invoice with purchase log data
+            linked_invoice.vendor = purchase_log.vendor
+            linked_invoice.invoice_date = purchase_log.date.date() if purchase_log.date else linked_invoice.invoice_date
+            linked_invoice.total_amount = abs(purchase_log.amount) if purchase_log.amount else linked_invoice.total_amount
+            linked_invoice.save()
+            messages.success(request, f'Purchase log updated and synced with invoice {linked_invoice.invoice_number}')
+        else:
+            messages.success(request, 'Purchase log updated successfully')
+        
         return redirect('purchases')
     return render(request,'purchases/purchase_edit.html',context)
 
@@ -89,6 +102,12 @@ def purchases_edit(request,pid):
 def purchases_delete(request,pid):
     if pid:
         purchases_obj = get_object_or_404(PurchaseLog, user=request.user, id=pid)
+        
+        # Check if linked to a purchase invoice
+        linked_invoice = purchases_obj.gst_invoice.first()
+        if linked_invoice:
+            messages.warning(request, f'Purchase log deleted. GST Invoice {linked_invoice.invoice_number} is now unlinked.')
+        
         purchases_obj.delete()
     return redirect('purchases')
 

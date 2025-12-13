@@ -1,0 +1,202 @@
+{% extends "mobile/base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}My Invoices - Customer Portal{% endblock %}
+
+{% block content %}
+<style>
+    .mobile-invoices-page {
+        padding-bottom: 60px;
+        background: linear-gradient(135deg, #e0f7fa 0%, #b2dfdb 100%);
+        min-height: 100vh;
+    }
+    
+    .page-header {
+        background: linear-gradient(135deg, #00acc1 0%, #00bfa5 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 0 0 20px 20px;
+        margin: -10px -10px 20px -10px;
+        box-shadow: 0 4px 12px rgba(0, 172, 193, 0.3);
+    }
+    
+    .page-header h5 {
+        font-weight: 700;
+        margin-bottom: 0;
+    }
+    
+    .back-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: white !important;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+    
+    .back-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+    
+    .invoice-item {
+        background: white;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: all 0.3s;
+        text-decoration: none;
+        display: block;
+        border-left: 4px solid #00acc1;
+    }
+    
+    .invoice-item:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        text-decoration: none;
+    }
+    
+    .invoice-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+    
+    .invoice-number {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    
+    .invoice-date {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .invoice-amount {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #00acc1;
+        text-align: right;
+    }
+    
+    .invoice-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-top: 5px;
+    }
+    
+    .badge-gst {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+    
+    .badge-non-gst {
+        background: #f3e5f5;
+        color: #7b1fa2;
+    }
+    
+    .invoice-details {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #f0f0f0;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    
+    .empty-state {
+        background: white;
+        border-radius: 15px;
+        padding: 50px 20px;
+        text-align: center;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        color: #e0e0e0;
+        margin-bottom: 20px;
+    }
+    
+    .empty-state p {
+        color: #6c757d;
+        font-size: 1rem;
+    }
+</style>
+
+<div class="container-fluid mobile-invoices-page">
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5><i class="fas fa-file-invoice"></i> My Invoices</h5>
+            <a href="{% url 'mobile_customer_dashboard' %}" class="back-btn">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Invoice List -->
+    {% if invoices %}
+        {% for invoice in invoices %}
+        <a href="{% url 'mobile_customer_invoice_detail' invoice.id %}" class="invoice-item">
+            <div class="invoice-header">
+                <div>
+                    <div class="invoice-number">#{{ invoice.invoice_number }}</div>
+                    <div class="invoice-date">
+                        <i class="far fa-calendar"></i> {{ invoice.invoice_date|date:"d M, Y" }}
+                    </div>
+                </div>
+                <div>
+                    {% if invoice.data %}
+                        <div class="invoice-amount">₹{{ invoice.data.invoice_total_amt_with_gst|floatformat:0|intcomma }}</div>
+                    {% else %}
+                        <div class="invoice-amount">₹0</div>
+                    {% endif %}
+                    {% if invoice.non_gst_invoice_number %}
+                    <div class="invoice-badge badge-non-gst">Non-GST: {{ invoice.non_gst_invoice_number }}</div>
+                    {% else %}
+                    <div class="invoice-badge badge-gst">GST Invoice</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if invoice.data %}
+                <div class="invoice-details">
+                    <div>
+                        <i class="fas fa-box"></i> 
+                        <strong>{{ invoice.data.items|length }}</strong> item{{ invoice.data.items|length|pluralize }}
+                    </div>
+                    <div>
+                        <i class="fas fa-rupee-sign"></i>
+                        Base: ₹{{ invoice.data.invoice_total_amt_without_gst|floatformat:0|intcomma }}
+                    </div>
+                    <div>
+                        <i class="fas fa-percentage"></i>
+                        {% with sgst=invoice.data.invoice_total_amt_sgst|default:0 cgst=invoice.data.invoice_total_amt_cgst|default:0 igst=invoice.data.invoice_total_amt_igst|default:0 %}
+                        Tax: ₹{{ sgst|add:cgst|add:igst|floatformat:0|intcomma }}
+                        {% endwith %}
+                    </div>
+                </div>
+            {% endif %}
+        </a>
+        {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-inbox"></i>
+        <p>No invoices found</p>
+        <small class="text-muted">Your invoice history will appear here</small>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
