@@ -15,7 +15,7 @@
 </div>
 
 <table class="table table-bordered" id="customer-table">
-	<thead>
+	<thead class="thead-dark">
 		<tr>
 			<th>Customer Name</th>
 			<th>Address</th>
@@ -32,7 +32,7 @@
 			<td>{% if customer.customer_address %}{{customer.customer_address}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 			<td>{% if customer.customer_phone %}{{customer.customer_phone}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 			<td>{% if customer.customer_gst %}{{customer.customer_gst}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-			<td class="text-center">
+			<td>
 				{% if customer.is_mobile_user %}
 					<a href="#" class="btn btn-orange-on btn-sm btn-curve"><i class="fas fa-toggle-on"></i></a>
 				{% else %}
@@ -44,6 +44,10 @@
 					<a href="{% url 'customer_edit' customer.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
 					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#customerDeleteModal" data-customer-id="{{customer.id}}" data-customer-name="{{customer.customer_name}}"><i class="fas fa-trash"></i></button>
 					<a href="{% url 'book_logs' customer.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-alt"></i></a>
+					{% if customer.customer_latitude and customer.customer_longitude %}
+					<a href="#" class="btn btn-success btn-sm btn-curve" onclick="popup_Customer_maps('{{ customer.customer_latitude }}', '{{ customer.customer_longitude }}', '{{ customer.customer_name }}')">
+						<i class="fas fa-map-marker-alt"></i></a>
+					{% endif %}
 				</div>
 			</td>
 		</tr>
@@ -143,7 +147,7 @@ $('#set-allcustomer-userid').click(function(){
 		if (result.isConfirmed) {
 			$.ajax({
 				type: "POST",
-				url: "{% url 'customer_default_password' %}",
+				url: "/customers/api/all_userid_set",
 				data: {
 					'customer_userid': '{{ user.id }}',
 				},
@@ -167,5 +171,42 @@ $('#set-allcustomer-userid').click(function(){
 		}
 	});
 });
+
+function popup_Customer_maps(latitude, longitude, name) {
+
+    Swal.fire({
+        html: `<div id="map" style="height: 600px; width: 98%;"></div>`,
+        width: '80%',
+        showCloseButton: true,
+        showConfirmButton: false,
+        didOpen: () => {
+            // Initialize map only after the popup DOM is created
+            var map = L.map('map').setView([latitude, longitude], 17);
+
+            var satelliteLayer = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                { attribution: '© Esri © OpenStreetMap contributors' }
+            ).addTo(map);
+
+            var osmLayer = L.tileLayer(
+                'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                { attribution: '© OpenStreetMap contributors' }
+            );
+
+            L.marker([latitude, longitude])
+                .addTo(map)
+                .bindTooltip(name, {
+                    permanent: true,
+                    offset: [0, -15],
+                    direction: 'top'
+                })
+                .openPopup();
+
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 200);
+        }
+    });
+}
 </script>
 {% endblock %}

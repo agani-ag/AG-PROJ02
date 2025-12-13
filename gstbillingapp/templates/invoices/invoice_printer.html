@@ -12,7 +12,13 @@
 			<div class="col-sm-6 col-6">&nbsp;</div>
 			<div class="col-sm-6 col-6"><strong>Invoice Date: {{invoice.invoice_date}}</strong></div>
 			<div class="col-sm-6 text-right">&nbsp;</div> 
-			<div class="col-sm-6 col-6"><strong>Invoice No:{{invoice.invoice_number}}</strong></div>
+			<div class="col-sm-6 col-6"><strong>Invoice No:
+				{% if invoice.non_gst_mode %}
+					NG{{invoice.non_gst_invoice_number}}
+				{% else %}
+					{{invoice.invoice_number}}
+				{% endif %}
+			</strong></div>
 			</div>
 		</div>
 

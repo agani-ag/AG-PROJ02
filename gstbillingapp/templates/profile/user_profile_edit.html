@@ -5,7 +5,6 @@
 
 
 {% block content %}
-
 <h2>Edit Profile</h2>
 <form method="POST">
 	{% csrf_token %}
@@ -53,13 +52,75 @@
 				<th scope="row" class="text-right">Bank Details:</th>
 				<td class="form-input-td">{{user_profile_form.bankdetails}}</td>
 			</tr>
+			<tr>
+				<td colspan="2">
+					<div id="map" style="height: 350px; width: 100%; border: 1px solid #ccc;"></div>
+				</td>
+			</tr>
 		</tbody>
 	</table>
 
 	<div class="text-right">
+		<button type="button" id="toggleEditBtn" class="btn btn-success"><i class="fas fa-map-marker-alt"></i></button>
 		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
 		<a href="{% url 'user_profile' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
 	</div>
 </form>
+
+{% endblock %}
+{% block includejs %}
+<script>
+    var latitude = document.querySelector("input[name='business_latitude']").value;
+    if (!latitude) latitude = 12.602429;
+    else latitude = parseFloat(latitude);
+
+    var longitude = document.querySelector("input[name='business_longitude']").value;
+    if (!longitude) longitude = 78.595726;
+    else longitude = parseFloat(longitude);
+
+    var name = document.querySelector("input[name='business_title']").value;
+
+    var map = L.map('map').setView([latitude, longitude], 20);
+
+    // SATELLITE LAYER
+    var satelliteLayer = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { attribution: '&copy; Esri & contributors' }
+    ).addTo(map);
+
+    // LABELS LAYER
+    var labelsLayer = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+        { attribution: '&copy; Esri' }
+    ).addTo(map);
+
+    // MARKER
+    var marker = L.marker([latitude, longitude])
+        .addTo(map)
+        .bindTooltip(name, { permanent: true, offset: [0, -15], direction: 'top' });
+
+    // --- EDIT MODE ---
+    let editMode = false;
+
+    const toggleBtn = document.getElementById("toggleEditBtn");
+    toggleBtn.addEventListener("click", function () {
+        editMode = !editMode;
+        toggleBtn.className = editMode ? "btn btn-warning" : "btn btn-success";
+    });
+
+    // CLICK ONLY WORKS IN EDIT MODE
+    map.on('click', function (e) {
+        if (!editMode) return;
+
+        const lat = e.latlng.lat.toFixed(6);
+        const lon = e.latlng.lng.toFixed(6);
+
+        document.querySelector("input[name='business_latitude']").value = lat;
+        document.querySelector("input[name='business_longitude']").value = lon;
+
+        marker.setLatLng([lat, lon]);
+        marker.bindTooltip(lat + ", " + lon, { permanent: true }).openTooltip();
+    });
+</script>
 
 {% endblock %}

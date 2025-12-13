@@ -1,6 +1,7 @@
 # Django imports
 from django.contrib import messages
 from django.db.models import Max, Sum
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 
@@ -38,11 +39,22 @@ def invoice_create(request):
         return redirect('user_profile_edit')
 
     context = {}
-    context['default_invoice_number'] = Invoice.objects.filter(user=request.user).aggregate(Max('invoice_number'))['invoice_number__max']
-    if not context['default_invoice_number']:
-        context['default_invoice_number'] = 1
+    context['non_gst_invoice_number'] = Invoice.objects.filter(user=request.user).aggregate(Max('non_gst_invoice_number'))['non_gst_invoice_number__max']
+    if not context['non_gst_invoice_number']:
+        context['non_gst_invoice_number'] = 1
     else:
-        context['default_invoice_number'] += 1
+        context['non_gst_invoice_number'] += 1
+
+    max_invoice_number = []
+    user_profiles = UserProfile.objects.filter(business_gst=user_profile.business_gst)
+    for profile in user_profiles:
+        max_invoice_number.append(Invoice.objects.filter(user=profile.user).aggregate(Max('invoice_number'))['invoice_number__max'])
+    max_invoice_number = [num for num in max_invoice_number if num is not None]
+
+    if max_invoice_number:
+        context['default_invoice_number'] = max(max_invoice_number) + 1
+    else:
+        context['default_invoice_number'] = 1
 
     context['default_invoice_date'] = datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d')
 
@@ -115,9 +127,15 @@ def invoice_create(request):
 @login_required
 def invoices(request):
     context = {}
-    context['invoices'] = Invoice.objects.filter(user=request.user).order_by('-id')
+    context['invoices'] = Invoice.objects.filter(user=request.user,non_gst_mode=False).order_by('-id')
     return render(request, 'invoices/invoices.html', context)
 
+@login_required
+def non_gst_invoices(request):
+    context = {}
+    context['invoices'] = Invoice.objects.filter(user=request.user,non_gst_mode=True).order_by('-id')
+    context['non_gst_mode'] = True
+    return render(request, 'invoices/invoices.html', context)
 
 @login_required
 def invoice_viewer(request, invoice_id):

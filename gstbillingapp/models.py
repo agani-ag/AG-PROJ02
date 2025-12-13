@@ -97,7 +97,8 @@ class Customer(models.Model):
 
 class Invoice(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
-    invoice_number = models.IntegerField()
+    # invoice_number = models.IntegerField()
+    invoice_number = models.IntegerField(null=True, blank=True, default=None)
     invoice_date = models.DateField()
     invoice_customer = models.ForeignKey(
         'Customer',
@@ -108,6 +109,15 @@ class Invoice(models.Model):
     inventory_reflected = models.BooleanField(default=True)
     books_reflected = models.BooleanField(default=True)
     non_gst_mode = models.BooleanField(default=False)
+    non_gst_invoice_number = models.IntegerField(null=True, blank=True, default=None)
+    
+    def save(self, *args, **kwargs):
+        if self.non_gst_mode:
+            self.non_gst_invoice_number = self.invoice_number
+            self.invoice_number = None
+        
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return str(self.invoice_number) + " | " + str(self.invoice_date)
 
@@ -183,6 +193,7 @@ class BookLog(models.Model):
         (0, 'Paid'),
         (1, 'Purchased Items'),
         (2, 'Sold Items'),
+        (3, 'Returned Items'),
         (4, 'Other'),
     ]
     change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)
@@ -214,6 +225,14 @@ class PurchaseLog(models.Model):
     paid_reference = models.CharField(max_length=100, blank=True, null=True)
     purchase_reference = models.CharField(max_length=100, blank=True, null=True)
     amount = models.IntegerField(blank=True, null=True, default=0)
+
+    def save(self, *args, **kwargs):
+        if self.purchase_category:
+            self.purchase_category = self.purchase_category.upper()
+        if self.paid_category:
+            self.paid_category = self.paid_category.upper()
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return str(self.date)

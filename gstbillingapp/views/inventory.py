@@ -25,7 +25,7 @@ import json
 @login_required
 def inventory(request):
     context = {}
-    context['inventory_list'] = Inventory.objects.filter(user=request.user).exclude(product_id__isnull=True)
+    context['inventory_list'] = Inventory.objects.filter(user=request.user).exclude(product_id__isnull=True).order_by('-product__id')
     context['untracked_products'] = Product.objects.filter(user=request.user, inventory=None).exclude(model_no__isnull=True)
     return render(request, 'inventory/inventory.html', context)
 

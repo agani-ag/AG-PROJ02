@@ -27,7 +27,7 @@ import datetime
 @login_required
 def books(request):
     context = {}
-    context['book_list'] = Book.objects.filter(user=request.user).exclude(customer_id__isnull=True)
+    context['book_list'] = Book.objects.filter(user=request.user).exclude(customer_id__isnull=True).order_by('customer__customer_name')
     return render(request, 'books/books.html', context)
 
 @login_required
