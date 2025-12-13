@@ -27,8 +27,12 @@
           </a>
           <div class="dropdown-menu dropdown-menu-right" aria-labelledby="invoicesDropdown">
             <a class="dropdown-item" href="{% url 'invoice_create' %}">New Invoice</a>
-            <a class="dropdown-item" href="{% url 'invoices' %}">Invoices</a>
+            <a class="dropdown-item" href="{% url 'invoices' %}">All Invoices</a>
             <a class="dropdown-item" href="{% url 'non_gst_invoices' %}">Non-GST Invoices</a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="{% url 'return_invoices_list' %}">
+              <i class="fas fa-undo"></i> Return Invoices
+            </a>
           </div>
         </li>
 
@@ -45,8 +49,23 @@
         </li>
 
         <!-- Customers Link -->
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'customers' %}">Customers</a>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="{% url 'customers' %}" id="customersDropdown" role="button" data-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false">
+            Customers
+          </a>
+          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="customersDropdown">
+            <a class="dropdown-item" href="{% url 'customers' %}">All Customers</a>
+            <a class="dropdown-item" href="{% url 'customer_add' %}">Add Customer</a>
+            <div class="dropdown-divider"></div>
+            <h6 class="dropdown-header">Transactions</h6>
+            <a class="dropdown-item" href="{% url 'customer_payments_list' %}">
+              <i class="fas fa-money-bill-wave"></i> Payments
+            </a>
+            <a class="dropdown-item" href="{% url 'customer_discounts_list' %}">
+              <i class="fas fa-percent"></i> Discounts
+            </a>
+          </div>
         </li>
 
         <!-- Accounts Dropdown -->
@@ -61,6 +80,32 @@
             <a class="dropdown-item" href="{% url 'vendors_purchase' %}">Purchases Vendor</a>
             <a class="dropdown-item" href="{% url 'expense_tracker' %}">Expense Tracker</a>
             <a class="dropdown-item" href="{% url 'bank_details' %}">Bank Details</a>
+          </div>
+        </li>
+        
+        <!-- GST Dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="gstDropdown" role="button" data-toggle="dropdown"
+            aria-haspopup="true" aria-expanded="false">
+            GST
+          </a>
+          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="gstDropdown">
+            <a class="dropdown-item" href="{% url 'gst_dashboard' %}">📊 GST Dashboard</a>
+            <div class="dropdown-divider"></div>
+            <h6 class="dropdown-header">GST Returns</h6>
+            <a class="dropdown-item" href="{% url 'gstr1_report' %}">GSTR-1 Report</a>
+            <a class="dropdown-item" href="{% url 'gstr3b_report' %}">GSTR-3B Report</a>
+            <a class="dropdown-item" href="{% url 'gstr9_report' %}">GSTR-9 Annual</a>
+            <div class="dropdown-divider"></div>
+            <h6 class="dropdown-header">Purchase & ITC</h6>
+            <a class="dropdown-item" href="{% url 'purchase_invoice_list' %}">Purchase Invoices</a>
+            <a class="dropdown-item" href="{% url 'itc_ledger' %}">ITC Ledger</a>
+            <div class="dropdown-divider"></div>
+            <h6 class="dropdown-header">Compliance</h6>
+            <a class="dropdown-item" href="{% url 'gstr2_reconciliation' %}">Reconciliation</a>
+            <a class="dropdown-item" href="{% url 'compliance_tracker' %}">Compliance Tracker</a>
+            <a class="dropdown-item" href="{% url 'audit_log_viewer' %}">Audit Logs</a>
+            <a class="dropdown-item" href="{% url 'gst_analytics' %}">Analytics</a>
           </div>
         </li>
         

@@ -6,7 +6,9 @@ from .views import (
     auth, profile, invoices, customers,
     books, products, inventory, purchases,
     vendor_purchase, features, views,
-    expense_tracker, bank_details, graphs
+    expense_tracker, bank_details, graphs,
+    purchase_invoices, gst_returns, gst_reconciliation,
+    returns, customer_transactions
 )
 
 urlpatterns = [
@@ -96,4 +98,54 @@ urlpatterns = [
 
     # Graphs and Analytics URLs
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
+
+    # GST Filing & Returns URLs
+    path('gst/dashboard', gst_returns.gst_dashboard, name='gst_dashboard'),
+    path('gst/gstr1', gst_returns.gstr1_report, name='gstr1_report'),
+    path('gst/gstr3b', gst_returns.gstr3b_report, name='gstr3b_report'),
+    path('gst/gstr9', gst_returns.gstr9_report, name='gstr9_report'),
+    path('gst/gstr1/export', gst_returns.export_gstr1_json, name='export_gstr1_json'),
+    path('gst/gstr9/export', gst_returns.export_gstr9_json, name='gstr9_export_json'),
+
+    # Purchase Invoice URLs
+    path('purchase-invoices', purchase_invoices.purchase_invoice_list, name='purchase_invoice_list'),
+    path('purchase-invoices/add', purchase_invoices.purchase_invoice_add, name='purchase_invoice_add'),
+    path('purchase-invoices/<int:pk>/edit', purchase_invoices.purchase_invoice_edit, name='purchase_invoice_edit'),
+    path('purchase-invoices/<int:pk>', purchase_invoices.purchase_invoice_view, name='purchase_invoice_view'),
+    path('purchase-invoices/<int:pk>/delete', purchase_invoices.purchase_invoice_delete, name='purchase_invoice_delete'),
+    path('purchase-invoices/api/add', purchase_invoices.purchase_invoice_api_add, name='purchase_invoice_api_add'),
+    
+    # ITC Ledger
+    path('gst/itc-ledger', purchase_invoices.itc_ledger, name='itc_ledger'),
+    
+    # GST Reconciliation URLs
+    path('gst/reconciliation', gst_reconciliation.gstr2_reconciliation, name='gstr2_reconciliation'),
+    path('gst/reconciliation/upload', gst_reconciliation.gstr2_upload, name='gstr2_upload'),
+    path('gst/reconciliation/<int:reconciliation_id>/resolve', gst_reconciliation.reconciliation_mark_resolved, name='reconciliation_mark_resolved'),
+    path('gst/reconciliation/export', gst_reconciliation.reconciliation_export, name='reconciliation_export'),
+    
+    # Audit Log URLs
+    path('audit/logs', gst_reconciliation.audit_log_viewer, name='audit_log_viewer'),
+    path('audit/logs/<int:log_id>', gst_reconciliation.audit_log_detail, name='audit_log_detail'),
+    
+    # Compliance & Analytics URLs
+    path('gst/compliance', gst_reconciliation.compliance_tracker, name='compliance_tracker'),
+    path('gst/analytics', gst_reconciliation.gst_analytics, name='gst_analytics'),
+    
+    # Return Invoice URLs
+    path('returns', returns.return_invoices_list, name='return_invoices_list'),
+    path('returns/create/<int:invoice_id>', returns.return_invoice_create, name='return_invoice_create'),
+    path('returns/<int:return_id>', returns.return_invoice_detail, name='return_invoice_detail'),
+    path('returns/<int:return_id>/print', returns.return_invoice_printer, name='return_invoice_printer'),
+    path('returns/<int:return_id>/process', returns.return_invoice_process, name='return_invoice_process'),
+    
+    # Customer Payment URLs
+    path('customers/payments', customer_transactions.customer_payments_list, name='customer_payments_list'),
+    path('customers/payments/add', customer_transactions.customer_payment_add, name='customer_payment_add'),
+    path('customers/payments/add/<int:customer_id>', customer_transactions.customer_payment_add, name='customer_payment_add_for_customer'),
+    
+    # Customer Discount URLs
+    path('customers/discounts', customer_transactions.customer_discounts_list, name='customer_discounts_list'),
+    path('customers/discounts/add', customer_transactions.customer_discount_add, name='customer_discount_add'),
+    path('customers/discounts/add/<int:customer_id>', customer_transactions.customer_discount_add, name='customer_discount_add_for_customer'),
 ]

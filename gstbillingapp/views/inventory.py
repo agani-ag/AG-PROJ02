@@ -15,7 +15,7 @@ from ..models import (
 from ..forms import InventoryLogForm
 
 # Utility functions
-from gstbillingapp.utils import add_stock_to_inventory
+from gstbillingapp.utility import add_stock_to_inventory
 
 # Python imports
 import json

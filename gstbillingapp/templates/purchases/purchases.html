@@ -47,18 +47,42 @@
 			<tr>
 				<th>Date</th>
 				<th>Type</th>
+				<th>Vendor</th>
 				<th>Amount</th>
 				<th>Status</th>
+				<th>GST Invoice</th>
 				<th>Actions</th>
 			</tr>
 		</thead>
 		<tbody class="two-col-form">
 			{% for purchase in purchases %}
 			<tr class="{% if purchase.amount > 0 %} table-success {% else %} table-danger {% endif %}">
- 				<td>{{purchase.date}}</td>
+ 				<td>{{purchase.date|date:"d-M-Y"}}</td>
 				<td>{{purchase.get_ptype_display }}</td>
-				<td>{% if purchase.amount %}₹ {{purchase.amount}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+				<td>
+					{% if purchase.vendor %}
+						{{ purchase.vendor.vendor_name|truncatewords:3 }}
+					{% else %}
+						<span class="text-muted">N/A</span>
+					{% endif %}
+				</td>
+				<td>{% if purchase.amount %}₹ {{purchase.amount|intcomma}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 				<td>{{purchase.get_status_display}}</td>
+				<td>
+					{% if purchase.gst_invoice %}
+						<a href="{% url 'purchase_invoice_edit' purchase.gst_invoice.id %}" class="btn btn-sm btn-success" title="View GST Invoice">
+							<i class="fas fa-file-invoice"></i> {{ purchase.gst_invoice.invoice_number }}
+						</a>
+					{% elif purchase.ptype == 0 and purchase.vendor %}
+						<a href="{% url 'purchase_invoice_add' %}?purchase_log_id={{ purchase.id }}" 
+						   class="btn btn-sm btn-primary" 
+						   title="Create GST Invoice">
+							<i class="fas fa-plus"></i> Create
+						</a>
+					{% else %}
+						<span class="text-muted">-</span>
+					{% endif %}
+				</td>
 				<td>
 					<div class="btn-group" role="group" aria-label="Basic example">
 						<a href="{% url 'purchases_edit' purchase.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
@@ -76,9 +100,9 @@
 <script type="text/javascript">
 	$(document).ready( function () {
 		$('#purchase-table').DataTable({
-			"order": [],
+			"order": [[0, "desc"]],
 			"columnDefs": [ {
-				"targets": 3,
+				"targets": [5, 6],
 				"sortable": false,
 				"searchable": false
 			} ],

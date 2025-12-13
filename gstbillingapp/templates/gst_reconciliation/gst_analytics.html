@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<style>
+    .chart-container {
+        position: relative;
+        height: 400px;
+        margin-bottom: 30px;
+    }
+    .metric-card {
+        border-left: 4px solid #007bff;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>📊 GST Analytics Dashboard</h2>
+            <p class="text-muted">Advanced analytics and insights for GST compliance</p>
+        </div>
+    </div>
+
+    <!-- Period Selection -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <form method="get" class="form-inline">
+                <label class="mr-2">From:</label>
+                <select name="from_month" class="form-control mr-2">
+                    <option value="1" {% if from_month == 1 %}selected{% endif %}>January</option>
+                    <option value="2" {% if from_month == 2 %}selected{% endif %}>February</option>
+                    <option value="3" {% if from_month == 3 %}selected{% endif %}>March</option>
+                    <option value="4" {% if from_month == 4 %}selected{% endif %}>April</option>
+                    <option value="5" {% if from_month == 5 %}selected{% endif %}>May</option>
+                    <option value="6" {% if from_month == 6 %}selected{% endif %}>June</option>
+                    <option value="7" {% if from_month == 7 %}selected{% endif %}>July</option>
+                    <option value="8" {% if from_month == 8 %}selected{% endif %}>August</option>
+                    <option value="9" {% if from_month == 9 %}selected{% endif %}>September</option>
+                    <option value="10" {% if from_month == 10 %}selected{% endif %}>October</option>
+                    <option value="11" {% if from_month == 11 %}selected{% endif %}>November</option>
+                    <option value="12" {% if from_month == 12 %}selected{% endif %}>December</option>
+                </select>
+                <select name="from_year" class="form-control mr-3">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if from_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+
+                <label class="mr-2">To:</label>
+                <select name="to_month" class="form-control mr-2">
+                    <option value="1" {% if to_month == 1 %}selected{% endif %}>January</option>
+                    <option value="2" {% if to_month == 2 %}selected{% endif %}>February</option>
+                    <option value="3" {% if to_month == 3 %}selected{% endif %}>March</option>
+                    <option value="4" {% if to_month == 4 %}selected{% endif %}>April</option>
+                    <option value="5" {% if to_month == 5 %}selected{% endif %}>May</option>
+                    <option value="6" {% if to_month == 6 %}selected{% endif %}>June</option>
+                    <option value="7" {% if to_month == 7 %}selected{% endif %}>July</option>
+                    <option value="8" {% if to_month == 8 %}selected{% endif %}>August</option>
+                    <option value="9" {% if to_month == 9 %}selected{% endif %}>September</option>
+                    <option value="10" {% if to_month == 10 %}selected{% endif %}>October</option>
+                    <option value="11" {% if to_month == 11 %}selected{% endif %}>November</option>
+                    <option value="12" {% if to_month == 12 %}selected{% endif %}>December</option>
+                </select>
+                <select name="to_year" class="form-control mr-3">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if to_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit" class="btn btn-primary">Analyze</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card metric-card">
+                <div class="card-body">
+                    <h6 class="text-muted">Total Sales</h6>
+                    <h3>₹{{ total_sales|floatformat:2|intcomma }}</h3>
+                    <small class="text-success">{{ period_text }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metric-card" style="border-left-color: #28a745;">
+                <div class="card-body">
+                    <h6 class="text-muted">Total Output Tax</h6>
+                    <h3>₹{{ total_output_tax|floatformat:2|intcomma }}</h3>
+                    <small>Collected from customers</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metric-card" style="border-left-color: #ffc107;">
+                <div class="card-body">
+                    <h6 class="text-muted">Total ITC Claimed</h6>
+                    <h3>₹{{ total_itc|floatformat:2|intcomma }}</h3>
+                    <small>Input Tax Credit</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card metric-card" style="border-left-color: #dc3545;">
+                <div class="card-body">
+                    <h6 class="text-muted">Net GST Payable</h6>
+                    <h3>₹{{ net_gst_payable|floatformat:2|intcomma }}</h3>
+                    <small>Output - Input</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📈 Monthly Sales & Tax Trend</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="monthlyTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>🥧 Tax Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="taxDistributionChart"></canvas>
+                    </div>
+                    <div class="mt-3">
+                        <table class="table table-sm">
+                            <tr>
+                                <td>CGST:</td>
+                                <td class="text-right"><strong>₹{{ total_cgst|floatformat:2|intcomma }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>SGST:</td>
+                                <td class="text-right"><strong>₹{{ total_sgst|floatformat:2|intcomma }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>IGST:</td>
+                                <td class="text-right"><strong>₹{{ total_igst|floatformat:2|intcomma }}</strong></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>🗺️ State-wise Sales Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="stateWiseChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📊 Input vs Output Tax Comparison</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="itcComparisonChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Customers & Products -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>🏆 Top 10 Customers</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Customer</th>
+                                    <th class="text-right">Total Sales</th>
+                                    <th class="text-right">Tax Collected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for customer in top_customers %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ customer.name|truncatewords:4 }}</td>
+                                    <td class="text-right">₹{{ customer.total_sales|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ customer.total_tax|floatformat:2|intcomma }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="text-center">No data</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>🎯 Top 10 Products</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Product</th>
+                                    <th class="text-right">Quantity Sold</th>
+                                    <th class="text-right">Total Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in top_products %}
+                                <tr>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ product.name|truncatewords:4 }}</td>
+                                    <td class="text-right">{{ product.quantity }}</td>
+                                    <td class="text-right">₹{{ product.total_value|floatformat:2|intcomma }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="text-center">No data</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HSN Summary -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📦 HSN Code-wise Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>HSN Code</th>
+                                    <th>Description</th>
+                                    <th class="text-right">Quantity</th>
+                                    <th class="text-right">Taxable Value</th>
+                                    <th class="text-right">CGST</th>
+                                    <th class="text-right">SGST</th>
+                                    <th class="text-right">IGST</th>
+                                    <th class="text-right">Total Tax</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for hsn in hsn_summary %}
+                                <tr>
+                                    <td><strong>{{ hsn.hsn_code }}</strong></td>
+                                    <td>{{ hsn.description|truncatewords:5 }}</td>
+                                    <td class="text-right">{{ hsn.quantity }}</td>
+                                    <td class="text-right">₹{{ hsn.taxable_value|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ hsn.cgst|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ hsn.sgst|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ hsn.igst|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ hsn.total_tax|floatformat:2|intcomma }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="8" class="text-center">No HSN data</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Monthly Trend Chart
+const monthlyCtx = document.getElementById('monthlyTrendChart').getContext('2d');
+new Chart(monthlyCtx, {
+    type: 'line',
+    data: {
+        labels: {{ monthly_labels|safe }},
+        datasets: [
+            {
+                label: 'Sales',
+                data: {{ monthly_sales|safe }},
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                yAxisID: 'y',
+            },
+            {
+                label: 'Output Tax',
+                data: {{ monthly_output_tax|safe }},
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                yAxisID: 'y',
+            },
+            {
+                label: 'ITC Claimed',
+                data: {{ monthly_itc|safe }},
+                borderColor: 'rgb(255, 205, 86)',
+                backgroundColor: 'rgba(255, 205, 86, 0.1)',
+                yAxisID: 'y',
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        scales: {
+            y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+            }
+        }
+    }
+});
+
+// Tax Distribution Pie Chart
+const taxDistCtx = document.getElementById('taxDistributionChart').getContext('2d');
+new Chart(taxDistCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['CGST', 'SGST', 'IGST'],
+        datasets: [{
+            data: [{{ total_cgst }}, {{ total_sgst }}, {{ total_igst }}],
+            backgroundColor: ['rgb(255, 99, 132)', 'rgb(54, 162, 235)', 'rgb(255, 205, 86)']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+            }
+        }
+    }
+});
+
+// State-wise Sales
+const stateCtx = document.getElementById('stateWiseChart').getContext('2d');
+new Chart(stateCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ state_labels|safe }},
+        datasets: [{
+            label: 'Sales',
+            data: {{ state_sales|safe }},
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgb(54, 162, 235)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// ITC Comparison
+const itcCtx = document.getElementById('itcComparisonChart').getContext('2d');
+new Chart(itcCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ monthly_labels|safe }},
+        datasets: [
+            {
+                label: 'Output Tax',
+                data: {{ monthly_output_tax|safe }},
+                backgroundColor: 'rgba(75, 192, 192, 0.5)',
+            },
+            {
+                label: 'Input Tax Credit',
+                data: {{ monthly_itc|safe }},
+                backgroundColor: 'rgba(255, 205, 86, 0.5)',
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

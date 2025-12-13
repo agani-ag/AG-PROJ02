@@ -5,7 +5,8 @@ from .models import (
     Customer, Invoice, Product, UserProfile, 
     BillingProfile, Inventory, InventoryLog, 
     BookLog, Book, PurchaseLog, VendorPurchase,
-    ExpenseTracker, BankDetails
+    ExpenseTracker, BankDetails, PurchaseInvoice,
+    GSTReturn, GSTRReconciliation, AuditLog
 )
 
 # User and Billing Profile
@@ -24,3 +25,9 @@ admin.site.register(BankDetails)
 admin.site.register(InventoryLog)
 admin.site.register(VendorPurchase)
 admin.site.register(ExpenseTracker)
+
+# GST Filing Models
+admin.site.register(PurchaseInvoice)
+admin.site.register(GSTReturn)
+admin.site.register(GSTRReconciliation)
+admin.site.register(AuditLog)

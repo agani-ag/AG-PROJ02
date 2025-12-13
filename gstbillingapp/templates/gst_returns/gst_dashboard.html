@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>GST Dashboard - {{ period_text }}</h2>
+            <p class="text-muted">Overview of GST Compliance & Tax Position</p>
+        </div>
+        <div class="col-md-6">
+            <form method="get" class="form-inline float-right" id="dashboardFilterForm">
+                <label class="mr-2">Select Period:</label>
+                <select name="month" class="form-control mr-2" onchange="this.form.submit()">
+                    <option value="1" {% if month == 1 %}selected{% endif %}>January</option>
+                    <option value="2" {% if month == 2 %}selected{% endif %}>February</option>
+                    <option value="3" {% if month == 3 %}selected{% endif %}>March</option>
+                    <option value="4" {% if month == 4 %}selected{% endif %}>April</option>
+                    <option value="5" {% if month == 5 %}selected{% endif %}>May</option>
+                    <option value="6" {% if month == 6 %}selected{% endif %}>June</option>
+                    <option value="7" {% if month == 7 %}selected{% endif %}>July</option>
+                    <option value="8" {% if month == 8 %}selected{% endif %}>August</option>
+                    <option value="9" {% if month == 9 %}selected{% endif %}>September</option>
+                    <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                    <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                    <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
+                </select>
+                <select name="year" class="form-control mr-2" onchange="this.form.submit()">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h6>Current Month Sales</h6>
+                    <h3>{{ sales_summary.count }}</h3>
+                    <small>Invoices</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h6>Total Sales Value</h6>
+                    <h3>₹{{ sales_summary.total|floatformat:0|intcomma }}</h3>
+                    <small>With GST</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h6>Total ITC Available</h6>
+                    <h3>₹{{ total_itc|floatformat:0|intcomma }}</h3>
+                    <small>Input Tax Credit</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h6>Net Tax Payable</h6>
+                    <h3>₹{{ net_tax_payable|floatformat:0|intcomma }}</h3>
+                    <small>For {{ period_text }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tax Details -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5>Output Tax (Sales)</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td>Taxable Amount:</td>
+                            <td class="text-right font-weight-bold">₹{{ sales_summary.taxable|floatformat:2|intcomma }}</td>
+                        </tr>
+                        <tr>
+                            <td>CGST:</td>
+                            <td class="text-right">₹{{ sales_summary.cgst|floatformat:2|intcomma }}</td>
+                        </tr>
+                        <tr>
+                            <td>SGST:</td>
+                            <td class="text-right">₹{{ sales_summary.sgst|floatformat:2|intcomma }}</td>
+                        </tr>
+                        <tr>
+                            <td>IGST:</td>
+                            <td class="text-right">₹{{ sales_summary.igst|floatformat:2|intcomma }}</td>
+                        </tr>
+                        <tr class="table-success">
+                            <td><strong>Total Output Tax:</strong></td>
+                            <td class="text-right"><strong>₹{{ total_output_tax|floatformat:2|intcomma }}</strong></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5>Input Tax Credit (Purchases)</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td>CGST (ITC):</td>
+                            <td class="text-right">₹{{ itc_summary.itc_cgst|floatformat:2|intcomma|default:"0.00" }}</td>
+                        </tr>
+                        <tr>
+                            <td>SGST (ITC):</td>
+                            <td class="text-right">₹{{ itc_summary.itc_sgst|floatformat:2|intcomma|default:"0.00" }}</td>
+                        </tr>
+                        <tr>
+                            <td>IGST (ITC):</td>
+                            <td class="text-right">₹{{ itc_summary.itc_igst|floatformat:2|intcomma|default:"0.00" }}</td>
+                        </tr>
+                        <tr class="table-info">
+                            <td><strong>Total ITC:</strong></td>
+                            <td class="text-right"><strong>₹{{ total_itc|floatformat:2|intcomma }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" class="text-center">
+                                <a href="{% url 'itc_ledger' %}" class="btn btn-sm btn-outline-primary">View ITC Ledger</a>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GST Returns Quick Access -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>GST Returns & Reports</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <div class="card border-primary">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">GSTR-1</h5>
+                                    <p class="card-text">Outward Supplies<br><small class="text-muted">Due: 11th of next month</small></p>
+                                    <a href="{% url 'gstr1_report' %}" class="btn btn-primary">Generate GSTR-1</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card border-success">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">GSTR-3B</h5>
+                                    <p class="card-text">Summary Return<br><small class="text-muted">Due: 20th of next month</small></p>
+                                    <a href="{% url 'gstr3b_report' %}" class="btn btn-success">Generate GSTR-3B</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="card border-warning">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">GSTR-9</h5>
+                                    <p class="card-text">Annual Return<br><small class="text-muted">Due: 31st Dec (Next FY)</small></p>
+                                    <a href="{% url 'gstr9_report' %}" class="btn btn-warning">Generate GSTR-9</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Purchase Invoices & ITC -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Purchase Invoice Management</h5>
+                </div>
+                <div class="card-body">
+                    <p>Manage purchase invoices for accurate ITC claiming</p>
+                    <a href="{% url 'purchase_invoice_list' %}" class="btn btn-primary">View Purchase Invoices</a>
+                    <a href="{% url 'purchase_invoice_add' %}" class="btn btn-success">Add Purchase Invoice</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>ITC Ledger</h5>
+                </div>
+                <div class="card-body">
+                    <p>View detailed Input Tax Credit ledger and balance</p>
+                    <a href="{% url 'itc_ledger' %}" class="btn btn-info">View ITC Ledger</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compliance Reminders -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <h5>📅 Upcoming Compliance Deadlines</h5>
+                <ul>
+                    <li><strong>GSTR-1:</strong> 11th of next month - Submit outward supply details</li>
+                    <li><strong>GSTR-3B:</strong> 20th of next month - Pay tax and file summary return</li>
+                    <li><strong>Tip:</strong> Ensure all purchase invoices are entered before filing GSTR-3B for maximum ITC benefit</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="row">
+        <div class="col-md-12 text-center">
+            <a href="{% url 'invoices' %}" class="btn btn-outline-primary">Sales Invoices</a>
+            <a href="{% url 'customers' %}" class="btn btn-outline-primary">Customers</a>
+            <a href="{% url 'vendors_purchase' %}" class="btn btn-outline-primary">Vendors</a>
+            <a href="{% url 'sales_dashboard' %}" class="btn btn-outline-secondary">Sales Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

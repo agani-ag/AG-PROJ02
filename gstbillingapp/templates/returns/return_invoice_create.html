@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Create Return Invoice{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <h2><i class="fas fa-undo"></i> Create Return Invoice</h2>
+            <p class="text-muted">Return items from Invoice #{{ parent_invoice.invoice_number }}</p>
+        </div>
+        <div class="col-md-4 text-right">
+            <a href="/invoice/{{ parent_invoice.id }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Invoice
+            </a>
+        </div>
+    </div>
+
+    {% if not has_available_items %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>No items available for return!</strong> All items from this invoice have already been returned.
+        <a href="/invoice/{{ parent_invoice.id }}" class="alert-link">Go back to invoice</a>
+    </div>
+    {% else %}
+
+    <!-- Invoice and Customer Details -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <strong>Original Invoice Details</strong>
+                </div>
+                <div class="card-body">
+                    <p><strong>Invoice Number:</strong> #{{ parent_invoice.invoice_number }}</p>
+                    <p><strong>Invoice Date:</strong> {{ parent_invoice.invoice_date|date:"d/m/Y" }}</p>
+                    <p><strong>Total Amount:</strong> ₹{{ invoice_data.invoice_total_amt_with_gst|floatformat:2 }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header bg-info text-white">
+                    <strong>Customer Details</strong>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> {{ customer.customer_name }}</p>
+                    <p><strong>Phone:</strong> {{ customer.customer_phone }}</p>
+                    {% if customer.customer_gst %}
+                    <p><strong>GST:</strong> {{ customer.customer_gst }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Return Form -->
+    <form method="POST" id="return-form">
+        {% csrf_token %}
+
+        <!-- Return Details -->
+        <div class="card mb-3">
+            <div class="card-header bg-success text-white">
+                <strong>Return Details</strong>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>Return Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="return-date" 
+                                   value="{{ today }}" required max="{{ today }}">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>Return Type <span class="text-danger">*</span></label>
+                            <select class="form-control" name="return-type" required>
+                                <option value="1">Partial Return</option>
+                                <option value="0">Full Return</option>
+                                <option value="2">Defective/Damaged</option>
+                                <option value="3">Quality Issue</option>
+                                <option value="4">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>Reason <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="reason" 
+                                   placeholder="Brief reason for return" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label>Notes (Optional)</label>
+                            <textarea class="form-control" name="notes" rows="2" 
+                                      placeholder="Additional notes about this return"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Return Items -->
+        <div class="card mb-3">
+            <div class="card-header bg-dark text-white">
+                <strong>Select Items to Return</strong>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="returnItemsTable">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Model No</th>
+                                <th>Product</th>
+                                <th>HSN</th>
+                                <th>Original Qty</th>
+                                <th>Already Returned</th>
+                                <th>Available</th>
+                                <th>Return Qty</th>
+                                <th>Rate (with GST)</th>
+                                <th>GST %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for model_no, avail in available_items.items %}
+                            {% if avail.available_qty > 0 %}
+                            <tr>
+                                <td>
+                                    {{ model_no }}
+                                    <input type="hidden" name="return-model-no" value="{{ model_no }}">
+                                </td>
+                                <td>{{ avail.item_data.invoice_product }}</td>
+                                <td>{{ avail.item_data.invoice_hsn }}</td>
+                                <td>{{ avail.original_qty }}</td>
+                                <td class="text-danger">{{ avail.returned_qty }}</td>
+                                <td class="text-success"><strong>{{ avail.available_qty }}</strong></td>
+                                <td>
+                                    <input type="number" class="form-control return-qty-input" 
+                                           name="return-qty" min="0" max="{{ avail.available_qty }}" 
+                                           value="0" data-max="{{ avail.available_qty }}">
+                                </td>
+                                <td>₹{{ avail.item_data.invoice_rate_with_gst|floatformat:2 }}</td>
+                                <td>{{ avail.item_data.invoice_gst_percentage }}%</td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Note:</strong> Enter the quantity you want to return for each item. 
+                    You can only return up to the available quantity shown.
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="row">
+            <div class="col-md-12 text-right">
+                <a href="/invoice/{{ parent_invoice.id }}" class="btn btn-secondary btn-lg">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-success btn-lg" id="submitBtn">
+                    <i class="fas fa-check"></i> Create Return Invoice
+                </button>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+</div>
+
+<script>
+// Custom template filter simulation
+$.fn.DataTable.ext.type.order['numeric-pre'] = function (data) {
+    return parseFloat(data.replace(/[^\d.-]/g, '')) || 0;
+};
+
+$(document).ready(function() {
+    // Validate return quantities
+    $('.return-qty-input').on('input', function() {
+        var max = parseInt($(this).data('max'));
+        var val = parseInt($(this).val()) || 0;
+        
+        if (val > max) {
+            $(this).val(max);
+            alert('Cannot return more than ' + max + ' items');
+        }
+        if (val < 0) {
+            $(this).val(0);
+        }
+    });
+
+    // Form submission
+    $('#return-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        // Check if at least one item has return qty > 0
+        var hasItems = false;
+        $('.return-qty-input').each(function() {
+            if (parseInt($(this).val()) > 0) {
+                hasItems = true;
+                return false;
+            }
+        });
+        
+        if (!hasItems) {
+            alert('Please select at least one item to return with quantity greater than 0');
+            return false;
+        }
+        
+        // Disable submit button
+        $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Creating...');
+        
+        // Submit form
+        $.ajax({
+            url: window.location.href,
+            type: 'POST',
+            data: $(this).serialize(),
+            success: function(response) {
+                if (response.status === 'success') {
+                    alert(response.message);
+                    window.location.href = response.redirect_url;
+                } else {
+                    alert('Error: ' + response.message);
+                    $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Create Return Invoice');
+                }
+            },
+            error: function(xhr, status, error) {
+                alert('Error creating return invoice: ' + error);
+                $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Create Return Invoice');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

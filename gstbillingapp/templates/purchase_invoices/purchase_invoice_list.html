@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Purchase Invoices</h2>
+            <p class="text-muted">Track purchase invoices for Input Tax Credit (ITC)</p>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <form method="get" class="form-inline">
+                <label class="mr-2">Filter:</label>
+                <select name="month" class="form-control mr-2">
+                    <option value="">All Months</option>
+                    <option value="1" {% if selected_month == "1" %}selected{% endif %}>January</option>
+                    <option value="2" {% if selected_month == "2" %}selected{% endif %}>February</option>
+                    <option value="3" {% if selected_month == "3" %}selected{% endif %}>March</option>
+                    <option value="4" {% if selected_month == "4" %}selected{% endif %}>April</option>
+                    <option value="5" {% if selected_month == "5" %}selected{% endif %}>May</option>
+                    <option value="6" {% if selected_month == "6" %}selected{% endif %}>June</option>
+                    <option value="7" {% if selected_month == "7" %}selected{% endif %}>July</option>
+                    <option value="8" {% if selected_month == "8" %}selected{% endif %}>August</option>
+                    <option value="9" {% if selected_month == "9" %}selected{% endif %}>September</option>
+                    <option value="10" {% if selected_month == "10" %}selected{% endif %}>October</option>
+                    <option value="11" {% if selected_month == "11" %}selected{% endif %}>November</option>
+                    <option value="12" {% if selected_month == "12" %}selected{% endif %}>December</option>
+                </select>
+                <select name="year" class="form-control mr-2">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <select name="vendor" class="form-control mr-2">
+                    <option value="">All Vendors</option>
+                    {% for vendor in vendors %}
+                    <option value="{{ vendor.id }}" {% if selected_vendor == vendor.id|stringformat:"s" %}selected{% endif %}>{{ vendor.vendor_name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary mr-2">Filter</button>
+                <a href="{% url 'purchase_invoice_add' %}" class="btn btn-success">+ Add Purchase Invoice</a>
+            </form>
+        </div>
+    </div>
+
+    {% if totals %}
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Summary</h5>
+                    <div class="row">
+                        <div class="col-md-2">
+                            <strong>Taxable Amount:</strong><br>
+                            ₹{{ totals.total_taxable|floatformat:2|intcomma }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>CGST:</strong><br>
+                            ₹{{ totals.total_cgst|floatformat:2|intcomma }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>SGST:</strong><br>
+                            ₹{{ totals.total_sgst|floatformat:2|intcomma }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>IGST:</strong><br>
+                            ₹{{ totals.total_igst|floatformat:2|intcomma }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Total Amount:</strong><br>
+                            ₹{{ totals.total_amount|floatformat:2|intcomma }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Total ITC:</strong><br>
+                            ₹{{ totals.total_itc|floatformat:2|intcomma }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Invoice No.</th>
+                            <th>Date</th>
+                            <th>Vendor</th>
+                            <th>Taxable Amount</th>
+                            <th>CGST</th>
+                            <th>SGST</th>
+                            <th>IGST</th>
+                            <th>Total</th>
+                            <th>ITC Claimed</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices %}
+                        <tr>
+                            <td>{{ invoice.invoice_number }}</td>
+                            <td>{{ invoice.invoice_date|date:"d-M-Y" }}</td>
+                            <td>{{ invoice.vendor.vendor_name|default:"N/A" }}</td>
+                            <td>₹{{ invoice.taxable_amount|floatformat:2|intcomma }}</td>
+                            <td>₹{{ invoice.cgst_amount|floatformat:2|intcomma }}</td>
+                            <td>₹{{ invoice.sgst_amount|floatformat:2|intcomma }}</td>
+                            <td>₹{{ invoice.igst_amount|floatformat:2|intcomma }}</td>
+                            <td>₹{{ invoice.total_amount|floatformat:2|intcomma }}</td>
+                            <td>
+                                {% if invoice.itc_claimed %}
+                                    <span class="badge badge-success">Yes</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">No</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'purchase_invoice_view' invoice.id %}" class="btn btn-sm btn-info">View</a>
+                                <a href="{% url 'purchase_invoice_edit' invoice.id %}" class="btn btn-sm btn-warning">Edit</a>
+                                <a href="{% url 'purchase_invoice_delete' invoice.id %}" class="btn btn-sm btn-danger">Delete</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="10" class="text-center">No purchase invoices found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

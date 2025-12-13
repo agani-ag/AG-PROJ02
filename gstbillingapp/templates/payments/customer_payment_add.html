@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Add Customer Payment{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h4><i class="fas fa-money-bill-wave"></i> Add Customer Payment</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="paymentForm">
+                        {% csrf_token %}
+                        
+                        <div class="form-group">
+                            <label>Customer <span class="text-danger">*</span></label>
+                            <select class="form-control" name="customer_id" required>
+                                <option value="">-- Select Customer --</option>
+                                {% for customer in customers %}
+                                <option value="{{ customer.id }}" {% if selected_customer and customer.id == selected_customer.id %}selected{% endif %}>
+                                    {{ customer.customer_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Payment Date <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" name="payment_date" value="{{ today }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Amount <span class="text-danger">*</span></label>
+                                    <input type="number" class="form-control" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Payment Mode <span class="text-danger">*</span></label>
+                                    <select class="form-control" name="payment_mode" required>
+                                        {% for value, label in payment_modes %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Reference Number</label>
+                                    <input type="text" class="form-control" name="reference_number" placeholder="Cheque/Transaction #">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea class="form-control" name="notes" rows="3" placeholder="Additional notes"></textarea>
+                        </div>
+
+                        <div class="text-right">
+                            <a href="/customers/payments" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success" id="submitBtn">
+                                <i class="fas fa-check"></i> Record Payment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$('#paymentForm').on('submit', function(e) {
+    e.preventDefault();
+    $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+    
+    $.ajax({
+        url: window.location.href,
+        type: 'POST',
+        data: $(this).serialize(),
+        success: function(response) {
+            if (response.status === 'success') {
+                alert(response.message);
+                window.location.href = response.redirect_url;
+            } else {
+                alert('Error: ' + response.message);
+                $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Record Payment');
+            }
+        },
+        error: function() {
+            alert('Error recording payment');
+            $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Record Payment');
+        }
+    });
+});
+</script>
+{% endblock %}

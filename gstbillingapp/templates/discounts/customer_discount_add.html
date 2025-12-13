@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Add Customer Discount{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-warning">
+                    <h4><i class="fas fa-percent"></i> Add Customer Discount</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="discountForm">
+                        {% csrf_token %}
+                        
+                        <div class="form-group">
+                            <label>Customer <span class="text-danger">*</span></label>
+                            <select class="form-control" name="customer_id" required>
+                                <option value="">-- Select Customer --</option>
+                                {% for customer in customers %}
+                                <option value="{{ customer.id }}" {% if selected_customer and customer.id == selected_customer.id %}selected{% endif %}>
+                                    {{ customer.customer_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Discount Date <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" name="discount_date" value="{{ today }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Amount <span class="text-danger">*</span></label>
+                                    <input type="number" class="form-control" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Discount Type <span class="text-danger">*</span></label>
+                            <select class="form-control" name="discount_type" required>
+                                {% for value, label in discount_types %}
+                                <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Reason <span class="text-danger">*</span></label>
+                            <textarea class="form-control" name="reason" rows="2" placeholder="Why is this discount being given?" required></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea class="form-control" name="notes" rows="2" placeholder="Additional notes"></textarea>
+                        </div>
+
+                        <div class="text-right">
+                            <a href="/customers/discounts" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-warning" id="submitBtn">
+                                <i class="fas fa-check"></i> Record Discount
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$('#discountForm').on('submit', function(e) {
+    e.preventDefault();
+    $('#submitBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+    
+    $.ajax({
+        url: window.location.href,
+        type: 'POST',
+        data: $(this).serialize(),
+        success: function(response) {
+            if (response.status === 'success') {
+                alert(response.message);
+                window.location.href = response.redirect_url;
+            } else {
+                alert('Error: ' + response.message);
+                $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Record Discount');
+            }
+        },
+        error: function() {
+            alert('Error recording discount');
+            $('#submitBtn').prop('disabled', false).html('<i class="fas fa-check"></i> Record Discount');
+        }
+    });
+});
+</script>
+{% endblock %}

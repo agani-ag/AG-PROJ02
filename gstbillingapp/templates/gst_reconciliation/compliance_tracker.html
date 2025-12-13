@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>📅 GST Compliance Tracker</h2>
+            <p class="text-muted">Track GST return filing deadlines and compliance status</p>
+        </div>
+    </div>
+
+    <!-- Current Period Info -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="alert alert-primary">
+                <h5>Current Period: {{ current_month }} {{ current_year }}</h5>
+                <p class="mb-0">Financial Year: {{ current_fy }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upcoming Deadlines -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5>🚨 Upcoming Deadlines (Next 30 Days)</h5>
+                </div>
+                <div class="card-body">
+                    {% if upcoming_deadlines %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Return Type</th>
+                                    <th>Period</th>
+                                    <th>Due Date</th>
+                                    <th>Days Left</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for deadline in upcoming_deadlines %}
+                                <tr class="{% if deadline.days_left <= 3 %}table-danger{% elif deadline.days_left <= 7 %}table-warning{% endif %}">
+                                    <td><strong>{{ deadline.return_type }}</strong></td>
+                                    <td>{{ deadline.period }}</td>
+                                    <td>{{ deadline.due_date|date:"d-M-Y" }}</td>
+                                    <td>
+                                        {% if deadline.days_left < 0 %}
+                                        <span class="badge badge-danger">{{ deadline.days_overdue }} days overdue</span>
+                                        {% elif deadline.days_left == 0 %}
+                                        <span class="badge badge-danger">Due Today!</span>
+                                        {% elif deadline.days_left <= 3 %}
+                                        <span class="badge badge-danger">{{ deadline.days_left }} days</span>
+                                        {% elif deadline.days_left <= 7 %}
+                                        <span class="badge badge-warning">{{ deadline.days_left }} days</span>
+                                        {% else %}
+                                        <span class="badge badge-success">{{ deadline.days_left }} days</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if deadline.filed %}
+                                        <span class="badge badge-success">✓ Filed</span>
+                                        {% else %}
+                                        <span class="badge badge-warning">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if not deadline.filed %}
+                                        {% if deadline.return_type == "GSTR-1" %}
+                                        <a href="{% url 'gstr1_report' %}?month={{ deadline.month }}&year={{ deadline.year }}" class="btn btn-sm btn-primary">Generate</a>
+                                        {% elif deadline.return_type == "GSTR-3B" %}
+                                        <a href="{% url 'gstr3b_report' %}?month={{ deadline.month }}&year={{ deadline.year }}" class="btn btn-sm btn-primary">Generate</a>
+                                        {% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-success">
+                        <strong>✓ All caught up!</strong> No upcoming deadlines in the next 30 days.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filing History -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>📊 Filing History</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Return Type</th>
+                                    <th>Period</th>
+                                    <th>Financial Year</th>
+                                    <th>Filed Date</th>
+                                    <th>Status</th>
+                                    <th>Tax Payable</th>
+                                    <th>Late Fee</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for return in filed_returns %}
+                                <tr>
+                                    <td><strong>{{ return.return_type }}</strong></td>
+                                    <td>{{ return.period_month|stringformat:"02d" }}/{{ return.period_year }}</td>
+                                    <td>{{ return.financial_year }}</td>
+                                    <td>
+                                        {% if return.filed_date %}
+                                        {{ return.filed_date|date:"d-M-Y" }}
+                                        {% else %}
+                                        <span class="text-muted">Not Filed</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-{% if return.status == 'FILED' %}success{% elif return.status == 'FILED_WITH_ERRORS' %}warning{% else %}secondary{% endif %}">
+                                            {{ return.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td class="text-right">
+                                        {% if return.tax_payable %}
+                                        ₹{{ return.tax_payable|floatformat:2|intcomma }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right">
+                                        {% if return.late_fee %}
+                                        <span class="text-danger">₹{{ return.late_fee|floatformat:2|intcomma }}</span>
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if return.return_type == "GSTR-1" %}
+                                        <a href="{% url 'gstr1_report' %}?month={{ return.period_month }}&year={{ return.period_year }}" class="btn btn-sm btn-info">View</a>
+                                        {% elif return.return_type == "GSTR-3B" %}
+                                        <a href="{% url 'gstr3b_report' %}?month={{ return.period_month }}&year={{ return.period_year }}" class="btn btn-sm btn-info">View</a>
+                                        {% elif return.return_type == "GSTR-9" %}
+                                        <a href="{% url 'gstr9_report' %}?year={{ return.period_year }}" class="btn btn-sm btn-info">View</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center">No filing history available</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GST Calendar -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5>📆 GST Compliance Calendar</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Monthly Returns:</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Return</th>
+                                <th>Due Date</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>GSTR-1</strong></td>
+                                <td>11th of next month</td>
+                                <td>Details of outward supplies (sales)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>GSTR-3B</strong></td>
+                                <td>20th of next month</td>
+                                <td>Summary return with tax payment</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h6 class="mt-3">Annual Returns:</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Return</th>
+                                <th>Due Date</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>GSTR-9</strong></td>
+                                <td>31st December of next FY</td>
+                                <td>Annual return (for turnover > ₹2 crore)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>GSTR-9C</strong></td>
+                                <td>31st December of next FY</td>
+                                <td>Reconciliation statement (for turnover > ₹5 crore)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h6 class="mt-3">Late Fee Structure:</h6>
+                    <div class="alert alert-warning">
+                        <ul class="mb-0">
+                            <li><strong>GSTR-1:</strong> ₹200/day (₹100 CGST + ₹100 SGST), max ₹10,000</li>
+                            <li><strong>GSTR-3B:</strong> 
+                                <ul>
+                                    <li>If tax payable: ₹50/day (₹25 CGST + ₹25 SGST)</li>
+                                    <li>If no tax payable: ₹20/day (₹10 CGST + ₹10 SGST)</li>
+                                </ul>
+                            </li>
+                            <li><strong>GSTR-9:</strong> ₹200/day (₹100 CGST + ₹100 SGST), max ₹0.25% of turnover</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

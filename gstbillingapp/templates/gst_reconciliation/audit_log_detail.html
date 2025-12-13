@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>Audit Log Details</h2>
+            <a href="{% url 'audit_log_viewer' %}" class="btn btn-secondary">← Back to Audit Logs</a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-{% if log.action == 'CREATE' %}success{% elif log.action == 'UPDATE' %}warning{% else %}danger{% endif %} text-white">
+                    <h5>{{ log.action }} - {{ log.model_name }} #{{ log.object_id }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6>Basic Information</h6>
+                            <table class="table table-sm table-bordered">
+                                <tr>
+                                    <th width="40%">Timestamp:</th>
+                                    <td>{{ log.timestamp|date:"d-M-Y H:i:s" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>User:</th>
+                                    <td>{{ log.user.username }} ({{ log.user.email }})</td>
+                                </tr>
+                                <tr>
+                                    <th>Action:</th>
+                                    <td>
+                                        <span class="badge badge-{% if log.action == 'CREATE' %}success{% elif log.action == 'UPDATE' %}warning{% else %}danger{% endif %}">
+                                            {{ log.action }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Model:</th>
+                                    <td>{{ log.model_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Record ID:</th>
+                                    <td>{{ log.object_id }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Description</h6>
+                            <div class="alert alert-info">
+                                {{ log.description }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    {% if log.action == 'UPDATE' %}
+                    <h6>Changes Made:</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-danger text-white">
+                                    <strong>Before (Old Data)</strong>
+                                </div>
+                                <div class="card-body">
+                                    <pre class="bg-light p-3" style="max-height: 400px; overflow-y: auto;">{{ old_data_formatted }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-success text-white">
+                                    <strong>After (New Data)</strong>
+                                </div>
+                                <div class="card-body">
+                                    <pre class="bg-light p-3" style="max-height: 400px; overflow-y: auto;">{{ new_data_formatted }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if changes %}
+                    <div class="mt-3">
+                        <h6>Field-wise Changes:</h6>
+                        <table class="table table-sm table-bordered">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Field Name</th>
+                                    <th>Old Value</th>
+                                    <th>New Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for field, values in changes.items %}
+                                <tr>
+                                    <td><strong>{{ field }}</strong></td>
+                                    <td class="text-danger">{{ values.old|default:"<empty>" }}</td>
+                                    <td class="text-success">{{ values.new|default:"<empty>" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    {% elif log.action == 'CREATE' %}
+                    <h6>Created Data:</h6>
+                    <div class="card">
+                        <div class="card-body">
+                            <pre class="bg-light p-3" style="max-height: 400px; overflow-y: auto;">{{ new_data_formatted }}</pre>
+                        </div>
+                    </div>
+
+                    {% elif log.action == 'DELETE' %}
+                    <h6>Deleted Data:</h6>
+                    <div class="card border-danger">
+                        <div class="card-body">
+                            <pre class="bg-light p-3" style="max-height: 400px; overflow-y: auto;">{{ old_data_formatted }}</pre>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

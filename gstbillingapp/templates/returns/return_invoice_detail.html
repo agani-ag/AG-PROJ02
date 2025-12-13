@@ -1,0 +1,315 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Return Invoice #{{ return_invoice.return_invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <h2><i class="fas fa-undo"></i> Return Invoice #{{ return_invoice.return_invoice_number }}</h2>
+        </div>
+        <div class="col-md-4 text-right">
+            <a href="/returns" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Returns
+            </a>
+            <a href="/returns/{{ return_invoice.id }}/print" target="_blank" class="btn btn-primary">
+                <i class="fas fa-print"></i> Print
+            </a>
+        </div>
+    </div>
+
+    <!-- Status Alert -->
+    <div class="alert {% if return_invoice.inventory_reflected and return_invoice.books_reflected %}alert-success{% else %}alert-warning{% endif %}">
+        <strong>Status:</strong>
+        {% if return_invoice.inventory_reflected and return_invoice.books_reflected %}
+            <i class="fas fa-check-circle"></i> Return processed successfully. Inventory and customer books have been updated.
+        {% else %}
+            <i class="fas fa-exclamation-triangle"></i> Processing incomplete. 
+            {% if not return_invoice.inventory_reflected %}Inventory not updated. {% endif %}
+            {% if not return_invoice.books_reflected %}Customer books not updated.{% endif %}
+            <div class="mt-2">
+                {% if not return_invoice.inventory_reflected %}
+                <button class="btn btn-warning btn-sm" onclick="processInventory({{ return_invoice.id }})">
+                    <i class="fas fa-boxes"></i> Update Inventory
+                </button>
+                {% endif %}
+                {% if not return_invoice.books_reflected %}
+                <button class="btn btn-warning btn-sm" onclick="processBooks({{ return_invoice.id }})">
+                    <i class="fas fa-book"></i> Update Customer Books
+                </button>
+                {% endif %}
+                <button class="btn btn-success btn-sm" onclick="processAll({{ return_invoice.id }})">
+                    <i class="fas fa-check-double"></i> Process All
+                </button>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="row">
+        <!-- Return Details -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <strong>Return Details</strong>
+                </div>
+                <div class="card-body">
+                    <p><strong>Return #:</strong> {{ return_invoice.return_invoice_number }}</p>
+                    <p><strong>Return Date:</strong> {{ return_invoice.return_date|date:"d/m/Y" }}</p>
+                    <p><strong>Return Type:</strong> 
+                        <span class="badge badge-info">{{ return_invoice.get_return_type_display }}</span>
+                    </p>
+                    <p><strong>Created:</strong> {{ return_invoice.created_at|date:"d/m/Y H:i" }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Original Invoice -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header bg-secondary text-white">
+                    <strong>Original Invoice</strong>
+                </div>
+                <div class="card-body">
+                    <p><strong>Invoice #:</strong> 
+                        <a href="/invoice/{{ parent_invoice.id }}">
+                            #{{ parent_invoice.invoice_number }}
+                        </a>
+                    </p>
+                    <p><strong>Invoice Date:</strong> {{ parent_invoice.invoice_date|date:"d/m/Y" }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer Details -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header bg-info text-white">
+                    <strong>Customer Details</strong>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> {{ customer.customer_name }}</p>
+                    <p><strong>Phone:</strong> {{ customer.customer_phone }}</p>
+                    {% if customer.customer_gst %}
+                    <p><strong>GST:</strong> {{ customer.customer_gst }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Returned Items -->
+    <div class="card mb-3">
+        <div class="card-header bg-dark text-white">
+            <strong>Returned Items</strong>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Sl No.</th>
+                            <th>Model No</th>
+                            <th>Product</th>
+                            <th>HSN</th>
+                            <th>Returned Qty</th>
+                            <th>Rate (without GST)</th>
+                            <th>GST %</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in return_data.items %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ item.invoice_model_no }}</td>
+                            <td>{{ item.invoice_product }}</td>
+                            <td>{{ item.invoice_hsn }}</td>
+                            <td>{{ item.return_qty }}</td>
+                            <td>₹{{ item.invoice_rate_without_gst|floatformat:2 }}</td>
+                            <td>{{ item.invoice_gst_percentage }}%</td>
+                            <td>
+                                {% widthratio item.invoice_rate_without_gst 1 item.return_qty as item_total %}
+                                ₹{{ item_total|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Amount Summary -->
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Reason and Notes -->
+            {% if return_invoice.reason %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <strong>Reason for Return</strong>
+                </div>
+                <div class="card-body">
+                    <p>{{ return_invoice.reason }}</p>
+                    {% if return_invoice.notes %}
+                    <hr>
+                    <p class="text-muted"><strong>Notes:</strong> {{ return_invoice.notes }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <strong>Return Amount Summary</strong>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td><strong>Amount (without GST):</strong></td>
+                            <td class="text-right">₹{{ return_data.return_total_amt_without_gst|floatformat:2 }}</td>
+                        </tr>
+                        {% if return_data.return_total_amt_sgst > 0 %}
+                        <tr>
+                            <td>SGST:</td>
+                            <td class="text-right">₹{{ return_data.return_total_amt_sgst|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>CGST:</td>
+                            <td class="text-right">₹{{ return_data.return_total_amt_cgst|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if return_data.return_total_amt_igst > 0 %}
+                        <tr>
+                            <td>IGST:</td>
+                            <td class="text-right">₹{{ return_data.return_total_amt_igst|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr class="table-success">
+                            <td><strong>Total Return Amount:</strong></td>
+                            <td class="text-right"><strong>₹{{ return_data.return_total_amt_with_gst|floatformat:2 }}</strong></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+function processInventory(returnId) {
+    Swal.fire({
+        title: 'Update Inventory?',
+        text: 'This will add returned items back to inventory',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, update it!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            processReturn(returnId, 'inventory');
+        }
+    });
+}
+
+function processBooks(returnId) {
+    Swal.fire({
+        title: 'Update Customer Books?',
+        text: 'This will credit the customer balance',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, credit customer!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            processReturn(returnId, 'books');
+        }
+    });
+}
+
+function processAll(returnId) {
+    Swal.fire({
+        title: 'Process All Updates?',
+        text: 'This will update inventory and customer books',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, process all!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            processReturn(returnId, 'all');
+        }
+    });
+}
+
+function processReturn(returnId, processType) {
+    Swal.fire({
+        title: 'Processing...',
+        text: 'Please wait',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+
+    fetch(`/returns/${returnId}/process`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ process_type: processType })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: data.message,
+                confirmButtonColor: '#3085d6'
+            }).then(() => {
+                location.reload();
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.message,
+                confirmButtonColor: '#d33'
+            });
+        }
+    })
+    .catch(error => {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error processing return: ' + error,
+            confirmButtonColor: '#d33'
+        });
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

@@ -1,13 +1,40 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block includecss %}
+<!-- <style>
+	#invoice-table_wrapper .dataTables_filter {
+		margin-bottom: 10px !important;
+		margin-top: 0px !important;
+	}
+	#invoice-table_wrapper {
+		margin-top: 0px !important;
+	}
+</style> -->
+{% endblock %}
+
 {% block content %}
 
-	{% if non_gst_mode %}	
-		<h2> Non-GST Invoices</h2>
-	{% else %}
-		<h2>Invoices</h2>
-	{% endif %}
+	<div class="mb-1">
+		{% if non_gst_mode %}
+			<h2 class="mb-1">Non-GST Invoices</h2>
+		{% else %}
+			<h2 class="mb-1">Invoices</h2>
+		{% endif %}
+	</div>
+
+	<div>
+		<div class="form-inline">
+			<label for="page-size-select" class="mr-2 mb-0"><strong>Show:</strong></label>
+			<select id="page-size-select" class="form-control form-control-sm" onchange="changePageSize(this.value)">
+				<option value="10" {% if page_size == 10 %}selected{% endif %}>10</option>
+				<option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+				<option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+				<option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+			</select>
+			<span class="ml-2 mb-0">per page</span>
+		</div>
+	</div>
 
 		<table class="table table-bordered" id="invoice-table">
 		<thead class="thead-dark">
@@ -58,6 +85,37 @@
 		</tbody>
 		</table>
 
+		<!-- Pagination Controls -->
+		{% if page_obj.has_other_pages %}
+		<nav aria-label="Invoice pagination">
+			<ul class="pagination justify-content-center">
+				{% if page_obj.has_previous %}
+				<li class="page-item">
+					<a class="page-link" href="?page=1&page_size={{ page_size }}">First</a>
+				</li>
+				<li class="page-item">
+					<a class="page-link" href="?page={{ page_obj.previous_page_number }}&page_size={{ page_size }}">Previous</a>
+				</li>
+				{% endif %}
+				
+				<li class="page-item active">
+					<span class="page-link">
+						Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total)
+					</span>
+				</li>
+				
+				{% if page_obj.has_next %}
+				<li class="page-item">
+					<a class="page-link" href="?page={{ page_obj.next_page_number }}&page_size={{ page_size }}">Next</a>
+				</li>
+				<li class="page-item">
+					<a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&page_size={{ page_size }}">Last</a>
+				</li>
+				{% endif %}
+			</ul>
+		</nav>
+		{% endif %}
+
 		<div class="modal fade" id="invoiceDeleteModal" tabindex="-1" role="dialog" aria-labelledby="invoiceDeleteModalLabel" aria-hidden="true">
 			<div class="modal-dialog" role="document">
 				<div class="modal-content">
@@ -91,6 +149,10 @@
 {% block includejs %}
 <script type="text/javascript">
 
+	function changePageSize(size) {
+		window.location.href = '?page=1&page_size=' + size;
+	}
+
 	$('#invoiceDeleteModal').on('show.bs.modal', function (event) {
 		var button = $(event.relatedTarget) // Button that triggered the modal
 		var invoice_id = button.data('invoice-id') // Extract info from data-* attributes
@@ -112,7 +174,8 @@
 				"sortable": false,
 				"searchable": false
 			} ],
-			"paging": true
+			"paging": false,  // Disable DataTables pagination (using server-side)
+			"info": false     // Hide "Showing X to Y of Z entries"
 		});
 	});
 

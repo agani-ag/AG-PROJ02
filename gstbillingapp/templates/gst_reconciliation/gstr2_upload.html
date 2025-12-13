@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>Upload GSTR-2A/2B CSV</h2>
+            <p class="text-muted">Upload CSV file downloaded from GST Portal for reconciliation</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5>Select Period & File</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="form-group">
+                            <label>Period Month *</label>
+                            <select name="month" class="form-control" required>
+                                <option value="1" {% if month == "1" %}selected{% endif %}>01 - January</option>
+                                <option value="2" {% if month == "2" %}selected{% endif %}>02 - February</option>
+                                <option value="3" {% if month == "3" %}selected{% endif %}>03 - March</option>
+                                <option value="4" {% if month == "4" %}selected{% endif %}>04 - April</option>
+                                <option value="5" {% if month == "5" %}selected{% endif %}>05 - May</option>
+                                <option value="6" {% if month == "6" %}selected{% endif %}>06 - June</option>
+                                <option value="7" {% if month == "7" %}selected{% endif %}>07 - July</option>
+                                <option value="8" {% if month == "8" %}selected{% endif %}>08 - August</option>
+                                <option value="9" {% if month == "9" %}selected{% endif %}>09 - September</option>
+                                <option value="10" {% if month == "10" %}selected{% endif %}>10 - October</option>
+                                <option value="11" {% if month == "11" %}selected{% endif %}>11 - November</option>
+                                <option value="12" {% if month == "12" %}selected{% endif %}>12 - December</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Period Year *</label>
+                            <select name="year" class="form-control" required>
+                                {% for y in available_years %}
+                                <option value="{{ y }}" {% if year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>GSTR-2A/2B CSV File *</label>
+                            <input type="file" name="gstr2_file" class="form-control-file" accept=".csv" required>
+                            <small class="form-text text-muted">
+                                Upload CSV file downloaded from GST Portal (GSTR-2A or GSTR-2B)
+                            </small>
+                        </div>
+
+                        <hr>
+
+                        <button type="submit" class="btn btn-success btn-lg btn-block">
+                            📤 Upload & Reconcile
+                        </button>
+                        <a href="{% url 'gstr2_reconciliation' %}" class="btn btn-secondary btn-block">Cancel</a>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6>Instructions</h6>
+                </div>
+                <div class="card-body">
+                    <h6>How to download GSTR-2A/2B from GST Portal:</h6>
+                    <ol>
+                        <li>Login to <a href="https://www.gst.gov.in/" target="_blank">GST Portal</a></li>
+                        <li>Go to Services → Returns → GSTR-2A/2B</li>
+                        <li>Select the period (month and year)</li>
+                        <li>Click on "Download" and choose CSV format</li>
+                        <li>Save the file and upload here</li>
+                    </ol>
+
+                    <h6 class="mt-3">Expected CSV Format:</h6>
+                    <p>The CSV should contain the following columns:</p>
+                    <ul>
+                        <li>GSTIN of Supplier</li>
+                        <li>Trade/Legal name of the Supplier</li>
+                        <li>Invoice Number</li>
+                        <li>Invoice Date (DD-MM-YYYY)</li>
+                        <li>Taxable Value</li>
+                        <li>Central Tax</li>
+                        <li>State/UT Tax</li>
+                        <li>Integrated Tax</li>
+                    </ul>
+
+                    <h6 class="mt-3">What happens after upload:</h6>
+                    <ul>
+                        <li>✓ System matches GSTR-2A invoices with your purchase records</li>
+                        <li>✓ Identifies matched, mismatched, and missing invoices</li>
+                        <li>✓ Calculates differences in amounts</li>
+                        <li>✓ Flags invoices missing in GSTR-2A</li>
+                        <li>✓ Shows invoices present in GSTR-2A but not in your books</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

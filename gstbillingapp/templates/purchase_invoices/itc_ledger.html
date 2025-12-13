@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-10">
+            <h2>📒 Input Tax Credit (ITC) Ledger</h2>
+            <p class="text-muted">Track Input Tax Credit claims and utilization</p>
+        </div>
+        <div class="col-md-2 text-right">
+            <a href="{% url 'purchase_invoice_list' %}" class="btn btn-primary">← Back</a>
+        </div>
+    </div>
+
+    <!-- Period Filter -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" class="form-inline">
+                        <label class="mr-2">Period:</label>
+                        <select name="month" class="form-control mr-2">
+                            <option value="">All Months</option>
+                            <option value="1" {% if month == "1" %}selected{% endif %}>January</option>
+                            <option value="2" {% if month == "2" %}selected{% endif %}>February</option>
+                            <option value="3" {% if month == "3" %}selected{% endif %}>March</option>
+                            <option value="4" {% if month == "4" %}selected{% endif %}>April</option>
+                            <option value="5" {% if month == "5" %}selected{% endif %}>May</option>
+                            <option value="6" {% if month == "6" %}selected{% endif %}>June</option>
+                            <option value="7" {% if month == "7" %}selected{% endif %}>July</option>
+                            <option value="8" {% if month == "8" %}selected{% endif %}>August</option>
+                            <option value="9" {% if month == "9" %}selected{% endif %}>September</option>
+                            <option value="10" {% if month == "10" %}selected{% endif %}>October</option>
+                            <option value="11" {% if month == "11" %}selected{% endif %}>November</option>
+                            <option value="12" {% if month == "12" %}selected{% endif %}>December</option>
+                        </select>
+                        <select name="year" class="form-control mr-3">
+                            <option value="">All Years</option>
+                            {% for y in available_years %}
+                            <option value="{{ y }}" {% if year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary">Filter</button>
+                        <a href="{% url 'itc_ledger' %}" class="btn btn-secondary ml-2">Clear</a>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body text-center">
+                    <h6>Total ITC Available</h6>
+                    <h3>₹{{ total_itc_available|floatformat:2|intcomma }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body text-center">
+                    <h6>ITC Eligible (Inward)</h6>
+                    <h3>₹{{ itc_eligible_inward|floatformat:2|intcomma }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body text-center">
+                    <h6>ITC Utilized</h6>
+                    <h3>₹{{ itc_utilized|floatformat:2|intcomma }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body text-center">
+                    <h6>ITC Balance</h6>
+                    <h3>₹{{ itc_balance|floatformat:2|intcomma }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ITC Ledger Entries -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5>ITC Ledger Entries</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Vendor GSTIN</th>
+                                    <th>Vendor Name</th>
+                                    <th>Invoice No.</th>
+                                    <th>Type</th>
+                                    <th class="text-right">Taxable Value</th>
+                                    <th class="text-right">IGST</th>
+                                    <th class="text-right">CGST</th>
+                                    <th class="text-right">SGST</th>
+                                    <th class="text-right">Total ITC</th>
+                                    <th class="text-right">Running Balance</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in itc_entries %}
+                                <tr class="{% if entry.itc_claimed %}table-success{% else %}table-warning{% endif %}">
+                                    <td>{{ entry.invoice_date|date:"d-M-Y" }}</td>
+                                    <td><small>{{ entry.vendor_gstin }}</small></td>
+                                    <td>{{ entry.vendor_name|truncatewords:3 }}</td>
+                                    <td>{{ entry.invoice_number }}</td>
+                                    <td>
+                                        {% if entry.is_reverse_charge %}
+                                        <span class="badge badge-warning">RCM</span>
+                                        {% else %}
+                                        <span class="badge badge-info">Regular</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right">₹{{ entry.taxable_amount|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ entry.igst_amount|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ entry.cgst_amount|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ entry.sgst_amount|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">
+                                        <strong>₹{{ entry.total_itc|floatformat:2|intcomma }}</strong>
+                                    </td>
+                                    <td class="text-right">
+                                        <strong class="text-primary">₹{{ entry.running_balance|floatformat:2|intcomma }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if entry.itc_claimed %}
+                                        <span class="badge badge-success">✓ Claimed</span>
+                                        {% else %}
+                                        <span class="badge badge-secondary">Available</span>
+                                        {% endif %}
+                                        {% if entry.itc_reversed %}
+                                        <span class="badge badge-danger">Reversed</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="12" class="text-center">No ITC entries found for selected period</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-info">
+                                <tr>
+                                    <th colspan="5">Total</th>
+                                    <th class="text-right">₹{{ total_taxable_value|floatformat:2|intcomma }}</th>
+                                    <th class="text-right">₹{{ total_igst|floatformat:2|intcomma }}</th>
+                                    <th class="text-right">₹{{ total_cgst|floatformat:2|intcomma }}</th>
+                                    <th class="text-right">₹{{ total_sgst|floatformat:2|intcomma }}</th>
+                                    <th class="text-right"><strong>₹{{ total_itc_available|floatformat:2|intcomma }}</strong></th>
+                                    <th colspan="2"></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if itc_entries.has_other_pages %}
+                    <nav class="mt-3">
+                        <ul class="pagination justify-content-center">
+                            {% if itc_entries.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ itc_entries.previous_page_number }}&month={{ month }}&year={{ year }}">Previous</a>
+                            </li>
+                            {% endif %}
+
+                            {% for num in itc_entries.paginator.page_range %}
+                            {% if itc_entries.number == num %}
+                            <li class="page-item active"><a class="page-link" href="#">{{ num }}</a></li>
+                            {% elif num > itc_entries.number|add:'-3' and num < itc_entries.number|add:'3' %}
+                            <li class="page-item"><a class="page-link" href="?page={{ num }}&month={{ month }}&year={{ year }}">{{ num }}</a></li>
+                            {% endif %}
+                            {% endfor %}
+
+                            {% if itc_entries.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ itc_entries.next_page_number }}&month={{ month }}&year={{ year }}">Next</a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ITC Summary by Category -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>ITC by Tax Type</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-bordered">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Tax Type</th>
+                                <th class="text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>IGST (Inter-state)</td>
+                                <td class="text-right">₹{{ total_igst|floatformat:2|intcomma }}</td>
+                            </tr>
+                            <tr>
+                                <td>CGST (Central)</td>
+                                <td class="text-right">₹{{ total_cgst|floatformat:2|intcomma }}</td>
+                            </tr>
+                            <tr>
+                                <td>SGST (State)</td>
+                                <td class="text-right">₹{{ total_sgst|floatformat:2|intcomma }}</td>
+                            </tr>
+                            <tr class="table-info">
+                                <th>Total ITC</th>
+                                <th class="text-right">₹{{ total_itc_available|floatformat:2|intcomma }}</th>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>ITC Eligibility Status</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-bordered">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Status</th>
+                                <th class="text-right">Count</th>
+                                <th class="text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>✓ ITC Eligible (Inward Supplies)</td>
+                                <td class="text-right">{{ eligible_count }}</td>
+                                <td class="text-right text-success">₹{{ itc_eligible_inward|floatformat:2|intcomma }}</td>
+                            </tr>
+                            <tr>
+                                <td>⊘ ITC Not Eligible</td>
+                                <td class="text-right">{{ not_eligible_count }}</td>
+                                <td class="text-right text-danger">₹{{ itc_not_eligible|floatformat:2|intcomma }}</td>
+                            </tr>
+                            <tr>
+                                <td>⚠ Reverse Charge (RCM)</td>
+                                <td class="text-right">{{ rcm_count }}</td>
+                                <td class="text-right text-warning">₹{{ itc_rcm|floatformat:2|intcomma }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Section -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <h6>About ITC Ledger:</h6>
+                <ul class="mb-0">
+                    <li><strong>Running Balance:</strong> Cumulative ITC available for utilization</li>
+                    <li><strong>Claimed:</strong> ITC already utilized in GSTR-3B filing</li>
+                    <li><strong>RCM (Reverse Charge):</strong> Tax paid under reverse charge mechanism</li>
+                    <li><strong>Eligible ITC:</strong> ITC available as per GSTR-2A/2B reconciliation</li>
+                    <li><strong>Note:</strong> Ensure all invoices are present in GSTR-2A before claiming ITC</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

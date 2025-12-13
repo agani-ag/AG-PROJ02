@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Customer Payments{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <h2><i class="fas fa-money-bill-wave"></i> Customer Payments</h2>
+        </div>
+        <div class="col-md-6 text-right">
+            <a href="/customers/payments/add" class="btn btn-success">
+                <i class="fas fa-plus"></i> Add Payment
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Card -->
+    <div class="card bg-success text-white mb-3">
+        <div class="card-body">
+            <h5>Total Payments Received</h5>
+            <h3>₹{{ total_amount|floatformat:2 }}</h3>
+        </div>
+    </div>
+
+    <!-- Payments Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped" id="paymentsTable">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Amount</th>
+                            <th>Payment Mode</th>
+                            <th>Reference</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments %}
+                        <tr>
+                            <td>{{ payment.payment_date|date:"d/m/Y" }}</td>
+                            <td>{{ payment.customer.customer_name }}</td>
+                            <td><strong>₹{{ payment.amount|floatformat:2 }}</strong></td>
+                            <td><span class="badge badge-info">{{ payment.get_payment_mode_display }}</span></td>
+                            <td>{{ payment.reference_number|default:"-" }}</td>
+                            <td>{{ payment.notes|truncatewords:10 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No payments recorded yet</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    $('#paymentsTable').DataTable({
+        "order": [[0, "desc"]],
+        "pageLength": 25
+    });
+});
+</script>
+{% endblock %}

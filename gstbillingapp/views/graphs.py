@@ -45,11 +45,12 @@ def sales_dashboard(request):
         )
 
         # Sales: positive change
-        sales = month_logs.filter(change__gt=0).aggregate(total=Sum('change'))['total'] or 0
+        sales = month_logs.filter(change__lt=0).aggregate(total=Sum('change'))['total'] or 0
+        sales = abs(sales)  # convert to positive
 
         # Received: negative change
-        received_total = month_logs.filter(change__lt=0).aggregate(total=Sum('change'))['total'] or 0
-        received = -received_total  # convert to positive
+        received_total = month_logs.filter(change__gt=0).aggregate(total=Sum('change'))['total'] or 0
+        received = abs(received_total)  # convert to positive
 
         # Expenses (placeholder)
         expenses = 0

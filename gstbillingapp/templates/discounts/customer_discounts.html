@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Customer Discounts{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <h2><i class="fas fa-percent"></i> Customer Discounts</h2>
+        </div>
+        <div class="col-md-6 text-right">
+            <a href="/customers/discounts/add" class="btn btn-success">
+                <i class="fas fa-plus"></i> Add Discount
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Card -->
+    <div class="card bg-info text-white mb-3">
+        <div class="card-body">
+            <h5>Total Discounts Given</h5>
+            <h3>₹{{ total_amount|floatformat:2 }}</h3>
+        </div>
+    </div>
+
+    <!-- Discounts Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped" id="discountsTable">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Amount</th>
+                            <th>Type</th>
+                            <th>Reason</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for discount in discounts %}
+                        <tr>
+                            <td>{{ discount.discount_date|date:"d/m/Y" }}</td>
+                            <td>{{ discount.customer.customer_name }}</td>
+                            <td><strong>₹{{ discount.amount|floatformat:2 }}</strong></td>
+                            <td><span class="badge badge-warning">{{ discount.get_discount_type_display }}</span></td>
+                            <td>{{ discount.reason|truncatewords:10 }}</td>
+                            <td>{{ discount.notes|truncatewords:10 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No discounts recorded yet</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    $('#discountsTable').DataTable({
+        "order": [[0, "desc"]],
+        "pageLength": 25
+    });
+});
+</script>
+{% endblock %}

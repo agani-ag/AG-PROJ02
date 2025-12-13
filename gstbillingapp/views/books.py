@@ -15,7 +15,7 @@ from ..models import (
 from ..forms import BookLogForm
 
 # Utility functions
-from ..utils import (
+from ..utility import (
     recalculate_book_current_balance
 )
 

@@ -13,13 +13,15 @@ from ..models import Book
 from ..models import BookLog
 
 # Utility functions
-from ..utils import invoice_data_validator
-from ..utils import invoice_data_processor
-from ..utils import update_products_from_invoice
-from ..utils import update_inventory
-from ..utils import add_customer_book
-from ..utils import auto_deduct_book_from_invoice
-from ..utils import remove_inventory_entries_for_invoice
+from ..utility import (
+    invoice_data_validator,
+    invoice_data_processor,
+    update_products_from_invoice,
+    update_inventory,
+    add_customer_book,
+    auto_deduct_book_from_invoice,
+    remove_inventory_entries_for_invoice
+)
 
 # Third-party libraries
 import json
@@ -126,21 +128,82 @@ def invoice_create(request):
 
 @login_required
 def invoices(request):
-    context = {}
-    context['invoices'] = Invoice.objects.filter(user=request.user,non_gst_mode=False).order_by('-id')
+    from django.core.paginator import Paginator
+    
+    # Optimize query with select_related and only load necessary fields
+    invoices_list = Invoice.objects.filter(
+        user=request.user,
+        non_gst_mode=False
+    ).select_related('invoice_customer').only(
+        'id', 'invoice_number', 'invoice_date', 'invoice_customer', 'non_gst_mode', 'non_gst_invoice_number'
+    ).order_by('-id')
+    
+    # Get page size from request, default to 10
+    page_size = request.GET.get('page_size', '10')
+    try:
+        page_size = int(page_size)
+        if page_size not in [10, 25, 50, 100]:
+            page_size = 10
+    except ValueError:
+        page_size = 10
+    
+    # Paginate with custom page size
+    paginator = Paginator(invoices_list, page_size)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'invoices': page_obj,
+        'page_obj': page_obj,
+        'page_size': page_size,
+    }
     return render(request, 'invoices/invoices.html', context)
 
 @login_required
 def non_gst_invoices(request):
-    context = {}
-    context['invoices'] = Invoice.objects.filter(user=request.user,non_gst_mode=True).order_by('-id')
-    context['non_gst_mode'] = True
+    from django.core.paginator import Paginator
+    
+    # Optimize query with select_related and only load necessary fields
+    invoices_list = Invoice.objects.filter(
+        user=request.user,
+        non_gst_mode=True
+    ).select_related('invoice_customer').only(
+        'id', 'invoice_number', 'invoice_date', 'invoice_customer', 'non_gst_mode', 'non_gst_invoice_number'
+    ).order_by('-id')
+    
+    # Get page size from request, default to 10
+    page_size = request.GET.get('page_size', '10')
+    try:
+        page_size = int(page_size)
+        if page_size not in [10, 25, 50, 100]:
+            page_size = 10
+    except ValueError:
+        page_size = 10
+    
+    # Paginate with custom page size
+    paginator = Paginator(invoices_list, page_size)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'invoices': page_obj,
+        'page_obj': page_obj,
+        'page_size': page_size,
+        'non_gst_mode': True
+    }
     return render(request, 'invoices/invoices.html', context)
 
 @login_required
 def invoice_viewer(request, invoice_id):
     invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
     user_profile = get_object_or_404(UserProfile, user=request.user)
+
+    # Get bank details for payment information
+    from ..models import BankDetails
+    bank_details = BankDetails.objects.filter(
+        whom_account=0,
+        user=request.user
+    ).first()
 
     context = {}
     context['invoice'] = invoice_obj
@@ -149,6 +212,7 @@ def invoice_viewer(request, invoice_id):
     context['currency'] = "₹"
     context['total_in_words'] = num2words.num2words(int(context['invoice_data']['invoice_total_amt_with_gst']), lang='en_IN').title()
     context['user_profile'] = user_profile
+    context['bank_details'] = bank_details
     context['nav_hide'] = request.GET.get('nav') or ''
     return render(request, 'invoices/invoice_printer.html', context)
 

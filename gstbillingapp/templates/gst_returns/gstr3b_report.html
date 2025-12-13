@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>GSTR-3B Report - {{ period_text }}</h2>
+            <p class="text-muted">Monthly Summary Return</p>
+        </div>
+    </div>
+
+    <!-- Period Selection -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <form method="get" class="form-inline">
+                <label class="mr-2">Select Period:</label>
+                <select name="month" class="form-control mr-2">
+                    <option value="1" {% if month == 1 %}selected{% endif %}>January</option>
+                    <option value="2" {% if month == 2 %}selected{% endif %}>February</option>
+                    <option value="3" {% if month == 3 %}selected{% endif %}>March</option>
+                    <option value="4" {% if month == 4 %}selected{% endif %}>April</option>
+                    <option value="5" {% if month == 5 %}selected{% endif %}>May</option>
+                    <option value="6" {% if month == 6 %}selected{% endif %}>June</option>
+                    <option value="7" {% if month == 7 %}selected{% endif %}>July</option>
+                    <option value="8" {% if month == 8 %}selected{% endif %}>August</option>
+                    <option value="9" {% if month == 9 %}selected{% endif %}>September</option>
+                    <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                    <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                    <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
+                </select>
+                <select name="year" class="form-control mr-2">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">Generate</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Section 3.1 - Outward Supplies -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5>3.1 - Outward Supplies (Sales - Net of Returns)</h5>
+                    <small>Sales invoices: {{ sales_count }} | Return invoices: {{ return_count }} (Credit Notes)</small>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-right">Taxable Value</th>
+                                <th class="text-right">CGST</th>
+                                <th class="text-right">SGST</th>
+                                <th class="text-right">IGST</th>
+                                <th class="text-right">Cess</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Outward taxable supplies (Net)</td>
+                                <td class="text-right">₹{{ outward_supplies.taxable_value|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ outward_supplies.cgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ outward_supplies.sgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ outward_supplies.igst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ outward_supplies.cess|floatformat:2|intcomma }}</td>
+                            </tr>
+                            {% if return_count > 0 %}
+                            <tr class="table-warning">
+                                <td colspan="6">
+                                    <small><i class="fas fa-info-circle"></i> <strong>Note:</strong> Returns deducted: 
+                                    Taxable ₹{{ return_totals.taxable|floatformat:2|intcomma|default:"0.00" }}, 
+                                    CGST ₹{{ return_totals.cgst|floatformat:2|intcomma|default:"0.00" }}, 
+                                    SGST ₹{{ return_totals.sgst|floatformat:2|intcomma|default:"0.00" }}, 
+                                    IGST ₹{{ return_totals.igst|floatformat:2|intcomma|default:"0.00" }}</small>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4 - ITC Available -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5>4 - Eligible ITC (Input Tax Credit)</h5>
+                    <small>Based on purchase invoices: {{ purchase_count }}</small>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-right">CGST</th>
+                                <th class="text-right">SGST</th>
+                                <th class="text-right">IGST</th>
+                                <th class="text-right">Cess</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>ITC Available (All other ITC)</td>
+                                <td class="text-right">₹{{ itc_available.cgst|floatformat:2|intcomma|default:"0.00" }}</td>
+                                <td class="text-right">₹{{ itc_available.sgst|floatformat:2|intcomma|default:"0.00" }}</td>
+                                <td class="text-right">₹{{ itc_available.igst|floatformat:2|intcomma|default:"0.00" }}</td>
+                                <td class="text-right">₹{{ itc_available.cess|floatformat:2|intcomma|default:"0.00" }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 5 - Net Tax Payable -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5>5 - Net Tax Payable</h5>
+                    <small>(Output Tax - Input Tax Credit)</small>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-right">CGST</th>
+                                <th class="text-right">SGST</th>
+                                <th class="text-right">IGST</th>
+                                <th class="text-right">Cess</th>
+                                <th class="text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="font-weight-bold">
+                                <td>Tax Payable</td>
+                                <td class="text-right">₹{{ tax_payable.cgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ tax_payable.sgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ tax_payable.igst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ tax_payable.cess|floatformat:2|intcomma }}</td>
+                                <td class="text-right bg-warning">
+                                    <h5>₹{{ total_tax_payable|floatformat:2|intcomma }}</h5>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="row">
+        <div class="col-md-12 text-center">
+            <a href="{% url 'gst_dashboard' %}" class="btn btn-secondary">← Back to GST Dashboard</a>
+            <button onclick="window.print()" class="btn btn-info">Print Report</button>
+            <a href="{% url 'purchase_invoice_list' %}" class="btn btn-warning">Manage Purchase Invoices</a>
+        </div>
+    </div>
+
+    <!-- Help Text -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <h6>Important Notes:</h6>
+                <ul>
+                    <li>This is an auto-generated summary based on your invoices and purchase records.</li>
+                    <li>Please ensure all purchase invoices are entered for accurate ITC calculation.</li>
+                    <li>Verify all amounts before filing on GST portal.</li>
+                    <li>Due date for GSTR-3B: 20th of next month</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .btn, form, .alert { display: none !important; }
+}
+</style>
+{% endblock %}

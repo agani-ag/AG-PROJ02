@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-9">
+            <h2>GSTR-9 Annual Return</h2>
+            <p class="text-muted">Annual return for Financial Year {{ financial_year }}</p>
+        </div>
+        <div class="col-md-3 text-right">
+            <form method="get" class="form-inline float-right">
+                <select name="year" class="form-control mr-2">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if year == y %}selected{% endif %}>FY {{ y }}-{{ y|add:1|stringformat:"02d"|slice:"-2:" }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">Load</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <a href="{% url 'gst_dashboard' %}" class="btn btn-secondary">← Back to Dashboard</a>
+            <button onclick="window.print()" class="btn btn-info">🖨️ Print</button>
+            <a href="{% url 'gstr9_export_json' %}?year={{ year }}" class="btn btn-success">📥 Download JSON</a>
+        </div>
+    </div>
+
+    <!-- Part I: Basic Details -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5>Part I - Basic Details</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <tr>
+                            <td width="50%"><strong>1. Financial Year</strong></td>
+                            <td>{{ financial_year }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>2. GSTIN</strong></td>
+                            <td>{{ user_profile.gstin|default:"Not Available" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3. Legal Name</strong></td>
+                            <td>{{ user_profile.business_name|default:"Not Available" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>4. Trade Name</strong></td>
+                            <td>{{ user_profile.business_name|default:"Not Available" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Part II: Details of Outward & Inward Supplies -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5>Part II - Details of Outward & Inward Supplies made during the Financial Year</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered table-sm">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-right">Taxable Value</th>
+                                <th class="text-right">Central Tax</th>
+                                <th class="text-right">State/UT Tax</th>
+                                <th class="text-right">Integrated Tax</th>
+                                <th class="text-right">Cess</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>5. Supplies made to unregistered persons (B2C)</strong></td>
+                                <td class="text-right">₹{{ b2c_data.taxable_value|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ b2c_data.cgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ b2c_data.sgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ b2c_data.igst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td><strong>6. Supplies made to registered persons (B2B)</strong></td>
+                                <td class="text-right">₹{{ b2b_data.taxable_value|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ b2b_data.cgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ b2b_data.sgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ b2b_data.igst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td><strong>7. Zero rated supply (Exports)</strong></td>
+                                <td class="text-right">₹0.00</td>
+                                <td class="text-right">₹0.00</td>
+                                <td class="text-right">₹0.00</td>
+                                <td class="text-right">₹0.00</td>
+                                <td class="text-right">₹0.00</td>
+                            </tr>
+                            <tr class="table-info">
+                                <td><strong>Total Outward Supplies (5 + 6 + 7)</strong></td>
+                                <td class="text-right"><strong>₹{{ total_outward.taxable_value|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹{{ total_outward.cgst|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹{{ total_outward.sgst|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹{{ total_outward.igst|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹0.00</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Part III: Details of ITC -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5>Part III - Details of ITC as Declared in Returns Filed During the Financial Year</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered table-sm">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-right">Integrated Tax</th>
+                                <th class="text-right">Central Tax</th>
+                                <th class="text-right">State/UT Tax</th>
+                                <th class="text-right">Cess</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Total ITC Available</strong></td>
+                                <td class="text-right">₹{{ itc_data.igst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ itc_data.cgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ itc_data.sgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ITC Reversed</strong></td>
+                                <td class="text-right">₹0.00</td>
+                                <td class="text-right">₹0.00</td>
+                                <td class="text-right">₹0.00</td>
+                                <td class="text-right">₹0.00</td>
+                            </tr>
+                            <tr class="table-info">
+                                <td><strong>Net ITC Available</strong></td>
+                                <td class="text-right"><strong>₹{{ itc_data.igst|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹{{ itc_data.cgst|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹{{ itc_data.sgst|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹0.00</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Part IV: Details of Tax Paid -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5>Part IV - Details of Tax Paid as Declared in Returns Filed During the Financial Year</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered table-sm">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-right">Integrated Tax</th>
+                                <th class="text-right">Central Tax</th>
+                                <th class="text-right">State/UT Tax</th>
+                                <th class="text-right">Cess</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Output Tax Liability</strong></td>
+                                <td class="text-right">₹{{ total_outward.igst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ total_outward.cgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ total_outward.sgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹0.00</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Less: ITC Utilized</strong></td>
+                                <td class="text-right">₹{{ itc_utilized.igst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ itc_utilized.cgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹{{ itc_utilized.sgst|floatformat:2|intcomma }}</td>
+                                <td class="text-right">₹0.00</td>
+                            </tr>
+                            <tr class="table-danger">
+                                <td><strong>Tax Payable (Net)</strong></td>
+                                <td class="text-right"><strong>₹{{ net_payable.igst|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹{{ net_payable.cgst|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹{{ net_payable.sgst|floatformat:2|intcomma }}</strong></td>
+                                <td class="text-right"><strong>₹0.00</strong></td>
+                            </tr>
+                            <tr class="table-info">
+                                <td><strong>Total Tax Payable</strong></td>
+                                <td colspan="4" class="text-right">
+                                    <h4>₹{{ total_tax_payable|floatformat:2|intcomma }}</h4>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month-wise Breakdown -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5>Month-wise Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Month</th>
+                                    <th class="text-right">Outward Supply</th>
+                                    <th class="text-right">Output Tax</th>
+                                    <th class="text-right">ITC</th>
+                                    <th class="text-right">Net Payable</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for month_data in monthly_breakdown %}
+                                <tr>
+                                    <td><strong>{{ month_data.month_name }} {{ month_data.year }}</strong></td>
+                                    <td class="text-right">₹{{ month_data.taxable_value|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ month_data.output_tax|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ month_data.itc|floatformat:2|intcomma }}</td>
+                                    <td class="text-right">₹{{ month_data.net_payable|floatformat:2|intcomma }}</td>
+                                    <td>
+                                        {% if month_data.filed %}
+                                        <span class="badge badge-success">✓ Filed</span>
+                                        {% else %}
+                                        <span class="badge badge-warning">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-info">
+                                <tr>
+                                    <th>Total</th>
+                                    <th class="text-right">₹{{ total_outward.taxable_value|floatformat:2|intcomma }}</th>
+                                    <th class="text-right">₹{{ total_output_tax|floatformat:2|intcomma }}</th>
+                                    <th class="text-right">₹{{ total_itc_claimed|floatformat:2|intcomma }}</th>
+                                    <th class="text-right">₹{{ total_tax_payable|floatformat:2|intcomma }}</th>
+                                    <th></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Declaration -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <h6>Declaration:</h6>
+                <p>I hereby solemnly affirm and declare that the information given herein above is true and correct to the best of my knowledge and belief and nothing has been concealed therefrom.</p>
+                <p class="mb-0"><strong>Note:</strong> This is a system-generated annual return. Please verify all figures before filing with GST Portal.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

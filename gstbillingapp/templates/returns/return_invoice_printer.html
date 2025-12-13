@@ -1,0 +1,240 @@
+{% extends 'invoices/print_base.html' %}
+{% load static %}
+
+{% block title %}Return Invoice #{{ return_invoice.return_invoice_number }}{% endblock %}
+
+{% block content %}
+
+<div class="card">
+    <div class="card-header">
+        <div class="row">
+            <div class="col-sm-6 col-6">&nbsp;</div>
+            <div class="col-sm-6 text-right"><strong style="color: #d9534f;">RETURN INVOICE - CREDIT NOTE</strong></div>
+            <div class="col-sm-6 col-6">&nbsp;</div>
+            <div class="col-sm-6 col-6">&nbsp;</div>
+            <div class="col-sm-6 col-6"><strong>Return Date: {{ return_invoice.return_date }}</strong></div>
+            <div class="col-sm-6 text-right">&nbsp;</div>
+            <div class="col-sm-6 col-6"><strong>Return No: R{{ return_invoice.return_invoice_number }}</strong></div>
+            <div class="col-sm-6 text-right"><strong>Original Invoice: #{{ parent_invoice.invoice_number }}</strong></div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div class="row">
+            <div class="col-sm-6 col-md-6 col-lg-6 col-6">
+                <div>
+                    <strong>{{ user_profile.business_title }}</strong>
+                </div>
+                <div>{{ user_profile.business_address }}</div>
+                {% if user_profile.business_email %}
+                    <div>EMAIL: {{ user_profile.business_email }}</div>
+                {% endif %}
+                {% if user_profile.business_phone %}
+                    <div>Phone: {{ user_profile.business_phone }}</div>
+                {% endif %}
+                {% if user_profile.business_gst %}
+                    <div>GST No: {{ user_profile.business_gst }}</div>
+                {% endif %}
+            </div>
+
+            <div class="col-sm-6 col-md-6 col-lg-6 col-6">
+                <h6 class="mb-3">Return From:</h6>
+                <div>
+                    <strong>{{ customer.customer_name }}</strong>
+                </div>
+                <div>{{ customer.customer_address }}</div>
+                <div>Phone: {{ customer.customer_phone }}</div>
+                {% if customer.customer_gst %}
+                    <div>GST No: {{ customer.customer_gst }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if return_invoice.reason %}
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <strong>Reason for Return:</strong> {{ return_invoice.reason }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="table-responsive-sm">
+            <table class="table table-striped table-invoice">
+                <thead>
+                    <tr>
+                        <th class="text-center">#</th>
+                        <th class="text-left">Model No</th>
+                        <th class="text-center">Item</th>
+                        <th class="text-center">HSN / SAC</th>
+                        <th class="text-center">GST %</th>
+                        <th class="text-right">Return Qty</th>
+                        <th class="text-right">Rate (₹)</th>
+                        <th class="text-right">Taxable Amount (₹)</th>
+                        <th class="text-right">GST Amount (₹)</th>
+                        <th class="text-right">Total (₹)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in return_data.items %}
+                    <tr>
+                        <td class="text-center">{{ forloop.counter }}</td>
+                        <td class="text-left">{{ item.invoice_model_no }}</td>
+                        <td class="text-center">{{ item.invoice_product }}</td>
+                        <td class="text-center">{{ item.invoice_hsn }}</td>
+                        <td class="text-center">{{ item.invoice_gst_percentage }}%</td>
+                        <td class="text-right">{{ item.return_qty }}</td>
+                        <td class="text-right">{{ item.invoice_rate_without_gst|floatformat:2 }}</td>
+                        <td class="text-right">
+                            {% widthratio item.invoice_rate_without_gst 1 item.return_qty as taxable %}
+                            {{ taxable|floatformat:2 }}
+                        </td>
+                        <td class="text-right">
+                            {% if item.invoice_amt_igst > 0 %}
+                                {% widthratio item.invoice_amt_igst item.invoice_qty item.return_qty as gst %}
+                            {% else %}
+                                {% widthratio item.invoice_amt_sgst 1 2 as half_gst %}
+                                {% widthratio half_gst item.invoice_qty item.return_qty as gst %}
+                            {% endif %}
+                            {{ gst|floatformat:2 }}
+                        </td>
+                        <td class="text-right">
+                            {% widthratio item.invoice_amt_with_gst item.invoice_qty item.return_qty as total %}
+                            {{ total|floatformat:2 }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-4 col-sm-5 ml-auto">
+                <table class="table table-clear">
+                    <tbody>
+                        <tr>
+                            <td class="left">
+                                <strong>Subtotal</strong>
+                            </td>
+                            <td class="right">₹{{ return_data.return_total_amt_without_gst|floatformat:2 }}</td>
+                        </tr>
+                        {% if return_data.return_total_amt_sgst > 0 %}
+                        <tr>
+                            <td class="left">
+                                <strong>SGST</strong>
+                            </td>
+                            <td class="right">₹{{ return_data.return_total_amt_sgst|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td class="left">
+                                <strong>CGST</strong>
+                            </td>
+                            <td class="right">₹{{ return_data.return_total_amt_cgst|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if return_data.return_total_amt_igst > 0 %}
+                        <tr>
+                            <td class="left">
+                                <strong>IGST</strong>
+                            </td>
+                            <td class="right">₹{{ return_data.return_total_amt_igst|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td class="left">
+                                <strong style="color: #d9534f;">Total Return Amount</strong>
+                            </td>
+                            <td class="right">
+                                <strong style="color: #d9534f;">₹{{ return_data.return_total_amt_with_gst|floatformat:2 }}</strong>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if bank_details %}
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="alert alert-secondary">
+                    <strong>Bank Details for Refund:</strong><br>
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td><strong>Bank:</strong></td>
+                            <td>{{ bank_details.bank_name }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account Name:</strong></td>
+                            <td>{{ bank_details.account_name }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Account Number:</strong></td>
+                            <td>{{ bank_details.account_number }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>IFSC Code:</strong></td>
+                            <td>{{ bank_details.ifsc_code }}</td>
+                        </tr>
+                        {% if bank_details.upi_id %}
+                        <tr>
+                            <td><strong>UPI ID:</strong></td>
+                            <td>{{ bank_details.upi_id }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            {% if bank_details.upi_id %}
+            <div class="col-md-6">
+                <div class="text-center">
+                    <p><strong>Scan to Pay Refund via UPI:</strong></p>
+                    <div id="return-qrcode" 
+                         data-upi="{{ bank_details.upi_id }}"
+                         data-name="{{ bank_details.upi_name }}"
+                         data-amount="{{ return_data.return_total_amt_with_gst }}"
+                         style="display: inline-block; border: 2px solid #ddd; padding: 5px;"></div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="text-center mt-3 no-print">
+    <button onclick="window.print()" class="btn btn-primary">
+        <i class="fas fa-print"></i> Print
+    </button>
+    <a href="/returns/{{ return_invoice.id }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Return Details
+    </a>
+</div>
+
+{% endblock %}
+
+{% block includejs %}
+<script>
+$(document).ready(function() {
+    var qrElement = document.getElementById('return-qrcode');
+    if (qrElement && typeof QRCode !== 'undefined') {
+        var upiId = qrElement.getAttribute('data-upi');
+        var upiName = qrElement.getAttribute('data-name');
+        var amount = qrElement.getAttribute('data-amount');
+        var upiString = 'upi://pay?pa=' + upiId;
+        if (upiName) {
+            upiString += '&pn=' + encodeURIComponent(upiName);
+        }
+        upiString += '&am=' + amount + '&cu=INR';
+        new QRCode(qrElement, {
+            text: upiString,
+            width: 150,
+            height: 150,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    }
+});
+</script>
+{% endblock %}

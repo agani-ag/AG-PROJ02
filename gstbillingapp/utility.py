@@ -2,6 +2,7 @@
 from django.db.models import Sum
 from gstbilling import settings
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 # Python imports
 import json
@@ -160,7 +161,7 @@ def update_inventory(invoice, request):
         change = int(item['invoice_qty'])*(-1)
         inventory_log = InventoryLog(user=product.user,
                                      product=product,
-                                     date=datetime.datetime.now(),
+                                     date=timezone.now(),
                                      change=change,
                                      change_type=4,
                                      associated_invoice=invoice,
@@ -194,7 +195,7 @@ def add_stock_to_inventory(product, quantity, description, user):
     inventory = Inventory.objects.get(user=user, product=product)
     inventory_log = InventoryLog(user=user,
                                  product=product,
-                                 date=datetime.datetime.now(),
+                                 date=timezone.now(),
                                  change=quantity,
                                  change_type=1,
                                  description=description)
@@ -257,3 +258,160 @@ def customer_already_exists(user, customer_phone, customer_email, customer_gst):
        Customer.objects.filter(user=user, customer_gst=customer_gst).exists():
         return True
     return False
+
+
+# ================ Return Invoice Methods ===========================
+def update_inventory_for_return(return_invoice, request):
+    """
+    Reverse inventory deduction - Add stock back for returned items
+    """
+    from .models import ReturnInvoice
+    
+    return_data = json.loads(return_invoice.return_items_json)
+    
+    # Get the User instance from UserProfile
+    user = return_invoice.user.user
+    
+    for item in return_data['items']:
+        # Get product
+        product = Product.objects.get(
+            user=user,
+            model_no=item['invoice_model_no'],
+            product_name=item['invoice_product'],
+            product_hsn=item['invoice_hsn'],
+            product_gst_percentage=item['invoice_gst_percentage']
+        )
+        inventory = Inventory.objects.get(user=user, product=product)
+        
+        # POSITIVE change for returns (add stock back)
+        change = int(item['return_qty'])  # POSITIVE: +5 for 5 items returned
+        
+        # Create InventoryLog with change_type=3 (Return)
+        inventory_log = InventoryLog(
+            user=user,
+            product=product,
+            date=timezone.now(),
+            change=change,  # POSITIVE
+            change_type=3,  # 3 = Return
+            associated_invoice=return_invoice.parent_invoice,  # Link to original
+            description=f"Return from Invoice #{return_invoice.parent_invoice.invoice_number}"
+        )
+        inventory_log.save()
+        
+        # Update inventory stock (increases)
+        inventory.current_stock += change
+        inventory.last_log = inventory_log
+        inventory.save()
+
+
+def credit_customer_book_from_return(return_invoice):
+    """
+    Credit customer balance for returned items
+    """
+    return_data = json.loads(return_invoice.return_items_json)
+    
+    # Get the User instance from UserProfile
+    user = return_invoice.user.user
+    
+    book = Book.objects.get(user=user, 
+                           customer=return_invoice.customer)
+    
+    # POSITIVE change for return (credit customer)
+    book_log = BookLog(
+        parent_book=book,
+        date=return_invoice.return_date,
+        change_type=3,  # 3 = Returned Items (already exists!)
+        change=float(return_data['return_total_amt_with_gst']),  # POSITIVE
+        associated_invoice=return_invoice.parent_invoice,  # Link to original
+        description=f"Return - Invoice #{return_invoice.parent_invoice.invoice_number}"
+    )
+    book_log.save()
+    
+    # Update customer balance (reduces debt)
+    book.current_balance = book.current_balance + book_log.change  # Adds positive = reduces debt
+    book.last_log = book_log
+    book.save()
+
+
+def calculate_available_return_items(parent_invoice):
+    """
+    Calculate how many items from parent invoice can still be returned
+    Returns dict with available quantities per item
+    """
+    from .models import ReturnInvoice
+    
+    invoice_data = json.loads(parent_invoice.invoice_json)
+    available_items = {}
+    
+    # Get all previous returns for this invoice
+    previous_returns = ReturnInvoice.objects.filter(parent_invoice=parent_invoice)
+    
+    # Calculate total returned quantity per item
+    returned_quantities = {}
+    for return_inv in previous_returns:
+        return_data = json.loads(return_inv.return_items_json)
+        for item in return_data['items']:
+            key = item['invoice_model_no']
+            returned_quantities[key] = returned_quantities.get(key, 0) + item['return_qty']
+    
+    # Calculate available quantities
+    for item in invoice_data['items']:
+        key = item['invoice_model_no']
+        original_qty = item['invoice_qty']
+        returned_qty = returned_quantities.get(key, 0)
+        available_qty = original_qty - returned_qty
+        
+        available_items[key] = {
+            'original_qty': original_qty,
+            'returned_qty': returned_qty,
+            'available_qty': available_qty,
+            'item_data': item
+        }
+    
+    return available_items
+
+
+def validate_return_data(return_data, parent_invoice):
+    """
+    Validate return invoice data
+    Returns error message if invalid, None if valid
+    """
+    # Check return date
+    try:
+        return_date = datetime.datetime.strptime(return_data['return-date'], '%Y-%m-%d').date()
+        invoice_date = parent_invoice.invoice_date
+        if return_date < invoice_date:
+            return "Error: Return date cannot be before invoice date"
+    except:
+        return "Error: Invalid return date format"
+    
+    # Get available items
+    available_items = calculate_available_return_items(parent_invoice)
+    
+    # Validate each return item
+    for idx, model_no in enumerate(return_data.getlist('return-model-no')):
+        if model_no:
+            try:
+                return_qty = int(return_data.getlist('return-qty')[idx])
+                if model_no not in available_items:
+                    return f"Error: Item {model_no} not found in original invoice"
+                
+                if return_qty <= 0:
+                    return f"Error: Return quantity must be positive for {model_no}"
+                
+                if return_qty > available_items[model_no]['available_qty']:
+                    return f"Error: Cannot return {return_qty} of {model_no}. Only {available_items[model_no]['available_qty']} available"
+            except:
+                return f"Error: Invalid return quantity for {model_no}"
+    
+    return None
+
+
+def get_next_return_invoice_number(user):
+    """Get the next available return invoice number for user"""
+    from .models import ReturnInvoice
+    
+    last_return = ReturnInvoice.objects.filter(user=user).order_by('-return_invoice_number').first()
+    if last_return:
+        return last_return.return_invoice_number + 1
+    return 1

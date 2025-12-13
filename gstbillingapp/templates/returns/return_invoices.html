@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Return Invoices{% endblock %}
+
+{% block includecss %}
+<style>
+	#returnsTable_wrapper .dataTables_filter {
+		margin-bottom: 10px !important;
+		margin-top: 0px !important;
+	}
+	#returnsTable_wrapper {
+		margin-top: 0px !important;
+	}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="mb-1">
+        <h2 class="mb-1"><i class="fas fa-undo"></i> Return Invoices</h2>
+    </div>
+
+    <div style="margin-bottom: 5px;">
+        <div class="form-inline">
+            <label for="page-size-select" class="mr-2 mb-0"><strong>Show:</strong></label>
+            <select id="page-size-select" class="form-control form-control-sm" onchange="changePageSize(this.value)">
+                <option value="10" {% if page_size == 10 %}selected{% endif %}>10</option>
+                <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+                <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+            </select>
+            <span class="ml-2 mb-0">per page</span>
+            <a href="/invoices" class="btn btn-outline-primary btn-sm ml-auto">
+                <i class="fas fa-file-invoice"></i> View Invoices
+            </a>
+        </div>
+    </div>
+
+    <!-- Returns Table -->
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped table-hover" id="returnsTable">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Return #</th>
+                            <th>Return Date</th>
+                            <th>Original Invoice</th>
+                            <th>Customer</th>
+                            <th>Return Type</th>
+                            <th>Return Amount</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if return_invoices %}
+                            {% for return_inv in return_invoices %}
+                            <tr>
+                                <td>
+                                    <a href="/returns/{{ return_inv.id }}">
+                                        <strong>#{{ return_inv.return_invoice_number }}</strong>
+                                    </a>
+                                </td>
+                                <td>{{ return_inv.return_date|date:"d/m/Y" }}</td>
+                                <td>
+                                    <a href="/invoice/{{ return_inv.parent_invoice.id }}">
+                                        Invoice #{{ return_inv.parent_invoice.invoice_number }}
+                                    </a>
+                                </td>
+                                <td>{{ return_inv.customer.customer_name }}</td>
+                                <td>
+                                    <span class="badge badge-info">
+                                        {{ return_inv.get_return_type_display }}
+                                    </span>
+                                </td>
+                                <td>₹{{ return_inv.return_total_amt_with_gst|floatformat:2 }}</td>
+                                <td>
+                                    {% if return_inv.inventory_reflected and return_inv.books_reflected %}
+                                        <span class="badge badge-success">
+                                            <i class="fas fa-check-circle"></i> Completed
+                                        </span>
+                                    {% else %}
+                                        <span class="badge badge-warning">
+                                            <i class="fas fa-exclamation-circle"></i> Pending
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/returns/{{ return_inv.id }}" class="btn btn-sm btn-info" title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="/returns/{{ return_inv.id }}/print" target="_blank" 
+                                       class="btn btn-sm btn-secondary" title="Print">
+                                        <i class="fas fa-print"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                                    <p>No return invoices found</p>
+                                    {% if not search_query %}
+                                    <p>Returns will appear here when customers return products</p>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="Return invoices pagination">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1&page_size={{ page_size }}{% if search_query %}&search={{ search_query }}{% endif %}">First</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&page_size={{ page_size }}{% if search_query %}&search={{ search_query }}{% endif %}">Previous</a>
+            </li>
+            {% endif %}
+            
+            <li class="page-item active">
+                <span class="page-link">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total)
+                </span>
+            </li>
+            
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&page_size={{ page_size }}{% if search_query %}&search={{ search_query }}{% endif %}">Next</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&page_size={{ page_size }}{% if search_query %}&search={{ search_query }}{% endif %}">Last</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    <!-- Summary Cards -->
+    {% if return_invoices and page_obj.paginator.count > 0 %}
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5>Total Returns</h5>
+                    <h3>{{ page_obj.paginator.count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5>Total Amount Returned</h5>
+                    <h3>₹{% widthratio return_invoices|length 1 1 as count %}
+                        {% for return_inv in return_invoices %}
+                            {% if forloop.first %}{{ return_inv.return_total_amt_with_gst|floatformat:2 }}{% endif %}
+                        {% endfor %}
+                    </h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5>Current Page</h5>
+                    <h3>{{ return_invoices|length }} records</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function changePageSize(size) {
+    var url = new URL(window.location.href);
+    url.searchParams.set('page', '1');
+    url.searchParams.set('page_size', size);
+    window.location.href = url.toString();
+}
+
+$(document).ready(function() {
+    $('#returnsTable').DataTable({
+        "order": [],
+        "columnDefs": [{
+            "targets": 7,
+            "sortable": false,
+            "searchable": false
+        }],
+        "paging": false,
+        "info": false,
+        "language": {
+            "emptyTable": "No return invoices available"
+        }
+    });
+});
+</script>
+{% endblock %}

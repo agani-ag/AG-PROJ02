@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>GSTR-2A/2B Reconciliation - {{ period_text }}</h2>
+            <p class="text-muted">Reconcile purchase invoices with GSTR-2A/2B data</p>
+        </div>
+    </div>
+
+    <!-- Period Selection & Actions -->
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <form method="get" class="form-inline">
+                <label class="mr-2">Select Period:</label>
+                <select name="month" class="form-control mr-2">
+                    <option value="1" {% if month == 1 %}selected{% endif %}>January</option>
+                    <option value="2" {% if month == 2 %}selected{% endif %}>February</option>
+                    <option value="3" {% if month == 3 %}selected{% endif %}>March</option>
+                    <option value="4" {% if month == 4 %}selected{% endif %}>April</option>
+                    <option value="5" {% if month == 5 %}selected{% endif %}>May</option>
+                    <option value="6" {% if month == 6 %}selected{% endif %}>June</option>
+                    <option value="7" {% if month == 7 %}selected{% endif %}>July</option>
+                    <option value="8" {% if month == 8 %}selected{% endif %}>August</option>
+                    <option value="9" {% if month == 9 %}selected{% endif %}>September</option>
+                    <option value="10" {% if month == 10 %}selected{% endif %}>October</option>
+                    <option value="11" {% if month == 11 %}selected{% endif %}>November</option>
+                    <option value="12" {% if month == 12 %}selected{% endif %}>December</option>
+                </select>
+                <select name="year" class="form-control mr-2">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-primary">View</button>
+            </form>
+        </div>
+        <div class="col-md-4 text-right">
+            <a href="{% url 'gstr2_upload' %}?month={{ month }}&year={{ year }}" class="btn btn-success">
+                📤 Upload GSTR-2A CSV
+            </a>
+            <a href="{% url 'reconciliation_export' %}?month={{ month }}&year={{ year }}" class="btn btn-info">
+                📥 Export Report
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-white bg-primary">
+                <div class="card-body text-center">
+                    <h3>{{ stats.total }}</h3>
+                    <small>Total Records</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-success">
+                <div class="card-body text-center">
+                    <h3>{{ stats.matched }}</h3>
+                    <small>Matched</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-warning">
+                <div class="card-body text-center">
+                    <h3>{{ stats.amount_mismatch }}</h3>
+                    <small>Mismatch</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-danger">
+                <div class="card-body text-center">
+                    <h3>{{ stats.missing_in_gstr2 }}</h3>
+                    <small>Missing in GSTR-2</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-secondary">
+                <div class="card-body text-center">
+                    <h3>{{ stats.missing_in_books }}</h3>
+                    <small>Missing in Books</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-info">
+                <div class="card-body text-center">
+                    <h3>{{ stats.resolved }}</h3>
+                    <small>Resolved</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reconciliation Records -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Reconciliation Details</h5>
+                    <small>Our Purchase Invoices: {{ our_invoices_count }}</small>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>GSTIN</th>
+                                    <th>Vendor</th>
+                                    <th>Invoice No.</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                    <th class="text-right">Our Amount</th>
+                                    <th class="text-right">GSTR-2 Amount</th>
+                                    <th class="text-right">Difference</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rec in reconciliations %}
+                                <tr class="{% if rec.status == 'MATCHED' %}table-success{% elif rec.status == 'AMOUNT_MISMATCH' %}table-warning{% elif rec.status == 'MISSING_IN_GSTR2' %}table-danger{% elif rec.status == 'MISSING_IN_BOOKS' %}table-secondary{% endif %}">
+                                    <td><small>{{ rec.vendor_gstin }}</small></td>
+                                    <td>{{ rec.vendor_name|truncatewords:3 }}</td>
+                                    <td>{{ rec.invoice_number }}</td>
+                                    <td>{{ rec.invoice_date|date:"d-M-y" }}</td>
+                                    <td>
+                                        <span class="badge badge-{% if rec.status == 'MATCHED' %}success{% elif rec.status == 'AMOUNT_MISMATCH' %}warning{% else %}danger{% endif %}">
+                                            {{ rec.get_status_display }}
+                                        </span>
+                                        {% if rec.resolved %}
+                                        <span class="badge badge-info">✓ Resolved</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right">
+                                        {% if rec.our_taxable_amount %}
+                                        ₹{{ rec.our_taxable_amount|floatformat:2|intcomma }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right">
+                                        {% if rec.gstr2_taxable_amount %}
+                                        ₹{{ rec.gstr2_taxable_amount|floatformat:2|intcomma }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right">
+                                        {% if rec.our_taxable_amount and rec.gstr2_taxable_amount %}
+                                        {% with diff=rec.our_taxable_amount|add:rec.gstr2_taxable_amount|floatformat:2 %}
+                                        <span class="{% if diff != '0.00' %}text-danger font-weight-bold{% endif %}">
+                                            ₹{% widthratio rec.our_taxable_amount 1 1|add:rec.gstr2_taxable_amount|floatformat:2|intcomma %}
+                                        </span>
+                                        {% endwith %}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if not rec.resolved and rec.status != 'MATCHED' %}
+                                        <button type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#resolveModal{{ rec.id }}">
+                                            Mark Resolved
+                                        </button>
+                                        
+                                        <!-- Modal -->
+                                        <div class="modal fade" id="resolveModal{{ rec.id }}" tabindex="-1">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title">Mark as Resolved</h5>
+                                                        <button type="button" class="close" data-dismiss="modal">&times;</button>
+                                                    </div>
+                                                    <form method="post" action="{% url 'reconciliation_mark_resolved' rec.id %}">
+                                                        {% csrf_token %}
+                                                        <div class="modal-body">
+                                                            <div class="form-group">
+                                                                <label>Action Taken:</label>
+                                                                <select name="action_taken" class="form-control" required>
+                                                                    <option value="">Select Action</option>
+                                                                    <option value="Corrected in Books">Corrected in Books</option>
+                                                                    <option value="Vendor to file amendment">Vendor to file amendment</option>
+                                                                    <option value="Not eligible for ITC">Not eligible for ITC</option>
+                                                                    <option value="Reverse charge applicable">Reverse charge applicable</option>
+                                                                    <option value="Other">Other</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="form-group">
+                                                                <label>Remarks:</label>
+                                                                <textarea name="remarks" class="form-control" rows="3"></textarea>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                                                            <button type="submit" class="btn btn-primary">Save & Mark Resolved</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% else %}
+                                        {% if rec.resolved %}
+                                        <small class="text-muted">{{ rec.action_taken }}</small>
+                                        {% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="9" class="text-center">
+                                        No reconciliation data available. 
+                                        <a href="{% url 'gstr2_upload' %}?month={{ month }}&year={{ year }}">Upload GSTR-2A CSV</a> to start reconciliation.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Section -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <h6>How to use GSTR-2A/2B Reconciliation:</h6>
+                <ol>
+                    <li>Download GSTR-2A/2B from GST Portal in CSV format</li>
+                    <li>Click "Upload GSTR-2A CSV" and select the file</li>
+                    <li>System will automatically match invoices with your purchase records</li>
+                    <li>Review mismatches and take necessary actions</li>
+                    <li>Mark issues as resolved after correction</li>
+                </ol>
+                <p><strong>Status Meanings:</strong></p>
+                <ul>
+                    <li><span class="badge badge-success">Matched</span> - Invoice matches perfectly</li>
+                    <li><span class="badge badge-warning">Amount Mismatch</span> - Amounts don't match</li>
+                    <li><span class="badge badge-danger">Missing in GSTR-2</span> - Invoice not found in GSTR-2A</li>
+                    <li><span class="badge badge-secondary">Missing in Books</span> - Invoice in GSTR-2A but not in your books</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

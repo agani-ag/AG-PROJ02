@@ -8,7 +8,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from ..models import Product, UserProfile
 
 # Utility functions
-from ..utils import add_stock_to_inventory, create_inventory
+from ..utility import add_stock_to_inventory, create_inventory
 
 # Forms
 from ..forms import ProductForm
