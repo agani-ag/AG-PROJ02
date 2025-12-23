@@ -12,6 +12,7 @@ from ..models import (
 )
 
 # Forms
+from ..forms import BookLogForm, BookLogFullForm
 
 # Utility functions
 from ..utils import (
@@ -123,6 +124,35 @@ def book_logs_full(request):
     
     return render(request, 'books/book_logs_full.html', context)
 
+@login_required
+def book_logs_full_add(request):
+    context = {}
+    context['form'] = BookLogFullForm(user=request.user)
+
+    if request.method == "POST":
+        book_log_form = BookLogForm(request.POST, user=request.user)
+        invoice_no = request.POST["invoice_no"]
+        invoice = None
+        if invoice_no:
+            try:
+                invoice_no = int(invoice_no)
+                invoice = Invoice.objects.get(user=request.user, invoice_number=invoice_no)
+            except:
+                context['error_message'] = "Incorrect invoice number %s"%(invoice_no,)
+                return render(request, 'books/book_logs_full_add.html', context)
+
+        book_log = book_log_form.save(commit=False)
+        if invoice:
+            book_log.associated_invoice = invoice
+        book_log.save()
+
+        # book.current_balance = book.current_balance + book_log.change
+        # book.last_log = book_log
+        # book.save()
+        # return redirect('book_logs', book.id)
+
+    return render(request, 'books/book_logs_full_add.html', context)
+
 # ================= Books API Views ===========================
 @csrf_exempt
 def book_logs_api_add(request):
@@ -192,3 +222,12 @@ def book_logs_api_add(request):
         recalculate_book_current_balance(parent_book)
         return JsonResponse({'status': 'success', 'message': f'{customer.customer_name}\n{inserted_count} Book logs added successfully.\n{not_inserted_count} Book logs not added.\nCredits: {credits}, Debits: {debits}.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add book logs.'})
+
+@csrf_exempt
+def book_logs_api_active(request):
+    booklog_id = request.GET.get('booklog', None)
+    change = request.GET.get('change', None)
+    booklog = get_object_or_404(BookLog, id=booklog_id)
+    booklog.is_active = True
+    booklog.save()
+    return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog_id} marked as active. Change: ₹{change} Updated.'})

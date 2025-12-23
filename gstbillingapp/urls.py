@@ -52,6 +52,7 @@ urlpatterns = [
     path('books/fulladdupdate', books.book_logs_full_add, name='book_logs_full_add'),
     # API Endpoints
     path('books/api/add', books.book_logs_api_add, name='book_logs_api_add'),
+    path('books/api/active', books.book_logs_api_active, name='book_logs_api_active'),
 
     # Product URLs
     path('products', products.products, name='products'),

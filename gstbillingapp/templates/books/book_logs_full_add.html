@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<h2>Update Book</h2>
+	<form method="POST">
+		{% csrf_token %}
+		<table class="table">
+		<tbody class="two-col-form">
+			<tr>
+				<th scope="row" class="text-right">Customer:</th>
+				<td class="form-input-td">{{form.parent_book}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Date & Time:</th>
+				<td class="form-input-td customer_search_area">
+					<input type="datetime-local" value="{%now "Y-m-d H:i:s"%}" name="date">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Amount:</th>
+				<td class="form-input-td">{{form.change}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Mode:</th>
+				<td class="form-input-td">{{form.change_type}}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Invoice Number:</th>
+				<td class="form-input-td">
+					<select name="invoice_no">
+						<option value="">Select Invoice</option>
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Desription:</th>
+				<td class="form-input-td">{{form.description}}</td>
+			</tr>
+		</tbody>
+		</table>
+
+		<div class="d-flex justify-content-end gap-2">
+			<button type="submit" class="btn btn-primary">
+				<i class="fas fa-save"></i>
+			</button>&nbsp;
+		</div>
+	</form>
+{% endblock %}
+{% block includejs %}
+<script>
+$(document).ready(function () {
+    $('select[name="parent_book"]').on('change', function () {
+        var bookId = $(this).val();
+        var invoiceSelect = $('select[name="invoice_no"]');
+
+        invoiceSelect.empty();
+        invoiceSelect.append('<option value="">Select Invoice</option>');
+
+        if (bookId) {
+            $.ajax({
+                url: "{% url 'customer_invoice_filter' %}",
+                data: {
+                    'customer': bookId
+                },
+                success: function (data) {
+                    $.each(data, function (index, invoice) {
+                        invoiceSelect.append(
+                            '<option value="' + invoice.id + '">' +
+                            invoice.invoice_number +
+                            '</option>'
+                        );
+                    });
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}
