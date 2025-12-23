@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% load tz %}
+{% load humanize %}
+{% load static %}
+
+{% block content %}
+<h2>All Book Details</h2>
+<hr>
+
+<!-- Summary Cards Row -->
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-receipt"></i> Total Purchased</h6>
+                <h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-check-circle"></i> Total Paid</h6>
+                <h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-orange text-white">
+            <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
+                <h3>₹ {{ total_returned | default:0 | floatformat:2 | intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-violet text-white">
+            <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
+                <h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Action Buttons Row -->
+<div class="row mb-2] align-items-center justify-content-between">
+    <div class="col">
+        <strong>Total Balance :
+            {% if total_balance > 0 %}
+                <span class="text-danger">₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</span>
+            {% else %}
+                <span class="text-success">₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</span>
+            {% endif %}
+        </strong><br>
+        <span class="font-weight-bold">{{ total_balance_word }}</span>
+    </div>
+    <div class="col text-right">
+        <a href="{% url 'book_logs_full_add' %}" class="btn btn-primary btn-sm btn-curve">
+            <i class="fas fa-plus"></i>
+        </a>
+    </div>
+</div>
+
+<hr>
+
+<!-- Book Logs Table -->
+<table class="table table-hover font-weight-bold" id="inventory-logs-table">
+    <thead class="thead-dark align-middle">
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th class="text-center">Change</th>
+            <th>Description</th>
+            <th>Customer</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in book_logs %}
+        <tr class="{% if item.change < 0 %}table-danger{% else %}table-success{% endif %}">
+            <td>
+                {{ item.date|localtime|date:"M d, Y h:i A" }}
+                <br>
+                <small class="text-muted">{{ item.date|naturaltime }}</small>
+            </td>
+            <td>{{ item.get_change_type_display }}</td>
+            <td class="text-center font-weight-bold">{{ item.change }}</td>
+            <td>{{ item.description }}</td>
+            <td class="customer-name">
+                <a href="{% url 'book_logs' item.parent_book.id %}" class="text-decoration-none text-dark">
+                    {{ item.parent_book.customer.customer_name }}
+                </a>
+            </td>
+            <td class="text-center">
+                {% if item.associated_invoice %}
+                    <a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="btn btn-primary btn-sm btn-curve">
+                        <i class="fas fa-file-invoice"></i>
+                    </a>
+                {% else %}
+                    <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
+                        <i class="fas fa-trash"></i>
+                    </a>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5" class="text-center text-muted">No book logs found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<style>
+#inventory-logs-table tbody tr td {
+    vertical-align: middle;
+}
+
+.customer-name {
+    min-width: 150px; /* minimum width */
+    max-width: 250px; /* maximum width */
+    white-space: normal; /* allow text to wrap */
+    word-wrap: break-word; /* break long words if needed */
+}
+</style>
+
+{% endblock %}
+
+{% block includejs %}
+<script type="text/javascript">
+$(document).ready(function() {
+    $('#inventory-logs-table').DataTable({
+        "order": [],
+        "columnDefs": [
+            { "targets": 3, "visible": false }, // Hide Description by default
+            // { "targets": 4, "sortable": false, "searchable": false }
+        ],
+        "paging": true,
+        dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'excelHtml5',
+                text: '<i class="fas fa-file-excel"></i> Excel',
+                className: 'btn btn-success btn-sm btn-curve'
+            },
+            {
+                extend: 'pdfHtml5',
+                text: '<i class="fas fa-file-pdf"></i> PDF',
+                className: 'btn btn-danger btn-sm btn-curve'
+            },
+            {
+                extend: 'print',
+                text: '<i class="fas fa-print"></i> Print',
+                className: 'btn btn-warning btn-sm btn-curve',
+                title: '',
+                customize: function(win) {
+                    $(win.document.body).prepend(`
+                        <div id="customHeader" style="text-align:center; margin-bottom:20px;">
+                            <h2 style="margin:0;">All Book Logs Report</h2>
+                            <h4 style="margin:0;">Current Balance: {{ book.current_balance }}</h4>
+                            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                            <hr style="border:1px solid #000;">
+                        </div>
+                    `);
+
+                    const css = `
+                        <style>
+                            @media print {
+                                body { counter-reset: page; }
+                                table { font-size: inherit; width: 100%; }
+                            }
+                        </style>
+                    `;
+                    $(win.document.head).append(css);
+                }
+            },
+            {
+                text: 'Description',
+                className: 'btn btn-info btn-sm btn-curve',
+                action: function(e, dt, node, config) {
+                    // Column index 3 = Description column
+                    let col = dt.column(3);
+                    col.visible(!col.visible());
+                }
+            }
+        ]
+    });
+});
+</script>
+{% endblock %}

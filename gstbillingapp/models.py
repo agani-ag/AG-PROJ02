@@ -192,15 +192,16 @@ class BookLog(models.Model):
     CHANGE_TYPES = [
         (0, 'Paid'),
         (1, 'Purchased Items'),
-        (2, 'Sold Items'),
-        (3, 'Returned Items'),
-        (4, 'Other'),
+        (2, 'Returned Items'),
+        (3, 'Other'),
     ]
     change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)
     change = models.FloatField(default=0.0)
 
     associated_invoice = models.ForeignKey(Invoice, blank=True, null=True, default=None, on_delete=models.SET_NULL)
     description = models.TextField(max_length=600, blank=True, null=True)
+    createdby = models.CharField(max_length=100, blank=True, null=True, default='SYSTEM')
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.parent_book.customer.customer_name + " | " + str(self.change) + " | " + self.description + " | " + str(self.date)

@@ -1,0 +1,85 @@
+flowchart TB
+
+    %% =====================
+    %% MULTI-TENANT STRUCTURE
+    %% =====================
+    Tenant[Tenant / Organization]
+    User[User Profile]
+
+    Tenant --> User
+
+    %% =====================
+    %% SALES MASTER DATA
+    %% =====================
+    Customer[Customer]
+    Product[Product]
+
+    User -->|Add / Edit / Delete| Customer
+    User -->|Add / Edit / Delete| Product
+
+    %% =====================
+    %% SALES BOOKS & INVENTORY
+    %% =====================
+    Books[Books]
+    Inventory[Inventory]
+
+    User -->|Manual Add / Delete| Books
+    User -->|Manual Add / Delete| Inventory
+
+    Books -. No Edit .- User
+    Inventory -. No Edit .- User
+
+    %% =====================
+    %% SALES LOGS
+    %% =====================
+    BookLogs[Book Logs]
+    InventoryLogs[Inventory Logs]
+
+    Books --> BookLogs
+    Inventory --> InventoryLogs
+
+    %% =====================
+    %% INVOICE (SALES FLOW)
+    %% =====================
+    Invoice[Invoice]
+
+    User -->|Create / Delete| Invoice
+    Invoice --> Customer
+    Invoice --> Product
+
+    Invoice -->|Create: Reduce Stock| Inventory
+    Invoice -->|Create: Add Amount| Books
+
+    Invoice -->|Delete: Restore Stock| Inventory
+    Invoice -->|Delete: Revert Amount| Books
+
+    %% =====================
+    %% PURCHASE (USER-LEVEL ONLY)
+    %% =====================
+    Purchase[Purchase]
+    PurchaseVendor[Purchase Vendor]
+    PurchaseLog[Purchase Log]
+
+    %% User actions
+    User -->|Add / Delete| Purchase
+    User -->|Add / Delete| PurchaseVendor
+
+    Purchase -. No Edit .- User
+    PurchaseVendor -. No Edit .- User
+
+    %% Vendor mapping
+    PurchaseVendor --> Purchase
+
+    %% Logs auto-generated ONLY via Purchase
+    Purchase -->|Auto Create| PurchaseLog
+
+    %% Restriction
+    User -. No Direct Access .- PurchaseLog
+
+    %% =====================
+    %% ISOLATION
+    %% =====================
+    Purchase -. No Impact .- Customer
+    Purchase -. No Impact .- Inventory
+    Purchase -. No Impact .- Books
+    Purchase -. No Impact .- Invoice

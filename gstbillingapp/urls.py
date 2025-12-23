@@ -29,6 +29,7 @@ urlpatterns = [
     path('invoices/new', invoices.invoice_create, name='invoice_create'),
     path('invoice/<int:invoice_id>', invoices.invoice_viewer, name='invoice_viewer'),
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),
+    path('api/customer-invoice-filter/', invoices.customerInvoiceFilter, name='customer_invoice_filter'),
 
     # Customer URLs
     path('customers', customers.customers, name='customers'),
@@ -46,6 +47,9 @@ urlpatterns = [
     path('books/<int:book_id>', books.book_logs, name='book_logs'),
     path('books/<int:book_id>/addupdate', books.book_logs_add, name='book_logs_add'),
     path('book/del/<int:booklog_id>', books.book_logs_del, name='book_logs_del'),
+    # Full Book Logs View
+    path('books/full', books.book_logs_full, name='book_logs_full'),
+    path('books/fulladdupdate', books.book_logs_full_add, name='book_logs_full_add'),
     # API Endpoints
     path('books/api/add', books.book_logs_api_add, name='book_logs_api_add'),
 

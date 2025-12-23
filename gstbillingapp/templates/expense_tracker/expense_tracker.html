@@ -6,10 +6,7 @@
 
     <div class="row">
         <div class="col">
-            <h3>
-                Expenses: 
-                    <span class="font-weight-bold">₹ {{ total_exp | default:0 | intcomma }}</span>
-            </h3>
+            <h3>Expenses</h3>
         </div>
 
         <div class="col text-right" style="padding-top: 0.5%;">
@@ -19,6 +16,13 @@
             <a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve">
                 <i class="fas fa-file-excel"></i>
             </a>
+        </div>
+    </div>
+    <!-- Summary Card -->
+    <div class="card bg-danger text-white mb-3">
+        <div class="card-body">
+            <h5>Total Expenses Spent</h5>
+            <h3>₹{{ total_exp|floatformat:2|intcomma }}</h3>
         </div>
     </div>
     <!-- <hr> -->

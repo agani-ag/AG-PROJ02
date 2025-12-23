@@ -1,8 +1,7 @@
 {% extends "base.html" %}
-
+{% load tz %}
 {% load static %}
-
-
+{% load humanize %}
 
 {% block content %}
 <h2>Book Details</h2>
@@ -36,7 +35,7 @@
 	<tbody class="two-col-form">
 		{% for item in book_logs %}
 		<tr class="{% if item.change < 0 %}table-danger{% else %}table-success{%endif%}">
-			<td>{{item.date}}</td>
+			<td>{{item.date|localtime|date:"M d, Y h:i A"}}</td>
 			<td>{{item.get_change_type_display}}</td>
 			<td>{{item.change}}</td>
 			<td>{{item.description}}</td>

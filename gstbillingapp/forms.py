@@ -1,8 +1,8 @@
 from django.forms import ModelForm
 from .models import (
     Customer, Product, UserProfile,
-    InventoryLog, BookLog, VendorPurchase,
-    ExpenseTracker, BankDetails
+    InventoryLog, Book, BookLog,
+    ExpenseTracker, BankDetails, VendorPurchase
 )
 
 
@@ -49,6 +49,24 @@ class BookLogForm(ModelForm):
     class Meta:
         model = BookLog
         fields = ['date', 'change', 'change_type', 'description']
+
+class BookLogFullForm(ModelForm):
+    class Meta:
+        model = BookLog
+        fields = ['parent_book','date', 'change', 'change_type', 'description']
+        
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        self.fields['parent_book'].required = True
+        self.fields['change_type'].choices = [
+            (0, 'Paid'),
+            (3, 'Other'),
+        ]
+        if self.user:
+            self.fields['parent_book'].queryset = Book.objects.filter(customer__isnull=False, customer__user=self.user).order_by('customer__customer_name')
+        else:
+            self.fields['parent_book'].queryset = Book.objects.none()
 
 class VendorPurchaseForm(ModelForm):
     class Meta:

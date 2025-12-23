@@ -1,6 +1,7 @@
 # Django imports
 from django.contrib import messages
 from django.db.models import Max, Sum
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -173,3 +174,10 @@ def invoice_delete(request):
             book.save()
         invoice_obj.delete()
     return redirect('invoices')
+
+# ================= Invoice API Views ===========================
+@login_required
+def customerInvoiceFilter(request):
+    customer = request.GET.get('customer', None)
+    invoices = list(Invoice.objects.filter(user=request.user,invoice_customer=customer).values())
+    return JsonResponse(invoices, safe=False)
