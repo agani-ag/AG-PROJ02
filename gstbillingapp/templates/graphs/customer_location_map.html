@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    integrity="sha512-xwE/HOIHQ1fFQvCwX3YxkZ7LQiaQw+KkS6v7gY0bM5x0nV6x+V/3zU8V4jH6hwLrZK5bYkG4Zy7i6jB6k8fTgw=="
+    crossorigin=""/>
+
+<h2>Customer Location Map</h2>
+
+<div style="display: flex; gap: 16px;">
+  <div id="map" style="height: 600px; flex: 1;"></div>
+  <div style="width: 320px;">
+    <input id="search" type="text" placeholder="Search customers..." style="width: 100%; padding: 8px; margin-bottom: 8px;">
+    <ul id="customer-list" style="list-style: none; padding: 0; margin: 0; max-height: 560px; overflow: auto; border: 1px solid #ddd;">
+    {% for c in customers %}
+      <li data-lat="{{ c.customer_latitude }}" data-lng="{{ c.customer_longitude }}"
+        style="padding: 8px 10px; border-bottom: 1px solid #eee; cursor: pointer;">
+        {{ c }}
+      </li>
+    {% empty %}
+      <li style="padding: 8px 10px;">No customer locations available.</li>
+    {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+      integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+      crossorigin=""></script>
+
+<script>
+  // Base layers
+  const osmStreets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+    zIndex: 1
+  });
+
+  const esriSat = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+      zIndex: 1
+    }
+  );
+
+  // Label overlay for satellite
+  const esriLabels = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    {
+      maxZoom: 19,
+      attribution: 'Labels &copy; Esri',
+      zIndex: 2
+    }
+  );
+
+  // Init map with Street as default
+  const defaultCenter = [20.5937, 78.9629]; // India
+  const map = L.map('map', { center: defaultCenter, zoom: 5, layers: [esriSat] });
+
+  // Layer switcher
+  const baseLayers = { 'Street (OSM)': osmStreets, 'Satellite (Esri)': esriSat };
+  const overlays = { 'Labels (Esri)': esriLabels };
+  L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: false }).addTo(map);
+
+  // Labels show only with satellite by default
+  map.on('baselayerchange', (e) => {
+    if (e.layer === esriSat) {
+      esriLabels.addTo(map);
+    } else {
+      map.removeLayer(esriLabels);
+    }
+  });
+
+  // Build customers from DOM (avoids template tags inside JS)
+  const list = document.getElementById('customer-list');
+  const customers = Array.from(list.querySelectorAll('li[data-lat][data-lng]'))
+    .map(li => ({
+      lat: parseFloat(li.dataset.lat),
+    lng: parseFloat(li.dataset.lng),
+    label: li.textContent.trim()
+    }))
+    .filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng));
+
+  // Add markers with optional labels (default off)
+  const markersByKey = new Map();
+  const bounds = [];
+  const markers = [];
+
+  let labelsEnabled = !!JSON.parse(localStorage.getItem('labelsEnabled') || 'false');
+  function applyTooltip(marker, label) {
+    if (marker.getTooltip()) marker.unbindTooltip();
+    if (labelsEnabled && label) {
+    marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -10] });
+    }
+  }
+  // UI can dispatch new CustomEvent('labels:toggle', { detail: { enabled: true|false } })
+  document.addEventListener('labels:toggle', (e) => {
+    labelsEnabled = !!(e.detail && e.detail.enabled);
+    localStorage.setItem('labelsEnabled', JSON.stringify(labelsEnabled));
+    markers.forEach(({ marker, label }) => applyTooltip(marker, label));
+  });
+
+  // Add markers (popup always; tooltip only if enabled)
+  customers.forEach((cust) => {
+    const marker = L.marker([cust.lat, cust.lng]).addTo(map)
+    .bindPopup(cust.label || '');
+    applyTooltip(marker, cust.label);
+    markers.push({ marker, label: cust.label });
+    const key = `${cust.lat},${cust.lng},${cust.label}`;
+    markersByKey.set(key, marker);
+    bounds.push([cust.lat, cust.lng]);
+  });
+
+  if (bounds.length) {
+    map.fitBounds(bounds, { padding: [20, 20] });
+  }
+
+  // List click -> focus marker
+  list.addEventListener('click', (e) => {
+    const li = e.target.closest('li[data-lat][data-lng]');
+    if (!li) return;
+    const lat = parseFloat(li.dataset.lat);
+    const lng = parseFloat(li.dataset.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const label = li.textContent.trim();
+    const key = `${lat},${lng},${label}`;
+    const marker = markersByKey.get(key);
+    map.setView([lat, lng], Math.max(map.getZoom(), 13));
+    if (marker) marker.openPopup();
+  });
+
+  // Simple search filter
+  const search = document.getElementById('search');
+  search.addEventListener('input', () => {
+    const q = search.value.toLowerCase();
+    Array.from(list.children).forEach(li => {
+      const text = li.textContent.toLowerCase();
+      li.style.display = text.includes(q) ? '' : 'none';
+    });
+  });
+</script>
+{% endblock %}

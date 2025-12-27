@@ -68,3 +68,18 @@ def sales_dashboard(request):
     }
 
     return render(request, "graphs/sales_dashboard.html", context)
+
+# ================= Maps =========================================
+@login_required
+def customer_location_map(request):
+    customers = Customer.objects.filter(
+        user=request.user,
+        customer_latitude__isnull=False,
+        customer_longitude__isnull=False
+    ).exclude(customer_latitude=None, customer_longitude=None).order_by('customer_name')
+
+    context = {
+        'customers': customers
+    }
+
+    return render(request, "graphs/customer_location_map.html", context)

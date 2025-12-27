@@ -76,7 +76,6 @@ urlpatterns = [
     path('inventory/chart/trend/', inventory.inventory_trend_chart, name='inventory_trend_chart'),
     path('inventory/chart/product/', inventory.inventory_product_chart, name='inventory_product_chart'),
 
-
     # Purchase URLs
     path('purchases_logs', purchases.purchases_logs, name='purchases_logs'),
     path('purchases_logs/add', purchases.purchases_logs_add, name='purchases_logs_add'),
@@ -108,4 +107,5 @@ urlpatterns = [
 
     # Graphs and Analytics URLs
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
+    path('graphs/customer-location-map', graphs.customer_location_map, name='customer_location_map'),
 ]
