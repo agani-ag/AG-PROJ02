@@ -5,59 +5,342 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css"/>
 
-<h2 style="margin-bottom:10px;">Customer Location Map</h2>
-
 <style>
-    .layout { display:flex; gap:16px; }
-    #map { height: 620px; flex:1; border:1px solid #ddd; border-radius:6px; }
-    .panel { width:340px; display:flex; flex-direction:column; }
-    .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
-    .btn { padding:6px 10px; border:1px solid #ccc; border-radius:4px; background:#fff; cursor:pointer; }
-    .btn:disabled { opacity:0.5; cursor:not-allowed; }
-    .field { width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; }
-    .card { border:1px solid #ddd; border-radius:6px; padding:8px; }
-    #customer-list { list-style:none; padding:0; margin:0; height:350px; max-height:460px; overflow-y:auto; overflow-x:hidden; border:1px solid #ddd; border-radius:6px; }
-    #customer-list li { padding:8px 10px; border-bottom:1px solid #eee; cursor:pointer; }
-    #customer-list li:hover { background:#f5f5f5; }
-    #customer-list li.active { background:#e3f2fd; }
-    #distance-summary { margin-top:8px; font-size:12px; color:#555; }
-    .status { font-size:12px; color:#666; margin-top:6px; }
+    /* Remove container padding and make full width */
+    body { margin: 0; padding: 0; overflow: hidden; }
+    .container { padding: 0 !important; max-width: 100% !important; width: 100% !important; margin: 0 !important; }
+    
+    /* Full screen layout */
+    .map-wrapper { 
+        position: fixed; 
+        top: 0;
+        left: 0; 
+        right: 0; 
+        bottom: 0; 
+        display: flex; 
+        background: #1a1a1a;
+        z-index: 1;
+    }
+    
+    /* Map takes full remaining space */
+    #map { 
+        flex: 1; 
+        height: 100%; 
+        z-index: 1;
+    }
+    
+    /* Side panel - collapsible */
+    .side-panel { 
+        width: 380px; 
+        min-width: 380px;
+        height: 100%; 
+        background: white; 
+        box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+        display: flex; 
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 10;
+        transition: all 0.3s ease;
+        transform: translateX(0);
+    }
+    
+    .side-panel.collapsed {
+        min-width: 0;
+        width: 0;
+        transform: translateX(380px);
+    }
+    
+    /* Toggle button for panel */
+    .panel-toggle {
+        position: fixed;
+        right: 390px;
+        top: 10px;
+        background: white;
+        border: 1px solid #ddd;
+        border-right: none;
+        border-radius: 4px 0 0 4px;
+        padding: 10px 8px;
+        cursor: pointer;
+        z-index: 1001;
+        box-shadow: -2px 2px 6px rgba(0,0,0,0.1);
+        transition: right 0.3s ease;
+    }
+    
+    .panel-toggle.panel-collapsed {
+        right: 10px;
+    }
+    
+    /* Header section */
+    .panel-header {
+        padding: 16px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .panel-header h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+    }
+    
+    /* Toolbar section */
+    .toolbar { 
+        padding: 12px 16px;
+        display: flex; 
+        flex-wrap: wrap; 
+        gap: 8px;
+        background: #fafafa;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .btn { 
+        padding: 8px 12px; 
+        border: 1px solid #ddd; 
+        border-radius: 4px; 
+        background: white; 
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.2s;
+        flex: 1;
+        min-width: 90px;
+    }
+    
+    .btn:hover:not(:disabled) { 
+        background: #f0f0f0; 
+        border-color: #999;
+        transform: translateY(-1px);
+    }
+    
+    .btn:active:not(:disabled) {
+        transform: translateY(0);
+    }
+    
+    .btn:disabled { 
+        opacity: 0.5; 
+        cursor: not-allowed; 
+    }
+    
+    .btn-primary {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+    }
+    
+    .btn-primary:hover:not(:disabled) {
+        background: #5568d3;
+        border-color: #5568d3;
+    }
+    
+    /* Search section */
+    .search-section {
+        padding: 12px 16px;
+        background: white;
+    }
+    
+    .field { 
+        width: 100%; 
+        padding: 10px 12px; 
+        border: 2px solid #e0e0e0; 
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color 0.2s;
+    }
+    
+    .field:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+    
+    /* Customer list */
+    .list-section {
+        flex: 1;
+        overflow-y: auto;
+        background: white;
+    }
+    
+    #customer-list { 
+        list-style: none; 
+        padding: 0; 
+        margin: 0;
+    }
+    
+    #customer-list li { 
+        padding: 12px 16px; 
+        border-bottom: 1px solid #f0f0f0; 
+        cursor: pointer;
+        transition: background 0.2s;
+        font-size: 14px;
+    }
+    
+    #customer-list li:hover { 
+        background: #f8f9ff; 
+    }
+    
+    #customer-list li.active { 
+        background: #e3f2fd; 
+        border-left: 3px solid #667eea;
+        font-weight: 500;
+    }
+    
+    /* Routing card */
+    .routing-card { 
+        border-top: 2px solid #e0e0e0; 
+        padding: 16px;
+        background: #fafafa;
+    }
+    
+    .routing-card label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        font-weight: 500;
+        font-size: 14px;
+    }
+    
+    .routing-actions {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    #distance-summary { 
+        padding: 12px;
+        background: white;
+        border-radius: 6px;
+        font-size: 13px;
+        color: #333;
+        line-height: 1.6;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin-bottom: 8px;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    
+    .status { 
+        font-size: 12px; 
+        font-weight: 500;
+        padding: 8px;
+        border-radius: 4px;
+        background: white;
+    }
+    
+    /* Checkbox styling */
+    input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+    
+    /* Leaflet controls positioning */
+    .leaflet-control-container { 
+        z-index: 1000; 
+    }
+    
+    .leaflet-control-layers {
+        margin-right: 10px !important;
+    }
+    
+    /* Scrollbar styling */
+    .list-section::-webkit-scrollbar,
+    #distance-summary::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .list-section::-webkit-scrollbar-track,
+    #distance-summary::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    
+    .list-section::-webkit-scrollbar-thumb,
+    #distance-summary::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+    
+    .list-section::-webkit-scrollbar-thumb:hover,
+    #distance-summary::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .side-panel {
+            width: 100%;
+            max-width: 320px;
+        }
+        
+        .panel-toggle {
+            right: calc(100% - 320px + 10px);
+        }
+        
+        .panel-toggle.panel-collapsed {
+            right: 10px;
+        }
+        
+        .side-panel.collapsed {
+            transform: translateX(100%);
+        }
+        
+        .btn {
+            min-width: 70px;
+            padding: 6px 8px;
+            font-size: 12px;
+        }
+    }
 </style>
 
-<div class="layout">
+<!-- Panel Toggle Button -->
+<button class="panel-toggle" id="panel-toggle" title="Toggle Panel">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6"></polyline>
+    </svg>
+</button>
+
+<div class="map-wrapper">
     <div id="map"
          data-user-lat="{{ user.business_latitude|default_if_none:'' }}"
          data-user-lng="{{ user.business_longitude|default_if_none:'' }}"></div>
 
-    <div class="panel">
+    <div class="side-panel" id="side-panel">
+        <div class="panel-header">
+            <h2>Customer Locations</h2>
+        </div>
+        
         <div class="toolbar">
-            <button id="reset-view" class="btn">Reset view</button>
-            <button id="locate-me" class="btn">Locate me</button>
-            <button onclick="window.history.back()" class="btn">Go Back</button>
-            <label style="display:flex; align-items:center; gap:6px;">
-                <input id="show-labels" type="checkbox"> Show marker labels
+            <button id="reset-view" class="btn" title="Reset map view">Reset View</button>
+            <button id="locate-me" class="btn" title="Find my location">Locate Me</button>
+            <button onclick="window.history.back()" class="btn" title="Go back">Go Back</button>
+        </div>
+        
+        <div class="search-section">
+            <input id="search" type="text" placeholder="🔍 Search customers..." class="field">
+            <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:13px;">
+                <input id="show-labels" type="checkbox"> Show marker labels on map
             </label>
         </div>
 
-        <input id="search" type="text" placeholder="Search customers..." class="field">
-
-        <ul id="customer-list">
+        <div class="list-section">
+            <ul id="customer-list">
         {% for c in customers %}
             <li data-lat="{{ c.customer_latitude }}" data-lng="{{ c.customer_longitude }}">
                 {{ c }}
             </li>
-        {% empty %}
+            {% empty %}
             <li>No customer locations available.</li>
-        {% endfor %}
-        </ul>
+            {% endfor %}
+            </ul>
+        </div>
 
-        <div class="card" style="margin-top:8px;">
-            <label style="display:block; margin-bottom:6px;">
-                <input id="routing-mode" type="checkbox"> Routing mode (click customers to add stops)
+        <div class="routing-card">
+            <label>
+                <input id="routing-mode" type="checkbox"> Routing Mode
             </label>
-            <div style="display:flex; gap:8px; margin-bottom:6px;">
-                <button id="start-at-user" type="button" class="btn">Start at My Location</button>
-                <button id="clear-route" type="button" class="btn">Clear route</button>
+            <div class="routing-actions">
+                <button id="start-at-user" type="button" class="btn btn-primary">Start at My Location</button>
+                <button id="clear-route" type="button" class="btn">Clear Route</button>
             </div>
             <div id="distance-summary"></div>
             <div id="routing-status" class="status"></div>
@@ -610,5 +893,53 @@
     console.log('Customer Location Map initialized');
     console.log('Headquarters:', Number.isFinite(hqLat) && Number.isFinite(hqLng) ? `${hqLat}, ${hqLng}` : 'Not set');
     console.log('Total customers with coordinates:', customers.length);
+    
+    // Panel toggle functionality
+    const panelToggle = document.getElementById('panel-toggle');
+    const sidePanel = document.getElementById('side-panel');
+    let panelCollapsed = false;
+    
+    panelToggle.addEventListener('click', () => {
+        panelCollapsed = !panelCollapsed;
+        if (panelCollapsed) {
+            sidePanel.classList.add('collapsed');
+            panelToggle.classList.add('panel-collapsed');
+            panelToggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+            panelToggle.title = 'Show Panel';
+        } else {
+            sidePanel.classList.remove('collapsed');
+            panelToggle.classList.remove('panel-collapsed');
+            panelToggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+            panelToggle.title = 'Hide Panel';
+        }
+        
+        // Force immediate resize during transition
+        requestAnimationFrame(() => {
+            map.invalidateSize(true);
+        });
+        
+        // Final resize after animation completes
+        setTimeout(() => {
+            map.invalidateSize(true);
+        }, 350);
+    });
+    
+    // Invalidate size on window resize
+    window.addEventListener('resize', () => {
+        map.invalidateSize(true);
+    });
+    
+    // Initial map size fix - multiple attempts for reliability
+    setTimeout(() => {
+        map.invalidateSize(true);
+    }, 100);
+    
+    setTimeout(() => {
+        map.invalidateSize(true);
+        if (bounds.length) {
+            map.fitBounds(bounds, { padding: [20, 20] });
+        }
+    }, 500);
+
 </script>
 {% endblock %}
