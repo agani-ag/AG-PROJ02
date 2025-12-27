@@ -16,7 +16,7 @@
     .btn:disabled { opacity:0.5; cursor:not-allowed; }
     .field { width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; }
     .card { border:1px solid #ddd; border-radius:6px; padding:8px; }
-    #customer-list { list-style:none; padding:0; margin:0; max-height:460px; overflow:auto; border:1px solid #ddd; border-radius:6px; }
+    #customer-list { list-style:none; padding:0; margin:0; height:350px; max-height:460px; overflow-y:auto; overflow-x:hidden; border:1px solid #ddd; border-radius:6px; }
     #customer-list li { padding:8px 10px; border-bottom:1px solid #eee; cursor:pointer; }
     #customer-list li:hover { background:#f5f5f5; }
     #customer-list li.active { background:#e3f2fd; }
@@ -33,6 +33,7 @@
         <div class="toolbar">
             <button id="reset-view" class="btn">Reset view</button>
             <button id="locate-me" class="btn">Locate me</button>
+            <button onclick="window.history.back()" class="btn">Go Back</button>
             <label style="display:flex; align-items:center; gap:6px;">
                 <input id="show-labels" type="checkbox"> Show marker labels
             </label>
@@ -129,7 +130,20 @@
 
     customers.forEach((cust) => {
         const marker = L.marker([cust.lat, cust.lng]).addTo(map).bindPopup(cust.label || '');
-        applyTooltip(marker, cust.label);
+        
+        // Bind tooltip that shows on hover
+        marker.bindTooltip(cust.label, { 
+            permanent: false,  // Show only on hover
+            direction: 'top', 
+            offset: [0, -10],
+            className: 'hover-tooltip'
+        });
+        
+        // Apply permanent labels if enabled
+        if (labelsEnabled) {
+            marker.bindTooltip(cust.label, { permanent: true, direction: 'top', offset: [0, -10] });
+        }
+        
         markers.push({ marker, label: cust.label });
         const key = `${cust.lat},${cust.lng}`;
         markersByLatLng.set(key, marker);
