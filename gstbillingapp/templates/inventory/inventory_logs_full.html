@@ -2,39 +2,54 @@
 {% load static humanize %}
 
 {% block content %}
-<h3>Inventory Dashboard</h3>
+<h3>Inventory Logs Dashboard</h3>
 <hr>
 
 <!-- FILTER BAR -->
-<div class="row mb-3 align-items-end">
+<div class="row mb-4 g-3 align-items-end">
+    <!-- Year -->
     <div class="col-md-2">
-        <label>Year</label>
-        <select id="year_picker" class="form-control">
+        <label class="form-label"><i class="bi bi-calendar-event-fill"></i> Year</label>
+        <select id="year_picker" class="form-control" data-bs-toggle="tooltip" title="Select Year">
+            <option value="">--All--</option>
             {% for y in years %}
                 <option value="{{ y }}">{{ y }}</option>
             {% endfor %}
         </select>
     </div>
 
+    <!-- Month -->
     <div class="col-md-2">
-        <label>Month</label>
-        <input type="month" id="month_picker" class="form-control">
+        <label class="form-label"><i class="bi bi-calendar-month-fill"></i> Month</label>
+        <input type="month" id="month_picker" class="form-control" data-bs-toggle="tooltip" title="Select Month">
     </div>
 
+    <!-- Top N products -->
     <div class="col-md-2">
-        <label>From</label>
-        <input type="date" id="from_date" class="form-control">
+        <label class="form-label"><i class="bi bi-star-fill"></i> Top Products</label>
+        <input type="number" id="top_n" class="form-control" value="5" min="1" max="20" data-bs-toggle="tooltip" title="Top N products">
     </div>
 
+    <!-- From Date -->
     <div class="col-md-2">
-        <label>To</label>
-        <input type="date" id="to_date" class="form-control">
+        <label class="form-label"><i class="bi bi-arrow-down-left-circle"></i> From</label>
+        <input type="date" id="from_date" class="form-control" data-bs-toggle="tooltip" title="Start Date">
     </div>
 
-    <div class="col-md-4">
-        <button class="btn btn-success btn-sm" id="this_month">This Month</button>
-        <button class="btn btn-warning btn-sm" id="filter">Apply</button>
-        <button class="btn btn-secondary btn-sm" id="reset">Reset</button>
+    <!-- To Date -->
+    <div class="col-md-2">
+        <label class="form-label"><i class="bi bi-arrow-up-right-circle"></i> To</label>
+        <input type="date" id="to_date" class="form-control" data-bs-toggle="tooltip" title="End Date">
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="col-md-2 d-flex justify-content-between">
+        <button class="btn btn-success btn-sm" id="this_month" data-bs-toggle="tooltip" title="Current Month">
+            <i class="bi bi-calendar-check-fill"></i>
+        </button>
+        <button class="btn btn-secondary btn-sm" id="reset" data-bs-toggle="tooltip" title="Reset">
+            <i class="bi bi-arrow-counterclockwise"></i>
+        </button>
     </div>
 </div>
 
@@ -43,7 +58,7 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h6 class="text-center">Monthly Trend</h6>
+                <h6 class="text-center">Monthly Trend (In vs Out)</h6>
                 <div id="trend_chart" style="height:350px;"></div>
             </div>
         </div>
@@ -52,7 +67,7 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-body">
-                <h6 class="text-center">Product-wise Distribution</h6>
+                <h6 class="text-center">Top Products (Stock In/Out)</h6>
                 <div id="product_chart" style="height:350px;"></div>
             </div>
         </div>
@@ -72,57 +87,105 @@
     </thead>
     <tbody></tbody>
 </table>
-
 {% endblock %}
 
 {% block includejs %}
 <script src="https://www.gstatic.com/charts/loader.js"></script>
-
 <script>
 google.charts.load('current', {packages:['corechart']});
 
-function setCurrentMonth(){
-    let d = new Date();
-    let f = new Date(d.getFullYear(), d.getMonth(), 1);
-    let l = new Date(d.getFullYear(), d.getMonth()+1, 0);
-    $('#from_date').val(f.toISOString().split('T')[0]);
-    $('#to_date').val(l.toISOString().split('T')[0]);
-    $('#month_picker').val(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+// ----------------- Helper Functions -----------------
+function setDateRange(from, to){
+    $('#from_date').val(from.toISOString().split('T')[0]);
+    $('#to_date').val(to.toISOString().split('T')[0]);
 }
 
-setCurrentMonth();
+function setThisMonth(){
+    let d = new Date();
+    let firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+    let lastDay = new Date(d.getFullYear(), d.getMonth()+1, 0);
+    setDateRange(firstDay, lastDay);
+    $('#month_picker').val(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    $('#year_picker').val(d.getFullYear());
+}
 
+function setThisYear(){
+    let year = new Date().getFullYear();
+    let firstDay = new Date(year, 0, 1);
+    let lastDay = new Date(year, 11, 31);
+    setDateRange(firstDay, lastDay);
+    $('#year_picker').val(year);
+}
+
+// ----------------- Draw Charts -----------------
 function drawCharts(){
+    let year = $('#year_picker').val();
+    let month = $('#month_picker').val();
+    let topN = parseInt($('#top_n').val()) || 5;
+
+    if(month){
+        let parts = month.split('-');
+        let firstDay = new Date(parts[0], parts[1]-1, 1);
+        let lastDay = new Date(parts[0], parts[1], 0);
+        setDateRange(firstDay, lastDay);
+    } else if(year){
+        let firstDay = new Date(year, 0, 1);
+        let lastDay = new Date(year, 11, 31);
+        setDateRange(firstDay, lastDay);
+    }
+
     let params = {
         from_date: $('#from_date').val(),
         to_date: $('#to_date').val(),
-        year: $('#year_picker').val()
+        year: year
     };
 
-    // LINE CHART
+    // -------- Monthly Trend (Stacked Area) --------
     $.get("{% url 'inventory_trend_chart' %}", params, function(res){
         let data = google.visualization.arrayToDataTable(res);
-        let chart = new google.visualization.LineChart(document.getElementById('trend_chart'));
-        chart.draw(data, {height:350, legend:{position:'bottom'}});
+        let options = {
+            height:350,
+            title:'Monthly Stock Trend',
+            legend:{position:'bottom'},
+            isStacked:true,
+            series:{
+                0:{color:'green'},
+                1:{color:'red'}
+            },
+            pointSize:5
+        };
+        let chart = new google.visualization.AreaChart(document.getElementById('trend_chart'));
+        chart.draw(data, options);
     });
 
-    // PIE CHART
+    // -------- Product Pie Chart --------
     $.get("{% url 'inventory_product_chart' %}", params, function(res){
-        let data = google.visualization.arrayToDataTable(res);
+        let products = res.slice(1)
+            .sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]))
+            .slice(0, topN);
+
+        let dataArray = [res[0]];
+        let palette = ['#4caf50','#f44336','#2196f3','#ff9800','#9c27b0','#00bcd4','#ffc107','#e91e63','#3f51b5','#795548'];
+        let colors = [];
+
+        products.forEach((item,i)=>{
+            dataArray.push([item[0], Math.abs(item[1])]);
+            colors.push(palette[i % palette.length]);
+        });
+
+        let data = google.visualization.arrayToDataTable(dataArray);
+        let options = {
+            height:350,
+            is3D:true,
+            title:'Top '+topN+' Products Stock Changes',
+            slices: colors.map(c=>({color:c}))
+        };
         let chart = new google.visualization.PieChart(document.getElementById('product_chart'));
-        chart.draw(data, {height:350, is3D:true});
+        chart.draw(data, options);
     });
 }
 
-google.charts.setOnLoadCallback(drawCharts);
-
-$('#filter,#reset,#this_month').click(function(){
-    setTimeout(function(){
-        table.draw();
-        drawCharts();
-    },300);
-});
-
+// ----------------- DataTable -----------------
 let table = $('#inventory-logs-table').DataTable({
     processing:true,
     serverSide:true,
@@ -130,10 +193,32 @@ let table = $('#inventory-logs-table').DataTable({
     ajax:{
         url:"{% url 'inventory_logs_ajax' %}",
         data:function(d){
-            d.from_date=$('#from_date').val();
-            d.to_date=$('#to_date').val();
+            d.from_date = $('#from_date').val();
+            d.to_date = $('#to_date').val();
         }
     }
+});
+
+// ----------------- Event Listeners -----------------
+$('#year_picker, #month_picker, #top_n').change(function(){
+    table.draw();
+    drawCharts();
+});
+
+// Quick buttons
+$('#this_month').click(function(){ setThisMonth(); table.draw(); drawCharts(); });
+$('#reset').click(function(){ setThisMonth(); table.draw(); drawCharts(); });
+
+// ----------------- Initial Load -----------------
+google.charts.setOnLoadCallback(function(){
+    setThisMonth();
+    drawCharts();
+});
+
+// Initialize Bootstrap tooltips
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+  return new bootstrap.Tooltip(tooltipTriggerEl);
 });
 </script>
 {% endblock %}
