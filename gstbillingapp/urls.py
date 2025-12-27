@@ -29,6 +29,7 @@ urlpatterns = [
     path('invoices/new', invoices.invoice_create, name='invoice_create'),
     path('invoice/<int:invoice_id>', invoices.invoice_viewer, name='invoice_viewer'),
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),
+    path('api/customer-invoice-filter/', invoices.customerInvoiceFilter, name='customer_invoice_filter'),
 
     # Customer URLs
     path('customers', customers.customers, name='customers'),
@@ -46,8 +47,13 @@ urlpatterns = [
     path('books/<int:book_id>', books.book_logs, name='book_logs'),
     path('books/<int:book_id>/addupdate', books.book_logs_add, name='book_logs_add'),
     path('book/del/<int:booklog_id>', books.book_logs_del, name='book_logs_del'),
+    # Full Book Logs View
+    path('books/full', books.book_logs_full, name='book_logs_full'),
+    path('books/fulladdupdate', books.book_logs_full_add, name='book_logs_full_add'),
     # API Endpoints
     path('books/api/add', books.book_logs_api_add, name='book_logs_api_add'),
+    path('books/api/active', books.book_logs_api_active, name='book_logs_api_active'),
+    path('customer/book/filter/', books.customerBookFilter, name='customer_book_filter'),
 
     # Product URLs
     path('products', products.products, name='products'),
@@ -63,20 +69,25 @@ urlpatterns = [
     path('inventory/<int:inventory_id>', inventory.inventory_logs, name='inventory_logs'),
     path('inventory/<int:inventory_id>/addupdate', inventory.inventory_logs_add, name='inventory_logs_add'),
     path('inventory/del/<int:inventorylog_id>', inventory.inventory_logs_del, name='inventory_logs_del'),
+    path('inventory/logs', inventory.inventory_logs_full, name='inventory_logs_full'),
     # API Endpoints
     path('inventory/api/stock/add', inventory.inventory_api_stock_add, name='inventory_api_stock_add'),
+    path('inventory/logs/ajax/', inventory.inventory_logs_ajax, name='inventory_logs_ajax'),
+    path('inventory/chart/trend/', inventory.inventory_trend_chart, name='inventory_trend_chart'),
+    path('inventory/chart/product/', inventory.inventory_product_chart, name='inventory_product_chart'),
 
     # Purchase URLs
-    path('purchases', purchases.purchases, name='purchases'),
-    path('purchases/add', purchases.purchases_add, name='purchases_add'),
-    path('purchases/edit/<int:pid>', purchases.purchases_edit, name='purchases_edit'),
-    path('purchases/delete/<int:pid>', purchases.purchases_delete, name='purchases_delete'),
+    path('purchases_logs', purchases.purchases_logs, name='purchases_logs'),
+    path('purchases_logs/add', purchases.purchases_logs_add, name='purchases_logs_add'),
+    path('purchases_logs/delete/<int:pid>', purchases.purchases_logs_delete, name='purchases_logs_delete'),
 
     # Vendor Purchase URLs
     path('purchases/vendors', vendor_purchase.vendors_purchase, name='vendors_purchase'),
     path('purchases/vendor/add', vendor_purchase.vendor_purchase_add, name='vendor_purchase_add'),
     path('purchases/vendor/edit/<int:vendor_purchase_id>', vendor_purchase.vendor_purchase_edit, name='vendor_purchase_edit'),
     path('purchases/vendor/delete', vendor_purchase.vendor_purchase_delete, name='vendor_purchase_delete'),
+    # API Endpoints
+    path('purchases/vendor/filter/', vendor_purchase.vendorPurchaseFilter, name='vendor_purchase_filter'),
     
     # Expense Tracker URLs
     path('expensetracker', expense_tracker.expense_tracker, name='expense_tracker'),
@@ -96,4 +107,5 @@ urlpatterns = [
 
     # Graphs and Analytics URLs
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
+    path('graphs/customer-location-map', graphs.customer_location_map, name='customer_location_map'),
 ]

@@ -2,7 +2,7 @@
 from gstbilling import settings
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum, F, FloatField, Min, Max
+from django.db.models import Sum, Case, When, FloatField, F
 from django.db.models.functions import ExtractMonth, ExtractYear
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.hashers import make_password, check_password
@@ -29,7 +29,7 @@ def sales_dashboard(request):
         years = [datetime.now().year]
 
     # Selected financial year
-    selected_year = int(request.GET.get('year', years[-1]))
+    selected_year = int(request.GET.get('year', max(years)))
 
     chart_data = []
 
@@ -39,31 +39,26 @@ def sales_dashboard(request):
         year = selected_year if month >= 4 else selected_year + 1
 
         month_logs = BookLog.objects.filter(
+            parent_book__isnull=False,
             parent_book__user=request.user,
             date__year=year,
-            date__month=month
+            date__month=month,
+            is_active=True
         )
 
-        # Sales: positive change
-        sales = month_logs.filter(change__gt=0).aggregate(total=Sum('change'))['total'] or 0
-
-        # Received: negative change
-        received_total = month_logs.filter(change__lt=0).aggregate(total=Sum('change'))['total'] or 0
-        received = -received_total  # convert to positive
-
-        # Expenses (placeholder)
-        expenses = 0
-
-        # Profit = Sales − Received
-        # profit = sales - received
-        profit = received - sales
+        totals = month_logs.aggregate(
+            total_purchased=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+            total_paid=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+            total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+            total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+        )
 
         chart_data.append({
             'month': f'{month:02d}-{year}',
-            'sales': sales,
-            'received': received,
-            'expenses': expenses,
-            'profit': profit
+            'sales': abs(totals['total_purchased'] or 0),
+            'received': abs(totals['total_paid'] or 0),
+            'returned': abs(totals['total_returned'] or 0),
+            'others': abs(totals['total_others'] or 0),
         })
 
     context = {
@@ -73,3 +68,23 @@ def sales_dashboard(request):
     }
 
     return render(request, "graphs/sales_dashboard.html", context)
+
+# ================= Maps =========================================
+@login_required
+def customer_location_map(request):
+    customers = Customer.objects.filter(
+        user=request.user,
+        customer_latitude__isnull=False,
+        customer_longitude__isnull=False
+    ).exclude(customer_latitude=None, customer_longitude=None).order_by('customer_name')
+    user_profile = UserProfile.objects.get(
+        user=request.user,
+        business_latitude__isnull=False,
+        business_longitude__isnull=False
+        )
+    context = {
+        'customers': customers,
+        'user': user_profile,
+        'user_profile': user_profile
+    }
+    return render(request, "graphs/customer_location_map.html", context)

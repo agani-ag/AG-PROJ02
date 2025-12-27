@@ -1,6 +1,9 @@
 # Django imports
 from django.db.models import Sum
+from django.db.models import Sum, Q
+from django.core.cache import cache
 from django.http import JsonResponse
+from django.db.models.functions import TruncMonth
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -19,7 +22,7 @@ from gstbillingapp.utils import add_stock_to_inventory
 
 # Python imports
 import json
-
+from datetime import date, datetime
 
 # ================= Inventory Views ===========================
 @login_required
@@ -39,6 +42,13 @@ def inventory_logs(request, inventory_id):
     context['nav_hide'] = request.GET.get('nav') or ''
     return render(request, 'inventory/inventory_logs.html', context)
 
+@login_required
+def inventory_logs_full(request):
+    context = {}
+    inventory_logs = InventoryLog.objects.filter(user=request.user).order_by('-id')
+    context['inventory_logs'] = inventory_logs
+    context['years'] = list(range(2020, datetime.now().year + 1))
+    return render(request, 'inventory/inventory_logs_full.html', context)
 
 @login_required
 def inventory_logs_add(request, inventory_id):
@@ -124,3 +134,107 @@ def inventory_api_stock_add(request):
                     not_inserted_count += 1
         return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products Stock added successfully.\n{not_inserted_count} Products Stock not added.\nQuantity Added: {increased_quantity}\nQuantity Removed: {decreased_quantity}'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add products stock.'})
+
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.db.models import Sum
+from django.db.models.functions import TruncMonth
+from django.core.cache import cache
+from datetime import date
+
+@login_required
+def inventory_logs_ajax(request):
+    start = int(request.GET.get('start',0))
+    length = int(request.GET.get('length',25))
+    from_date = request.GET.get('from_date')
+    to_date = request.GET.get('to_date')
+
+    qs = InventoryLog.objects.filter(user=request.user)
+
+    if from_date and to_date:
+        qs = qs.filter(date__date__range=[from_date,to_date])
+
+    total = qs.count()
+    qs = qs.order_by('-date')[start:start+length]
+
+    data = [[
+        o.date.strftime('%b %d %Y'),
+        o.get_change_type_display(),
+        o.change,
+        o.description,
+        str(o.product)
+    ] for o in qs]
+
+    return JsonResponse({
+        'recordsTotal': total,
+        'recordsFiltered': total,
+        'data': data,
+        'draw': int(request.GET.get('draw',1))
+    })
+
+@login_required
+def inventory_trend_chart(request):
+    year = request.GET.get('year')
+    if not year:
+        year = date.today().year
+    else:
+        try:
+            year = int(year)
+        except ValueError:
+            year = date.today().year
+
+    cache_key = f"trend_{request.user.id}_{year}"
+    cached = cache.get(cache_key)
+    if cached:
+        return JsonResponse(cached, safe=False)
+
+    # Filter logs by year
+    qs = InventoryLog.objects.filter(
+        user=request.user,
+        date__year=year
+    ).annotate(month=TruncMonth('date'))
+
+    # Aggregate stock_in and stock_out separately
+    monthly_data = qs.values('month').annotate(
+        stock_in=Sum('change', filter=Q(change__gt=0)),   # positive changes
+        stock_out=Sum('change', filter=Q(change__lt=0))   # negative changes
+    ).order_by('month')
+
+    # Prepare chart data for Google Charts
+    data = [['Month', 'Stock In', 'Stock Out']]
+    for q in monthly_data:
+        month_label = q['month'].strftime('%b')
+        stock_in = float(q['stock_in'] or 0)
+        stock_out = abs(float(q['stock_out'] or 0))  # convert negative to positive for chart
+        data.append([month_label, stock_in, stock_out])
+
+    cache.set(cache_key, data, 600)  # cache 10 minutes
+    return JsonResponse(data, safe=False)
+
+
+@login_required
+def inventory_product_chart(request):
+    from_date = request.GET.get('from_date')
+    to_date = request.GET.get('to_date')
+
+    qs = InventoryLog.objects.filter(user=request.user)
+    if from_date and to_date:
+        qs = qs.filter(date__date__range=[from_date, to_date])
+
+    # Sum stock change per product
+    qs = qs.values('product__product_name').annotate(
+        total_in=Sum('change', filter=Q(change_type__in=[1,2,3])),   # Stock In
+        total_out=Sum('change', filter=Q(change_type=4))              # Stock Out
+    )
+
+    # Compute net change for chart
+    chart_data = [['Product', 'Net Change']]
+    for q in qs:
+        product = q['product__product_name'] or 'Unknown'
+        net = float((q['total_in'] or 0) - (q['total_out'] or 0))
+        chart_data.append([product, net])
+
+    # Sort by absolute change and take top 10
+    chart_data = [chart_data[0]] + sorted(chart_data[1:], key=lambda x: abs(x[1]), reverse=True)[:10]
+
+    return JsonResponse(chart_data, safe=False)

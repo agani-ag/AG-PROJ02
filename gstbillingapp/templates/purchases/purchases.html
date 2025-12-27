@@ -1,39 +1,16 @@
 {% extends "base.html" %}
-
+{% load tz %}
 {% load static %}
 {% load humanize %}
 {% block content %}
 
-	{% if messages %}
-		{% for message in messages %}
-			<div class="alert {% if message.tags == 'success' %} alert-success
-			{% elif message.tags == 'error' %} alert-danger {% else %} alert-primary {% endif %}" style="margin-bottom: 0%;">
-			<p>{{ message }}</p></div>
-		{% endfor %}
-	{% endif %}
-
-	<h2>Purchases</h2>
-	<hr>
-		<div class="row">
-			<div class="col">
-				<h3>
-					Purchased: 
-						<span class="font-weight-bold text-danger">₹ {{ total_p | default:0 | intcomma }}</span>
-				</h3>
-				<h3>
-					Paid: 
-						<span class="font-weight-bold text-success">₹ {{ total_pp | default:0 | intcomma }}</span>
-				</h3>
-				<h3>
-					Balance: 
-						<mark class="text-dark" style="background-color: rgba(255, 255, 0, 0.350); padding: 0.1em 0.4em; border-radius: 0.2em;">
-							<span class="font-weight-bold">₹ {{ total_pb | default:0 | intcomma }}</span>
-						</mark>
-				</h3>
+	<div>
+		<div class="row mb-3">
+			<div class="col-md-6">
+				<h2>Purchases Logs</h2>
 			</div>
-
-			<div class="col text-right" style="padding-top: 0.5%;">
-				<a href="{% url 'purchases_add' %}" class="btn btn-primary btn-sm btn-curve">
+			<div class="col-md-6 text-right" style="margin-top: auto;">
+				<a href="{% url 'purchases_logs_add' %}" class="btn btn-primary btn-sm btn-curve">
 					<i class="fas fa-plus"></i>
 				</a>
 				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve">
@@ -41,34 +18,99 @@
 				</a>
 			</div>
 		</div>
+		
+		<!-- Summary Cards -->
+		<div class="row mb-3 p-0">
+			<div class="col-md-3">
+				<div class="card bg-danger text-white">
+					<div class="card-body">
+						<h6 class="card-title"><i class="fas fa-receipt"></i> Total Purchased</h6>
+						<h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
+					</div>
+				</div>
+			</div>
+			<div class="col-md-3">
+				<div class="card bg-success text-white">
+					<div class="card-body">
+						<h6 class="card-title"><i class="fas fa-check-circle"></i> Total Paid</h6>
+						<h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
+					</div>
+				</div>
+			</div>
+			<div class="col-md-3">
+				<div class="card bg-violet text-white">
+					<div class="card-body">
+						<h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
+						<h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
+					</div>
+				</div>
+			</div>
+			<div class="col-md-3">
+				<div class="card bg-orange text-white">
+					<div class="card-body">
+						<h6 class="card-title"><i class="fas fa-exclamation-triangle"></i> Balance Due</h6>
+						<h3>₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</h3>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
 
-		<table class="table table-hover font-weight-bold" id="purchase-table">
+	<table class="table table-hover font-weight-bold" id="purchase-table">
 		<thead class="thead-dark">
 			<tr>
 				<th>Date</th>
 				<th>Type</th>
 				<th>Amount</th>
-				<th>Status</th>
+				<th>Reference</th>
+				<th>Vendor</th>
 				<th>Actions</th>
 			</tr>
 		</thead>
 		<tbody class="two-col-form">
 			{% for purchase in purchases %}
-			<tr class="{% if purchase.amount > 0 %} table-success {% else %} table-danger {% endif %}">
- 				<td>{{purchase.date}}</td>
-				<td>{{purchase.get_ptype_display }}</td>
-				<td>{% if purchase.amount %}₹ {{purchase.amount}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-				<td>{{purchase.get_status_display}}</td>
+			<!-- <tr class="{% if purchase.change > 0 %} table-success {% else %} table-danger {% endif %}"> -->
+				{% if purchase.change_type == 1 %}
+					<tr class="table-success">
+				{% elif purchase.change_type == 0 %}
+					<tr class="table-danger">
+				{% else %}
+					<tr class="table-info">
+				{% endif %}
+
+				<td>
+					{{ purchase.date|localtime|date:"M d, Y h:i A" }}
+					<br>
+					<small class="text-muted">{{ purchase.date|naturaltime }}</small>
+				</td>
+				<td>{{purchase.get_change_type_display }}</td>
+				<td>{% if purchase.change %}₹ {{purchase.change}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+				<td>
+					{% if purchase.reference %}
+						{{purchase.reference}}
+					{% else %}
+						<span class="text-danger">N/A</span>
+					{% endif %}
+					{% if purchase.change != 0 %}
+						<br><span class="text-muted">{{ purchase.category }}</span>
+					{% endif %}
+				</td>
+				<td>
+					{% if purchase.vendor %}
+						{{ purchase.vendor.vendor_name }}
+					{% else %}
+						<span class="text-danger">N/A</span>
+					{% endif %}
+				</td>
 				<td>
 					<div class="btn-group" role="group" aria-label="Basic example">
-						<a href="{% url 'purchases_edit' purchase.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
-						<a href="{% url 'purchases_delete' purchase.id %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-trash"></i></a>
+						<a href="{% url 'purchases_logs_delete' purchase.id %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-trash"></i></a>
 					</div>
 				</td>
 			</tr>
 			{% endfor %}
 		</tbody>
-		</table>
+	</table>
 {% endblock %}
 
 
@@ -78,7 +120,7 @@
 		$('#purchase-table').DataTable({
 			"order": [],
 			"columnDefs": [ {
-				"targets": 3,
+				"targets": 5,
 				"sortable": false,
 				"searchable": false
 			} ],

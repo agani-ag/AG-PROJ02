@@ -1,9 +1,9 @@
 # Django imports
-from django.db.models import Sum
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Sum, Case, When, FloatField, F
 
 # Models
 from ..models import (
@@ -12,7 +12,7 @@ from ..models import (
 )
 
 # Forms
-from ..forms import BookLogForm
+from ..forms import BookLogForm, BookLogFullForm
 
 # Utility functions
 from ..utils import (
@@ -22,6 +22,7 @@ from ..utils import (
 # Python imports
 import json
 import datetime
+import num2words
 
 # ===================== Book views =============================
 @login_required
@@ -74,6 +75,7 @@ def book_logs_add(request, book_id):
         book.current_balance = book.current_balance + book_log.change
         book.last_log = book_log
         book.save()
+        recalculate_book_current_balance(book)
         return redirect('book_logs', book.id)
 
     return render(request, 'books/book_logs_add.html', context)
@@ -83,8 +85,8 @@ def book_logs_del(request, booklog_id):
     bklg = get_object_or_404(BookLog, id=booklog_id)
     book = get_object_or_404(Book, id=bklg.parent_book.id, user=request.user)
     bklg.delete()
-    new_total = BookLog.objects.filter(parent_book=book).aggregate(Sum('change'))['change__sum']
-    new_last_log = BookLog.objects.filter(parent_book=book).last()
+    new_total = BookLog.objects.filter(parent_book=book, is_active=True).aggregate(Sum('change'))['change__sum']
+    new_last_log = BookLog.objects.filter(parent_book=book, is_active=True).last()
     if not new_total:
         new_total = 0
     book.current_balance = new_total
@@ -92,6 +94,50 @@ def book_logs_del(request, booklog_id):
     book.save()
     return redirect('book_logs', book.id)
 
+# ================= Full Books Views ===========================
+@login_required
+def book_logs_full(request):
+    context = {}
+    book_logs = BookLog.objects.filter(parent_book__isnull=False,parent_book__user=request.user).order_by('-date')
+    # Aggregate totals by change_type in a single query
+    totals = book_logs.aggregate(
+        total_purchased=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_paid=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+        total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+    )
+
+    # Fill in context with totals, using 0 if None
+    context['book_logs'] = book_logs
+    total_purchased = totals['total_purchased'] or 0
+    total_paid = totals['total_paid'] or 0
+    total_returned = totals['total_returned'] or 0
+    total_others = totals['total_others'] or 0
+    total_balance = total_purchased - (abs(total_paid) + abs(total_returned) + abs(total_others))
+    # Calculate balance (absolute value if you want it always positive)
+    context['total_balance'] = total_balance
+    context['total_balance_word'] = num2words.num2words(abs(int(context['total_balance'])), lang='en_IN').title()
+    context['total_purchased'] = abs(total_purchased)
+    context['total_paid'] = abs(total_paid)
+    context['total_returned'] = abs(total_returned)
+    context['total_others'] = abs(total_others)
+    
+    return render(request, 'books/book_logs_full.html', context)
+
+@login_required
+def book_logs_full_add(request):
+    context = {}
+    context['form'] = BookLogFullForm(user=request.user)
+
+    if request.method == "POST":
+        book_log_form = BookLogFullForm(request.POST, user=request.user)
+        if book_log_form.is_valid():
+            book_log = book_log_form.save(commit=False)
+            book = book_log.parent_book
+            book_log.save()
+            recalculate_book_current_balance(book)
+            return redirect('book_logs_full')
+    return render(request, 'books/book_logs_full_add.html', context)
 
 # ================= Books API Views ===========================
 @csrf_exempt
@@ -162,3 +208,32 @@ def book_logs_api_add(request):
         recalculate_book_current_balance(parent_book)
         return JsonResponse({'status': 'success', 'message': f'{customer.customer_name}\n{inserted_count} Book logs added successfully.\n{not_inserted_count} Book logs not added.\nCredits: {credits}, Debits: {debits}.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add book logs.'})
+
+@csrf_exempt
+def book_logs_api_active(request):
+    booklog_id = request.GET.get('booklog', None)
+    change = request.GET.get('change', None)
+    booklog = get_object_or_404(BookLog, id=booklog_id)
+    booklog.is_active = True
+    booklog.save()
+    recalculate_book_current_balance(booklog.parent_book)
+    return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog_id} marked as active. Change: ₹{change} Updated.'})
+
+@login_required
+def customerBookFilter(request):
+    books = Book.objects.filter(
+        customer__isnull=False,
+        customer__user=request.user
+    ).select_related('customer').order_by('customer__customer_name')
+
+    data = []
+    for book in books:
+        data.append({
+            "id": book.id,
+            "name": book.customer.customer_name,
+            "address": book.customer.customer_address,
+            "phone": book.customer.customer_phone,
+            "gstin": book.customer.customer_gst
+        })
+
+    return JsonResponse(data, safe=False)

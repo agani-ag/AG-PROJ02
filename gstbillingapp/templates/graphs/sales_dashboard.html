@@ -24,9 +24,9 @@ google.charts.setOnLoadCallback(drawChart);
 
 function drawChart() {
     var data = google.visualization.arrayToDataTable([
-        ['Month', 'Sales', 'Received', 'Expenses', 'Profit'],
+        ['Month', 'Sales', 'Received', 'Returned', 'Others'],
         {% for row in chart_data %}
-            ['{{ row.month }}', {{ row.sales }}, {{ row.received }}, {{ row.expenses }}, {{ row.profit }}],
+            ['{{ row.month }}', {{ row.sales }}, {{ row.received }}, {{ row.returned }}, {{ row.others }}],
         {% endfor %}
     ]);
 
