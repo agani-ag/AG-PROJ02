@@ -97,8 +97,7 @@ class Customer(models.Model):
 
 class Invoice(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
-    # invoice_number = models.IntegerField()
-    invoice_number = models.IntegerField(null=True, blank=True, default=None)
+    invoice_number = models.IntegerField()
     invoice_date = models.DateField()
     invoice_customer = models.ForeignKey(
         'Customer',
@@ -152,6 +151,7 @@ class InventoryLog(models.Model):
         (0, 'Other'),
         (1, 'Purchase'),
         (2, 'Production'),
+        (3, 'Return'),
         (4, 'Sales'),
     ]
     change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)

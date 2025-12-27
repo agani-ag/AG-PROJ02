@@ -69,8 +69,13 @@ urlpatterns = [
     path('inventory/<int:inventory_id>', inventory.inventory_logs, name='inventory_logs'),
     path('inventory/<int:inventory_id>/addupdate', inventory.inventory_logs_add, name='inventory_logs_add'),
     path('inventory/del/<int:inventorylog_id>', inventory.inventory_logs_del, name='inventory_logs_del'),
+    path('inventory/logs', inventory.inventory_logs_full, name='inventory_logs_full'),
     # API Endpoints
     path('inventory/api/stock/add', inventory.inventory_api_stock_add, name='inventory_api_stock_add'),
+    path('inventory/logs/ajax/', inventory.inventory_logs_ajax, name='inventory_logs_ajax'),
+    path('inventory/chart/trend/', inventory.inventory_trend_chart, name='inventory_trend_chart'),
+    path('inventory/chart/product/', inventory.inventory_product_chart, name='inventory_product_chart'),
+
 
     # Purchase URLs
     path('purchases_logs', purchases.purchases_logs, name='purchases_logs'),

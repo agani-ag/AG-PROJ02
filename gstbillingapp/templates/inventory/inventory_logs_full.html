@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static humanize %}
+
+{% block content %}
+<h3>Inventory Dashboard</h3>
+<hr>
+
+<!-- FILTER BAR -->
+<div class="row mb-3 align-items-end">
+    <div class="col-md-2">
+        <label>Year</label>
+        <select id="year_picker" class="form-control">
+            {% for y in years %}
+                <option value="{{ y }}">{{ y }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="col-md-2">
+        <label>Month</label>
+        <input type="month" id="month_picker" class="form-control">
+    </div>
+
+    <div class="col-md-2">
+        <label>From</label>
+        <input type="date" id="from_date" class="form-control">
+    </div>
+
+    <div class="col-md-2">
+        <label>To</label>
+        <input type="date" id="to_date" class="form-control">
+    </div>
+
+    <div class="col-md-4">
+        <button class="btn btn-success btn-sm" id="this_month">This Month</button>
+        <button class="btn btn-warning btn-sm" id="filter">Apply</button>
+        <button class="btn btn-secondary btn-sm" id="reset">Reset</button>
+    </div>
+</div>
+
+<!-- CHARTS -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-center">Monthly Trend</h6>
+                <div id="trend_chart" style="height:350px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-center">Product-wise Distribution</h6>
+                <div id="product_chart" style="height:350px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TABLE -->
+<table id="inventory-logs-table" class="table table-hover font-weight-bold">
+    <thead class="thead-dark">
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Change</th>
+            <th>Description</th>
+            <th>Product</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+{% endblock %}
+
+{% block includejs %}
+<script src="https://www.gstatic.com/charts/loader.js"></script>
+
+<script>
+google.charts.load('current', {packages:['corechart']});
+
+function setCurrentMonth(){
+    let d = new Date();
+    let f = new Date(d.getFullYear(), d.getMonth(), 1);
+    let l = new Date(d.getFullYear(), d.getMonth()+1, 0);
+    $('#from_date').val(f.toISOString().split('T')[0]);
+    $('#to_date').val(l.toISOString().split('T')[0]);
+    $('#month_picker').val(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+}
+
+setCurrentMonth();
+
+function drawCharts(){
+    let params = {
+        from_date: $('#from_date').val(),
+        to_date: $('#to_date').val(),
+        year: $('#year_picker').val()
+    };
+
+    // LINE CHART
+    $.get("{% url 'inventory_trend_chart' %}", params, function(res){
+        let data = google.visualization.arrayToDataTable(res);
+        let chart = new google.visualization.LineChart(document.getElementById('trend_chart'));
+        chart.draw(data, {height:350, legend:{position:'bottom'}});
+    });
+
+    // PIE CHART
+    $.get("{% url 'inventory_product_chart' %}", params, function(res){
+        let data = google.visualization.arrayToDataTable(res);
+        let chart = new google.visualization.PieChart(document.getElementById('product_chart'));
+        chart.draw(data, {height:350, is3D:true});
+    });
+}
+
+google.charts.setOnLoadCallback(drawCharts);
+
+$('#filter,#reset,#this_month').click(function(){
+    setTimeout(function(){
+        table.draw();
+        drawCharts();
+    },300);
+});
+
+let table = $('#inventory-logs-table').DataTable({
+    processing:true,
+    serverSide:true,
+    pageLength:25,
+    ajax:{
+        url:"{% url 'inventory_logs_ajax' %}",
+        data:function(d){
+            d.from_date=$('#from_date').val();
+            d.to_date=$('#to_date').val();
+        }
+    }
+});
+</script>
+{% endblock %}
