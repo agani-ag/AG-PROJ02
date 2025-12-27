@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<h2>Update Book Logs</h2>
+
+<form method="POST">
+    {% csrf_token %}
+
+    <table class="table">
+        <tbody class="two-col-form">
+
+        <!-- DATE -->
+        <tr>
+            <th scope="row" class="text-right">Date & Time:</th>
+            <td class="form-input-td">
+                <input type="datetime-local" value="{% now "Y-m-d H:i:s" %}" name="date">
+            </td>
+        </tr>
+
+        <!-- CUSTOMER -->
+        <tr>
+            <th class="text-right">Customer:</th>
+            <td class="d-flex gap-2">
+                <div style="display:none">{{ form.parent_book }}</div>
+                <input type="text" id="customerDisplay" placeholder="Select Customer" readonly>
+                <button type="button" id="changeCustomerBtn" class="btn btn-primary">
+                    <i class="fa fa-search"></i>
+                </button>
+            </td>
+        </tr>
+
+        <!-- INVOICE -->
+        <tr>
+            <th class="text-right">Invoice Number:</th>
+            <td class="d-flex gap-2">
+                <!-- Hidden field for storing the selected invoice ID -->
+                <input type="hidden" name="associated_invoice" id="invoiceHidden" value="{{ form.associated_invoice.value }}">
+                <input type="text" id="invoiceDisplay" placeholder="Select Invoice" readonly>
+                <button type="button" id="changeInvoiceBtn" class="btn btn-primary">
+                    <i class="fa fa-search"></i>
+                </button>
+            </td>
+        </tr>
+
+        <!-- AMOUNT -->
+        <tr>
+            <th class="text-right">Amount:</th>
+            <td>{{ form.change }}</td>
+        </tr>
+
+        <!-- MODE -->
+        <tr>
+            <th class="text-right">Mode:</th>
+            <td>{{ form.change_type }}</td>
+        </tr>
+
+        <!-- DESCRIPTION -->
+        <tr>
+            <th class="text-right">Description:</th>
+            <td>{{ form.description }}</td>
+        </tr>
+
+        </tbody>
+    </table>
+
+    <div class="d-flex justify-content-end gap-2">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i>
+        </button>
+    </div>
+</form>
+{% endblock %}
+
+{% block includejs %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+// ================= CUSTOMER POPUP =================
+function openCustomerPopup() {
+    $.ajax({
+        url: "{% url 'customer_book_filter' %}",
+        success: function(customers) {
+            let html = `
+                <input type="text" id="customerSearch" class="form-control mb-2" placeholder="Search customer...">
+                <table class="table table-bordered" id="customerTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Address</th>
+                            <th>Phone</th>
+                            <th>GSTIN</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            customers.forEach(c => {
+                html += `
+                    <tr class="customerRow" style="cursor:pointer"
+                        data-id="${c.id}"
+                        data-name="${c.name}">
+                        <td>${c.name}</td>
+                        <td>${c.address || '-'}</td>
+                        <td>${c.phone || '-'}</td>
+                        <td>${c.gstin || '-'}</td>
+                    </tr>
+                `;
+            });
+            html += `</tbody></table>`;
+
+            Swal.fire({
+                title: "Select Customer",
+                html: html,
+                width: "1000px",
+                showCancelButton: true,
+                didOpen: () => {
+                    // Search filter
+                    $('#customerSearch').on('keyup', function() {
+                        let val = $(this).val().toLowerCase();
+                        $('#customerTable tbody tr').filter(function() {
+                            $(this).toggle($(this).text().toLowerCase().indexOf(val) > -1);
+                        });
+                    });
+                    // Row click select
+                    $('.customerRow').on('click', function() {
+                        let id = $(this).data('id');
+                        let name = $(this).data('name');
+
+                        $('select[name="parent_book"]').val(id);
+                        $('#customerDisplay').val(name);
+
+                        // Clear invoice when customer changes
+                        $('#invoiceHidden').val('');
+                        $('#invoiceDisplay').val('');
+
+                        Swal.close();
+                    });
+                }
+            });
+        }
+    });
+}
+
+// ================= INVOICE POPUP =================
+function openInvoicePopup(customerId) {
+    if (!customerId) {
+        Swal.fire("Please select customer first");
+        return;
+    }
+
+    $.ajax({
+        url: "{% url 'customer_invoice_filter' %}",
+        data: { customer: customerId },
+        success: function(invoices) {
+            if (invoices.length === 0) {
+                Swal.fire("No invoices found");
+                return;
+            }
+
+            let html = `
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Invoice No</th>
+                            <th>Date</th>
+                            <th>GST</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            invoices.forEach(inv => {
+                html += `
+                    <tr class="invoiceRow" style="cursor:pointer"
+                        data-id="${inv.id}"
+                        data-invoice_number="${inv.invoice_number}">
+                        <td>${inv.invoice_number}</td>
+                        <td>${inv.invoice_date}</td>
+                        <td>${inv.non_gst ? "Non-GST" : "GST"}</td>
+                    </tr>
+                `;
+            });
+            html += `</tbody></table>`;
+
+            Swal.fire({
+                title: "Select Invoice",
+                html: html,
+                width: "900px",
+                showCancelButton: true,
+                didOpen: () => {
+                    $('.invoiceRow').on('click', function() {
+                        let id = $(this).data('id');
+                        let invoice_number = $(this).data('invoice_number');
+
+                        // Set hidden input for form submission
+                        $('#invoiceHidden').val(id);
+
+                        // Set display field
+                        $('#invoiceDisplay').val(invoice_number);
+
+                        Swal.close();
+                    });
+                }
+            });
+        }
+    });
+}
+
+// ================= EVENTS =================
+$(document).ready(function() {
+    $('#changeCustomerBtn').on('click', openCustomerPopup);
+    $('#changeInvoiceBtn').on('click', function() {
+        openInvoicePopup($('select[name="parent_book"]').val());
+    });
+
+    // Autofill on edit
+    let cust = $('select[name="parent_book"] option:selected');
+    if (cust.val()) $('#customerDisplay').val(cust.text());
+
+    let invHidden = $('#invoiceHidden');
+    if (invHidden.val()) $('#invoiceDisplay').val(invHidden.val());
+});
+</script>
+{% endblock %}

@@ -1,8 +1,9 @@
 from django.forms import ModelForm
 from .models import (
     Customer, Product, UserProfile,
-    InventoryLog, BookLog, VendorPurchase,
-    ExpenseTracker, BankDetails
+    InventoryLog, Book, BookLog,
+    ExpenseTracker, BankDetails, VendorPurchase,
+    PurchaseLog
 )
 
 
@@ -50,6 +51,24 @@ class BookLogForm(ModelForm):
         model = BookLog
         fields = ['date', 'change', 'change_type', 'description']
 
+class BookLogFullForm(ModelForm):
+    class Meta:
+        model = BookLog
+        fields = ['parent_book','date', 'change', 'change_type', 'description','associated_invoice']
+        
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        self.fields['parent_book'].required = True
+        self.fields['change_type'].choices = [
+            (0, 'Paid'),
+            (3, 'Other'),
+        ]
+        if self.user:
+            self.fields['parent_book'].queryset = Book.objects.filter(customer__isnull=False, customer__user=self.user).order_by('customer__customer_name')
+        else:
+            self.fields['parent_book'].queryset = Book.objects.none()
+
 class VendorPurchaseForm(ModelForm):
     class Meta:
         model = VendorPurchase
@@ -70,3 +89,8 @@ class BankDetailsForm(ModelForm):
         model = BankDetails
         fields = ['account_name', 'account_number', 'bank_name', 'branch_name', 'ifsc_code',
                   'upi_id', 'upi_name', 'business_account', 'customer_account', 'vendor_account', 'whom_account']
+
+class PurchaseLogForm(ModelForm):
+    class Meta:
+        model = PurchaseLog
+        fields = ['date', 'change_type', 'change', 'vendor', 'reference', 'category']

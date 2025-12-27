@@ -8,8 +8,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from ..models import Product, UserProfile
 
 # Utility functions
-from ..utils import add_stock_to_inventory, create_inventory
-
+from ..utils import (
+    create_inventory, update_inventory_stockalert,
+    add_stock_to_inventory, create_inventory_with_stockalert
+)
 # Forms
 from ..forms import ProductForm
 
@@ -28,26 +30,29 @@ def products(request):
 def product_edit(request, product_id):
     product_obj = get_object_or_404(Product, user=request.user, id=product_id)
     if request.method == "POST":
+        stock_alert_level = request.POST.get('stock_alert_level', 0)
         product_form = ProductForm(request.POST, instance=product_obj)
         if product_form.is_valid():
             new_product = product_form.save()
+            update_inventory_stockalert(new_product, stock_alert_level)
             return redirect('products')
     context = {}
     context['product_form'] = ProductForm(instance=product_obj)
     context['id'] = product_obj.id
+    context['stock_alert_level'] = product_obj.inventory.alert_level if hasattr(product_obj, 'inventory') else 0
     return render(request, 'products/product_edit.html', context)
 
 
 @login_required
 def product_add(request):
     if request.method == "POST":
+        stock_alert_level = request.POST.get('stock_alert_level', 0)
         product_form = ProductForm(request.POST)
         if product_form.is_valid():
             new_product = product_form.save(commit=False)
             new_product.user = request.user
             new_product.save()
-            create_inventory(new_product)
-
+            create_inventory_with_stockalert(new_product, stock_alert_level)
             return redirect('products')
     context = {}
     context['product_form'] = ProductForm()

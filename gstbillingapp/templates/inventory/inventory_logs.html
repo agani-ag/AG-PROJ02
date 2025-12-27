@@ -1,8 +1,7 @@
 {% extends "base.html" %}
-
+{% load tz %}
 {% load static %}
-
-
+{% load humanize %}
 
 {% block content %}
 <h2>Inventory Details</h2>
@@ -10,14 +9,42 @@
 
 <div class="row">
 	<div class="col">
-		<h5>Model No: <b>{{inventory.product}}</b></h5>
-		<h5>Product: <b>{{inventory.product.product_name}}</b></h5>
-		<h5>HSN: <b>{{inventory.product.product_hsn}}</b></h5>
-		<h4>Current Stock: <b>{% if inventory.current_stock > 0 %}
-			<span class="text-success">{{ inventory.current_stock }}</span>
+		<h6>
+			Model No: 
+			{% if inventory.product.model_no %}
+				<b>{{inventory.product.model_no}}</b>
 			{% else %}
-			<span class="text-danger">{{ inventory.current_stock }}</span>
-			{% endif %}</b></h4>
+				<b class="text-danger">N/A</b>
+			{% endif %}
+		</h6>
+		<h6>
+			Product: 
+			{% if inventory.product.product_name %}
+				<b>{{inventory.product.product_name}}</b>
+			{% else %}
+				<b class="text-danger">N/A</b>
+			{% endif %}
+			</h6>
+		<h6>
+			HSN: 
+			{% if inventory.product.product_hsn %}
+				<b>{{inventory.product.product_hsn}}</b>
+			{% else %}
+				<b class="text-danger">N/A</b>
+			{% endif %}
+			</h6>
+		<h6>
+			Stock Alert Level : 
+			<span class="text-primary font-weight-bold">{{ inventory.alert_level }}</span>
+		</h6>
+		<h4>
+			Current Stock: 
+			<b>{% if inventory.current_stock > 0 %}
+				<span class="text-success">{{ inventory.current_stock }}</span>
+			{% else %}
+				<span class="text-danger">{{ inventory.current_stock }}</span>
+			{% endif %}</b>
+		</h4>
 	</div>
 	<div class="col text-right">
 		<a href="{% url 'inventory_logs_add' inventory.id %}" class="btn btn-primary btn-sm btn-curve">
@@ -42,7 +69,7 @@
 	<tbody class="two-col-form">
 		{% for item in inventory_logs %}
 		<tr class="{% if item.change < 0 %}table-danger{% else %}table-success{%endif%}">
-			<td>{{item.date}}</td>
+			<td>{{item.date|localtime|date:"M d, Y h:i A"}}</td>
 			<td>{{item.get_change_type_display}} {% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}">[INVOICE]</a>{% endif %}</td>
 			<td>{{item.change}}</td>
 			<td>{{item.description}}</td>

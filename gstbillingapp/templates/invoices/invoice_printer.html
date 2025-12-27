@@ -14,7 +14,7 @@
 			<div class="col-sm-6 text-right">&nbsp;</div> 
 			<div class="col-sm-6 col-6"><strong>Invoice No:
 				{% if invoice.non_gst_mode %}
-					NG{{invoice.non_gst_invoice_number}}
+					NG{{invoice.invoice_number}}
 				{% else %}
 					{{invoice.invoice_number}}
 				{% endif %}
@@ -138,9 +138,73 @@
 
 
 				<div class="col-sm-6 col-lg-6 col-md-6">
-					
+					{% if user_profile.bankdetails %}
+						<table class="table table-bordered font-weight-bold">
+							<tr><th colspan="2" class="text-center">Bank Details</th></tr>
+							<tr>
+								<td>Account Name</td>
+								<td>
+									{% if user_profile.bankdetails.account_name %}
+										{{ user_profile.bankdetails.account_name }}
+									{% else %}
+										-
+									{% endif %}	
+								</td>
+							</tr>
+							<tr>
+								<td>Account Number</td>
+								<td>
+									{% if user_profile.bankdetails.account_number %}
+										{{ user_profile.bankdetails.account_number }}
+									{% else %}
+										-
+									{% endif %}
+								</td>	
+							</tr>
+							<tr>
+								<td>Bank Name</td>
+								<td>
+									{% if user_profile.bankdetails.bank_name %}
+										{{ user_profile.bankdetails.bank_name }}
+									{% else %}
+										-
+									{% endif %}
+								</td>
+							</tr>
+							<tr>
+								<td>IFSC Code</td>
+								<td>
+									{% if user_profile.bankdetails.ifsc_code %}
+										{{ user_profile.bankdetails.ifsc_code }}
+									{% else %}
+										-
+									{% endif %}
+								</td>
+							</tr>
+							<tr>
+								<td>Branch</td>
+								<td>
+									{% if user_profile.bankdetails.branch_name %}
+										{{ user_profile.bankdetails.branch_name }}
+									{% else %}
+										-
+									{% endif %}
+								</td>
+							</tr>
+							{% if user_profile.bankdetails.upi_id %}
+								<tr>
+									<td colspan="2" class="text-center">
+                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am=100"></div>
+									</td>
+								</tr>
+								<!-- <tr>
+									<td>UPI ID</td>
+									<td>{{ user_profile.bankdetails.upi_id }}</td>
+								</tr> -->
+                            {% endif %}
+						</table>
+					{% endif %}
 				</div>
-
 				<div class="col-sm-6 col-lg-6 col-md-6">
 					<table class="table text-right" id="invoice-grand-total-table">
 						<tr>
@@ -197,8 +261,25 @@
 			class="btn btn-primary btn-curve d-print-none">
 			<i class="fas fa-print"></i>
 		</button>
-		<a href="{% url 'invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
+		{% if invoice.non_gst_mode %}
+			<a href="{% url 'non_gst_invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
+		{% else %}
+			<a href="{% url 'invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
+		{% endif %}
 	</div>
 
+{% endblock %}
+{% block includejs %}
+<script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
+<script>
+    const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
+    const qr = new QRCodeStyling({
+        width: 100,
+        height: 100,
+        data: upiQR,
+        dotsOptions: { color: "#000", type: "rounded" }
+    });
 
+    qr.append(document.getElementById("upi_qr"));
+</script>
 {% endblock %}

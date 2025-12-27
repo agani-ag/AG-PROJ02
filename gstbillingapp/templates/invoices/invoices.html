@@ -25,11 +25,7 @@
  				<!-- <td>{{invoice.id}}</td> -->
  				<td>
 					{% if invoice.non_gst_mode %}
-						{% if invoice.non_gst_invoice_number %}
-							<span class="text-danger font-weight-bold">NG{{invoice.non_gst_invoice_number}}</span>
-						{% else %}
-							<span class="text-muted font-weight-bold">N/A</span>
-						{% endif %}
+						<span class="text-danger font-weight-bold">NG{{invoice.invoice_number}}</span>
 					{% else %}
 						{{invoice.invoice_number}}
 					{% endif %}
