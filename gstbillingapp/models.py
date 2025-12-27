@@ -108,13 +108,12 @@ class Invoice(models.Model):
     invoice_json = models.TextField()
     inventory_reflected = models.BooleanField(default=True)
     books_reflected = models.BooleanField(default=True)
+    is_gst_mode = models.BooleanField(default=True)
     non_gst_mode = models.BooleanField(default=False)
-    non_gst_invoice_number = models.IntegerField(null=True, blank=True, default=None)
     
     def save(self, *args, **kwargs):
         if self.non_gst_mode:
-            self.non_gst_invoice_number = self.invoice_number
-            self.invoice_number = None
+            self.is_gst_mode = False
         
         super().save(*args, **kwargs)
     
@@ -209,29 +208,23 @@ class BookLog(models.Model):
 # ========================= Purchase Data models ====================================
 class PurchaseLog(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    vendor = models.ForeignKey("VendorPurchase", null=True, blank=True, on_delete=models.SET_NULL)
     date = models.DateTimeField(default=datetime.now, blank=True, null=True)
-    STATUS_TYPES = [
-        (0, 'Open'),
-        (1, 'Closed'),
-    ]
-    status = models.IntegerField(choices=STATUS_TYPES, default=0)
-    P_TYPES = [
+    CHANGE_TYPES = [
         (0, 'Purchase'),
         (1, 'Paid'),
+        (3, 'Others'),
     ]
-    ptype = models.IntegerField(choices=P_TYPES, default=0)
-    vendor = models.ForeignKey("VendorPurchase", null=True, blank=True, on_delete=models.SET_NULL)
-    paid_category = models.CharField(max_length=100, blank=True, null=True)
-    purchase_category = models.CharField(max_length=100, blank=True, null=True)
-    paid_reference = models.CharField(max_length=100, blank=True, null=True)
-    purchase_reference = models.CharField(max_length=100, blank=True, null=True)
-    amount = models.IntegerField(blank=True, null=True, default=0)
+    change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)
+    change = models.FloatField(default=0.0)
+    reference = models.CharField(max_length=100, blank=True, null=True)
+    category = models.CharField(max_length=100, blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        if self.purchase_category:
-            self.purchase_category = self.purchase_category.upper()
-        if self.paid_category:
-            self.paid_category = self.paid_category.upper()
+        if self.reference:
+            self.reference = self.reference.upper()
+        if self.category:
+            self.category = self.category.upper()
 
         super().save(*args, **kwargs)
 

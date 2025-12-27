@@ -75,6 +75,7 @@ def book_logs_add(request, book_id):
         book.current_balance = book.current_balance + book_log.change
         book.last_log = book_log
         book.save()
+        recalculate_book_current_balance(book)
         return redirect('book_logs', book.id)
 
     return render(request, 'books/book_logs_add.html', context)
@@ -84,8 +85,8 @@ def book_logs_del(request, booklog_id):
     bklg = get_object_or_404(BookLog, id=booklog_id)
     book = get_object_or_404(Book, id=bklg.parent_book.id, user=request.user)
     bklg.delete()
-    new_total = BookLog.objects.filter(parent_book=book).aggregate(Sum('change'))['change__sum']
-    new_last_log = BookLog.objects.filter(parent_book=book).last()
+    new_total = BookLog.objects.filter(parent_book=book, is_active=True).aggregate(Sum('change'))['change__sum']
+    new_last_log = BookLog.objects.filter(parent_book=book, is_active=True).last()
     if not new_total:
         new_total = 0
     book.current_balance = new_total
@@ -120,7 +121,6 @@ def book_logs_full(request):
     context['total_paid'] = abs(total_paid)
     context['total_returned'] = abs(total_returned)
     context['total_others'] = abs(total_others)
-
     
     return render(request, 'books/book_logs_full.html', context)
 
@@ -130,27 +130,13 @@ def book_logs_full_add(request):
     context['form'] = BookLogFullForm(user=request.user)
 
     if request.method == "POST":
-        book_log_form = BookLogForm(request.POST, user=request.user)
-        invoice_no = request.POST["invoice_no"]
-        invoice = None
-        if invoice_no:
-            try:
-                invoice_no = int(invoice_no)
-                invoice = Invoice.objects.get(user=request.user, invoice_number=invoice_no)
-            except:
-                context['error_message'] = "Incorrect invoice number %s"%(invoice_no,)
-                return render(request, 'books/book_logs_full_add.html', context)
-
-        book_log = book_log_form.save(commit=False)
-        if invoice:
-            book_log.associated_invoice = invoice
-        book_log.save()
-
-        # book.current_balance = book.current_balance + book_log.change
-        # book.last_log = book_log
-        # book.save()
-        # return redirect('book_logs', book.id)
-
+        book_log_form = BookLogFullForm(request.POST, user=request.user)
+        if book_log_form.is_valid():
+            book_log = book_log_form.save(commit=False)
+            book = book_log.parent_book
+            book_log.save()
+            recalculate_book_current_balance(book)
+            return redirect('book_logs_full')
     return render(request, 'books/book_logs_full_add.html', context)
 
 # ================= Books API Views ===========================
@@ -230,4 +216,24 @@ def book_logs_api_active(request):
     booklog = get_object_or_404(BookLog, id=booklog_id)
     booklog.is_active = True
     booklog.save()
+    recalculate_book_current_balance(booklog.parent_book)
     return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog_id} marked as active. Change: ₹{change} Updated.'})
+
+@login_required
+def customerBookFilter(request):
+    books = Book.objects.filter(
+        customer__isnull=False,
+        customer__user=request.user
+    ).select_related('customer').order_by('customer__customer_name')
+
+    data = []
+    for book in books:
+        data.append({
+            "id": book.id,
+            "name": book.customer.customer_name,
+            "address": book.customer.customer_address,
+            "phone": book.customer.customer_phone,
+            "gstin": book.customer.customer_gst
+        })
+
+    return JsonResponse(data, safe=False)

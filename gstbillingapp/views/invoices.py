@@ -40,7 +40,7 @@ def invoice_create(request):
         return redirect('user_profile_edit')
 
     context = {}
-    context['non_gst_invoice_number'] = Invoice.objects.filter(user=request.user).aggregate(Max('non_gst_invoice_number'))['non_gst_invoice_number__max']
+    context['non_gst_invoice_number'] = Invoice.objects.filter(user=request.user, non_gst_mode=True).aggregate(Max('invoice_number'))['invoice_number__max']
     if not context['non_gst_invoice_number']:
         context['non_gst_invoice_number'] = 1
     else:
@@ -49,7 +49,7 @@ def invoice_create(request):
     max_invoice_number = []
     user_profiles = UserProfile.objects.filter(business_gst=user_profile.business_gst)
     for profile in user_profiles:
-        max_invoice_number.append(Invoice.objects.filter(user=profile.user).aggregate(Max('invoice_number'))['invoice_number__max'])
+        max_invoice_number.append(Invoice.objects.filter(user=profile.user, is_gst_mode=True).aggregate(Max('invoice_number'))['invoice_number__max'])
     max_invoice_number = [num for num in max_invoice_number if num is not None]
 
     if max_invoice_number:
@@ -159,6 +159,7 @@ def invoice_delete(request):
     if request.method == "POST":
         invoice_id = request.POST["invoice_id"]
         invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
+        is_non_gst = invoice_obj.non_gst_mode
         if len(request.POST.getlist('inventory-del')):
             remove_inventory_entries_for_invoice(invoice_obj, request.user)
         if len(request.POST.getlist('book-del')):
@@ -173,11 +174,28 @@ def invoice_delete(request):
             book.last_log = new_last_log
             book.save()
         invoice_obj.delete()
+        print(is_non_gst)
+        if is_non_gst:
+            return redirect('non_gst_invoices')
     return redirect('invoices')
 
 # ================= Invoice API Views ===========================
 @login_required
 def customerInvoiceFilter(request):
-    customer = request.GET.get('customer', None)
-    invoices = list(Invoice.objects.filter(user=request.user,invoice_customer=customer).values())
-    return JsonResponse(invoices, safe=False)
+    customer_id = request.GET.get('customer')
+
+    invoices = Invoice.objects.filter(
+        user=request.user,
+        invoice_customer_id=customer_id
+    ).order_by('-id')
+
+    data = []
+    for inv in invoices:
+        data.append({
+            "id": inv.id,
+            "invoice_number": inv.invoice_number or inv.non_gst_invoice_number,
+            "invoice_date": inv.invoice_date.strftime("%Y-%m-%d"),
+            "non_gst": inv.non_gst_mode,
+        })
+
+    return JsonResponse(data, safe=False)

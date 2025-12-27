@@ -2,7 +2,8 @@ from django.forms import ModelForm
 from .models import (
     Customer, Product, UserProfile,
     InventoryLog, Book, BookLog,
-    ExpenseTracker, BankDetails, VendorPurchase
+    ExpenseTracker, BankDetails, VendorPurchase,
+    PurchaseLog
 )
 
 
@@ -53,7 +54,7 @@ class BookLogForm(ModelForm):
 class BookLogFullForm(ModelForm):
     class Meta:
         model = BookLog
-        fields = ['parent_book','date', 'change', 'change_type', 'description']
+        fields = ['parent_book','date', 'change', 'change_type', 'description','associated_invoice']
         
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
@@ -88,3 +89,8 @@ class BankDetailsForm(ModelForm):
         model = BankDetails
         fields = ['account_name', 'account_number', 'bank_name', 'branch_name', 'ifsc_code',
                   'upi_id', 'upi_name', 'business_account', 'customer_account', 'vendor_account', 'whom_account']
+
+class PurchaseLogForm(ModelForm):
+    class Meta:
+        model = PurchaseLog
+        fields = ['date', 'change_type', 'change', 'vendor', 'reference', 'category']

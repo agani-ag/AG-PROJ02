@@ -234,7 +234,7 @@ def auto_deduct_book_from_invoice(invoice):
     book.save()
 
 def recalculate_book_current_balance(book_obj):
-    new_total = BookLog.objects.filter(parent_book=book_obj).aggregate(Sum('change'))['change__sum']
+    new_total = BookLog.objects.filter(parent_book=book_obj, is_active=True).aggregate(Sum('change'))['change__sum']
     if not new_total:
         new_total = 0
     book_obj.current_balance = new_total

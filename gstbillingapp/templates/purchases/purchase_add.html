@@ -1,184 +1,221 @@
 {% extends "base.html" %}
-
 {% load static %}
-{% load humanize %}
+
 {% block content %}
+<h2>Add Purchase Logs</h2>
 
-	{% if messages %}
-		{% for message in messages %}
-			<div class="alert {% if message.tags == 'success' %} alert-success
-				{% elif message.tags == 'error' %} alert-danger {% else %} alert-primary {% endif %}">
-			<p>{{ message.tags }}</p>
-		{% endfor %}
-	</div>
-	{% endif %}
+<form method="POST">
+    {% csrf_token %}
 
-	<div class="row">
-		<div class="col">
-			<h2>Add Purchase</h2>
-		</div>
-		<div class="col text-right">
-		</div>
-	</div>
+    <table class="table">
+        <tbody class="two-col-form">
 
-	<table class="table table-bordered" id="invoice-table">
-		<form method="post">
-			{% csrf_token %}
-			<tr>
-				<th>Date</th>
-				<th><input type="datetime-local" value="{%now "Y-m-d H:i:s"%}" name="date"></th>
-			</tr>
-			<tr>
-				<th>Type</th>
-				<th>
-					<label><input type="radio" name="ptype" value="0" checked> Purchase</label>
-					<label><input type="radio" name="ptype" value="1"> Paid</label>
-				</th>
-			</tr>
-			<tr id="purchase-category-row">
-				<th>Category</th>
-				<th>
-					<input list="purchase_categories" id="purchase_category" name="purchase_category">
-					<datalist id="purchase_categories">
-						{% for cat in purchase_categories %}
-							<option value="{{ cat }}">
-						{% endfor %}
-					</datalist>
-				</th>
-				<!-- <th><input type="text" name="purchase_category" placeholder="Purchase Category"></th> -->
-			</tr>
-			{{category}}
-			<tr id="paid-category-row" style="display:none;">
-				<th>Category</th>
-				<th>
-					<input list="paid_categories" id="paid_category" name="paid_category">
-					<datalist id="paid_categories">
-						{% for cat in paid_categories %}
-							<option value="{{ cat }}">
-						{% endfor %}
-					</datalist>
-					<!-- <select name="paid_category">
-						<option value="Cheque">Cheque</option>
-						<option value="RTGS">RTGS</option>
-						<option value="NEFT">NEFT</option>
-					</select> -->
-				</th>
-				<!-- <th><input type="text" name="paid_category" placeholder="Paid Category"></th> -->
-			</tr>
-			<tr>
-				<th>Amount</th>
-				<th><input type="number" name="amount" required></th>
-			</tr>
-			<tr>
-				<th>Reference</th>
-				<th>
-					<input type="text" name="paid_reference" id="paid_reference">
-					<input type="text" name="purchase_reference" id="purchase_reference">
-				</th>
-			</tr>
-			<tr>
-				<th>Status</th>
-				<th>
-					<label><input type="radio" name="status" value="0" checked> Open</label>
-					<label><input type="radio" name="status" value="1"> Closed</label>
-				</th>
-			</tr>
-			<tr>
-				<th>Vendor</th>
-				<th>
-					<select name="vendor">
-						<option value="">Select Vendor</option>
-						{% for vendor in vendors %}
-							<option 
-								value="{{ vendor.id }}"
-								data-address="{{ vendor.vendor_address }}"
-								data-phone="{{ vendor.vendor_phone }}"
-								data-email="{{ vendor.vendor_email }}"
-								data-gst="{{ vendor.vendor_gst }}"
-							>
-								{{ vendor.vendor_name }}
-							</option>
-						{% endfor %}
-					</select>
-				</th>
-			</tr>
-			<tr class="text-right">
-				<th colspan="2">
-					<button type="submit" class="btn btn-primary btn-curve"><i class="fas fa-save"></i></button>
-					<a href="{% url 'purchases' %}" class="btn btn-danger btn-curve"><i class="fas fa-cancel"></i></a>
-				</th>
-			</tr>
-		</form>
-	</table>
+        <!-- DATE -->
+        <tr>
+            <th scope="row" class="text-right">Date & Time:</th>
+            <td class="form-input-td customer_search_area">
+                <input type="datetime-local" value="{% now "Y-m-d H:i:s" %}" name="date">
+            </td>
+        </tr>
+        
+        <!-- VENDOR -->
+        <tr>
+            <th class="text-right">Vendor:</th>
+            <td class="d-flex gap-2">
+                <!-- Hidden field for submission -->
+                <input type="hidden" name="vendor" id="vendorHidden" value="{{ form.vendor.value }}">
+                <!-- Display input -->
+                <input type="text" id="vendorDisplay" placeholder="Select Vendor" readonly>
+                <button type="button" id="changeVendorBtn" class="btn btn-primary"><i class="fa fa-search"></i></button>
+            </td>
+        </tr>
 
-	<div id="vendorPopup" style="
-		display:none;
-		position:absolute;
-		padding:10px;
-		background:#fff;
-		border:1px solid #ccc;
-		box-shadow:0 2px 6px rgba(0,0,0,0.2);
-		width:250px;
-	"></div>
+        <!-- CHANGE IN BALANCE -->
+        <tr>
+            <th class="text-right">Change in balance:</th>
+            <td>{{ form.change }}</td>
+        </tr>
 
+        <!-- CHANGE TYPE -->
+        <tr>
+            <th class="text-right">Change Type:</th>
+            <td>{{ form.change_type }}</td>
+        </tr>
+
+        <!-- CATEGORY -->
+        <tr>
+            <th scope="row" class="text-right">Category:</th>
+            <td>
+                <select id="categorySelect" style="width: 200px;" onchange="toggleCategoryTextbox()" name="category">
+                    <option value="">Other (Please specify)</option>
+                    {% for category in categories %}
+                        <option value="{{ category }}" {% if form.category.value == category %}selected{% endif %}>{{ category }}</option>
+                    {% endfor %}
+                </select>
+            </td>
+        </tr>
+        <tr id="customCategoryRow" style="display: none;">
+            <th scope="row" class="text-right">Custom Category:</th>
+            <td>
+                <input type="text" id="customCategory" style="width: 200px;" placeholder="Enter custom category" />
+            </td>
+        </tr>
+
+        <!-- REFERENCE -->
+        <tr>
+            <th scope="row" class="text-right">Reference:</th>
+            <td>
+                <select id="referenceSelect" style="width: 200px;" onchange="toggleReferenceTextbox()" name="reference">
+                    <option value="">Other (Please specify)</option>
+                    {% for reference in references %}
+                        <option value="{{ reference }}" {% if form.reference.value == reference %}selected{% endif %}>{{ reference }}</option>
+                    {% endfor %}
+                </select>
+            </td>
+        </tr>
+        <tr id="customReferenceRow" style="display: none;">
+            <th scope="row" class="text-right">Custom Reference:</th>
+            <td>
+                <input type="text" id="customReference" style="width: 200px;" placeholder="Enter custom reference" />
+            </td>
+        </tr>
+
+        </tbody>
+    </table>
+
+    <div class="d-flex justify-content-end gap-2">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i>
+        </button>
+        <a href="{% url 'purchases_logs' %}" class="btn btn-secondary"><i class="fas fa-times"></i></a>
+    </div>
+</form>
+{% endblock %}
+
+{% block includejs %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-  function toggleCategoryRow() {
-    const isPurchaseSelected = document.querySelector('input[name="ptype"]:checked').value === '1';
-    if (isPurchaseSelected) {
-      document.getElementById('paid-category-row').style.display = 'table-row';
-      document.getElementById('purchase-category-row').style.display = 'none';
-	  document.getElementById('paid_reference').style.display = 'table-cell';
-	  document.getElementById('purchase_reference').style.display = 'none';
-    } else {
-      document.getElementById('paid-category-row').style.display = 'none';
-      document.getElementById('purchase-category-row').style.display = 'table-row';
-	  document.getElementById('paid_reference').style.display = 'none';
-	  document.getElementById('purchase_reference').style.display = 'table-cell';
-    }
-  }
+// ================= VENDOR POPUP =================
+function openVendorPopup() {
+    $.ajax({
+        url: "{% url 'vendor_purchase_filter' %}",
+        success: function(vendors) {
 
-  window.onload = function() {
-    const ptypeRadios = document.querySelectorAll('input[name="ptype"]');
-    ptypeRadios.forEach(function(radio) {
-      radio.addEventListener('change', toggleCategoryRow);
+            let html = `
+                <input type="text" id="vendorSearch" class="form-control mb-2" placeholder="Search vendor...">
+                <table class="table table-bordered" id="vendorTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Address</th>
+                            <th>Phone</th>
+                            <th>GSTIN</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            vendors.forEach(v => {
+                html += `
+                    <tr class="vendorRow" style="cursor:pointer"
+                        data-id="${v.id}"
+                        data-name="${v.name}">
+                        <td>${v.name}</td>
+                        <td>${v.address || '-'}</td>
+                        <td>${v.phone || '-'}</td>
+                        <td>${v.gstin || '-'}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+
+            Swal.fire({
+                title: "Select Vendor",
+                html: html,
+                width: "1000px",
+                showCancelButton: true,
+                didOpen: () => {
+                    // Filter table by search
+                    $('#vendorSearch').on('keyup', function () {
+                        let val = $(this).val().toLowerCase();
+                        $('#vendorTable tbody tr').filter(function () {
+                            $(this).toggle($(this).text().toLowerCase().indexOf(val) > -1);
+                        });
+                    });
+
+                    // Click row to select
+                    $('.vendorRow').on('click', function () {
+                        let id = $(this).data('id');
+                        let name = $(this).data('name');
+
+                        // Set hidden input for form submission
+                        $('#vendorHidden').val(id);
+
+                        // Set display input
+                        $('#vendorDisplay').val(name);
+
+                        Swal.close();
+                    });
+                }
+            });
+        }
     });
-    toggleCategoryRow();
-  };
+}
 
-  const input = document.querySelector('input#purchase_category');
+// ================= CATEGORY & REFERENCE TOGGLE =================
+function toggleCategoryTextbox() {
+    var categorySelect = document.getElementById('categorySelect');
+    var customCategoryRow = document.getElementById('customCategoryRow');
+    var customCategoryInput = document.getElementById('customCategory');
+    
+    if (categorySelect.value === "") {
+        customCategoryRow.style.display = 'table-row';
+        customCategoryInput.required = true;
+        customCategoryInput.setAttribute('name', 'category');
+        categorySelect.removeAttribute('name');
+    } else {
+        customCategoryRow.style.display = 'none';
+        customCategoryInput.value = '';
+        customCategoryInput.required = false;
+        categorySelect.setAttribute('name', 'category');
+        customCategoryInput.removeAttribute('name');
+    }
+}
 
-  // Show all options when input is focused
-  input.addEventListener('focus', () => {
-    input.setAttribute('placeholder', 'Purchase Category');
-    input.value = '';
-    input.dispatchEvent(new Event('input'));
-  });
-</script>
+function toggleReferenceTextbox() {
+    var referenceSelect = document.getElementById('referenceSelect');
+    var customReferenceRow = document.getElementById('customReferenceRow');
+    var customReferenceInput = document.getElementById('customReference');
+    
+    if (referenceSelect.value === "") {
+        customReferenceRow.style.display = 'table-row';
+        customReferenceInput.required = true;
+        customReferenceInput.setAttribute('name', 'reference');
+        referenceSelect.removeAttribute('name');
+    } else {
+        customReferenceRow.style.display = 'none';
+        customReferenceInput.value = '';
+        customReferenceInput.required = false;
+        referenceSelect.setAttribute('name', 'reference');
+        customReferenceInput.removeAttribute('name');
+    }
+}
 
-<script>
-	document.querySelector('select[name="vendor"]').addEventListener('change', function() {
-		const selectedOption = this.options[this.selectedIndex];
-		const address = selectedOption.getAttribute('data-address') || 'N/A';
-		const phone = selectedOption.getAttribute('data-phone') || 'N/A';
-		const email = selectedOption.getAttribute('data-email') || 'N/A';
-		const gst = selectedOption.getAttribute('data-gst') || 'N/A';
+// ================= EVENTS =================
+$(document).ready(function () {
+    $('#changeVendorBtn').on('click', openVendorPopup);
 
-		const popup = document.getElementById('vendorPopup');
-		popup.innerHTML = `
-			<strong>Address:</strong> ${address}<br>
-			<strong>Phone:</strong> ${phone}<br>
-			<strong>Email:</strong> ${email}<br>
-			<strong>GST:</strong> ${gst}
-		`;
+    // Autofill on edit
+    let vendHidden = $('#vendorHidden');
+    if (vendHidden.val()) {
+        // Optionally, you could fetch vendor name via JS/Ajax or set server-side
+        $('#vendorDisplay').val(vendHidden.data('name') || '');
+    }
 
-		if (this.value) {
-			popup.style.display = 'block';
-			const rect = this.getBoundingClientRect();
-			popup.style.top = (rect.bottom + window.scrollY) + 'px';
-			popup.style.left = (rect.left + window.scrollX) + 'px';
-		} else {
-			popup.style.display = 'none';
-		}
-	});
+    // Trigger category/reference toggles on page load
+    toggleCategoryTextbox();
+    toggleReferenceTextbox();
+});
 </script>
 {% endblock %}

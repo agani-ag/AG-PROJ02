@@ -1,4 +1,5 @@
 # Django imports
+from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 
@@ -52,3 +53,20 @@ def vendor_purchase_delete(request):
         vendor_purchase_obj = get_object_or_404(VendorPurchase, user=request.user, id=vendor_purchase_id)
         vendor_purchase_obj.delete()
     return redirect('vendors_purchase')
+
+# ================= API ====================================
+@login_required
+def vendorPurchaseFilter(request):
+    vendors = VendorPurchase.objects.filter(user=request.user).order_by('vendor_name')
+
+    data = []
+    for vendor in vendors:
+        data.append({
+            "id": vendor.id,
+            "name": vendor.vendor_name,
+            "address": vendor.vendor_address,
+            "phone": vendor.vendor_phone,
+            "gstin": vendor.vendor_gst
+        })
+
+    return JsonResponse(data, safe=False)

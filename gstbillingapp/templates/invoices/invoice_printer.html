@@ -14,7 +14,7 @@
 			<div class="col-sm-6 text-right">&nbsp;</div> 
 			<div class="col-sm-6 col-6"><strong>Invoice No:
 				{% if invoice.non_gst_mode %}
-					NG{{invoice.non_gst_invoice_number}}
+					NG{{invoice.invoice_number}}
 				{% else %}
 					{{invoice.invoice_number}}
 				{% endif %}
@@ -197,7 +197,11 @@
 			class="btn btn-primary btn-curve d-print-none">
 			<i class="fas fa-print"></i>
 		</button>
-		<a href="{% url 'invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
+		{% if invoice.non_gst_mode %}
+			<a href="{% url 'non_gst_invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
+		{% else %}
+			<a href="{% url 'invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
+		{% endif %}
 	</div>
 
 

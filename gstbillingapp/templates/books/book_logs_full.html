@@ -78,11 +78,18 @@
     </thead>
     <tbody>
         {% for item in book_logs %}
-        {% if item.is_active %}
-            <tr class="{% if item.change < 0 %}table-danger{% else %}table-success{% endif %}">
-        {% else %}
+            <!-- <tr class="{% if item.change < 0 %}table-danger{% else %}table-success{% endif %}"> -->
+            {% if item.is_active and item.change_type == 0 %}
+                <tr class="table-success">
+            {% elif item.is_active and item.change_type == 1 %}
+                <tr class="table-danger">
+            {% elif item.is_active and item.change_type == 2 %}
                 <tr class="table-warning">
-        {% endif %}
+            {% elif item.is_active and item.change_type == 3 %}
+                <tr class="table-primary">
+            {% else %}
+                <tr class="table-secondary">
+            {% endif %}
             <td>
                 {{ item.date|localtime|date:"M d, Y h:i A" }}
                 <br>
@@ -97,18 +104,21 @@
                 </a>
             </td>
             <td class="text-center">
-                {% if item.associated_invoice %}
-                    <a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="btn btn-primary btn-sm btn-curve">
-                        <i class="fas fa-file-invoice"></i>
-                    </a>
-                {% else %}
-                    <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
-                        <i class="fas fa-trash"></i>
-                    </a>
-                {% endif %}
-                {% if not item.is_active %}
-                    <span class="btn btn-warning btn-sm btn-curve" onclick="markAsActive({{ item.id }},{{ item.change }})"><i class="fas fa-arrow-up"></i></span>
-                {% endif %}
+                <div class="btn-group" role="group" aria-label="Basic example">
+                    {% if item.associated_invoice %}
+                        <a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="btn btn-primary btn-sm btn-curve">
+                            <i class="fas fa-file-invoice"></i>
+                        </a>    
+                    {% endif %}
+                    {% if item.change_type != 1 and item.change_type != 2 %}
+                        <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
+                            <i class="fas fa-trash"></i>
+                        </a>
+                    {% endif %}
+                    {% if not item.is_active %}
+                        <span class="btn btn-warning btn-sm btn-curve" onclick="markAsActive({{ item.id }},{{ item.change }})"><i class="fas fa-arrow-up"></i></span>
+                    {% endif %}
+                </div>
             </td>
         </tr>
         {% empty %}
