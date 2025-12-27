@@ -2,203 +2,599 @@
 {% load static %}
 
 {% block content %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
-    integrity="sha512-xwE/HOIHQ1fFQvCwX3YxkZ7LQiaQw+KkS6v7gY0bM5x0nV6x+V/3zU8V4jH6hwLrZK5bYkG4Zy7i6jB6k8fTgw=="
-    crossorigin=""/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css"/>
 
-<h2>Customer Location Map</h2>
+<h2 style="margin-bottom:10px;">Customer Location Map</h2>
 
-<div style="display: flex; gap: 16px;">
-  <div id="map" style="height: 600px; flex: 1;"></div>
-  <div style="width: 320px;">
-    <input id="search" type="text" placeholder="Search customers..." style="width: 100%; padding: 8px; margin-bottom: 8px;">
-    <ul id="customer-list" style="list-style: none; padding: 0; margin: 0; max-height: 560px; overflow: auto; border: 1px solid #ddd;">
-    {% for c in customers %}
-      <li data-lat="{{ c.customer_latitude }}" data-lng="{{ c.customer_longitude }}"
-        style="padding: 8px 10px; border-bottom: 1px solid #eee; cursor: pointer;">
-        {{ c }}
-      </li>
-    {% empty %}
-      <li style="padding: 8px 10px;">No customer locations available.</li>
-    {% endfor %}
-    </ul>
-  </div>
+<style>
+    .layout { display:flex; gap:16px; }
+    #map { height: 620px; flex:1; border:1px solid #ddd; border-radius:6px; }
+    .panel { width:340px; display:flex; flex-direction:column; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+    .btn { padding:6px 10px; border:1px solid #ccc; border-radius:4px; background:#fff; cursor:pointer; }
+    .btn:disabled { opacity:0.5; cursor:not-allowed; }
+    .field { width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; }
+    .card { border:1px solid #ddd; border-radius:6px; padding:8px; }
+    #customer-list { list-style:none; padding:0; margin:0; max-height:460px; overflow:auto; border:1px solid #ddd; border-radius:6px; }
+    #customer-list li { padding:8px 10px; border-bottom:1px solid #eee; cursor:pointer; }
+    #customer-list li:hover { background:#f5f5f5; }
+    #customer-list li.active { background:#e3f2fd; }
+    #distance-summary { margin-top:8px; font-size:12px; color:#555; }
+    .status { font-size:12px; color:#666; margin-top:6px; }
+</style>
+
+<div class="layout">
+    <div id="map"
+         data-user-lat="{{ user.business_latitude|default_if_none:'' }}"
+         data-user-lng="{{ user.business_longitude|default_if_none:'' }}"></div>
+
+    <div class="panel">
+        <div class="toolbar">
+            <button id="reset-view" class="btn">Reset view</button>
+            <button id="locate-me" class="btn">Locate me</button>
+            <label style="display:flex; align-items:center; gap:6px;">
+                <input id="show-labels" type="checkbox"> Show marker labels
+            </label>
+        </div>
+
+        <input id="search" type="text" placeholder="Search customers..." class="field">
+
+        <ul id="customer-list">
+        {% for c in customers %}
+            <li data-lat="{{ c.customer_latitude }}" data-lng="{{ c.customer_longitude }}">
+                {{ c }}
+            </li>
+        {% empty %}
+            <li>No customer locations available.</li>
+        {% endfor %}
+        </ul>
+
+        <div class="card" style="margin-top:8px;">
+            <label style="display:block; margin-bottom:6px;">
+                <input id="routing-mode" type="checkbox"> Routing mode (click customers to add stops)
+            </label>
+            <div style="display:flex; gap:8px; margin-bottom:6px;">
+                <button id="start-at-user" type="button" class="btn">Start at My Location</button>
+                <button id="clear-route" type="button" class="btn">Clear route</button>
+            </div>
+            <div id="distance-summary"></div>
+            <div id="routing-status" class="status"></div>
+        </div>
+    </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
-      integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
-      crossorigin=""></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
 <script>
-  // Base layers
-  const osmStreets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors',
-    zIndex: 1
-  });
+    // Base layers
+    const osmStreets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', zIndex: 1
+    });
+    const esriSat = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19, attribution: 'Tiles &copy; Esri', zIndex: 1 }
+    );
+    const esriLabels = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19, attribution: 'Labels &copy; Esri', zIndex: 2 }
+    );
 
-  const esriSat = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    {
-      maxZoom: 19,
-      attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-      zIndex: 1
-    }
-  );
+    const circlesGroup = L.layerGroup();
+    const baseLayers = { 'Street (OSM)': osmStreets, 'Satellite (Esri)': esriSat };
+    const overlays = { 'Labels (Esri)': esriLabels, '1 km circles': circlesGroup };
 
-  // Label overlay for satellite
-  const esriLabels = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-    {
-      maxZoom: 19,
-      attribution: 'Labels &copy; Esri',
-      zIndex: 2
-    }
-  );
+    const defaultCenter = [20.5937, 78.9629];
+    const map = L.map('map', { center: defaultCenter, zoom: 5, layers: [esriSat, esriLabels] });
+    L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: false }).addTo(map);
+    L.control.scale({ metric: true, imperial: false }).addTo(map);
 
-  // Init map with Street as default
-  const defaultCenter = [20.5937, 78.9629]; // India
-  const map = L.map('map', { center: defaultCenter, zoom: 5, layers: [esriSat] });
+    map.on('baselayerchange', (e) => {
+        if (e.layer === esriSat) esriLabels.addTo(map);
+        else map.removeLayer(esriLabels);
+    });
 
-// Layer switcher + optional 1km circles (default off)
-const circlesGroup = L.layerGroup();
+    // DOM refs
+    const list = document.getElementById('customer-list');
+    const search = document.getElementById('search');
+    const resetViewBtn = document.getElementById('reset-view');
+    const locateBtn = document.getElementById('locate-me');
+    const showLabelsChk = document.getElementById('show-labels');
+    const startAtUserBtn = document.getElementById('start-at-user');
 
-// Capture any circles added later and move them into the group
-map.on('layeradd', (e) => {
-    if (e.layer instanceof L.Circle) {
-        circlesGroup.addLayer(e.layer);
-        if (!map.hasLayer(circlesGroup)) {
-            map.removeLayer(e.layer); // keep hidden until enabled
+    const customers = Array.from(list.querySelectorAll('li[data-lat][data-lng]'))
+        .map(li => ({
+            el: li,
+            lat: parseFloat(li.dataset.lat),
+            lng: parseFloat(li.dataset.lng),
+            label: li.textContent.trim()
+        }))
+        .filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng));
+
+    // Markers
+    const markersByLatLng = new Map();
+    const bounds = [];
+    const markers = [];
+
+    let labelsEnabled = !!JSON.parse(localStorage.getItem('labelsEnabled') || 'false');
+    showLabelsChk.checked = labelsEnabled;
+
+    function applyTooltip(marker, label) {
+        if (marker.getTooltip()) marker.unbindTooltip();
+        if (labelsEnabled && label) {
+            marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -10] });
         }
     }
-});
 
-const baseLayers = { 'Street (OSM)': osmStreets, 'Satellite (Esri)': esriSat };
-const overlays = { 'Labels (Esri)': esriLabels, '1 km circles': circlesGroup };
-L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: false }).addTo(map);
+    customers.forEach((cust) => {
+        const marker = L.marker([cust.lat, cust.lng]).addTo(map).bindPopup(cust.label || '');
+        applyTooltip(marker, cust.label);
+        markers.push({ marker, label: cust.label });
+        const key = `${cust.lat},${cust.lng}`;
+        markersByLatLng.set(key, marker);
+        bounds.push([cust.lat, cust.lng]);
 
-  // Labels show only with satellite by default
-  map.on('baselayerchange', (e) => {
-    if (e.layer === esriSat) {
-      esriLabels.addTo(map);
-    } else {
-      map.removeLayer(esriLabels);
-    }
-  });
+        // Allow adding stops by clicking markers on the map
+        marker.on('click', () => {
+            if (routingMode) {
+                addWaypointWithStart(cust.lat, cust.lng, cust.label);
+            } else {
+                marker.openPopup();
+            }
+        });
 
-  // Build customers from DOM (avoids template tags inside JS)
-  const list = document.getElementById('customer-list');
-  const customers = Array.from(list.querySelectorAll('li[data-lat][data-lng]'))
-    .map(li => ({
-      lat: parseFloat(li.dataset.lat),
-    lng: parseFloat(li.dataset.lng),
-    label: li.textContent.trim()
-    }))
-    .filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng));
-
-  // Add markers with optional labels (default off)
-  const markersByKey = new Map();
-  const bounds = [];
-  const markers = [];
-
-  let labelsEnabled = !!JSON.parse(localStorage.getItem('labelsEnabled') || 'false');
-  function applyTooltip(marker, label) {
-    if (marker.getTooltip()) marker.unbindTooltip();
-    if (labelsEnabled && label) {
-    marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -10] });
-    }
-  }
-  // UI can dispatch new CustomEvent('labels:toggle', { detail: { enabled: true|false } })
-  document.addEventListener('labels:toggle', (e) => {
-    labelsEnabled = !!(e.detail && e.detail.enabled);
-    localStorage.setItem('labelsEnabled', JSON.stringify(labelsEnabled));
-    markers.forEach(({ marker, label }) => applyTooltip(marker, label));
-  });
-
-// Add markers (popup always; tooltip only if enabled)
-customers.forEach((cust) => {
-    const marker = L.marker([cust.lat, cust.lng]).addTo(map)
-        .bindPopup(cust.label || '');
-    applyTooltip(marker, cust.label);
-    markers.push({ marker, label: cust.label });
-    const key = `${cust.lat},${cust.lng},${cust.label}`;
-    markersByKey.set(key, marker);
-    bounds.push([cust.lat, cust.lng]);
-
-    // 1km low-opacity circle around each customer marker
-    L.circle([cust.lat, cust.lng], {
-        radius: 1000,           // meters
-        color: '#1976d2',
-        weight: 1,
-        opacity: 0.3,           // stroke opacity
-        fillColor: '#2196f3',
-        fillOpacity: 0.15,
-        interactive: false
-    }).addTo(map);
-});
-
-// Add single user location marker in red
-const userLat = {{ user.business_latitude|default:"null" }};
-const userLng = {{ user.business_longitude|default:"null" }};
-const userLabel = "Your Location";
-
-const redIcon = L.icon({
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-    iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    tooltipAnchor: [16, -28],
-    shadowSize: [41, 41]
-});
-
-if (Number.isFinite(userLat) && Number.isFinite(userLng)) {
-    const userMarker = L.marker([userLat, userLng], { icon: redIcon }).addTo(map)
-        .bindPopup(userLabel);
-    applyTooltip(userMarker, userLabel);
-    markers.push({ marker: userMarker, label: userLabel });
-    markersByKey.set(`${userLat},${userLng},${userLabel}`, userMarker);
-    bounds.push([userLat, userLng]);
-
-    // 1km low-opacity circle around user marker
-    L.circle([userLat, userLng], {
-        radius: 1000,
-        color: '#d32f2f',
-        weight: 1,
-        opacity: 0.3,
-        fillColor: '#f44336',
-        fillOpacity: 0.15,
-        interactive: false
-    }).addTo(map);
-}
-
-if (bounds.length) {
-    map.fitBounds(bounds, { padding: [20, 20] });
-}
-
-  // List click -> focus marker
-  list.addEventListener('click', (e) => {
-    const li = e.target.closest('li[data-lat][data-lng]');
-    if (!li) return;
-    const lat = parseFloat(li.dataset.lat);
-    const lng = parseFloat(li.dataset.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    const label = li.textContent.trim();
-    const key = `${lat},${lng},${label}`;
-    const marker = markersByKey.get(key);
-    map.setView([lat, lng], Math.max(map.getZoom(), 13));
-    if (marker) marker.openPopup();
-  });
-
-  // Simple search filter
-  const search = document.getElementById('search');
-  search.addEventListener('input', () => {
-    const q = search.value.toLowerCase();
-    Array.from(list.children).forEach(li => {
-      const text = li.textContent.toLowerCase();
-      li.style.display = text.includes(q) ? '' : 'none';
+        L.circle([cust.lat, cust.lng], {
+            radius: 1000, color: '#1976d2', weight: 1, opacity: 0.3,
+            fillColor: '#2196f3', fillOpacity: 0.15, interactive: false
+        }).addTo(circlesGroup);
     });
-  });
+
+    // Headquarters (from user.business_latitude/longitude)
+    const mapEl = document.getElementById('map');
+    let hqLat = parseFloat(mapEl.dataset.userLat);
+    let hqLng = parseFloat(mapEl.dataset.userLng);
+    let hqMarker = null;
+    const hqLabel = 'Headquarters';
+
+    const redIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+        iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
+        tooltipAnchor: [16, -28], shadowSize: [41, 41]
+    });
+
+    function addOrUpdateHQ(lat, lng) {
+        hqLat = lat; hqLng = lng;
+        if (hqMarker) hqMarker.remove();
+        hqMarker = L.marker([lat, lng], { icon: redIcon }).addTo(map).bindPopup(hqLabel);
+        applyTooltip(hqMarker, hqLabel);
+        markers.push({ marker: hqMarker, label: hqLabel });
+        markersByLatLng.set(`${lat},${lng}`, hqMarker);
+        bounds.push([lat, lng]);
+
+        L.circle([lat, lng], {
+            radius: 1000, color: '#d32f2f', weight: 1, opacity: 0.3,
+            fillColor: '#f44336', fillOpacity: 0.15, interactive: false
+        }).addTo(circlesGroup);
+    }
+
+    if (Number.isFinite(hqLat) && Number.isFinite(hqLng)) addOrUpdateHQ(hqLat, hqLng);
+
+    if (bounds.length) map.fitBounds(bounds, { padding: [20, 20] });
+
+    // Current device location (via "Locate me") – does NOT change HQ
+    let currentLat = null, currentLng = null, currentMarker = null;
+    const greenIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+        iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
+        tooltipAnchor: [16, -28], shadowSize: [41, 41]
+    });
+    const currentLabel = 'My Location';
+
+    function addOrUpdateCurrent(lat, lng) {
+        currentLat = lat; currentLng = lng;
+        if (currentMarker) currentMarker.remove();
+        currentMarker = L.marker([lat, lng], { icon: greenIcon }).addTo(map).bindPopup(currentLabel);
+        applyTooltip(currentMarker, currentLabel);
+        markers.push({ marker: currentMarker, label: currentLabel });
+        markersByLatLng.set(`${lat},${lng}`, currentMarker);
+        bounds.push([lat, lng]);
+
+        L.circle([lat, lng], {
+            radius: 1000, color: '#2e7d32', weight: 1, opacity: 0.3,
+            fillColor: '#4caf50', fillOpacity: 0.15, interactive: false
+        }).addTo(circlesGroup);
+    }
+
+    // List interactions
+    list.addEventListener('click', (e) => {
+        const li = e.target.closest('li[data-lat][data-lng]');
+        if (!li) return;
+        Array.from(list.children).forEach(el => el.classList.remove('active'));
+        li.classList.add('active');
+
+        const lat = parseFloat(li.dataset.lat);
+        const lng = parseFloat(li.dataset.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+        if (routingMode) {
+            addWaypointWithStart(lat, lng, li.textContent.trim());
+        } else {
+            const marker = markersByLatLng.get(`${lat},${lng}`);
+            map.setView([lat, lng], Math.max(map.getZoom(), 13));
+            if (marker) marker.openPopup();
+        }
+    });
+
+    // Search
+    search.addEventListener('input', () => {
+        const q = search.value.toLowerCase();
+        customers.forEach(c => {
+            const match = c.label.toLowerCase().includes(q);
+            c.el.style.display = match ? '' : 'none';
+        });
+    });
+
+    // Labels toggle
+    showLabelsChk.addEventListener('change', () => {
+        labelsEnabled = showLabelsChk.checked;
+        localStorage.setItem('labelsEnabled', JSON.stringify(labelsEnabled));
+        markers.forEach(({ marker, label }) => applyTooltip(marker, label));
+    });
+
+    // Reset view
+    resetViewBtn.addEventListener('click', () => {
+        if (bounds.length) map.fitBounds(bounds, { padding: [20, 20] });
+    });
+
+    // Geolocate (does NOT modify HQ)
+    locateBtn.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation not supported.');
+            return;
+        }
+        locateBtn.disabled = true;
+        locateBtn.textContent = 'Locating...';
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                addOrUpdateCurrent(pos.coords.latitude, pos.coords.longitude);
+                map.setView([pos.coords.latitude, pos.coords.longitude], 14);
+                locateBtn.disabled = false;
+                locateBtn.textContent = 'Locate me';
+                
+                // If routing mode is active, offer to use current location as start
+                if (routingMode && waypoints.length === 0) {
+                    routingStatus.textContent = 'Current location detected! Click customers to build route.';
+                    routingStatus.style.color = '#2e7d32';
+                }
+            },
+            () => { 
+                alert('Unable to fetch location. Please enable location services.'); 
+                locateBtn.disabled = false;
+                locateBtn.textContent = 'Locate me';
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    });
+
+    // Routing
+    const routingToggle = document.getElementById('routing-mode');
+    const clearBtn = document.getElementById('clear-route');
+    const distanceSummary = document.getElementById('distance-summary');
+    const routingStatus = document.getElementById('routing-status');
+
+    let routingMode = false;
+    let waypoints = [];
+    let routingControl = null;
+
+    // Initialize routing control immediately
+    function initRoutingControl() {
+        if (routingControl) return;
+        
+        routingControl = L.Routing.control({
+            waypoints: [],
+            show: false,
+            routeWhileDragging: false,
+            addWaypoints: false,
+            router: L.Routing.osrmv1({
+                serviceUrl: 'https://router.project-osrm.org/route/v1',
+                profile: 'driving',
+                timeout: 15000
+            }),
+            lineOptions: {
+                styles: [{ color: '#0288d1', weight: 6, opacity: 0.85 }],
+                addWaypoints: false
+            },
+            createMarker: function(i, wp) {
+                const markerIcon = i === 0 ? greenIcon : (i === waypoints.length - 1 && waypoints.length > 1 ? redIcon : L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                    iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
+                    tooltipAnchor: [16, -28], shadowSize: [41, 41]
+                }));
+                return L.marker(wp.latLng, { icon: markerIcon }).bindTooltip(`Stop ${i + 1}`, { permanent: true, direction: 'top', offset: [0, -10] });
+            }
+        }).addTo(map);
+
+        routingControl.on('routesfound', (e) => {
+            const route = e.routes[0];
+            const totalKm = (route.summary.totalDistance / 1000).toFixed(2);
+            const totalMin = Math.round(route.summary.totalTime / 60);
+            const stopsCount = waypoints.length;
+            
+            // Build detailed leg-by-leg breakdown
+            let legDetails = '<strong>Route Details:</strong><br>';
+            legDetails += `<strong>Total:</strong> ${stopsCount} stops, ${totalKm} km, ${totalMin} min<br><br>`;
+            
+            // Show individual legs with accurate distances
+            if (route.instructions && waypoints.length > 1) {
+                legDetails += '<strong>Segments:</strong><br>';
+                
+                // Calculate distance for each leg by finding waypoint transitions in instructions
+                let currentWaypointIndex = 0;
+                let legDistance = 0;
+                let legTime = 0;
+                let legNumber = 1;
+                
+                for (let i = 0; i < route.instructions.length; i++) {
+                    const instr = route.instructions[i];
+                    legDistance += instr.distance || 0;
+                    legTime += instr.time || 0;
+                    
+                    // Check if we've reached the next waypoint
+                    const isLastInstruction = i === route.instructions.length - 1;
+                    const nextInstrIsWaypoint = !isLastInstruction && route.instructions[i + 1].type === 'WaypointReached';
+                    
+                    if (nextInstrIsWaypoint || isLastInstruction) {
+                        if (currentWaypointIndex < waypoints.length - 1) {
+                            const fromLabel = waypoints[currentWaypointIndex].label || `Stop ${currentWaypointIndex + 1}`;
+                            const toLabel = waypoints[currentWaypointIndex + 1].label || `Stop ${currentWaypointIndex + 2}`;
+                            
+                            const legKm = (legDistance / 1000).toFixed(2);
+                            const legMin = Math.round(legTime / 60);
+                            
+                            legDetails += `${legNumber}. ${fromLabel} → ${toLabel}: <strong>${legKm} km</strong>, ${legMin} min<br>`;
+                            
+                            legNumber++;
+                            currentWaypointIndex++;
+                            legDistance = 0;
+                            legTime = 0;
+                        }
+                        
+                        // Skip the WaypointReached instruction
+                        if (nextInstrIsWaypoint) i++;
+                    }
+                }
+                
+                // Fallback: if instruction-based calculation didn't work, divide total by legs
+                if (legNumber === 1 && waypoints.length > 1) {
+                    for (let i = 0; i < waypoints.length - 1; i++) {
+                        const fromLabel = waypoints[i].label || `Stop ${i + 1}`;
+                        const toLabel = waypoints[i + 1].label || `Stop ${i + 2}`;
+                        
+                        const legKm = (route.summary.totalDistance / (waypoints.length - 1) / 1000).toFixed(2);
+                        const legMin = Math.round(route.summary.totalTime / (waypoints.length - 1) / 60);
+                        
+                        legDetails += `${i + 1}. ${fromLabel} → ${toLabel}: <strong>${legKm} km</strong>, ${legMin} min (estimated)<br>`;
+                    }
+                }
+            }
+            
+            distanceSummary.innerHTML = legDetails;
+            routingStatus.textContent = `Route calculated successfully with ${stopsCount} stops!`;
+            routingStatus.style.color = '#2e7d32';
+        });
+
+        routingControl.on('routingerror', (e) => {
+            console.error('Routing error:', e);
+            routingStatus.textContent = 'Routing service error. Try different points or check internet connection.';
+            routingStatus.style.color = '#d32f2f';
+        });
+
+        console.log('Routing control initialized');
+    }
+
+    // Initialize on page load
+    initRoutingControl();
+
+    function addStartIfNeeded() {
+        if (waypoints.length === 0) {
+            if (Number.isFinite(currentLat) && Number.isFinite(currentLng)) {
+                waypoints.push({ lat: currentLat, lng: currentLng, label: currentLabel });
+                routingStatus.textContent = `Starting from ${currentLabel}. Click customers to add stops.`;
+                routingStatus.style.color = '#1976d2';
+                return true;
+            } else if (Number.isFinite(hqLat) && Number.isFinite(hqLng)) {
+                waypoints.push({ lat: hqLat, lng: hqLng, label: hqLabel });
+                routingStatus.textContent = `Starting from ${hqLabel}. Click customers to add stops.`;
+                routingStatus.style.color = '#1976d2';
+                return true;
+            } else {
+                routingStatus.textContent = 'No start point. Click "Locate me" or set Headquarters first.';
+                routingStatus.style.color = '#d32f2f';
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function updateRoute() {
+        if (!routingControl) {
+            console.error('Routing control not initialized');
+            return;
+        }
+
+        // Remove exact duplicates
+        const uniq = [];
+        waypoints.forEach(w => {
+            if (!uniq.some(u => Math.abs(u.lat - w.lat) < 1e-7 && Math.abs(u.lng - w.lng) < 1e-7)) {
+                uniq.push(w);
+            }
+        });
+        waypoints = uniq;
+
+        console.log('Updating route with waypoints:', waypoints.length);
+        
+        // Set waypoints
+        const latLngs = waypoints.map(w => L.latLng(w.lat, w.lng));
+        routingControl.setWaypoints(latLngs);
+        
+        if (waypoints.length >= 2) {
+            routingStatus.textContent = 'Calculating route...';
+            routingStatus.style.color = '#1976d2';
+            // Force route calculation
+            setTimeout(() => {
+                if (routingControl && routingControl.route) {
+                    routingControl.route();
+                }
+            }, 100);
+        } else if (waypoints.length === 1) {
+            distanceSummary.innerHTML = `<strong>Route Summary:</strong><br>1 stop added. Add more to calculate route.`;
+            routingStatus.textContent = 'Add at least one more stop to calculate route.';
+            routingStatus.style.color = '#f57c00';
+        } else {
+            distanceSummary.innerHTML = '';
+            routingStatus.textContent = '';
+        }
+    }
+
+    function addWaypoint(lat, lng, label) {
+        // Check for duplicates
+        if (waypoints.some(w => Math.abs(w.lat - lat) < 1e-7 && Math.abs(w.lng - lng) < 1e-7)) {
+            routingStatus.textContent = `${label} is already in the route!`;
+            routingStatus.style.color = '#f57c00';
+            return;
+        }
+        
+        waypoints.push({ lat, lng, label });
+        console.log(`Added waypoint: ${label} (${lat}, ${lng})`);
+        
+        if (waypoints.length === 1) {
+            routingStatus.textContent = `Starting point set to ${label}. Add more stops to calculate route.`;
+            routingStatus.style.color = '#1976d2';
+        } else {
+            routingStatus.textContent = `Added ${label} to route (${waypoints.length} stops)`;
+            routingStatus.style.color = '#2e7d32';
+        }
+        updateRoute();
+    }
+
+    function addWaypointWithStart(lat, lng, label) {
+        // Simply add the waypoint - no forced start point
+        addWaypoint(lat, lng, label);
+    }
+
+    routingToggle.addEventListener('change', () => {
+        routingMode = routingToggle.checked;
+        if (routingMode) {
+            console.log('Routing mode enabled');
+            routingStatus.textContent = 'Routing mode enabled. Click any customer/location to start, then add more stops.';
+            routingStatus.style.color = '#1976d2';
+        } else {
+            console.log('Routing mode disabled');
+            waypoints = [];
+            distanceSummary.innerHTML = '';
+            routingStatus.textContent = 'Routing mode disabled.';
+            routingStatus.style.color = '#666';
+            if (routingControl) {
+                routingControl.setWaypoints([]);
+            }
+            Array.from(list.children).forEach(el => el.classList.remove('active'));
+        }
+    });
+
+    // "Start at My Location" prefers device location; falls back to Headquarters
+    startAtUserBtn.disabled = false;
+    startAtUserBtn.addEventListener('click', () => {
+        routingMode = true;
+        routingToggle.checked = true;
+        waypoints = [];
+
+        const startFromCurrent = Number.isFinite(currentLat) && Number.isFinite(currentLng);
+        const startFromHQ = Number.isFinite(hqLat) && Number.isFinite(hqLng);
+
+        if (startFromCurrent) {
+            waypoints = [{ lat: currentLat, lng: currentLng, label: currentLabel }];
+            routingStatus.textContent = '✓ Start set to My Location. Click customers to add stops.';
+            routingStatus.style.color = '#2e7d32';
+            map.setView([currentLat, currentLng], 14);
+            updateRoute();
+        } else if (startFromHQ) {
+            waypoints = [{ lat: hqLat, lng: hqLng, label: hqLabel }];
+            routingStatus.textContent = '✓ Start set to Headquarters. Click customers to add stops.';
+            routingStatus.style.color = '#2e7d32';
+            map.setView([hqLat, hqLng], 14);
+            updateRoute();
+        } else if (navigator.geolocation) {
+            routingStatus.textContent = '📍 Detecting your current location...';
+            routingStatus.style.color = '#1976d2';
+            startAtUserBtn.disabled = true;
+            startAtUserBtn.textContent = 'Locating...';
+            
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    addOrUpdateCurrent(pos.coords.latitude, pos.coords.longitude);
+                    waypoints = [{ lat: currentLat, lng: currentLng, label: currentLabel }];
+                    map.setView([currentLat, currentLng], 14);
+                    updateRoute();
+                    routingStatus.textContent = '✓ Start set to My Location. Click customers to add stops.';
+                    routingStatus.style.color = '#2e7d32';
+                    startAtUserBtn.disabled = false;
+                    startAtUserBtn.textContent = 'Start at My Location';
+                },
+                (error) => {
+                    console.error('Geolocation error:', error);
+                    if (startFromHQ) {
+                        waypoints = [{ lat: hqLat, lng: hqLng, label: hqLabel }];
+                        routingStatus.textContent = '⚠ Location unavailable. Using Headquarters as start.';
+                        routingStatus.style.color = '#f57c00';
+                        updateRoute();
+                    } else {
+                        routingStatus.textContent = '✗ Unable to fetch location. Click "Locate me" first or set Headquarters.';
+                        routingStatus.style.color = '#d32f2f';
+                    }
+                    startAtUserBtn.disabled = false;
+                    startAtUserBtn.textContent = 'Start at My Location';
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        } else {
+            routingStatus.textContent = '✗ Geolocation not available. Click "Locate me" or set Headquarters.';
+            routingStatus.style.color = '#d32f2f';
+        }
+    });
+
+    clearBtn.addEventListener('click', () => {
+        console.log('Clearing route');
+        waypoints = [];
+        distanceSummary.innerHTML = '';
+        routingStatus.textContent = 'Route cleared. Click any customer/location to start a new route.';
+        routingStatus.style.color = '#1976d2';
+        if (routingControl) {
+            // Remove all waypoints and routing display
+            routingControl.setWaypoints([]);
+            // Force remove the route by triggering an empty route
+            if (routingControl._line) {
+                map.removeLayer(routingControl._line);
+            }
+            // Remove route markers
+            if (routingControl._markers) {
+                routingControl._markers.forEach(marker => {
+                    if (marker) map.removeLayer(marker);
+                });
+            }
+        }
+        Array.from(list.children).forEach(el => el.classList.remove('active'));
+    });
+
+    // Log current state for debugging
+    console.log('Customer Location Map initialized');
+    console.log('Headquarters:', Number.isFinite(hqLat) && Number.isFinite(hqLng) ? `${hqLat}, ${hqLng}` : 'Not set');
+    console.log('Total customers with coordinates:', customers.length);
 </script>
 {% endblock %}
