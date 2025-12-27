@@ -77,9 +77,12 @@ def customer_location_map(request):
         customer_latitude__isnull=False,
         customer_longitude__isnull=False
     ).exclude(customer_latitude=None, customer_longitude=None).order_by('customer_name')
-
-    context = {
-        'customers': customers
-    }
-
+    user = UserProfile.objects.get(
+        user=request.user,
+        business_latitude__isnull=False,
+        business_longitude__isnull=False
+        )
+    context = {}
+    context['customers'] = customers
+    context['user'] = user
     return render(request, "graphs/customer_location_map.html", context)

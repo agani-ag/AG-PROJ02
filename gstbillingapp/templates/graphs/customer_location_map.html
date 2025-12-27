@@ -60,10 +60,22 @@
   const defaultCenter = [20.5937, 78.9629]; // India
   const map = L.map('map', { center: defaultCenter, zoom: 5, layers: [esriSat] });
 
-  // Layer switcher
-  const baseLayers = { 'Street (OSM)': osmStreets, 'Satellite (Esri)': esriSat };
-  const overlays = { 'Labels (Esri)': esriLabels };
-  L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: false }).addTo(map);
+// Layer switcher + optional 1km circles (default off)
+const circlesGroup = L.layerGroup();
+
+// Capture any circles added later and move them into the group
+map.on('layeradd', (e) => {
+    if (e.layer instanceof L.Circle) {
+        circlesGroup.addLayer(e.layer);
+        if (!map.hasLayer(circlesGroup)) {
+            map.removeLayer(e.layer); // keep hidden until enabled
+        }
+    }
+});
+
+const baseLayers = { 'Street (OSM)': osmStreets, 'Satellite (Esri)': esriSat };
+const overlays = { 'Labels (Esri)': esriLabels, '1 km circles': circlesGroup };
+L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: false }).addTo(map);
 
   // Labels show only with satellite by default
   map.on('baselayerchange', (e) => {
@@ -103,20 +115,67 @@
     markers.forEach(({ marker, label }) => applyTooltip(marker, label));
   });
 
-  // Add markers (popup always; tooltip only if enabled)
-  customers.forEach((cust) => {
+// Add markers (popup always; tooltip only if enabled)
+customers.forEach((cust) => {
     const marker = L.marker([cust.lat, cust.lng]).addTo(map)
-    .bindPopup(cust.label || '');
+        .bindPopup(cust.label || '');
     applyTooltip(marker, cust.label);
     markers.push({ marker, label: cust.label });
     const key = `${cust.lat},${cust.lng},${cust.label}`;
     markersByKey.set(key, marker);
     bounds.push([cust.lat, cust.lng]);
-  });
 
-  if (bounds.length) {
+    // 1km low-opacity circle around each customer marker
+    L.circle([cust.lat, cust.lng], {
+        radius: 1000,           // meters
+        color: '#1976d2',
+        weight: 1,
+        opacity: 0.3,           // stroke opacity
+        fillColor: '#2196f3',
+        fillOpacity: 0.15,
+        interactive: false
+    }).addTo(map);
+});
+
+// Add single user location marker in red
+const userLat = {{ user.business_latitude|default:"null" }};
+const userLng = {{ user.business_longitude|default:"null" }};
+const userLabel = "Your Location";
+
+const redIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+    iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    tooltipAnchor: [16, -28],
+    shadowSize: [41, 41]
+});
+
+if (Number.isFinite(userLat) && Number.isFinite(userLng)) {
+    const userMarker = L.marker([userLat, userLng], { icon: redIcon }).addTo(map)
+        .bindPopup(userLabel);
+    applyTooltip(userMarker, userLabel);
+    markers.push({ marker: userMarker, label: userLabel });
+    markersByKey.set(`${userLat},${userLng},${userLabel}`, userMarker);
+    bounds.push([userLat, userLng]);
+
+    // 1km low-opacity circle around user marker
+    L.circle([userLat, userLng], {
+        radius: 1000,
+        color: '#d32f2f',
+        weight: 1,
+        opacity: 0.3,
+        fillColor: '#f44336',
+        fillOpacity: 0.15,
+        interactive: false
+    }).addTo(map);
+}
+
+if (bounds.length) {
     map.fitBounds(bounds, { padding: [20, 20] });
-  }
+}
 
   // List click -> focus marker
   list.addEventListener('click', (e) => {
