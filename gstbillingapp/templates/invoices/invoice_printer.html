@@ -194,7 +194,7 @@
 							{% if user_profile.bankdetails.upi_id %}
 								<tr>
 									<td colspan="2" class="text-center">
-                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am=100"></div>
+                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am={{invoice_data.invoice_total_amt_with_gst|floatformat:2 }}"></div>
 									</td>
 								</tr>
 								<!-- <tr>

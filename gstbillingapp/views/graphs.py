@@ -47,8 +47,8 @@ def sales_dashboard(request):
         )
 
         totals = month_logs.aggregate(
-            total_purchased=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-            total_paid=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+            total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+            total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
             total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
             total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
         )

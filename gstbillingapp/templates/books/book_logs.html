@@ -22,6 +22,41 @@
 	</div>
 </div>
 <hr>
+<!-- Summary Cards Row -->
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-receipt"></i> Total Sales</h6>
+                <h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-check-circle"></i> Total Paid</h6>
+                <h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-orange text-white">
+            <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
+                <h3>₹ {{ total_returned | default:0 | floatformat:2 | intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-violet text-white">
+            <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
+                <h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
 <table class="table table-hover font-weight-bold" id="inventory-logs-table">
 	<thead class="thead-dark">
 		<tr>
@@ -43,6 +78,8 @@
                 <tr class="table-warning">
             {% elif item.is_active and item.change_type == 3 %}
                 <tr class="table-primary">
+            {% elif item.is_active and item.change_type == 4 %}
+                <tr class="table-info">
             {% else %}
                 <tr class="table-secondary">
             {% endif %}
@@ -57,14 +94,21 @@
                         <a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="btn btn-primary btn-sm btn-curve">
                             <i class="fas fa-file-invoice"></i>
                         </a>    
-                    {% endif %}
-                    {% if item.change_type != 1 and item.change_type != 2 %}
+                    {% else %}
+                        <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
+                            <i class="fas fa-trash"></i>
+                        </a>
+                    {% endif %}    
+                    {% if item.change_type != 1 and item.change_type != 2%}
                         <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
                             <i class="fas fa-trash"></i>
                         </a>
                     {% endif %}
                     {% if not item.is_active %}
                         <span class="btn btn-warning btn-sm btn-curve" onclick="markAsActive({{ item.id }},{{ item.change }})"><i class="fas fa-arrow-up"></i></span>
+                    {% endif %}
+                    {% if item.change_type == 4 %}
+                        <button onclick="handleBookLogChange({{ item.id }}, '{{ item.change }}')" class="btn btn-info btn-sm btn-curve"><i class="fas fa-arrow-up"></i></button>
                     {% endif %}
                 </div>
             </td>
@@ -189,5 +233,107 @@ function markAsActive(booklogId, change) {
     });
 }
 </script>
+
+<script>
+    // Function to handle book log change request
+    function handleBookLogChange(booklog_id, booklog_change) {
+        // Show SweetAlert modal with radio buttons
+        Swal.fire({
+            title: 'Select Status',
+            html: `
+                <div>
+                    <label><input type="radio" name="status" value="0" onclick="toggleInputs(false)"> Success</label>
+                    <br>
+                    <label><input type="radio" name="status" value="4" onclick="toggleInputs(true)"> Failed</label>
+                </div>
+                <div id="failedInputs" style="display:none;">
+                    <div><span class="font-weight-bold">Amount :${booklog_change}</span></div>
+                    <div>
+                        <label for="change">Change:</label>
+                        <input type="number" id="change" name="change" placeholder="Enter change" min="0" required>
+                    </div>
+                    <div>
+                        <label for="description">Description:</label>
+                        <input type="text" id="description" name="description" placeholder="Enter description" required>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Submit',
+            cancelButtonText: 'Cancel',
+            preConfirm: () => {
+                // Get selected status
+                const status = document.querySelector('input[name="status"]:checked');
+                if (!status) {
+                    Swal.showValidationMessage('Please select a status');
+                    return false;
+                }
+
+                const statusValue = status.value;
+                let change = "";
+                let description = "";
+
+                // If "Failed" is selected, get change and description values
+                if (statusValue === "4") {
+                    change = document.getElementById("change").value;
+                    description = document.getElementById("description").value;
+                    if (!change || !description) {
+                        Swal.showValidationMessage('Please fill in the change and description fields');
+                        return false;
+                    }
+                }
+
+                // Return the data to be sent to the backend
+                return {
+                    booklog_id: booklog_id,
+                    booklog_change: change,
+                    booklog_description: description,
+                    booklog_options: statusValue
+                };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Send the POST request to the server with the result
+                const { booklog_id, booklog_change, booklog_description, booklog_options } = result.value;
+                
+                // Send data to backend
+                fetch("{% url 'book_logs_pending' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: new URLSearchParams({
+                        'booklog_id': booklog_id,
+                        'booklog_change': booklog_change,
+                        'booklog_description': booklog_description,
+                        'booklog_options': booklog_options
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire('Success!', data.message, 'success');
+                    } else {
+                        Swal.fire('Error!', data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    Swal.fire('Oops!', 'Something went wrong. Please try again.', 'error');
+                });
+            }
+        });
+    }
+
+    // Function to show/hide input fields for "Failed" status
+    function toggleInputs(isFailed) {
+        const failedInputs = document.getElementById("failedInputs");
+        if (isFailed) {
+            failedInputs.style.display = "block";
+        } else {
+            failedInputs.style.display = "none";
+        }
+    }
 </script>
+
 {% endblock %}

@@ -193,6 +193,7 @@ class BookLog(models.Model):
         (1, 'Purchased Items'),
         (2, 'Returned Items'),
         (3, 'Other'),
+        (4, 'Pending'),
     ]
     change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)
     change = models.FloatField(default=0.0)

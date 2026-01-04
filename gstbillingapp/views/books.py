@@ -39,6 +39,27 @@ def book_logs(request, book_id):
     context['book'] = book
     context['book_logs'] = book_logs
     context['nav_hide'] = request.GET.get('nav') or ''
+
+    totals = book_logs.aggregate(
+        total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+        total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+    )
+    # Fill in context with totals, using 0 if None
+    total_purchased = totals['total_purchased'] or 0
+    total_paid = totals['total_paid'] or 0
+    total_returned = totals['total_returned'] or 0
+    total_others = totals['total_others'] or 0
+    total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
+    # Calculate balance (absolute value if you want it always positive)
+    context['total_balance'] = total_balance
+    context['total_balance_word'] = num2words.num2words(abs(int(context['total_balance'])), lang='en_IN').title()
+    context['total_purchased'] = abs(total_purchased)
+    context['total_paid'] = abs(total_paid)
+    context['total_returned'] = abs(total_returned)
+    context['total_others'] = abs(total_others)
+
     return render(request, 'books/book_logs.html', context)
 
 
@@ -101,8 +122,8 @@ def book_logs_full(request):
     book_logs = BookLog.objects.filter(parent_book__isnull=False,parent_book__user=request.user).order_by('-date')
     # Aggregate totals by change_type in a single query
     totals = book_logs.aggregate(
-        total_purchased=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-        total_paid=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
         total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
         total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
     )
@@ -113,7 +134,7 @@ def book_logs_full(request):
     total_paid = totals['total_paid'] or 0
     total_returned = totals['total_returned'] or 0
     total_others = totals['total_others'] or 0
-    total_balance = total_purchased - (abs(total_paid) + abs(total_returned) + abs(total_others))
+    total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
     # Calculate balance (absolute value if you want it always positive)
     context['total_balance'] = total_balance
     context['total_balance_word'] = num2words.num2words(abs(int(context['total_balance'])), lang='en_IN').title()
@@ -237,3 +258,26 @@ def customerBookFilter(request):
         })
 
     return JsonResponse(data, safe=False)
+
+@csrf_exempt
+def book_logs_pending(request):
+    if request.method == "POST":
+        booklog_id = request.POST["booklog_id"]
+        booklog_change = request.POST["booklog_change"]
+        booklog_options = request.POST["booklog_options"]
+        booklog_description = request.POST["booklog_description"]
+        booklog = get_object_or_404(BookLog, id=booklog_id)
+        if int(booklog_options) == 0:
+            booklog.change_type = 0
+            booklog.save()
+        else:
+            book_logs_new = BookLog(
+                parent_book = booklog.parent_book,
+                change_type = 3,
+                change = booklog_change,
+                description = booklog_description
+            )
+            book_logs_new.save()
+        recalculate_book_current_balance(booklog.parent_book)
+        return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog_id} processed successfully.'})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to add products alert stock.'})

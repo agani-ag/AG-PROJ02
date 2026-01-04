@@ -144,17 +144,6 @@ def create_inventory(product):
         new_inventory = Inventory(user=product.user, product=product)
         new_inventory.save()
 
-def create_inventory_with_stockalert(product,alert_level):
-    if not Inventory.objects.filter(user=product.user, product=product).exists():
-        new_inventory = Inventory(user=product.user, product=product,alert_level=alert_level)
-        new_inventory.save()
-
-def update_inventory_stockalert(product,alert_level):
-    if Inventory.objects.filter(user=product.user, product=product).exists():
-        inventory = Inventory.objects.get(user=product.user, product=product)
-        inventory.alert_level=alert_level
-        inventory.save()
-
 def update_inventory(invoice, request):
     if invoice.non_gst_mode:
         description = "Non-GST Sale - Auto Deduct"
@@ -245,7 +234,7 @@ def auto_deduct_book_from_invoice(invoice):
     book.save()
 
 def recalculate_book_current_balance(book_obj):
-    new_total = BookLog.objects.filter(parent_book=book_obj, is_active=True).aggregate(Sum('change'))['change__sum']
+    new_total = BookLog.objects.filter(parent_book=book_obj, is_active=True, change_type__in=[0,1,2,3]).aggregate(Sum('change'))['change__sum']
     if not new_total:
         new_total = 0
     book_obj.current_balance = new_total
