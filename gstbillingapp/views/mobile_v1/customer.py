@@ -72,7 +72,7 @@ def customer_invoices(request):
 
     invoices_qs = invoices_qs.order_by('-invoice_date')
 
-    paginator = Paginator(invoices_qs, 9)
+    paginator = Paginator(invoices_qs, 7)
     invoices = paginator.get_page(page_number)
 
     context.update({
@@ -130,7 +130,7 @@ def customer_books(request):
 
     books_qs = books_qs.order_by('-date')
 
-    paginator = Paginator(books_qs, 6)
+    paginator = Paginator(books_qs, 4)
     books = paginator.get_page(page_number)
 
     context.update({

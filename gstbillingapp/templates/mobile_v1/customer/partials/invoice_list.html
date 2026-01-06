@@ -44,15 +44,40 @@
         </li>
         {% endif %}
 
+        {# First page and ellipsis #}
+        {% if invoices.number > 3 %}
+            <li class="page-item">
+                <a class="page-link text-info" href="#" onclick="loadInvoices(1); return false;">1</a>
+            </li>
+            {% if invoices.number > 4 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endif %}
+
+        {# Pages around current page #}
         {% for num in invoices.paginator.page_range %}
-            <li class="page-item {% if invoices.number == num %}active{% endif %}">
-                <a class="page-link {% if invoices.number == num %}bg-info text-white{% else %}text-info{% endif %}"
-                   href="#"
-                   onclick="loadInvoices({{ num }}); return false;">
-                    {{ num }}
+            {% if num >= invoices.number|add:-2 and num <= invoices.number|add:2 %}
+                <li class="page-item {% if invoices.number == num %}active{% endif %}">
+                    <a class="page-link {% if invoices.number == num %}bg-info text-white{% else %}text-info{% endif %}"
+                       href="#"
+                       onclick="loadInvoices({{ num }}); return false;">
+                        {{ num }}
+                    </a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {# Last page and ellipsis #}
+        {% if invoices.number < invoices.paginator.num_pages|add:-2 %}
+            {% if invoices.number < invoices.paginator.num_pages|add:-3 %}
+                <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+            <li class="page-item">
+                <a class="page-link text-info" href="#" onclick="loadInvoices({{ invoices.paginator.num_pages }}); return false;">
+                    {{ invoices.paginator.num_pages }}
                 </a>
             </li>
-        {% endfor %}
+        {% endif %}
 
         {% if invoices.has_next %}
         <li class="page-item">

@@ -76,6 +76,35 @@
                     </div>
                 </div>
 
+                {% if customer.customer_latitude and customer.customer_longitude %}
+                <div class="row mb-1 align-items-center">
+                    <div id="map" style="height: 250px;width: 100%; margin: 5px;border-radius: 1%;"></div>
+                </div>
+                {% block includejs %}
+                    <script>
+                        var latitude = {{ customer.customer_latitude }};
+                        var longitude = {{ customer.customer_longitude }};
+                        var name = "{{ customer.customer_name }}";
+
+                        var map = L.map('map').setView([latitude, longitude], 20);
+
+                        var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                            attribution: '&copy; <a href="https://www.esri.com/en-us/arcgis/about-arcgis/overview">Esri</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        });
+
+                        var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        });
+
+                        satelliteLayer.addTo(map);
+
+                        L.marker([latitude, longitude]).addTo(map)
+                            .bindTooltip(name, {permanent: true, offset: [0, -15], direction: 'top'})
+                            .openPopup();
+                    </script>
+                    {% endblock %}
+                {% endif %}
+
             </div>
 
             <!-- Footer -->
@@ -98,7 +127,6 @@
             No customer data found.
         </div>
         {% endif %}
-
     </div>
 </div>
 
