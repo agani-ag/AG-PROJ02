@@ -4,6 +4,7 @@ from gstbilling import settings
 from django.shortcuts import get_object_or_404
 
 # Python imports
+import re
 import json
 import datetime
 
@@ -257,3 +258,18 @@ def customer_already_exists(user, customer_phone, customer_email, customer_gst):
        Customer.objects.filter(user=user, customer_gst=customer_gst).exists():
         return True
     return False
+
+# ================ Utility Methods ===========================
+def parse_code_GS(input_code):
+    if not input_code:
+        return None
+    # Regex to match the pattern
+    pattern = r'([A-Za-z]+)(\d+)'
+    # Find all matches
+    matches = re.findall(pattern, input_code)
+    # If no valid pattern found, return None
+    if not matches:
+        return None
+    # Create a dictionary from the matches
+    result = {key: int(value) for key, value in matches}
+    return result

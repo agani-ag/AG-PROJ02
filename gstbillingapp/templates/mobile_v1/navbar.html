@@ -1,0 +1,47 @@
+<nav class="mobile-bottom-nav d-md-none">
+    <div class="nav-scroll">
+
+        <!-- Home -->
+        <a href="{% url 'landing_page' %}" class="nav-item">
+            <i class="fas fa-house"></i>
+            <span>Home</span>
+        </a>
+
+        <!-- Invoices -->
+        <a href="{% url 'invoices' %}" class="nav-item">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <span>Invoices</span>
+        </a>
+
+        <!-- Customers -->
+        <a href="{% url 'customers' %}" class="nav-item">
+            <i class="fas fa-user-friends"></i>
+            <span>Customers</span>
+        </a>
+
+        <!-- Products -->
+        <a href="{% url 'products' %}" class="nav-item">
+            <i class="fas fa-box-open"></i>
+            <span>Products</span>
+        </a>
+
+        <!-- Inventory -->
+        <a href="{% url 'inventory' %}" class="nav-item">
+            <i class="fas fa-warehouse"></i>
+            <span>Inventory</span>
+        </a>
+
+        <!-- Sales Dashboard / Graphs -->
+        <a href="{% url 'sales_dashboard' %}" class="nav-item">
+            <i class="fas fa-chart-line"></i>
+            <span>Graphs</span>
+        </a>
+
+        <!-- Profile -->
+        <a href="{% url 'user_profile' %}" class="nav-item">
+            <i class="fas fa-user-circle"></i>
+            <span>Profile</span>
+        </a>
+
+    </div>
+</nav>
