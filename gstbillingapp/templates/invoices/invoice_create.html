@@ -20,9 +20,9 @@
 		<tbody class="two-col-form">
 			<tr>
 				<th scope="row">Invoice Number</th>
-				<td class="form-input-td"><input name="invoice-number" type="number" class="form-control" placeholder="Invoice Number" value="{{default_invoice_number}}"></td>
+				<td class="form-input-td"><input name="invoice-number" type="number" class="form-control" placeholder="Invoice Number" min="1" value="{{default_invoice_number}}"></td>
 				<th scope="row">Date</th>
-				<td class="form-input-td"><input name="invoice-date" type="date" class="form-control", value="{{default_invoice_date}}"></td>
+				<td class="form-input-td"><input name="invoice-date" type="date" class="form-control" min="1" value="{{default_invoice_date}}"></td>
 			</tr>
 		</tbody>
 	</table>
@@ -111,11 +111,11 @@
 				<td class="form-input-td"><input name="invoice-hsn" type="text" class="form-control" placeholder="HSN" readonly></td>
 				
 
-				<td class="form-input-td"><input name="invoice-discount" type="number" step="any" class="form-control" value='0' placeholder="Discount"></td>
+				<td class="form-input-td"><input name="invoice-discount" type="number" step="any" class="form-control" value='0' placeholder="Discount" min="0"></td>
 
-				<td class="form-input-td"><input name="invoice-qty" type="number" step="any" class="form-control" placeholder="Qty"></td>
-				<td class="form-input-td"><input name="invoice-rate-with-gst" type="number" step="any" class="form-control" placeholder="MRP"></td>
-				<td class="form-input-td"><input name="invoice-gst-percentage" type="number" step="any" class="form-control" placeholder="GST %"></td>
+				<td class="form-input-td"><input name="invoice-qty" type="number" step="any" class="form-control" placeholder="Qty" value='1' min="1"></td>
+				<td class="form-input-td"><input name="invoice-rate-with-gst" type="number" step="any" class="form-control" placeholder="MRP" min="1"></td>
+				<td class="form-input-td"><input name="invoice-gst-percentage" type="number" step="any" class="form-control" placeholder="GST %" min="1"></td>
 
 
 				<td class="form-input-td"><input name="invoice-rate-without-gst" type="number" step="any" class="form-control" placeholder="Rate without GST" readonly></td>

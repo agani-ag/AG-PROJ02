@@ -115,7 +115,7 @@
         /* Menu Item Styling */
         .nav-item {
             flex: 0 0 auto;       /* prevent shrinking */
-            padding: 5px 12px;
+            padding: 5px 14px;
             text-align: center;
             color: #fff;
             font-size: 12px;
@@ -125,13 +125,13 @@
         /* Icon and text style inside menu item */
         .nav-item i {
             display: block;
-            font-size: 18px;
+            font-size: 24px;
             margin-bottom: 2px;
         }
 
         .nav-item span {
             display: block;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         /* Active State for Menu Item */
@@ -159,7 +159,9 @@
         {% block content %}
             CONTENT BLOCK
         {% endblock %}
-        {% include "mobile_v1/navbar.html" %}
+        <!-- CUSTOMER NAVBAR -->
+        {% include "mobile_v1/navbarC.html" %}
+        <!-- EMPLOYEE NAVBAR -->
     </div>
 
     <!-- JS SECTION -->

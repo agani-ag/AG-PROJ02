@@ -146,10 +146,10 @@ def create_inventory(product):
         new_inventory.save()
 
 def update_inventory(invoice, request):
-    if invoice.non_gst_mode:
-        description = "Non-GST Sale - Auto Deduct"
-    else:
+    if invoice.is_gst:
         description = "Sale - Auto Deduct"
+    else:
+        description = "Non-GST Sale - Auto Deduct"
     invoice_data =  json.loads(invoice.invoice_json)
     for item in invoice_data['items']:
         product = Product.objects.get(user=request.user,
@@ -214,10 +214,10 @@ def add_customer_book(customer):
 
 def auto_deduct_book_from_invoice(invoice):
     invoice_data =  json.loads(invoice.invoice_json)
-    if invoice.non_gst_mode:
-        description = "Non-GST Sale - Auto Deduct"
-    else:
+    if invoice.is_gst:
         description = "Purchase - Auto Deduct"
+    else:
+        description = "Non-GST Sale - Auto Deduct"
 
     book = Book.objects.get(user=invoice.user, customer=invoice.invoice_customer)
 

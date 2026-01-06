@@ -1,7 +1,7 @@
 {% extends "mobile_v1/base.html" %}
 {% load static %}
 
-{% block title %}Customer Profile{% endblock %}
+{% block title %}Customer Books{% endblock %}
 
 {% block content %}
 
@@ -10,11 +10,11 @@
         <div class="card shadow-sm mb-3">
 
             <!-- Header -->
-            <div class="card-header bg-info text-white d-flex align-items-center">
-                <i class="fas fa-file-invoice-dollar fa-lg mr-2"></i>
+            <div class="card-header bg-danger text-white d-flex align-items-center">
+                <i class="fas fa-book fa-lg mr-2"></i>
                 <h6 class="mb-0">
-                    Invoice 
-                    <span class="badge bg-light text-dark">({{ invoices_count }})</span>
+                    Books 
+                    <span class="badge bg-light text-dark">({{ books_count }})</span>
                 </h6>
             </div>
             
@@ -25,15 +25,15 @@
                     <input type="text"
                         id="searchInput"
                         class="form-control"
-                        placeholder="Type to search invoice..."
+                        placeholder="Type to search books..."
                         value="{{ search }}">
-                    <span class="input-group-text bg-info text-white">
+                    <span class="input-group-text bg-danger text-white">
                         <i class="fas fa-search"></i>
                     </span>
                 </div>
 
-                <div id="invoiceContainer">
-                    {% include "mobile_v1/customer/partials/invoice_list.html" %}
+                <div id="bookContainer">
+                    {% include "mobile_v1/customer/partials/book_list.html" %}
                 </div>
                 
             <!-- Footer -->
@@ -57,12 +57,13 @@
 </div>
 
 {% endblock %}
+
 {% block includejs %}
 <script>
     let typingTimer;
     const delay = 400;
 
-    function loadInvoices(page = 1) {
+    function loadBooks(page = 1) {
         const search = document.getElementById('searchInput').value;
         const cid = "{{ request.GET.cid }}";
 
@@ -71,13 +72,14 @@
         })
         .then(res => res.json())
         .then(data => {
-            document.getElementById('invoiceContainer').innerHTML = data.html;
+            document.getElementById('bookContainer').innerHTML = data.html;
         });
     }
 
     document.getElementById('searchInput').addEventListener('keyup', function () {
         clearTimeout(typingTimer);
-        typingTimer = setTimeout(() => loadInvoices(1), delay);
+        typingTimer = setTimeout(() => loadBooks(1), delay);
     });
+
 </script>
 {% endblock %}
