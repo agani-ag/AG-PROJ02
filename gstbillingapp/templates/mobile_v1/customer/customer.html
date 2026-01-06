@@ -80,27 +80,66 @@
                 <div class="row mb-1 align-items-center">
                     <div id="map" style="height: 250px;width: 100%; margin: 5px;border-radius: 1%;"></div>
                 </div>
+
+                <!-- Distance Time -->
+                <div class="row mb-2 align-items-center">
+                    <div class="col-5 font-weight-bold">
+                        <i class="fas fa-location-arrow"></i> Distance(KM)
+                    </div>
+                    <div class="col-7">
+                            <span id="distance-time"></span>
+                    </div>
+                </div>
+
                 {% block includejs %}
                     <script>
                         var latitude = {{ customer.customer_latitude }};
                         var longitude = {{ customer.customer_longitude }};
                         var name = "{{ customer.customer_name }}";
 
-                        var map = L.map('map').setView([latitude, longitude], 20);
+                        // Head Office
+                        var hqLat = {{ users.business_latitude }};
+                        var hqLng = {{ users.business_longitude }};
+                        var hqName = "{{ users.business_title }}";
 
-                        var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                            attribution: '&copy; <a href="https://www.esri.com/en-us/arcgis/about-arcgis/overview">Esri</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        });
+                        var map = L.map('map').setView([latitude, longitude], 13);
 
-                        var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        });
+                        var satelliteLayer = L.tileLayer(
+                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                            { attribution: '&copy; Esri & OpenStreetMap contributors' }
+                        ).addTo(map);
 
-                        satelliteLayer.addTo(map);
+                        // Customer Marker (RED)
+                        L.marker([latitude, longitude])
+                            .addTo(map);
 
-                        L.marker([latitude, longitude]).addTo(map)
-                            .bindTooltip(name, {permanent: true, offset: [0, -15], direction: 'top'})
-                            .openPopup();
+                        // HQ Marker (GREEN)
+                        L.marker([hqLat, hqLng])
+                            .addTo(map)
+                            .bindTooltip(hqName, { permanent: true, offset: [0, -40], direction: 'top' });
+
+                        // Routing
+                        L.Routing.control({
+                            waypoints: [
+                                L.latLng(latitude, longitude),
+                                L.latLng(hqLat, hqLng)
+                            ],
+                            routeWhileDragging: false,
+                            show: false,
+                            addWaypoints: false,
+                            lineOptions: {
+                                styles: [{ color: 'blue', weight: 5 }]
+                            }
+                        }).on('routesfound', function (e) {
+                            var distance = e.routes[0].summary.totalDistance / 1000;
+                            var time = e.routes[0].summary.totalTime / 60;
+                            document.getElementById('distance-time').innerText =
+                            distance.toFixed(2) + " KM, " + time.toFixed(0) + " Minutes";
+                            // alert(
+                            //     "Distance: " + distance.toFixed(2) + " KM\n" +
+                            //     "Estimated Time: " + time.toFixed(0) + " Minutes"
+                            // );
+                        }).addTo(map);
                     </script>
                     {% endblock %}
                 {% endif %}
