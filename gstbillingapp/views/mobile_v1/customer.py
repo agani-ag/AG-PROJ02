@@ -25,16 +25,16 @@ import num2words
 from ...utils import parse_code_GS
 
 # ================= Customer =============================
-def customer(request):
+def customer_profile(request):
     context = {}
     cid = request.GET.get('cid', None)
     if not cid:
-        return render(request, 'mobile_v1/customer/customer.html', {
+        return render(request, 'mobile_v1/customer/profile.html', {
             'error': 'Invalid customer link'
         })
     cid_data = parse_code_GS(cid)
     if not cid_data:
-        return render(request, 'mobile_v1/customer/customer.html', {
+        return render(request, 'mobile_v1/customer/profile.html', {
             'error': 'Invalid customer data'
         })
     customer_id = cid_data.get('C', None)
@@ -46,7 +46,7 @@ def customer(request):
         context['customer'] = customer
     except:
         pass
-    return render(request, 'mobile_v1/customer/customer.html', context)
+    return render(request, 'mobile_v1/customer/profile.html', context)
 
 def customer_invoices(request):
     context = {}

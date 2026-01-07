@@ -3,201 +3,384 @@
 {% load humanize %}
 {% block title %}Customer Home{% endblock %}
 
+{% block includecss %}
+<style>
+    /* Samsung One UI Home Page Styling */
+    .home-wrapper {
+        max-width: 640px;
+        margin: 0 auto;
+        padding-bottom: 80px;
+    }
+    
+    /* Welcome Header */
+    .welcome-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 0 0 16px 16px;
+        padding: 32px 20px 24px;
+        margin: -12px -8px 20px;
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+    }
+    
+    .greeting-text {
+        font-size: 15px;
+        color: rgba(255, 255, 255, 0.85);
+        margin: 0 0 4px;
+        font-weight: 500;
+    }
+    
+    .customer-name {
+        font-size: 26px;
+        font-weight: 700;
+        color: white;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+    
+    /* Section Headers */
+    .section-header {
+        padding: 24px 8px 12px;
+    }
+    
+    .section-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+        letter-spacing: -0.3px;
+    }
+    
+    .section-subtitle {
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+        font-weight: 500;
+    }
+    
+    /* Stats Cards */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+        display: block;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: currentColor;
+        opacity: 0.8;
+    }
+    
+    .stat-card:active {
+        transform: scale(0.97);
+    }
+    
+    .stat-card.danger {
+        color: #ff3b30;
+    }
+    
+    .stat-card.success {
+        color: #34c759;
+    }
+    
+    .stat-card.warning {
+        color: #ff9500;
+    }
+    
+    .stat-card.info {
+        color: #007aff;
+    }
+    
+    .stat-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: currentColor;
+        opacity: 0.12;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+    }
+    
+    .stat-icon i {
+        font-size: 18px;
+        color: currentColor;
+        opacity: 1;
+    }
+    
+    .stat-label {
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+        margin: 0 0 6px;
+        font-weight: 500;
+    }
+    
+    .stat-value {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+        letter-spacing: -0.5px;
+    }
+    
+    .stat-count {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+    }
+    
+    /* Summary Section */
+    .summary-section {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+    }
+    
+    .summary-title {
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0 0 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .summary-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--oneui-divider);
+    }
+    
+    .summary-item:last-child {
+        border-bottom: none;
+    }
+    
+    .summary-label {
+        font-size: 15px;
+        color: var(--oneui-text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .summary-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+    }
+    
+    .summary-badge {
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        margin-left: 6px;
+    }
+    
+    .badge-danger {
+        background: #ffebee;
+        color: #c62828;
+    }
+    
+    .badge-success {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+    
+    .badge-warning {
+        background: #fff3e0;
+        color: #e65100;
+    }
+    
+    .badge-info {
+        background: #e3f2fd;
+        color: #1565c0;
+    }
+    
+    /* Footer Info */
+    .page-footer {
+        background: white;
+        border-radius: 16px;
+        padding: 16px 20px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .footer-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+    }
+    
+    .footer-info i {
+        font-size: 16px;
+    }
+    
+    .footer-value {
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 
-<div class="row mt-3">
-    <div class="col-12">
-        <div class="card shadow-sm mb-3">
-
-            <!-- Header -->
-            <div class="card-header bg-success text-white d-flex align-items-center">
-                <!-- <i class="fas fa-book fa-lg mr-2"></i> -->
-                <h6 class="mb-0">
-                    <span class="badge bg-dark text-light">Hi, Good Evening</span><br>
-                    <span class="badge bg-light text-dark">{{ customer.customer_name|default:"Valued Customer"|upper }}</span>
-                </h6>
+<div class="home-wrapper">
+    
+    <!-- Welcome Header -->
+    <div class="welcome-header">
+        <p class="greeting-text" id="greeting">Hi, Good Evening</p>
+        <h1 class="customer-name">{{ customer.customer_name|default:"Valued Customer" }}</h1>
+    </div>
+    
+    <!-- Current Month Section -->
+    <div class="section-header">
+        <h2 class="section-title">Current Month</h2>
+        <p class="section-subtitle">{% now "F Y" %}</p>
+    </div>
+    
+    <div class="stats-grid">
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=current_month_purchases" 
+           class="stat-card danger">
+            <div class="stat-icon">
+                <i class="fas fa-receipt"></i>
             </div>
-            
-            <!-- Body -->
-            <div class="card-body p-3">
-                <div class="row">
-
-                    <!-- Current Month Transactions -->
-                    <div class="col-md-6">
-                        <h6 class="mb-0">
-                            <span class="badge bg-light text-dark">
-                                Current Month Transactions ({% now "m/Y" %})
-                            </span>
-                        </h6>
-                    </div>
-
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-body d-flex justify-content-between p-0">
-                                <!-- First Total Purchased -->
-                                <div class="card bg-danger text-white flex-fill m-1 text-center position-relative">
-                                    <div class="card-body py-3">
-                                        <h6 class="card-title"><i class="fas fa-receipt"></i> Purchased</h6>
-                                        <h3>₹ {{ current_month_total_purchased | default:0 | intcomma }}</h3>
-                                        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=current_month_purchases" 
-                                            class="stretched-link"></a>
-                                    </div>
-                                </div>
-
-                                <!-- Second Total Purchased -->
-                                <div class="card bg-success text-white flex-fill m-1 text-center position-relative">
-                                    <div class="card-body py-3">
-                                        <h6 class="card-title"><i class="fas fa-check-circle"></i> Paid</h6>
-                                        <h3>₹ {{ current_month_total_paid | default:0 | intcomma }}</h3>
-                                        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=current_month_payments" 
-                                            class="stretched-link"></a>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- In / Out Count -->
-                            <h6 class="mb-0">
-                                <span class="badge bg-light text-danger">Purchase</span>
-                                    <span class="badge bg-dark text-light">{{ current_month_purchased_count | default:0 }}</span>
-                                <span class="badge bg-light text-success">Payment</span>
-                                    <span class="badge bg-dark text-light">{{ current_month_paid_count | default:0 }}</span>
-                                <span class="badge bg-light text-dark">→ Counts</span>
-                            </h6>
-                        </div>
-                    </div>
-
-                    <!-- Last Month Transactions -->
-                    <div class="col-md-6">
-                        <h6 class="mb-0">
-                            <span class="badge bg-light text-dark">
-                                Last Month Transactions ({{ total_last_month_name }})
-                            </span>
-                        </h6>
-                    </div>
-
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-body d-flex justify-content-between p-0">
-                                <!-- First Total Purchased -->
-                                <div class="card bg-danger text-white flex-fill m-1 text-center position-relative">
-                                    <div class="card-body py-3">
-                                        <h6 class="card-title"><i class="fas fa-receipt"></i> Purchased</h6>
-                                        <h3>₹ {{ last_month_total_purchased | default:0 | intcomma }}</h3>
-                                        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=last_month_purchases" 
-                                            class="stretched-link"></a>
-                                    </div>
-                                </div>
-
-                                <!-- Second Total Purchased -->
-                                <div class="card bg-success text-white flex-fill m-1 text-center position-relative">
-                                    <div class="card-body py-3">
-                                        <h6 class="card-title"><i class="fas fa-check-circle"></i> Paid</h6>
-                                        <h3>₹ {{ last_month_total_paid | default:0 | intcomma }}</h3>
-                                        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=last_month_payments" 
-                                            class="stretched-link"></a>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- In / Out Count -->
-                            <h6 class="mb-0">
-                                <span class="badge bg-light text-danger">Purchase</span>
-                                    <span class="badge bg-dark text-light">{{ last_month_purchased_count | default:0 }}</span>
-                                <span class="badge bg-light text-success">Payment</span>
-                                    <span class="badge bg-dark text-light">{{ last_month_paid_count | default:0 }}</span>
-                                <span class="badge bg-light text-dark">← Counts</span>
-                            </h6>
-                        </div>
-                    </div>
-
-                    <!-- Global Transactions -->
-                    <div class="col-md-6">
-                        <h6 class="mb-0">
-                            <span class="badge bg-light text-dark">
-                                Global Transactions ({{ start_end_year }})
-                            </span>
-                        </h6>
-                    </div>
-
-                    <!-- Total Purchased -->
-                    <div class="col-md-3 pb-2">
-                        <div class="card bg-danger text-white position-relative">
-                            <div class="card-body">
-                                <h6 class="card-title"><i class="fas fa-receipt"></i> Total Purchased</h6>
-                                <h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
-                                <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=purchases" 
-                                    class="stretched-link"></a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Total Paid -->
-                    <div class="col-md-3 pb-2">
-                        <div class="card bg-success text-white position-relative">
-                            <div class="card-body">
-                                <h6 class="card-title"><i class="fas fa-check-circle"></i> Total Paid</h6>
-                                <h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
-                                <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=payments" 
-                                    class="stretched-link"></a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Total Returned -->
-                    <div class="col-md-3 pb-2">
-                        <div class="card bg-orange text-white position-relative">
-                            <div class="card-body">
-                                <h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
-                                <h3>₹ {{ total_returned | default:0 | floatformat:2 | intcomma }}</h3>
-                                <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=returns" 
-                                    class="stretched-link"></a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Total Others -->
-                    <div class="col-md-3 pb-2">
-                        <div class="card bg-violet text-white position-relative">
-                            <div class="card-body">
-                                <h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
-                                <h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
-                                <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=others" 
-                                    class="stretched-link"></a>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- In / Out Count -->
-                    <div class="col-md-6">
-                        <h6 class="mb-0">
-                            <span class="badge bg-light text-danger">Purchase</span>
-                                <span class="badge bg-dark text-light">{{ purchased_count | default:0 }}</span>
-                            <span class="badge bg-light text-success">Payment</span>
-                                <span class="badge bg-dark text-light">{{ paid_count | default:0 }}</span>
-                            <span class="badge bg-light text-orange">Return</span>
-                                <span class="badge bg-dark text-light">{{ returned_count | default:0 }}</span>
-                            <span class="badge bg-light text-violet">Others</span>
-                                <span class="badge bg-dark text-light">{{ others_count | default:0 }}</span>
-                        </h6>
-                    </div>
-                </div>
+            <p class="stat-label">Purchased</p>
+            <h3 class="stat-value">₹{{ current_month_total_purchased|default:0|intcomma }}</h3>
+            <p class="stat-count">{{ current_month_purchased_count|default:0 }} transactions</p>
+        </a>
+        
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=current_month_payments" 
+           class="stat-card success">
+            <div class="stat-icon">
+                <i class="fas fa-check-circle"></i>
             </div>
-
-            <!-- Footer -->
-            <div class="card-footer d-flex justify-content-between align-items-center">
-                <div>
-                    <i class="fas fa-building text-secondary"></i> 
-                    <span class="mr-2 font-weight-bold">
-                        {{ users.business_brand|default:"-"|upper }}
-                    </span>
-                </div>
-                <div class="text-end">
-                    <i class="fas fa-user-tag text-secondary"></i>
-                    <span class="mr-2 text-muted font-weight-bold">
-                        {{ customer.customer_userid|default:"-"|upper }}
-                    </span>
-                </div>
+            <p class="stat-label">Paid</p>
+            <h3 class="stat-value">₹{{ current_month_total_paid|default:0|intcomma }}</h3>
+            <p class="stat-count">{{ current_month_paid_count|default:0 }} payments</p>
+        </a>
+    </div>
+    
+    <!-- Last Month Section -->
+    <div class="section-header">
+        <h2 class="section-title">Last Month</h2>
+        <p class="section-subtitle">{{ total_last_month_name }}</p>
+    </div>
+    
+    <div class="stats-grid">
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=last_month_purchases" 
+           class="stat-card danger">
+            <div class="stat-icon">
+                <i class="fas fa-receipt"></i>
             </div>
-
+            <p class="stat-label">Purchased</p>
+            <h3 class="stat-value">₹{{ last_month_total_purchased|default:0|intcomma }}</h3>
+            <p class="stat-count">{{ last_month_purchased_count|default:0 }} transactions</p>
+        </a>
+        
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=last_month_payments" 
+           class="stat-card success">
+            <div class="stat-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <p class="stat-label">Paid</p>
+            <h3 class="stat-value">₹{{ last_month_total_paid|default:0|intcomma }}</h3>
+            <p class="stat-count">{{ last_month_paid_count|default:0 }} payments</p>
+        </a>
+    </div>
+    
+    <!-- Global Transactions Summary -->
+    <div class="section-header">
+        <h2 class="section-title">Overall Summary</h2>
+        <p class="section-subtitle">{{ start_end_year }}</p>
+    </div>
+    
+    <div class="summary-section">
+        <h3 class="summary-title">
+            <i class="fas fa-chart-line"></i>
+            Transaction Overview
+        </h3>
+        
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=purchases" 
+           class="summary-item" style="text-decoration: none;">
+            <span class="summary-label">
+                <i class="fas fa-receipt" style="color: #ff3b30;"></i>
+                Total Purchased
+                <span class="summary-badge badge-danger">{{ purchased_count|default:0 }}</span>
+            </span>
+            <span class="summary-value">₹{{ total_purchased|default:0|floatformat:2|intcomma }}</span>
+        </a>
+        
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=payments" 
+           class="summary-item" style="text-decoration: none;">
+            <span class="summary-label">
+                <i class="fas fa-check-circle" style="color: #34c759;"></i>
+                Total Paid
+                <span class="summary-badge badge-success">{{ paid_count|default:0 }}</span>
+            </span>
+            <span class="summary-value">₹{{ total_paid|default:0|floatformat:2|intcomma }}</span>
+        </a>
+        
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=returns" 
+           class="summary-item" style="text-decoration: none;">
+            <span class="summary-label">
+                <i class="fas fa-reply" style="color: #ff9500;"></i>
+                Total Returned
+                <span class="summary-badge badge-warning">{{ returned_count|default:0 }}</span>
+            </span>
+            <span class="summary-value">₹{{ total_returned|default:0|floatformat:2|intcomma }}</span>
+        </a>
+        
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=others" 
+           class="summary-item" style="text-decoration: none;">
+            <span class="summary-label">
+                <i class="fas fa-ellipsis-h" style="color: #007aff;"></i>
+                Other Transactions
+                <span class="summary-badge badge-info">{{ others_count|default:0 }}</span>
+            </span>
+            <span class="summary-value">₹{{ total_others|default:0|floatformat:2|intcomma }}</span>
+        </a>
+    </div>
+    
+    <!-- Page Footer -->
+    <div class="page-footer">
+        <div class="footer-info">
+            <i class="fas fa-building"></i>
+            <span class="footer-value">{{ users.business_brand|default:"Not Specified"|upper }}</span>
+        </div>
+        <div class="footer-info">
+            <i class="fas fa-user-tag"></i>
+            <span class="footer-value">{{ customer.customer_userid|default:"N/A"|upper }}</span>
         </div>
     </div>
+    
 </div>
 
 {% endblock %}
@@ -218,7 +401,8 @@
         }
         document.getElementById("greeting").innerText = "Hi, " + greeting;
     }
-    $(document).ready( function () {
+    
+    $(document).ready(function () {
         getGreeting();
     });
 </script>

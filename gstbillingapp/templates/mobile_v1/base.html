@@ -32,46 +32,102 @@
 
     {% block includecss %}{% endblock %}
     <style>
+        /* Samsung One UI - Base Styling with Dark Mode */
+        :root {
+            --oneui-primary: #0078d4;
+            --oneui-bg: #f5f5f5;
+            --oneui-surface: #ffffff;
+            --oneui-text-primary: #1c1c1e;
+            --oneui-text-secondary: #6e6e73;
+            --oneui-divider: #e5e5ea;
+            --oneui-accent: #007aff;
+            --oneui-success: #34c759;
+            --oneui-danger: #ff3b30;
+            --oneui-warning: #ff9500;
+            --oneui-info: #5856d6;
+            --oneui-radius: 16px;
+            --oneui-radius-sm: 12px;
+            --oneui-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            --oneui-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+        
+        /* Dark Mode Colors */
+        [data-theme="dark"] {
+            --oneui-bg: #000000;
+            --oneui-surface: #1c1c1e;
+            --oneui-text-primary: #ffffff;
+            --oneui-text-secondary: #a1a1a6;
+            --oneui-divider: #38383a;
+            --oneui-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+            --oneui-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+        
         /* General Styling for Body and HTML */
         body, html {
-            overflow-x: hidden; /* Ensure no horizontal scroll */
+            overflow-x: hidden;
+            background: var(--oneui-bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         /* Container padding for content above navbar */
         @media (max-width: 768px) {
             body {
-                padding-bottom: 70px; /* height of navbar + some spacing */
-                font-size: 0.8rem;
+                padding-bottom: 70px;
+                font-size: 0.85rem;
+                color: var(--oneui-text-primary);
             }
         }
 
         /* Extra Mobile Responsive Styling */
         @media (max-width: 768px) {
-            /* Reduce padding on mobile view */
             .container {
                 padding-left: 8px;
                 padding-right: 8px;
             }
 
-            /* Adjust navbar brand font size on mobile */
             .navbar-brand {
                 font-size: 1.1rem;
+                font-weight: 600;
             }
             
-            /* Table adjustments for mobile responsiveness */
             table.dataTable {
                 width: 100% !important;
             }
 
-            /* AG Grid adjustments */
             .ag-theme-alpine {
                 height: 60vh !important;
             }
 
-            /* Compact alerts */
+            /* Samsung One UI Style Alerts */
             .alert {
-                padding: 8px 12px;
+                padding: 16px 20px;
                 font-size: 0.9rem;
+                border-radius: var(--oneui-radius-sm);
+                border: none;
+                box-shadow: var(--oneui-shadow);
+                margin-bottom: 16px;
+            }
+            
+            .alert-success {
+                background: #e8f5e9;
+                color: #2e7d32;
+            }
+            
+            .alert-danger {
+                background: #ffebee;
+                color: #c62828;
+            }
+            
+            .alert-warning {
+                background: #fff3e0;
+                color: #e65100;
+            }
+            
+            .alert-info {
+                background: #e3f2fd;
+                color: #1565c0;
             }
         }
 
@@ -80,15 +136,18 @@
             overflow-x: auto; /* Allow horizontal scroll if table overflows */
         }
 
-        /* Mobile Bottom Scrollable Navbar - Pure Black */
+        /* Mobile Bottom Navbar - Samsung One UI Style */
         .mobile-bottom-nav {
-            position: fixed;      /* fixed at bottom */
+            position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            z-index: 9999;        /* on top of everything */
-            border-top: 1px solid #111;
-            background-color: #000 !important;
+            z-index: 9999;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid var(--oneui-divider);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
             display: flex;
             align-items: center;
             height: 60px;
@@ -101,9 +160,10 @@
             white-space: nowrap;
             -webkit-overflow-scrolling: touch;
             width: 100%;
+            justify-content: space-around;
         }
 
-        /* Hide scrollbar visually */
+        /* Hide scrollbar */
         .nav-scroll::-webkit-scrollbar {
             display: none;
         }
@@ -112,36 +172,211 @@
             scrollbar-width: none;
         }
 
-        /* Menu Item Styling */
+        /* Menu Item - Samsung One UI Style */
         .nav-item {
-            flex: 0 0 auto;       /* prevent shrinking */
-            padding: 5px 14px;
+            flex: 0 0 auto;
+            padding: 8px 16px;
             text-align: center;
-            color: #fff;
-            font-size: 12px;
+            color: var(--oneui-text-secondary);
+            font-size: 11px;
             text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            min-width: 72px;
         }
 
-        /* Icon and text style inside menu item */
         .nav-item i {
             display: block;
-            font-size: 24px;
-            margin-bottom: 2px;
+            font-size: 22px;
+            margin-bottom: 4px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .nav-item span {
             display: block;
-            font-size: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* Active State for Menu Item */
+        /* Active State - Samsung One UI */
         .nav-item.active {
-            color: #17a2b8;
+            color: var(--oneui-accent);
+        }
+        
+        .nav-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 32px;
+            height: 3px;
+            background: var(--oneui-accent);
+            border-radius: 2px 2px 0 0;
+        }
+        
+        .nav-item.active i {
+            transform: translateY(-2px);
+        }
+        
+        .nav-item.active span {
+            font-weight: 600;
+        }
+        
+        /* Hover/Touch feedback */
+        .nav-item:active {
+            opacity: 0.6;
+        }
+        
+        /* Loading Skeletons */
+        .skeleton {
+            background: linear-gradient(90deg, 
+                var(--oneui-divider) 25%, 
+                rgba(255,255,255,0.3) 50%, 
+                var(--oneui-divider) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 8px;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        .skeleton-text {
+            height: 16px;
+            margin-bottom: 8px;
+        }
+        
+        .skeleton-title {
+            height: 24px;
+            width: 60%;
+            margin-bottom: 12px;
+        }
+        
+        .skeleton-card {
+            height: 120px;
+            margin-bottom: 16px;
+        }
+        
+        /* Dark Mode Toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 10000;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--oneui-surface);
+            border: none;
+            box-shadow: var(--oneui-shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .theme-toggle:active {
+            transform: scale(0.9);
+        }
+        
+        .theme-toggle i {
+            font-size: 20px;
+            color: var(--oneui-text-primary);
+        }
+        
+        /* Pull to Refresh */
+        .ptr-element {
+            position: fixed;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100%);
+            width: 48px;
+            height: 48px;
+            z-index: 9998;
+            transition: transform 0.2s ease;
+        }
+        
+        .ptr-element.ptr-refresh {
+            transform: translateX(-50%) translateY(16px);
+        }
+        
+        .ptr-spinner {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--oneui-surface);
+            box-shadow: var(--oneui-shadow-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .ptr-spinner i {
+            font-size: 20px;
+            color: var(--oneui-accent);
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        
+        .empty-state-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 24px;
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .empty-state-icon i {
+            font-size: 48px;
+            color: var(--oneui-text-secondary);
+            opacity: 0.6;
+        }
+        
+        .empty-state-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--oneui-text-primary);
+            margin: 0 0 8px;
+        }
+        
+        .empty-state-text {
+            font-size: 15px;
+            color: var(--oneui-text-secondary);
+            margin: 0;
         }
     </style>
 </head>
 
 <body>
+    <!-- Dark Mode Toggle -->
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+        <i class="fas fa-moon" id="themeIcon"></i>
+    </button>
+    
+    <!-- Pull to Refresh -->
+    <div class="ptr-element" id="ptrElement">
+        <div class="ptr-spinner">
+            <i class="fas fa-sync-alt"></i>
+        </div>
+    </div>
     <div class="container-fluid px-2 px-md-4">
 
         {% if error_message %}
@@ -192,6 +427,127 @@
 
     <!-- Utility JS -->
     <script src="{% static 'gstbillingapp/js/utility.js' %}"></script>
+
+    <!-- Theme & Interaction Utilities -->
+    <script>
+        // Haptic Feedback Utility
+        const haptic = {
+            light: () => {
+                if ('vibrate' in navigator) navigator.vibrate(10);
+            },
+            medium: () => {
+                if ('vibrate' in navigator) navigator.vibrate(20);
+            },
+            heavy: () => {
+                if ('vibrate' in navigator) navigator.vibrate(30);
+            },
+            success: () => {
+                if ('vibrate' in navigator) navigator.vibrate([10, 50, 10]);
+            },
+            error: () => {
+                if ('vibrate' in navigator) navigator.vibrate([30, 50, 30]);
+            }
+        };
+        
+        // Dark Mode Management
+        const themeManager = {
+            init() {
+                const saved = localStorage.getItem('theme') || 'light';
+                this.setTheme(saved, false);
+                
+                document.getElementById('themeToggle').addEventListener('click', () => {
+                    haptic.light();
+                    const current = document.documentElement.getAttribute('data-theme');
+                    this.setTheme(current === 'dark' ? 'light' : 'dark', true);
+                });
+            },
+            
+            setTheme(theme, save = true) {
+                document.documentElement.setAttribute('data-theme', theme);
+                const icon = document.getElementById('themeIcon');
+                
+                if (theme === 'dark') {
+                    icon.className = 'fas fa-sun';
+                } else {
+                    icon.className = 'fas fa-moon';
+                }
+                
+                if (save) {
+                    localStorage.setItem('theme', theme);
+                }
+            }
+        };
+        
+        // Pull to Refresh
+        const pullToRefresh = {
+            element: null,
+            startY: 0,
+            currentY: 0,
+            dragging: false,
+            threshold: 80,
+            
+            init() {
+                this.element = document.getElementById('ptrElement');
+                const container = document.querySelector('.container-fluid');
+                
+                container.addEventListener('touchstart', (e) => this.onTouchStart(e));
+                container.addEventListener('touchmove', (e) => this.onTouchMove(e));
+                container.addEventListener('touchend', () => this.onTouchEnd());
+            },
+            
+            onTouchStart(e) {
+                if (window.scrollY === 0) {
+                    this.startY = e.touches[0].clientY;
+                    this.dragging = true;
+                }
+            },
+            
+            onTouchMove(e) {
+                if (!this.dragging) return;
+                
+                this.currentY = e.touches[0].clientY;
+                const diff = this.currentY - this.startY;
+                
+                if (diff > 0 && diff < this.threshold * 2) {
+                    this.element.style.transform = `translateX(-50%) translateY(${Math.min(diff - 50, this.threshold)}px)`;
+                }
+            },
+            
+            onTouchEnd() {
+                if (!this.dragging) return;
+                
+                const diff = this.currentY - this.startY;
+                
+                if (diff > this.threshold) {
+                    haptic.medium();
+                    this.element.classList.add('ptr-refresh');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 300);
+                } else {
+                    this.element.style.transform = 'translateX(-50%) translateY(-100%)';
+                }
+                
+                this.dragging = false;
+            }
+        };
+        
+        // Add haptic feedback to all interactive elements
+        document.addEventListener('DOMContentLoaded', () => {
+            themeManager.init();
+            pullToRefresh.init();
+            
+            // Add haptic to buttons and links
+            document.querySelectorAll('button, a, .clickable').forEach(el => {
+                el.addEventListener('click', () => haptic.light());
+            });
+            
+            // Add haptic to nav items
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.addEventListener('click', () => haptic.medium());
+            });
+        });
+    </script>
 
     {% block includejs %}{% endblock %}
 </body>

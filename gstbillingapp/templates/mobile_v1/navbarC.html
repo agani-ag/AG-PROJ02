@@ -2,34 +2,57 @@
     <div class="nav-scroll">
 
         <!-- Home -->
-        <a href="{% url 'v1customerhome' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-house"></i>
+        <a href="{% url 'v1customerhome' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="home">
+            <i class="fas fa-home"></i>
             <span>Home</span>
         </a>
 
         <!-- Invoices -->
-        <a href="{% url 'v1customerinvoices' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-file-invoice-dollar"></i>
+        <a href="{% url 'v1customerinvoices' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="invoices">
+            <i class="fas fa-file-invoice"></i>
             <span>Invoices</span>
         </a>
         
         <!-- Books -->
-        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-address-book"></i>
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="books">
+            <i class="fas fa-book-open"></i>
             <span>Books</span>
         </a>
 
-        <!-- Products -->
-        <a href="{% url 'products' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-box-open"></i>
-            <span>Products</span>
-        </a>
-
         <!-- Profile -->
-        <a href="{% url 'v1customer' %}?cid={{ request.GET.cid }}" class="nav-item">
+        <a href="{% url 'v1customerprofile' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="profile">
             <i class="fas fa-user-circle"></i>
             <span>Profile</span>
         </a>
 
     </div>
 </nav>
+
+<script>
+    // Highlight active nav item based on current URL
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentPath = window.location.pathname;
+        const navItems = document.querySelectorAll('.nav-item');
+        
+        navItems.forEach(item => {
+            const page = item.dataset.page;
+            
+            // Remove active class first
+            item.classList.remove('active');
+            
+            // Check for exact page matches
+            if (page === 'home' && currentPath.includes('customer/home')) {
+                item.classList.add('active');
+            } else if (page === 'invoices' && currentPath.includes('customer/invoices')) {
+                item.classList.add('active');
+            } else if (page === 'books' && currentPath.includes('customer/books')) {
+                item.classList.add('active');
+            } else if (page === 'profile' && currentPath.includes('customer/profile') && 
+                       !currentPath.includes('home') && 
+                       !currentPath.includes('invoices') && 
+                       !currentPath.includes('books')) {
+                item.classList.add('active');
+            }
+        });
+    });
+</script>

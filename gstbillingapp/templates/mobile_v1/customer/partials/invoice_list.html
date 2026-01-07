@@ -1,93 +1,104 @@
-<table class="table table-hover mb-0">
-    <thead>
-        <tr>
-            <th>Invoice No</th>
-            <th>Date</th>
-            <th>Action</th>
-        </tr>
-    </thead>
-    <tbody>
+{% if invoices %}
+    <div style="padding: 0 8px;">
         {% for invoice in invoices %}
-        <tr>
-            <td>
-                {{ invoice.invoice_number }}
-                <span class="badge bg-light text-dark">
-                    {% if not invoice.is_gst %}Non-GST{% endif %}
-                </span>
-            </td>
-            <td>{{ invoice.invoice_date }}</td>
-            <td>
-                <a href="{% url 'v1customerinvoiceviewer' invoice.id %}?cid={{ request.GET.cid }}" class="btn btn-sm btn-info text-white">
-                    <i class="fas fa-eye"></i> View
-                </a>
-            </td>
-        </tr>
-        {% empty %}
-        <tr class="table-info">
-            <td colspan="3" class="text-center">No invoices found.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-{% if invoices.has_other_pages %}
-<nav class="mt-3">
-    <ul class="pagination justify-content-center">
-
-        {% if invoices.has_previous %}
-        <li class="page-item">
-            <a class="page-link text-info"
-               href="#"
-               onclick="loadInvoices({{ invoices.previous_page_number }}); return false;">
-                <i class="fas fa-chevron-left"></i>
-            </a>
-        </li>
-        {% endif %}
-
-        {# First page and ellipsis #}
-        {% if invoices.number > 3 %}
-            <li class="page-item">
-                <a class="page-link text-info" href="#" onclick="loadInvoices(1); return false;">1</a>
-            </li>
-            {% if invoices.number > 4 %}
-                <li class="page-item disabled"><span class="page-link">...</span></li>
-            {% endif %}
-        {% endif %}
-
-        {# Pages around current page #}
-        {% for num in invoices.paginator.page_range %}
-            {% if num >= invoices.number|add:-2 and num <= invoices.number|add:2 %}
-                <li class="page-item {% if invoices.number == num %}active{% endif %}">
-                    <a class="page-link {% if invoices.number == num %}bg-info text-white{% else %}text-info{% endif %}"
-                       href="#"
-                       onclick="loadInvoices({{ num }}); return false;">
-                        {{ num }}
+            <div class="invoice-card">
+                
+                <div class="invoice-header">
+                    <div class="invoice-number-section">
+                        <p class="invoice-label">Invoice Number</p>
+                        <h3 class="invoice-number">{{ invoice.invoice_number }}</h3>
+                    </div>
+                    {% if not invoice.is_gst %}
+                        <span class="invoice-type-badge">Non-GST</span>
+                    {% endif %}
+                </div>
+                
+                <div class="invoice-meta">
+                    <div class="invoice-date">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>{{ invoice.invoice_date|date:"d M, Y" }}</span>
+                    </div>
+                    <a href="{% url 'v1customerinvoiceviewer' invoice.id %}?cid={{ request.GET.cid }}" 
+                       class="invoice-action">
+                        <i class="fas fa-eye"></i>
+                        View
                     </a>
-                </li>
-            {% endif %}
+                </div>
+                
+            </div>
         {% endfor %}
+    </div>
 
-        {# Last page and ellipsis #}
-        {% if invoices.number < invoices.paginator.num_pages|add:-2 %}
-            {% if invoices.number < invoices.paginator.num_pages|add:-3 %}
-                <li class="page-item disabled"><span class="page-link">...</span></li>
-            {% endif %}
-            <li class="page-item">
-                <a class="page-link text-info" href="#" onclick="loadInvoices({{ invoices.paginator.num_pages }}); return false;">
-                    {{ invoices.paginator.num_pages }}
+    <!-- Pagination -->
+    {% if invoices.has_other_pages %}
+    <div class="pagination-container">
+        <ul class="custom-pagination">
+
+            {% if invoices.has_previous %}
+            <li>
+                <a href="#" class="page-btn" onclick="loadInvoices({{ invoices.previous_page_number }}); return false;">
+                    <i class="fas fa-chevron-left"></i>
                 </a>
             </li>
-        {% endif %}
+            {% else %}
+            <li>
+                <span class="page-btn disabled">
+                    <i class="fas fa-chevron-left"></i>
+                </span>
+            </li>
+            {% endif %}
 
-        {% if invoices.has_next %}
-        <li class="page-item">
-            <a class="page-link text-info"
-               href="#"
-               onclick="loadInvoices({{ invoices.next_page_number }}); return false;">
-                <i class="fas fa-chevron-right"></i>
-            </a>
-        </li>
-        {% endif %}
-    </ul>
-</nav>
+            {% if invoices.number > 3 %}
+                <li><a href="#" class="page-btn" onclick="loadInvoices(1); return false;">1</a></li>
+                {% if invoices.number > 4 %}
+                    <li><span class="page-btn disabled">...</span></li>
+                {% endif %}
+            {% endif %}
+
+            {% for num in invoices.paginator.page_range %}
+                {% if num >= invoices.number|add:-2 and num <= invoices.number|add:2 %}
+                    <li>
+                        <a href="#" 
+                           class="page-btn {% if invoices.number == num %}active{% endif %}"
+                           onclick="loadInvoices({{ num }}); return false;">
+                            {{ num }}
+                        </a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if invoices.number < invoices.paginator.num_pages|add:-2 %}
+                {% if invoices.number < invoices.paginator.num_pages|add:-3 %}
+                    <li><span class="page-btn disabled">...</span></li>
+                {% endif %}
+                <li><a href="#" class="page-btn" onclick="loadInvoices({{ invoices.paginator.num_pages }}); return false;">{{ invoices.paginator.num_pages }}</a></li>
+            {% endif %}
+
+            {% if invoices.has_next %}
+            <li>
+                <a href="#" class="page-btn" onclick="loadInvoices({{ invoices.next_page_number }}); return false;">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+            {% else %}
+            <li>
+                <span class="page-btn disabled">
+                    <i class="fas fa-chevron-right"></i>
+                </span>
+            </li>
+            {% endif %}
+
+        </ul>
+    </div>
+    {% endif %}
+
+{% else %}
+    <!-- Empty State -->
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="fas fa-file-invoice"></i>
+        </div>
+        <h3 class="empty-state-title">No Invoices Found</h3>
+        <p class="empty-state-text">There are no invoices to display at the moment.</p>
+    </div>
 {% endif %}
