@@ -367,7 +367,8 @@
 
     const circlesGroup = L.layerGroup();
     const baseLayers = { 'Street (OSM)': osmStreets, 'Satellite (Esri)': esriSat };
-    const overlays = { 'Labels (Esri)': esriLabels, '1 km circles': circlesGroup };
+    const circles5kmGroup = L.layerGroup();
+    const overlays = { 'Labels (Esri)': esriLabels, '1 km circles': circlesGroup, '5 km circles': circles5kmGroup };
 
     const defaultCenter = [20.5937, 78.9629];
     const map = L.map('map', { center: defaultCenter, zoom: 5, layers: [esriSat, esriLabels] });
@@ -445,6 +446,10 @@
             radius: 1000, color: '#1976d2', weight: 1, opacity: 0.3,
             fillColor: '#2196f3', fillOpacity: 0.15, interactive: false
         }).addTo(circlesGroup);
+        L.circle([cust.lat, cust.lng], {
+            radius: 5000, color: '#1976d2', weight: 1, opacity: 0.3,
+            fillColor: '#2196f3', fillOpacity: 0.15, interactive: false
+        }).addTo(circles5kmGroup);
     });
 
     // Headquarters (from user.business_latitude/longitude)
@@ -475,6 +480,10 @@
             radius: 1000, color: '#d32f2f', weight: 1, opacity: 0.3,
             fillColor: '#f44336', fillOpacity: 0.15, interactive: false
         }).addTo(circlesGroup);
+        L.circle([lat, lng], {
+            radius: 5000, color: '#d32f2f', weight: 1, opacity: 0.3,
+            fillColor: '#f44336', fillOpacity: 0.15, interactive: false
+        }).addTo(circles5kmGroup);
     }
 
     if (Number.isFinite(hqLat) && Number.isFinite(hqLng)) addOrUpdateHQ(hqLat, hqLng);
@@ -505,6 +514,10 @@
             radius: 1000, color: '#2e7d32', weight: 1, opacity: 0.3,
             fillColor: '#4caf50', fillOpacity: 0.15, interactive: false
         }).addTo(circlesGroup);
+        L.circle([lat, lng], {
+            radius: 5000, color: '#2e7d32', weight: 1, opacity: 0.3,
+            fillColor: '#4caf50', fillOpacity: 0.15, interactive: false
+        }).addTo(circles5kmGroup);
     }
 
     // List interactions

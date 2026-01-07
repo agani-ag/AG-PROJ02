@@ -21,5 +21,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('gstbillingapp.urls')),
     path('mobile/', include('gstbillingapp.mobile_urls')),
+    path('mobile/v1/', include('gstbillingapp.mobile_urls_v1')),
     path('', include('social_django.urls', namespace='social'))
 ]

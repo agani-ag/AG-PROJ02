@@ -191,9 +191,15 @@ input:checked + .slider:before {
 .bg-violet {
 	background-color: darkviolet;
 }
+.text-violet {
+	color: darkviolet;
+}
 /* Orange Color Scheme */
 .bg-orange {
 	background-color: darkorange;
+}
+.text-orange {
+	color: darkorange;
 }
 .btn-orange {
 	background-color: darkorange;

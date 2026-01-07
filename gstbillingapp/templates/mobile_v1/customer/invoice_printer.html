@@ -1,4 +1,4 @@
-{% extends "invoices/print_base.html" %}
+{% extends "mobile_v1/print_base.html" %}
 
 
 {% block content %}
@@ -261,11 +261,7 @@
 			class="btn btn-primary btn-curve d-print-none">
 			<i class="fas fa-print"></i>
 		</button>
-		{% if invoice.is_gst %}
-			<a href="{% url 'invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
-		{% else %}
-			<a href="{% url 'non_gst_invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
-		{% endif %}
+		<a href="{% url 'v1customerinvoices' %}?cid={{ request.GET.cid }}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
 	</div>
 
 {% endblock %}

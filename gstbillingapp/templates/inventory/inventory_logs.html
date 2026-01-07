@@ -34,8 +34,9 @@
 			{% endif %}
 			</h6>
 		<h6>
-			Stock Alert Level : 
-			<span class="text-primary font-weight-bold">{{ inventory.alert_level }}</span>
+			<span style="cursor:pointer;" onclick="alert_levelupdate({{ inventory.id }}, {{ inventory.alert_level }})">
+				Stock Alert Level : <span class="text-primary font-weight-bold">{{ inventory.alert_level }}</span>
+			</span>
 		</h6>
 		<h4>
 			Current Stock: 
@@ -115,5 +116,50 @@ $(document).ready( function () {
         ]
 	});
 });
+
+function alert_levelupdate(inventoryId, currentLevel) {
+    Swal.fire({
+        title: "Update Stock Alert Level",
+        input: "number",
+        inputLabel: "Enter new alert level",
+        inputValue: currentLevel,
+        inputAttributes: {
+            min: 1
+        },
+        showCancelButton: true,
+        confirmButtonText: "Update",
+        cancelButtonText: "Cancel",
+        confirmButtonColor: "#3085d6",
+        inputValidator: (value) => {
+            if (!value || value <= 0) {
+                return "Please enter a valid alert level!";
+            }
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch("/inventory/api/stock-alert-level/add", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: `inventory_id=${inventoryId}&alert_level=${result.value}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    Swal.fire("Updated!", data.message, "success")
+                    .then(() => {
+                        location.reload(); // refresh to show updated value
+                    });
+                } else {
+                    Swal.fire("Error", data.message, "error");
+                }
+            })
+            .catch(() => {
+                Swal.fire("Error", "Something went wrong!", "error");
+            });
+        }
+    });
+}
 </script>
 {% endblock %}

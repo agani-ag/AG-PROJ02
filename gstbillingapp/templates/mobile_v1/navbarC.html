@@ -1,0 +1,35 @@
+<nav class="mobile-bottom-nav d-md-none">
+    <div class="nav-scroll">
+
+        <!-- Home -->
+        <a href="{% url 'v1customerhome' %}?cid={{ request.GET.cid }}" class="nav-item">
+            <i class="fas fa-house"></i>
+            <span>Home</span>
+        </a>
+
+        <!-- Invoices -->
+        <a href="{% url 'v1customerinvoices' %}?cid={{ request.GET.cid }}" class="nav-item">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <span>Invoices</span>
+        </a>
+        
+        <!-- Books -->
+        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}" class="nav-item">
+            <i class="fas fa-address-book"></i>
+            <span>Books</span>
+        </a>
+
+        <!-- Products -->
+        <a href="{% url 'products' %}?cid={{ request.GET.cid }}" class="nav-item">
+            <i class="fas fa-box-open"></i>
+            <span>Products</span>
+        </a>
+
+        <!-- Profile -->
+        <a href="{% url 'v1customer' %}?cid={{ request.GET.cid }}" class="nav-item">
+            <i class="fas fa-user-circle"></i>
+            <span>Profile</span>
+        </a>
+
+    </div>
+</nav>
