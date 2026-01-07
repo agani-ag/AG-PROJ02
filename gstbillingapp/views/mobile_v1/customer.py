@@ -25,16 +25,16 @@ import num2words
 from ...utils import parse_code_GS
 
 # ================= Customer =============================
-def customer(request):
+def customer_profile(request):
     context = {}
     cid = request.GET.get('cid', None)
     if not cid:
-        return render(request, 'mobile_v1/customer/customer.html', {
+        return render(request, 'mobile_v1/customer/profile.html', {
             'error': 'Invalid customer link'
         })
     cid_data = parse_code_GS(cid)
     if not cid_data:
-        return render(request, 'mobile_v1/customer/customer.html', {
+        return render(request, 'mobile_v1/customer/profile.html', {
             'error': 'Invalid customer data'
         })
     customer_id = cid_data.get('C', None)
@@ -46,7 +46,7 @@ def customer(request):
         context['customer'] = customer
     except:
         pass
-    return render(request, 'mobile_v1/customer/customer.html', context)
+    return render(request, 'mobile_v1/customer/profile.html', context)
 
 def customer_invoices(request):
     context = {}
@@ -264,12 +264,17 @@ def customer_home(request):
         returned_count=Count(Case(When(change_type=2, then=1), output_field=IntegerField())),
         others_count=Count(Case(When(change_type=3, then=1), output_field=IntegerField())),
     )
+    overall_payment_percentage = 0
+    if totals['total_purchased'] and totals['total_purchased'] != 0:
+        overall_payment_percentage = (abs(totals['total_paid'] or 0) / abs(totals['total_purchased'])) * 100
+    context['overall_payment_percentage'] = int(overall_payment_percentage)    
     # Fill in context with totals, using 0 if None
     total_purchased = totals['total_purchased'] or 0
     total_paid = totals['total_paid'] or 0
     total_returned = totals['total_returned'] or 0
     total_others = totals['total_others'] or 0
-    total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
+    total_balance = abs(total_purchased) - abs(total_paid)
+    # total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
     # Counts
     context['purchased_count'] = totals['purchased_count'] or 0
     context['paid_count'] = totals['paid_count'] or 0
@@ -299,6 +304,10 @@ def customer_home(request):
         current_month_paid_count=Count(Case(When(change_type=0, then=1), output_field=IntegerField())),
         current_month_purchased_count=Count(Case(When(change_type=1, then=1), output_field=IntegerField())),
     )
+    current_month_payment_percentage = 0
+    if current_month_totals['current_month_total_purchased'] and current_month_totals['current_month_total_purchased'] != 0:
+        current_month_payment_percentage = (abs(current_month_totals['current_month_total_paid'] or 0) / abs(current_month_totals['current_month_total_purchased'])) * 100
+    context['current_month_payment_percentage'] = int(current_month_payment_percentage)
     current_month_total_purchased = current_month_totals['current_month_total_purchased'] or 0
     current_month_total_paid = current_month_totals['current_month_total_paid'] or 0
     current_month_paid_count = current_month_totals['current_month_paid_count'] or 0
@@ -326,6 +335,10 @@ def customer_home(request):
         last_month_paid_count=Count(Case(When(change_type=0, then=1), output_field=IntegerField())),
         last_month_purchased_count=Count(Case(When(change_type=1, then=1), output_field=IntegerField())),
     )
+    last_month_payment_percentage = 0
+    if last_month_totals['last_month_total_purchased'] and last_month_totals['last_month_total_purchased'] != 0:
+        last_month_payment_percentage = (abs(last_month_totals['last_month_total_paid'] or 0) / abs(last_month_totals['last_month_total_purchased'])) * 100
+    context['last_month_payment_percentage'] = int(last_month_payment_percentage)
     last_month_total_purchased = last_month_totals['last_month_total_purchased'] or 0
     last_month_total_paid = last_month_totals['last_month_total_paid'] or 0
     last_month_paid_count = last_month_totals['last_month_paid_count'] or 0
@@ -368,4 +381,4 @@ def customers(request):
     context['users'] = users
     customers = Customer.objects.filter().order_by('customer_name')
     context['customers'] = customers
-    return render(request, 'mobile_v1/static.html', context)
+    return render(request, 'mobile_v1/customers.html', context)

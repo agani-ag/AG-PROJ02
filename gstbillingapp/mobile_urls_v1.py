@@ -9,7 +9,7 @@ from .views.mobile_v1 import (
 urlpatterns = [
     # Authentication URLs
     path('customers', customer.customers, name='v1customers'),
-    path('customer', customer.customer, name='v1customer'),
+    path('customer/profile', customer.customer_profile, name='v1customerprofile'),
     path('customer/home', customer.customer_home, name='v1customerhome'),
     path('customer/books', customer.customer_books, name='v1customerbooks'),
     path('customer/invoices', customer.customer_invoices, name='v1customerinvoices'),

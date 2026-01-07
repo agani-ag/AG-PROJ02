@@ -1,59 +1,367 @@
 {% extends "mobile_v1/base.html" %}
 {% load static %}
 
-{% block title %}Customer Books{% endblock %}
+{% block title %}Transaction Books{% endblock %}
+
+{% block includecss %}
+<style>
+    /* Books Page - Samsung One UI */
+    .books-wrapper {
+        max-width: 640px;
+        margin: 0 auto;
+        padding-bottom: 80px;
+    }
+    
+    /* Page Header */
+    .page-header {
+        background: linear-gradient(135deg, #ff3b30 0%, #ff6b6b 100%);
+        border-radius: 0 0 16px 16px;
+        padding: 32px 20px 24px;
+        margin: -12px -8px 20px;
+        box-shadow: 0 8px 24px rgba(255, 59, 48, 0.2);
+    }
+    
+    .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .header-title-section {
+        flex: 1;
+    }
+    
+    .header-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+    }
+    
+    .header-icon i {
+        font-size: 20px;
+        color: white;
+    }
+    
+    .page-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: white;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+    
+    .header-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: rgba(255, 255, 255, 0.25);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        color: white;
+        margin-top: 8px;
+    }
+    
+    /* Search Bar */
+    .search-container {
+        padding: 0 8px 16px;
+    }
+    
+    .search-box {
+        position: relative;
+        background: var(--oneui-surface);
+        border-radius: 16px;
+        box-shadow: var(--oneui-shadow);
+        overflow: hidden;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 16px 50px 16px 20px;
+        border: none;
+        background: transparent;
+        font-size: 16px;
+        color: var(--oneui-text-primary);
+        outline: none;
+    }
+    
+    .search-input::placeholder {
+        color: var(--oneui-text-secondary);
+    }
+    
+    .search-icon {
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--oneui-text-secondary);
+        font-size: 18px;
+    }
+    
+    /* Transaction Item */
+    .transaction-item {
+        background: var(--oneui-surface);
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        box-shadow: var(--oneui-shadow);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .transaction-item::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 4px;
+        height: 100%;
+        background: currentColor;
+    }
+    
+    .transaction-item:active {
+        transform: scale(0.98);
+    }
+    
+    .transaction-item.payment { color: #34c759; }
+    .transaction-item.purchase { color: #ff3b30; }
+    .transaction-item.return { color: #ff9500; }
+    .transaction-item.advance { color: #5856d6; }
+    .transaction-item.other { color: #007aff; }
+    .transaction-item.inactive { color: #a1a1a6; }
+    
+    .transaction-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+    
+    .transaction-type {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .type-badge {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: white;
+    }
+    
+    .transaction-item.payment .type-badge {
+        background: #34c759;
+    }
+    
+    .transaction-item.purchase .type-badge {
+        background: #ff3b30;
+    }
+    
+    .transaction-item.return .type-badge {
+        background: #ff9500;
+    }
+    
+    .transaction-item.advance .type-badge {
+        background: #5856d6;
+    }
+    
+    .transaction-item.other .type-badge {
+        background: #007aff;
+    }
+    
+    .transaction-item.inactive .type-badge {
+        background: #a1a1a6;
+    }
+    
+    .transaction-date {
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+        text-align: right;
+    }
+    
+    .transaction-amount {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin: 0 0 8px;
+        letter-spacing: -0.5px;
+    }
+    
+    .transaction-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .transaction-time {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+    }
+    
+    .transaction-action {
+        padding: 8px 16px;
+        border-radius: 8px;
+        background: rgba(0, 122, 255, 0.1);
+        color: var(--oneui-accent);
+        border: none;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .transaction-action:active {
+        background: rgba(0, 122, 255, 0.2);
+    }
+    
+    /* Pagination */
+    .pagination-container {
+        padding: 16px 8px;
+    }
+    
+    .custom-pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .page-btn {
+        min-width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: var(--oneui-surface);
+        color: var(--oneui-text-primary);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        box-shadow: var(--oneui-shadow);
+        transition: all 0.2s ease;
+    }
+    
+    .page-btn:active {
+        transform: scale(0.95);
+    }
+    
+    .page-btn.active {
+        background: #ff3b30;
+        color: white;
+    }
+    
+    .page-btn.disabled {
+        opacity: 0.3;
+        pointer-events: none;
+    }
+    
+    /* Loading State */
+    .loading-container {
+        padding: 8px;
+    }
+    
+    .skeleton-transaction {
+        background: var(--oneui-surface);
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        box-shadow: var(--oneui-shadow);
+    }
+    
+    /* Footer */
+    .page-footer {
+        background: var(--oneui-surface);
+        border-radius: 16px;
+        padding: 16px 20px;
+        box-shadow: var(--oneui-shadow);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 16px 8px 20px;
+    }
+    
+    .footer-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+    }
+    
+    .footer-info i {
+        font-size: 16px;
+    }
+    
+    .footer-value {
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 
-<div class="row mt-3">
-    <div class="col-12">
-        <div class="card shadow-sm mb-3">
-
-            <!-- Header -->
-            <div class="card-header bg-danger text-white d-flex align-items-center">
-                <i class="fas fa-book fa-lg mr-2"></i>
-                <h6 class="mb-0">
-                    Books 
-                    <span class="badge bg-light text-dark">({{ books_count }})</span>
-                </h6>
-            </div>
-            
-            <!-- Body -->
-            <div class="card-body p-3">
-                <!-- Search -->
-                <div class="input-group mb-3">
-                    <input type="text"
-                        id="searchInput"
-                        class="form-control"
-                        placeholder="Type to search books..."
-                        value="{{ search }}">
-                    <span class="input-group-text bg-danger text-white">
-                        <i class="fas fa-search"></i>
-                    </span>
+<div class="books-wrapper">
+    
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-content">
+            <div class="header-title-section">
+                <div class="header-icon">
+                    <i class="fas fa-book-open"></i>
                 </div>
-
-                <div id="bookContainer">
-                    {% include "mobile_v1/customer/partials/book_list.html" %}
-                </div>
-                
-            <!-- Footer -->
-            <div class="card-footer d-flex justify-content-between align-items-center">
-                <div>
-                    <i class="fas fa-building text-secondary"></i> 
-                    <span class="mr-2 font-weight-bold">
-                        {{ users.business_brand|default:"-"|upper }}
-                    </span>
-                </div>
-                <div class="text-end">
-                    <i class="fas fa-user-tag text-secondary"></i>
-                    <span class="mr-2 text-muted font-weight-bold">
-                        {{ customer.customer_userid|default:"-"|upper }}
-                    </span>
+                <h1 class="page-title">Transaction Books</h1>
+                <div class="header-count">
+                    <i class="fas fa-receipt"></i>
+                    <span>{{ books_count|default:0 }} Records</span>
                 </div>
             </div>
-
         </div>
     </div>
+    
+    <!-- Search Bar -->
+    <div class="search-container">
+        <div class="search-box">
+            <input type="text"
+                   id="searchInput"
+                   class="search-input"
+                   placeholder="Search transactions..."
+                   value="{{ search }}">
+            <i class="fas fa-search search-icon"></i>
+        </div>
+    </div>
+    
+    <!-- Book Container -->
+    <div id="bookContainer">
+        {% include "mobile_v1/customer/partials/book_list.html" %}
+    </div>
+    
+    <!-- Footer -->
+    <div class="page-footer">
+        <div class="footer-info">
+            <i class="fas fa-building"></i>
+            <span class="footer-value">{{ users.business_brand|default:"Not Specified"|upper }}</span>
+        </div>
+        <div class="footer-info">
+            <i class="fas fa-user-tag"></i>
+            <span class="footer-value">{{ customer.customer_userid|default:"N/A"|upper }}</span>
+        </div>
+    </div>
+    
 </div>
 
 {% endblock %}
@@ -63,16 +371,48 @@
     let typingTimer;
     const delay = 400;
 
+    function showLoading() {
+        const container = document.getElementById('bookContainer');
+        container.innerHTML = `
+            <div class="loading-container">
+                ${Array(5).fill(0).map(() => `
+                    <div class="skeleton-transaction">
+                        <div class="skeleton skeleton-text" style="width: 40%;"></div>
+                        <div class="skeleton skeleton-title" style="width: 60%;"></div>
+                        <div class="skeleton skeleton-text" style="width: 30%;"></div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
     function loadBooks(page = 1) {
+        showLoading();
+        haptic.light();
+        
         const search = document.getElementById('searchInput').value;
         const cid = "{{ request.GET.cid }}";
 
-        fetch(`?cid=${cid}&search=${search}&page=${page}`, {
+        fetch(`?cid=${cid}&search=${search}&page=${page}&filter_page={{ request.GET.filter_page }}`, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(res => res.json())
         .then(data => {
             document.getElementById('bookContainer').innerHTML = data.html;
+            haptic.success();
+        })
+        .catch(error => {
+            console.error('Error loading books:', error);
+            haptic.error();
+            document.getElementById('bookContainer').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h3 class="empty-state-title">Unable to Load</h3>
+                    <p class="empty-state-text">Please check your connection and try again.</p>
+                </div>
+            `;
         });
     }
 
@@ -80,6 +420,5 @@
         clearTimeout(typingTimer);
         typingTimer = setTimeout(() => loadBooks(1), delay);
     });
-
 </script>
 {% endblock %}

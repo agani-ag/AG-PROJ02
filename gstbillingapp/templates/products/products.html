@@ -40,9 +40,9 @@
 	 				<td>{{product.product_gst_percentage}}%</td>
 	 				<td>
 						<div class="btn-group" role="group" aria-label="Basic example">
-							<a href="{% url 'product_edit' product.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
+							<a href="{% url 'product_edit' product.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
 							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.model_no}}"><i class="fas fa-trash"></i></button>
-							<a href="{% url 'inventory_logs' product.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-alt"></i></a>
+							<a href="{% url 'inventory_logs' product.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-lines"></i></a>
 						</div>
 					</td>
 				</tr>

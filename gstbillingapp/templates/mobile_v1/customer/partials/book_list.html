@@ -1,119 +1,115 @@
 {% load tz %}
 {% load humanize %}
-<table class="table table-hover mb-0" id="datatable">
-    <thead>
-        <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th>Change</th>
-            <th>Action</th>
-        </tr>
-    </thead>
-    <tbody>
+
+{% if books %}
+    <div style="padding: 0 8px;">
         {% for book in books %}
-            {% if book.is_active and book.change_type == 0 %}
-                <tr class="table-success">
-            {% elif book.is_active and book.change_type == 1 %}
-                <tr class="table-danger">
-            {% elif book.is_active and book.change_type == 2 %}
-                <tr class="table-warning">
-            {% elif book.is_active and book.change_type == 3 %}
-                <tr class="table-primary">
-            {% elif book.is_active and book.change_type == 4 %}
-                <tr class="table-info">
-            {% else %}
-                <tr class="table-secondary">
-            {% endif %}
-            <td>{{book.date|localtime|date:"d-m-y h:i A"}}</td>
-            <!-- <td>{{ book.date|date:"d-m-Y H:i" }}</td> -->
-            <td>{{ book.get_change_type_display }}
-                <br>
-                <small class="text-muted">{{ book.date|naturaltime }}</small>
-            </td>
-            <td>₹{{ book.change| floatformat:2 | intcomma }}</td>
-            <td>
-                {% if book.associated_invoice %}
-                <a href="{% url 'v1customerinvoiceviewer' book.associated_invoice.id %}?cid={{ request.GET.cid }}" class="btn btn-sm btn-danger text-white">
-                    <i class="fas fa-eye"></i>
+            <div class="transaction-item {% if book.is_active %}{% if book.change_type == 0 %}payment{% elif book.change_type == 1 %}purchase{% elif book.change_type == 2 %}return{% elif book.change_type == 3 %}advance{% else %}other{% endif %}{% else %}inactive{% endif %}">
+                
+                <div class="transaction-header">
+                    <div class="transaction-type">
+                        <span class="type-badge">
+                            {{ book.get_change_type_display }}
+                        </span>
+                    </div>
+                    <div class="transaction-date">
+                        {{ book.date|localtime|date:"d M, y" }}
+                    </div>
+                </div>
+                
+                <h3 class="transaction-amount">₹{{ book.change|floatformat:2|intcomma }}</h3>
+                
+                <div class="transaction-meta">
+                    <span class="transaction-time">
+                        <i class="fas fa-clock"></i> {{ book.date|naturaltime }}
+                    </span>
+                    {% if book.associated_invoice %}
+                        <a href="{% url 'v1customerinvoiceviewer' book.associated_invoice.id %}?cid={{ request.GET.cid }}" 
+                           class="transaction-action">
+                            <i class="fas fa-eye"></i> View Invoice
+                        </a>
+                    {% else %}
+                        <button class="transaction-action" 
+                                onclick="haptic.light(); booknotes('{{ book.description|escapejs }}', '{{ book.createdby|escapejs }}')">
+                            <i class="fas fa-circle-info"></i> Details
+                        </button>
+                    {% endif %}
+                </div>
+                
+            </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if books.has_other_pages %}
+    <div class="pagination-container">
+        <ul class="custom-pagination">
+
+            {% if books.has_previous %}
+            <li>
+                <a href="#" class="page-btn" onclick="loadBooks({{ books.previous_page_number }}); return false;">
+                    <i class="fas fa-chevron-left"></i>
                 </a>
-                {% else %}
-                <button class="btn btn-sm btn-primary" onclick="booknotes('{{ book.description|escapejs }}', '{{ book.createdby|escapejs }}')">
-                    <i class="fas fa-eye"></i>
-                </button>
+            </li>
+            {% else %}
+            <li>
+                <span class="page-btn disabled">
+                    <i class="fas fa-chevron-left"></i>
+                </span>
+            </li>
+            {% endif %}
+
+            {% if books.number > 3 %}
+                <li><a href="#" class="page-btn" onclick="loadBooks(1); return false;">1</a></li>
+                {% if books.number > 4 %}
+                    <li><span class="page-btn disabled">...</span></li>
                 {% endif %}
-            </td>
-        </tr>
-        {% empty %}
-        <tr class="table-danger">
-            <td colspan="5" class="text-center">No books found.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-{% if books.has_other_pages %}
-<nav class="mt-3">
-    <ul class="pagination justify-content-center">
-
-        {% if books.has_previous %}
-        <li class="page-item">
-            <a class="page-link text-danger" href="#" onclick="loadBooks({{ books.previous_page_number }}); return false;">
-                <i class="fas fa-chevron-left"></i>
-            </a>
-        </li>
-        {% endif %}
-
-        {% comment %} Display first page link if far from current page {% endcomment %}
-        {% if books.number > 3 %}
-            <li class="page-item"><a class="page-link text-danger" href="#" onclick="loadBooks(1); return false;">1</a></li>
-            {% if books.number > 4 %}
-                <li class="page-item disabled"><span class="page-link">...</span></li>
             {% endif %}
-        {% endif %}
 
-        {% comment %} Display pages around current page {% endcomment %}
-        {% for num in books.paginator.page_range %}
-            {% if num >= books.number|add:-2 and num <= books.number|add:2 %}
-                <li class="page-item {% if books.number == num %}active{% endif %}">
-                    <a class="page-link {% if books.number == num %}bg-danger text-white{% else %}text-danger{% endif %}"
-                       href="#" onclick="loadBooks({{ num }}); return false;">
-                        {{ num }}
-                    </a>
-                </li>
+            {% for num in books.paginator.page_range %}
+                {% if num >= books.number|add:-2 and num <= books.number|add:2 %}
+                    <li>
+                        <a href="#" 
+                           class="page-btn {% if books.number == num %}active{% endif %}"
+                           onclick="loadBooks({{ num }}); return false;">
+                            {{ num }}
+                        </a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if books.number < books.paginator.num_pages|add:-2 %}
+                {% if books.number < books.paginator.num_pages|add:-3 %}
+                    <li><span class="page-btn disabled">...</span></li>
+                {% endif %}
+                <li><a href="#" class="page-btn" onclick="loadBooks({{ books.paginator.num_pages }}); return false;">{{ books.paginator.num_pages }}</a></li>
             {% endif %}
-        {% endfor %}
 
-        {% comment %} Display last page link if far from current page {% endcomment %}
-        {% if books.number < books.paginator.num_pages|add:-2 %}
-            {% if books.number < books.paginator.num_pages|add:-3 %}
-                <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% if books.has_next %}
+            <li>
+                <a href="#" class="page-btn" onclick="loadBooks({{ books.next_page_number }}); return false;">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+            {% else %}
+            <li>
+                <span class="page-btn disabled">
+                    <i class="fas fa-chevron-right"></i>
+                </span>
+            </li>
             {% endif %}
-            <li class="page-item"><a class="page-link text-danger" href="#" onclick="loadBooks({{ books.paginator.num_pages }}); return false;">{{ books.paginator.num_pages }}</a></li>
-        {% endif %}
 
-        {% if books.has_next %}
-        <li class="page-item">
-            <a class="page-link text-danger" href="#" onclick="loadBooks({{ books.next_page_number }}); return false;">
-                <i class="fas fa-chevron-right"></i>
-            </a>
-        </li>
-        {% endif %}
-    </ul>
-</nav>
+        </ul>
+    </div>
+    {% endif %}
+
+{% else %}
+    <!-- Empty State -->
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="fas fa-book-open"></i>
+        </div>
+        <h3 class="empty-state-title">No Transactions Found</h3>
+        <p class="empty-state-text">There are no transaction records to display at the moment.</p>
+    </div>
 {% endif %}
-
-<script>
-    function booknotes(desc, createdby) {
-        if (!desc) {
-            desc = "No notes available";
-        }
-        if (!createdby) {
-            createdby = "Unknown";
-        }
-        Swal.fire({
-            title: "Notes",
-            text: desc + "\n\n- " + createdby,
-            icon: 'info',
-        });
-    }
-</script>

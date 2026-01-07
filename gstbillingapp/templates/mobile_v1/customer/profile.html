@@ -1,0 +1,802 @@
+{% extends "mobile_v1/base.html" %}
+{% load static %}
+
+{% block title %}Customer Profile{% endblock %}
+
+{% block includecss %}
+<style>
+    /* Samsung One UI Inspired Design */
+    :root {
+        --oneui-primary: #0078d4;
+        --oneui-bg: #f5f5f5;
+        --oneui-surface: #ffffff;
+        --oneui-text-primary: #1c1c1e;
+        --oneui-text-secondary: #6e6e73;
+        --oneui-divider: #e5e5ea;
+        --oneui-accent: #007aff;
+        --oneui-success: #34c759;
+        --oneui-danger: #ff3b30;
+        --oneui-radius: 16px;
+        --oneui-radius-sm: 12px;
+        --oneui-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        --oneui-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+    
+    body {
+        background: var(--oneui-bg);
+    }
+    
+    /* Profile Container */
+    .profile-wrapper {
+        max-width: 640px;
+        margin: 0 auto;
+        padding-bottom: 80px;
+    }
+    
+    /* Profile Header - Premium Design */
+    .profile-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 0 0 var(--oneui-radius) var(--oneui-radius);
+        padding: 40px 20px 60px;
+        margin: -12px -8px 0;
+        position: relative;
+        box-shadow: var(--oneui-shadow-lg);
+    }
+    
+    .profile-avatar-container {
+        text-align: center;
+        position: relative;
+        z-index: 2;
+    }
+    
+    .profile-avatar {
+        width: 88px;
+        height: 88px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+    
+    .profile-avatar i {
+        font-size: 42px;
+        color: white;
+    }
+    
+    .profile-name {
+        font-size: 24px;
+        font-weight: 700;
+        color: white;
+        margin: 0 0 8px;
+        letter-spacing: -0.5px;
+    }
+    
+    .profile-id {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.85);
+        font-weight: 500;
+        padding: 6px 16px;
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        display: inline-block;
+    }
+    
+    /* Info Cards Container */
+    .profile-content {
+        margin-top: -40px;
+        position: relative;
+        z-index: 3;
+        padding: 0 8px;
+    }
+    
+    /* Card Component - One UI Style */
+    .oneui-card {
+        background: var(--oneui-surface);
+        border-radius: var(--oneui-radius);
+        box-shadow: var(--oneui-shadow);
+        margin-bottom: 16px;
+        overflow: hidden;
+        border: none;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .oneui-card:active {
+        transform: scale(0.98);
+    }
+    
+    /* Section Header */
+    .section-header {
+        padding: 20px 20px 12px;
+        border-bottom: 1px solid var(--oneui-divider);
+    }
+    
+    .section-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--oneui-text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0;
+    }
+    
+    /* Info Item - Samsung Style */
+    .info-item {
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid var(--oneui-divider);
+        min-height: 64px;
+        transition: background 0.2s ease;
+    }
+    
+    .info-item:last-child {
+        border-bottom: none;
+    }
+    
+    .info-item:active {
+        background: rgba(0, 0, 0, 0.03);
+    }
+    
+    .info-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #667eea15, #764ba215);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 16px;
+        flex-shrink: 0;
+    }
+    
+    .info-icon i {
+        font-size: 18px;
+        color: #667eea;
+    }
+    
+    .info-content {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .info-label {
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+        margin: 0 0 4px;
+        font-weight: 500;
+    }
+    
+    .info-value {
+        font-size: 16px;
+        color: var(--oneui-text-primary);
+        margin: 0;
+        font-weight: 500;
+        word-wrap: break-word;
+    }
+    
+    .info-value.na {
+        color: var(--oneui-text-secondary);
+        font-style: italic;
+    }
+    
+    /* Map Container */
+    .map-container {
+        background: var(--oneui-surface);
+        border-radius: var(--oneui-radius);
+        box-shadow: var(--oneui-shadow);
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+    
+    .map-header {
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #667eea08, #764ba208);
+        border-bottom: 1px solid var(--oneui-divider);
+    }
+    
+    .map-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0;
+    }
+    
+    #map {
+        height: 280px;
+        width: 100%;
+    }
+    
+    .map-footer {
+        padding: 16px 20px;
+        background: var(--oneui-surface);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .map-footer i {
+        color: var(--oneui-accent);
+        font-size: 20px;
+    }
+    
+    .distance-info {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+    }
+    
+    /* Footer Info */
+    .profile-footer {
+        background: var(--oneui-surface);
+        border-radius: var(--oneui-radius);
+        box-shadow: var(--oneui-shadow);
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+    
+    .footer-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .footer-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    .footer-item i {
+        font-size: 18px;
+        color: var(--oneui-text-secondary);
+        width: 24px;
+    }
+    
+    .footer-item-content {
+        flex: 1;
+    }
+    
+    .footer-label {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        margin: 0 0 2px;
+    }
+    
+    .footer-value {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0;
+    }
+    
+    /* Alert Styling */
+    .oneui-alert {
+        background: var(--oneui-surface);
+        border-radius: var(--oneui-radius);
+        padding: 20px;
+        box-shadow: var(--oneui-shadow);
+        border-left: 4px solid var(--oneui-accent);
+        margin: 0 8px 16px;
+    }
+    
+    /* Collapsible Section */
+    .collapsible-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.2s ease;
+    }
+    
+    .collapsible-header:active {
+        background: rgba(0, 0, 0, 0.03);
+    }
+    
+    .collapsible-title-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .collapsible-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #34c75915, #30d15815);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .collapsible-icon i {
+        font-size: 18px;
+        color: #34c759;
+    }
+    
+    .collapsible-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0;
+    }
+    
+    .collapsible-toggle {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.05);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .collapsible-toggle i {
+        font-size: 16px;
+        color: var(--oneui-text-secondary);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .collapsible-toggle.expanded i {
+        transform: rotate(180deg);
+    }
+    
+    .collapsible-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .collapsible-content.expanded {
+        max-height: 1000px;
+    }
+    
+    .qr-container {
+        padding: 20px;
+        text-align: center;
+        border-top: 1px solid var(--oneui-divider);
+        background: linear-gradient(135deg, #667eea08, #764ba208);
+    }
+    
+    .qr-wrapper {
+        display: inline-block;
+        text-decoration: none;
+        padding: 16px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
+    }
+    
+    .qr-wrapper:active {
+        transform: scale(0.97);
+    }
+    
+    .qr-label {
+        margin-top: 12px;
+        font-size: 13px;
+        color: #667eea;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+    
+    /* Responsive Adjustments */
+    @media (max-width: 375px) {
+        .profile-header {
+            padding: 32px 16px 50px;
+        }
+        
+        .profile-avatar {
+            width: 76px;
+            height: 76px;
+        }
+        
+        .profile-avatar i {
+            font-size: 36px;
+        }
+        
+        .profile-name {
+            font-size: 22px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="profile-wrapper">
+    {% if customer %}
+    
+    <!-- Profile Header -->
+    <div class="profile-header">
+        <div class="profile-avatar-container">
+            <div class="profile-avatar">
+                <i class="fas fa-user-circle"></i>
+            </div>
+            <h1 class="profile-name">{{ customer.customer_name }}</h1>
+            <span class="profile-id">
+                <i class="fas fa-id-badge"></i> {{ customer.customer_userid|default:"N/A"|upper }}
+            </span>
+        </div>
+    </div>
+    
+    <!-- Profile Content -->
+    <div class="profile-content">
+        
+        <!-- Contact Information Card -->
+        <div class="oneui-card">
+            <div class="section-header">
+                <h3 class="section-title">Contact Information</h3>
+            </div>
+            
+            <!-- Phone -->
+            <div class="info-item">
+                <div class="info-icon">
+                    <i class="fas fa-phone"></i>
+                </div>
+                <div class="info-content">
+                    <p class="info-label">Phone Number</p>
+                    {% if customer.customer_phone %}
+                        <p class="info-value">{{ customer.customer_phone }}</p>
+                    {% else %}
+                        <p class="info-value na">Not Available</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Email -->
+            <div class="info-item">
+                <div class="info-icon">
+                    <i class="fas fa-envelope"></i>
+                </div>
+                <div class="info-content">
+                    <p class="info-label">Email Address</p>
+                    {% if customer.customer_email %}
+                        <p class="info-value">{{ customer.customer_email }}</p>
+                    {% else %}
+                        <p class="info-value na">Not Available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Business Information Card -->
+        <div class="oneui-card">
+            <div class="section-header">
+                <h3 class="section-title">Business Details</h3>
+            </div>
+            
+            <!-- GST Number -->
+            <div class="info-item">
+                <div class="info-icon">
+                    <i class="fas fa-id-card"></i>
+                </div>
+                <div class="info-content">
+                    <p class="info-label">GST Number</p>
+                    {% if customer.customer_gst %}
+                        <p class="info-value">{{ customer.customer_gst }}</p>
+                    {% else %}
+                        <p class="info-value na">Not Registered</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Address -->
+            <div class="info-item">
+                <div class="info-icon">
+                    <i class="fas fa-location-dot"></i>
+                </div>
+                <div class="info-content">
+                    <p class="info-label">Business Address</p>
+                    {% if customer.customer_address %}
+                        <p class="info-value">{{ customer.customer_address|linebreaksbr }}</p>
+                    {% else %}
+                        <p class="info-value na">No Address Available</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Location Map -->
+        {% if customer.customer_latitude and customer.customer_longitude %}
+        <div class="map-container">
+            <div class="map-header">
+                <h3 class="map-title">
+                    <i class="fas fa-map-marked-alt"></i> Location & Navigation
+                </h3>
+            </div>
+            <div id="map"></div>
+            <div class="map-footer">
+                <i class="fas fa-route"></i>
+                <div>
+                    <div class="distance-info" id="distance-time">Calculating route...</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Organization Info Footer -->
+        <div class="profile-footer">
+            <div class="footer-item">
+                <i class="fas fa-building"></i>
+                <div class="footer-item-content">
+                    <p class="footer-label">Organization</p>
+                    <p class="footer-value">{{ users.business_title|default:"Not Specified"|upper }}</p>
+                </div>
+            </div>
+            <div class="footer-item">
+                <i class="fas fa-tags"></i>
+                <div class="footer-item-content">
+                    <p class="footer-label">Brand</p>
+                    <p class="footer-value">{{ users.business_brand|default:"Not Specified"|upper }}</p>
+                </div>
+            </div>
+            <div class="footer-item">
+                <i class="fas fa-user-tag"></i>
+                <div class="footer-item-content">
+                    <p class="footer-label">Customer ID</p>
+                    <p class="footer-value">{{ customer.customer_userid|default:"N/A"|upper }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Information Card -->
+        {% if users.bankdetails %}
+        <div class="oneui-card">
+            <div class="collapsible-header" onclick="togglePaymentSection()">
+                <div class="collapsible-title-group">
+                    <div class="collapsible-icon">
+                        <i class="fas fa-university"></i>
+                    </div>
+                    <h3 class="collapsible-title">Payment Information</h3>
+                </div>
+                <div class="collapsible-toggle" id="paymentToggle">
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+            
+            <div class="collapsible-content" id="paymentContent">
+                <!-- Account Name -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">Account Name</p>
+                        {% if users.bankdetails.account_name %}
+                            <p class="info-value">{{ users.bankdetails.account_name }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Account Number -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-credit-card"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">Account Number</p>
+                        {% if users.bankdetails.account_number %}
+                            <p class="info-value">{{ users.bankdetails.account_number }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Bank Name -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">Bank Name</p>
+                        {% if users.bankdetails.bank_name %}
+                            <p class="info-value">{{ users.bankdetails.bank_name }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- IFSC Code -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">IFSC Code</p>
+                        {% if users.bankdetails.ifsc_code %}
+                            <p class="info-value">{{ users.bankdetails.ifsc_code }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Branch -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">Branch</p>
+                        {% if users.bankdetails.branch_name %}
+                            <p class="info-value">{{ users.bankdetails.branch_name }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- UPI QR Code -->
+                {% if users.bankdetails.upi_id %}
+                <div class="qr-container">
+                    <a href="upi://pay?pa={{ users.bankdetails.upi_id }}&cu=INR" 
+                       class="qr-wrapper"
+                       onclick="haptic.light();">
+                        <div id="upi_qr" data-upi_id="upi://pay?pa={{ users.bankdetails.upi_id }}"></div>
+                        <div class="qr-label">
+                            <i class="fas fa-mobile-alt"></i>
+                            <span>Tap to Pay via UPI</span>
+                        </div>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    
+    {% else %}
+    <div class="oneui-alert">
+        <i class="fas fa-circle-info"></i> No customer data found.
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block includejs %}
+<script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
+<script>
+    // Toggle Payment Section
+    function togglePaymentSection() {
+        const content = document.getElementById('paymentContent');
+        const toggle = document.getElementById('paymentToggle');
+        
+        content.classList.toggle('expanded');
+        toggle.classList.toggle('expanded');
+        
+        // Trigger haptic feedback
+        if (typeof haptic !== 'undefined') {
+            haptic.light();
+        }
+    }
+    
+    // Initialize UPI QR Code
+    {% if users.bankdetails.upi_id %}
+    document.addEventListener('DOMContentLoaded', function() {
+        const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
+        const qr = new QRCodeStyling({
+            width: 120,
+            height: 120,
+            data: upiQR,
+            dotsOptions: { 
+                color: "#667eea", 
+                type: "rounded" 
+            },
+            cornersSquareOptions: {
+                color: "#764ba2",
+                type: "extra-rounded"
+            },
+            cornersDotOptions: {
+                color: "#34c759",
+                type: "dot"
+            }
+        });
+        qr.append(document.getElementById("upi_qr"));
+    });
+    {% endif %}
+</script>
+
+{% if customer.customer_latitude and customer.customer_longitude %}
+<script>
+    // Map initialization with smooth animations
+    document.addEventListener('DOMContentLoaded', function() {
+        const latitude = {{ customer.customer_latitude }};
+        const longitude = {{ customer.customer_longitude }};
+        const name = "{{ customer.customer_name }}";
+
+        // Head Office coordinates
+        const hqLat = {{ users.business_latitude }};
+        const hqLng = {{ users.business_longitude }};
+        const hqName = "{{ users.business_title }}";
+
+        // Initialize map
+        const map = L.map('map', {
+            zoomControl: true,
+            scrollWheelZoom: false
+        }).setView([latitude, longitude], 13);
+
+        // Satellite layer
+        L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            { 
+                attribution: '&copy; Esri',
+                maxZoom: 18
+            }
+        ).addTo(map);
+
+        // Custom marker icons
+        const customerIcon = L.divIcon({
+            className: 'custom-marker',
+            html: '<div style="background: #667eea; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+
+        const hqIcon = L.divIcon({
+            className: 'custom-marker',
+            html: '<div style="background: #34c759; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+        });
+
+        // Customer Marker
+        L.marker([latitude, longitude], {icon: customerIcon})
+            .addTo(map)
+            .bindTooltip(name, { permanent: false, direction: 'top' });
+
+        // HQ Marker
+        L.marker([hqLat, hqLng], {icon: hqIcon})
+            .addTo(map)
+            .bindTooltip(hqName, { permanent: true, offset: [0, -20], direction: 'top' });
+
+        // Routing with custom styling
+        L.Routing.control({
+            waypoints: [
+                L.latLng(latitude, longitude),
+                L.latLng(hqLat, hqLng)
+            ],
+            routeWhileDragging: false,
+            show: false,
+            addWaypoints: false,
+            lineOptions: {
+                styles: [{ 
+                    color: '#007aff', 
+                    weight: 4,
+                    opacity: 0.8 
+                }]
+            },
+            createMarker: function() { return null; } // Hide default markers
+        }).on('routesfound', function (e) {
+            const distance = e.routes[0].summary.totalDistance / 1000;
+            const time = e.routes[0].summary.totalTime / 60;
+            document.getElementById('distance-time').innerHTML = 
+                `<strong>${distance.toFixed(2)} KM</strong> • ${Math.round(time)} min drive`;
+        }).addTo(map);
+
+        // Fit bounds to show both markers
+        setTimeout(() => {
+            const bounds = L.latLngBounds([
+                [latitude, longitude],
+                [hqLat, hqLng]
+            ]);
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }, 500);
+    });
+</script>
+{% endif %}
+{% endblock %}

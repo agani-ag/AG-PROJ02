@@ -74,7 +74,7 @@
 	</table>
 
 	<div class="form-group text-right">
-		<button type="button" id="toggleEditBtn" class="btn btn-success"><i class="fas fa-map-marker-alt"></i></button>
+		<button type="button" id="toggleEditBtn" class="btn btn-success"><i class="fas fa-location-dot"></i></button>
 		{% if customer_password %}
 			<a onclick="resetCustomerPassword('{{ customer_id }}')" class="btn btn-dark"><i class="fas fa-redo"></i></a>
 		{% endif %}
@@ -82,7 +82,7 @@
 </form>
 		<a class="btn btn-danger" href="{% url 'customers' %}"><i class="fas fa-cancel"></i></a>
 		{% if id %}
-			<a class="btn btn-warning" href="#" onclick="popup_books()"><i class="fas fa-file-alt"></i></a>
+			<a class="btn btn-warning" href="#" onclick="popup_books()"><i class="fas fa-file-lines"></i></a>
 		{% endif %}
 	</div>
 
