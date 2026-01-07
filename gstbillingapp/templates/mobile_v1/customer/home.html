@@ -671,6 +671,40 @@
         </div>
     </div>
     
+    <!-- Customer Balance Section -->
+    <div class="section-header">
+        <h2 class="section-title">Customer Balance</h2>
+        <p class="section-subtitle">Outstanding amount</p>
+    </div>
+    
+    <div class="progress-section">
+        <div class="progress-header">
+            <h3 class="progress-title">
+                <i class="fas fa-wallet"></i>
+                Balance Overview
+            </h3>
+            <span class="progress-period">All Time</span>
+        </div>
+        
+        <!-- Balance Progress -->
+        <div class="progress-item">
+            <div class="progress-info">
+                <span class="progress-label">
+                    <i class="fas fa-money-bill-wave" style="color: #ff3b30;"></i>
+                    Total Outstanding
+                </span>
+                <span class="progress-percentage" style="color: #ff3b30;">₹{{ total_balance|default:0|floatformat:2|intcomma }}</span>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar danger" style="width: {{ overall_payment_percentage|default:0 }}%;"></div>
+            </div>
+            <div class="progress-values">
+                <span class="progress-current">Paid: ₹{{ total_paid|default:0|floatformat:2|intcomma }}</span>
+                <span>Total: ₹{{ total_purchased|default:0|floatformat:2|intcomma }}</span>
+            </div>
+        </div>
+    </div>
+    
     <!-- Page Footer -->
     <div class="page-footer">
         <div class="footer-info">

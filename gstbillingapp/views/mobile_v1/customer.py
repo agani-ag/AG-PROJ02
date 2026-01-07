@@ -267,13 +267,14 @@ def customer_home(request):
     overall_payment_percentage = 0
     if totals['total_purchased'] and totals['total_purchased'] != 0:
         overall_payment_percentage = (abs(totals['total_paid'] or 0) / abs(totals['total_purchased'])) * 100
-    context['overall_payment_percentage'] = int(overall_payment_percentage)
+    context['overall_payment_percentage'] = int(overall_payment_percentage)    
     # Fill in context with totals, using 0 if None
     total_purchased = totals['total_purchased'] or 0
     total_paid = totals['total_paid'] or 0
     total_returned = totals['total_returned'] or 0
     total_others = totals['total_others'] or 0
-    total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
+    total_balance = abs(total_purchased) - abs(total_paid)
+    # total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
     # Counts
     context['purchased_count'] = totals['purchased_count'] or 0
     context['paid_count'] = totals['paid_count'] or 0
