@@ -35,21 +35,33 @@
                         <div class="card">
                             <div class="card-body d-flex justify-content-between p-0">
                                 <!-- First Total Purchased -->
-                                <div class="card bg-danger text-white flex-fill m-1 text-center">
+                                <div class="card bg-danger text-white flex-fill m-1 text-center position-relative">
                                     <div class="card-body py-3">
                                         <h6 class="card-title"><i class="fas fa-receipt"></i> Purchased</h6>
                                         <h3>₹ {{ current_month_total_purchased | default:0 | intcomma }}</h3>
+                                        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=current_month_purchases" 
+                                            class="stretched-link"></a>
                                     </div>
                                 </div>
 
                                 <!-- Second Total Purchased -->
-                                <div class="card bg-success text-white flex-fill m-1 text-center">
+                                <div class="card bg-success text-white flex-fill m-1 text-center position-relative">
                                     <div class="card-body py-3">
                                         <h6 class="card-title"><i class="fas fa-check-circle"></i> Paid</h6>
                                         <h3>₹ {{ current_month_total_paid | default:0 | intcomma }}</h3>
+                                        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=current_month_payments" 
+                                            class="stretched-link"></a>
                                     </div>
                                 </div>
                             </div>
+                            <!-- In / Out Count -->
+                            <h6 class="mb-0">
+                                <span class="badge bg-light text-danger">Purchase</span>
+                                    <span class="badge bg-dark text-light">{{ current_month_purchased_count | default:0 }}</span>
+                                <span class="badge bg-light text-success">Payment</span>
+                                    <span class="badge bg-dark text-light">{{ current_month_paid_count | default:0 }}</span>
+                                <span class="badge bg-light text-dark">→ Counts</span>
+                            </h6>
                         </div>
                     </div>
 
@@ -66,21 +78,33 @@
                         <div class="card">
                             <div class="card-body d-flex justify-content-between p-0">
                                 <!-- First Total Purchased -->
-                                <div class="card bg-danger text-white flex-fill m-1 text-center">
+                                <div class="card bg-danger text-white flex-fill m-1 text-center position-relative">
                                     <div class="card-body py-3">
                                         <h6 class="card-title"><i class="fas fa-receipt"></i> Purchased</h6>
                                         <h3>₹ {{ last_month_total_purchased | default:0 | intcomma }}</h3>
+                                        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=last_month_purchases" 
+                                            class="stretched-link"></a>
                                     </div>
                                 </div>
 
                                 <!-- Second Total Purchased -->
-                                <div class="card bg-success text-white flex-fill m-1 text-center">
+                                <div class="card bg-success text-white flex-fill m-1 text-center position-relative">
                                     <div class="card-body py-3">
                                         <h6 class="card-title"><i class="fas fa-check-circle"></i> Paid</h6>
                                         <h3>₹ {{ last_month_total_paid | default:0 | intcomma }}</h3>
+                                        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=last_month_payments" 
+                                            class="stretched-link"></a>
                                     </div>
                                 </div>
                             </div>
+                            <!-- In / Out Count -->
+                            <h6 class="mb-0">
+                                <span class="badge bg-light text-danger">Purchase</span>
+                                    <span class="badge bg-dark text-light">{{ last_month_purchased_count | default:0 }}</span>
+                                <span class="badge bg-light text-success">Payment</span>
+                                    <span class="badge bg-dark text-light">{{ last_month_paid_count | default:0 }}</span>
+                                <span class="badge bg-light text-dark">← Counts</span>
+                            </h6>
                         </div>
                     </div>
 
@@ -95,42 +119,63 @@
 
                     <!-- Total Purchased -->
                     <div class="col-md-3 pb-2">
-                        <div class="card bg-danger text-white">
+                        <div class="card bg-danger text-white position-relative">
                             <div class="card-body">
                                 <h6 class="card-title"><i class="fas fa-receipt"></i> Total Purchased</h6>
                                 <h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
+                                <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=purchases" 
+                                    class="stretched-link"></a>
                             </div>
                         </div>
                     </div>
 
                     <!-- Total Paid -->
                     <div class="col-md-3 pb-2">
-                        <div class="card bg-success text-white">
+                        <div class="card bg-success text-white position-relative">
                             <div class="card-body">
                                 <h6 class="card-title"><i class="fas fa-check-circle"></i> Total Paid</h6>
                                 <h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
+                                <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=payments" 
+                                    class="stretched-link"></a>
                             </div>
                         </div>
                     </div>
 
                     <!-- Total Returned -->
                     <div class="col-md-3 pb-2">
-                        <div class="card bg-orange text-white">
+                        <div class="card bg-orange text-white position-relative">
                             <div class="card-body">
                                 <h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
                                 <h3>₹ {{ total_returned | default:0 | floatformat:2 | intcomma }}</h3>
+                                <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=returns" 
+                                    class="stretched-link"></a>
                             </div>
                         </div>
                     </div>
 
                     <!-- Total Others -->
                     <div class="col-md-3 pb-2">
-                        <div class="card bg-violet text-white">
+                        <div class="card bg-violet text-white position-relative">
                             <div class="card-body">
                                 <h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
                                 <h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
+                                <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=others" 
+                                    class="stretched-link"></a>
                             </div>
                         </div>
+                    </div>
+                    <!-- In / Out Count -->
+                    <div class="col-md-6">
+                        <h6 class="mb-0">
+                            <span class="badge bg-light text-danger">Purchase</span>
+                                <span class="badge bg-dark text-light">{{ purchased_count | default:0 }}</span>
+                            <span class="badge bg-light text-success">Payment</span>
+                                <span class="badge bg-dark text-light">{{ paid_count | default:0 }}</span>
+                            <span class="badge bg-light text-orange">Return</span>
+                                <span class="badge bg-dark text-light">{{ returned_count | default:0 }}</span>
+                            <span class="badge bg-light text-violet">Others</span>
+                                <span class="badge bg-dark text-light">{{ others_count | default:0 }}</span>
+                        </h6>
                     </div>
                 </div>
             </div>

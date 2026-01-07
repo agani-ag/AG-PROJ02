@@ -7,13 +7,19 @@ from django.core.paginator import Paginator
 from django.template.loader import render_to_string
 from django.shortcuts import get_object_or_404, render
 from django.db.models import (
-    Sum, Case, When, FloatField, F,Q, CharField, Min, Max
+    Sum, Case, When, FloatField, IntegerField,
+    F,Q, CharField, Min, Max, Count
 )
+
 # Models
 from ...models import (
     Customer, UserProfile, Invoice,
     BookLog
 )
+
+# Python imports
+import json
+import num2words
 
 # Utility functions
 from ...utils import parse_code_GS
@@ -100,6 +106,7 @@ def customer_books(request):
     context = {}
 
     cid = request.GET.get('cid')
+    filter_page = request.GET.get('filter_page')
     search = request.GET.get('search', '').strip()
     page_number = request.GET.get('page')
 
@@ -121,6 +128,49 @@ def customer_books(request):
         parent_book__customer__id=customer_id,
         is_active=True
     )
+
+    if filter_page == 'payments':
+        books_qs = books_qs.filter(change_type=0)
+    elif filter_page == 'purchases':
+        books_qs = books_qs.filter(change_type=1)
+    elif filter_page == 'returns':
+        books_qs = books_qs.filter(change_type=2)
+    elif filter_page == 'others':
+        books_qs = books_qs.filter(change_type=3)
+    elif filter_page == 'current_month_payments':
+        now = timezone.now()
+        books_qs = books_qs.filter(
+            change_type=0,
+            date__year=now.year,
+            date__month=now.month
+        )
+    elif filter_page == 'current_month_purchases':
+        now = timezone.now()
+        books_qs = books_qs.filter(
+            change_type=1,
+            date__year=now.year,
+            date__month=now.month
+        )
+    elif filter_page == 'last_month_payments':
+        now = timezone.now()
+        last_month = now.month - 1 if now.month > 1 else 12
+        last_month_year = now.year if now.month > 1 else now.year - 1
+        books_qs = books_qs.filter(
+            change_type=0,
+            date__year=last_month_year,
+            date__month=last_month
+        )
+    elif filter_page == 'last_month_purchases':
+        now = timezone.now()
+        last_month = now.month - 1 if now.month > 1 else 12
+        last_month_year = now.year if now.month > 1 else now.year - 1
+        books_qs = books_qs.filter(
+            change_type=1,
+            date__year=last_month_year,
+            date__month=last_month
+        )
+
+
 
     if search:
         books_qs = books_qs.annotate(
@@ -209,6 +259,10 @@ def customer_home(request):
         total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
         total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
         total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+        paid_count=Count(Case(When(change_type=0, then=1), output_field=IntegerField())),
+        purchased_count=Count(Case(When(change_type=1, then=1), output_field=IntegerField())),
+        returned_count=Count(Case(When(change_type=2, then=1), output_field=IntegerField())),
+        others_count=Count(Case(When(change_type=3, then=1), output_field=IntegerField())),
     )
     # Fill in context with totals, using 0 if None
     total_purchased = totals['total_purchased'] or 0
@@ -216,6 +270,11 @@ def customer_home(request):
     total_returned = totals['total_returned'] or 0
     total_others = totals['total_others'] or 0
     total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
+    # Counts
+    context['purchased_count'] = totals['purchased_count'] or 0
+    context['paid_count'] = totals['paid_count'] or 0
+    context['returned_count'] = totals['returned_count'] or 0
+    context['others_count'] = totals['others_count'] or 0
     # Calculate balance (absolute value if you want it always positive)
     context['total_balance'] = total_balance
     context['total_purchased'] = abs(total_purchased)
@@ -237,11 +296,17 @@ def customer_home(request):
     current_month_totals = current_month_book_logs.aggregate(
         current_month_total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
         current_month_total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        current_month_paid_count=Count(Case(When(change_type=0, then=1), output_field=IntegerField())),
+        current_month_purchased_count=Count(Case(When(change_type=1, then=1), output_field=IntegerField())),
     )
     current_month_total_purchased = current_month_totals['current_month_total_purchased'] or 0
     current_month_total_paid = current_month_totals['current_month_total_paid'] or 0
+    current_month_paid_count = current_month_totals['current_month_paid_count'] or 0
+    current_month_purchased_count = current_month_totals['current_month_purchased_count'] or 0
     context['current_month_total_purchased'] = abs(int(current_month_total_purchased))
     context['current_month_total_paid'] = abs(int(current_month_total_paid))
+    context['current_month_paid_count'] = abs(int(current_month_paid_count))
+    context['current_month_purchased_count'] = abs(int(current_month_purchased_count))
     
     # Last Month Totals
     current_year = now.year
@@ -258,9 +323,41 @@ def customer_home(request):
     last_month_totals = last_month_book_logs.aggregate(
         last_month_total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
         last_month_total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        last_month_paid_count=Count(Case(When(change_type=0, then=1), output_field=IntegerField())),
+        last_month_purchased_count=Count(Case(When(change_type=1, then=1), output_field=IntegerField())),
     )
     last_month_total_purchased = last_month_totals['last_month_total_purchased'] or 0
     last_month_total_paid = last_month_totals['last_month_total_paid'] or 0
+    last_month_paid_count = last_month_totals['last_month_paid_count'] or 0
+    last_month_purchased_count = last_month_totals['last_month_purchased_count'] or 0
     context['last_month_total_purchased'] = abs(int(last_month_total_purchased))
     context['last_month_total_paid'] = abs(int(last_month_total_paid))
+    context['last_month_paid_count'] = abs(int(last_month_paid_count))
+    context['last_month_purchased_count'] = abs(int(last_month_purchased_count))
     return render(request, 'mobile_v1/customer/home.html', context)
+
+def customer_invoice_viewer(request, invoice_id):
+    context = {}
+    cid = request.GET.get('cid')
+
+    if not cid:
+        return render(request, 'mobile_v1/customer/invoice_printer.html', context)
+
+    cid_data = parse_code_GS(cid)
+    if not cid_data:
+        return render(request, 'mobile_v1/customer/invoice_printer.html', context)
+    
+    customer_id = cid_data.get('C')
+    user_id = cid_data.get('GS')
+    try:
+        invoice_obj = get_object_or_404(Invoice, user__id=user_id, id=invoice_id)
+        user_profile = get_object_or_404(UserProfile, user__id=user_id)
+    except:
+        return render(request, 'mobile_v1/customer/invoice_printer.html', context)
+
+    context['invoice'] = invoice_obj
+    context['invoice_data'] = json.loads(invoice_obj.invoice_json)
+    context['currency'] = "₹"
+    context['total_in_words'] = num2words.num2words(int(context['invoice_data']['invoice_total_amt_with_gst']), lang='en_IN').title()
+    context['user_profile'] = user_profile
+    return render(request, 'mobile_v1/customer/invoice_printer.html', context)
