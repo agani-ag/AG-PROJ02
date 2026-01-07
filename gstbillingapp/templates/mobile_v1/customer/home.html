@@ -111,18 +111,46 @@
         width: 36px;
         height: 36px;
         border-radius: 10px;
-        background: currentColor;
-        opacity: 0.12;
         display: flex;
         align-items: center;
         justify-content: center;
         margin-bottom: 12px;
     }
     
+    .stat-card.danger .stat-icon {
+        background: rgba(255, 59, 48, 0.12);
+    }
+    
+    .stat-card.success .stat-icon {
+        background: rgba(52, 199, 89, 0.12);
+    }
+    
+    .stat-card.warning .stat-icon {
+        background: rgba(255, 149, 0, 0.12);
+    }
+    
+    .stat-card.info .stat-icon {
+        background: rgba(0, 122, 255, 0.12);
+    }
+    
     .stat-icon i {
         font-size: 18px;
-        color: currentColor;
-        opacity: 1;
+    }
+    
+    .stat-card.danger .stat-icon i {
+        color: #ff3b30;
+    }
+    
+    .stat-card.success .stat-icon i {
+        color: #34c759;
+    }
+    
+    .stat-card.warning .stat-icon i {
+        color: #ff9500;
+    }
+    
+    .stat-card.info .stat-icon i {
+        color: #007aff;
     }
     
     .stat-label {
@@ -247,6 +275,58 @@
         font-weight: 600;
         color: var(--oneui-text-primary);
     }
+    
+    /* Dark Mode Overrides */
+    [data-theme="dark"] .stat-card {
+        background: var(--oneui-card-bg);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-theme="dark"] .summary-section {
+        background: var(--oneui-card-bg);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-theme="dark"] .page-footer {
+        background: var(--oneui-card-bg);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-theme="dark"] .stat-card.danger .stat-icon {
+        background: rgba(255, 59, 48, 0.2);
+    }
+    
+    [data-theme="dark"] .stat-card.success .stat-icon {
+        background: rgba(52, 199, 89, 0.2);
+    }
+    
+    [data-theme="dark"] .stat-card.warning .stat-icon {
+        background: rgba(255, 149, 0, 0.2);
+    }
+    
+    [data-theme="dark"] .stat-card.info .stat-icon {
+        background: rgba(0, 122, 255, 0.2);
+    }
+    
+    [data-theme="dark"] .badge-danger {
+        background: rgba(255, 59, 48, 0.15);
+        color: #ff6b6b;
+    }
+    
+    [data-theme="dark"] .badge-success {
+        background: rgba(52, 199, 89, 0.15);
+        color: #69db7c;
+    }
+    
+    [data-theme="dark"] .badge-warning {
+        background: rgba(255, 149, 0, 0.15);
+        color: #ffa94d;
+    }
+    
+    [data-theme="dark"] .badge-info {
+        background: rgba(0, 122, 255, 0.15);
+        color: #4dabf7;
+    }
 </style>
 {% endblock %}
 
@@ -280,7 +360,7 @@
         <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=current_month_payments" 
            class="stat-card success">
             <div class="stat-icon">
-                <i class="fas fa-check-circle"></i>
+                <i class="fas fa-circle-check"></i>
             </div>
             <p class="stat-label">Paid</p>
             <h3 class="stat-value">₹{{ current_month_total_paid|default:0|intcomma }}</h3>
@@ -308,7 +388,7 @@
         <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=last_month_payments" 
            class="stat-card success">
             <div class="stat-icon">
-                <i class="fas fa-check-circle"></i>
+                <i class="fas fa-circle-check"></i>
             </div>
             <p class="stat-label">Paid</p>
             <h3 class="stat-value">₹{{ last_month_total_paid|default:0|intcomma }}</h3>
@@ -341,7 +421,7 @@
         <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=payments" 
            class="summary-item" style="text-decoration: none;">
             <span class="summary-label">
-                <i class="fas fa-check-circle" style="color: #34c759;"></i>
+                <i class="fas fa-circle-check" style="color: #34c759;"></i>
                 Total Paid
                 <span class="summary-badge badge-success">{{ paid_count|default:0 }}</span>
             </span>
@@ -361,7 +441,7 @@
         <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=others" 
            class="summary-item" style="text-decoration: none;">
             <span class="summary-label">
-                <i class="fas fa-ellipsis-h" style="color: #007aff;"></i>
+                <i class="fas fa-ellipsis" style="color: #007aff;"></i>
                 Other Transactions
                 <span class="summary-badge badge-info">{{ others_count|default:0 }}</span>
             </span>

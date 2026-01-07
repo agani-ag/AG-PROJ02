@@ -15,7 +15,7 @@
                 
                 <div class="invoice-meta">
                     <div class="invoice-date">
-                        <i class="fas fa-calendar-alt"></i>
+                        <i class="fas fa-calendar-days"></i>
                         <span>{{ invoice.invoice_date|date:"d M, Y" }}</span>
                     </div>
                     <a href="{% url 'v1customerinvoiceviewer' invoice.id %}?cid={{ request.GET.cid }}" 
