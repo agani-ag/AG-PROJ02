@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customers</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #1a2a6c 0%, #b21f1f 50%, #fdbb2d 100%);
+            --secondary-gradient: linear-gradient(135deg, #134e5e 0%, #71b280 100%);
+            --gold-accent: #ffd700;
+            --deep-blue: #1e3c72;
+            --burgundy: #b21f1f;
+            --teal: #134e5e;
+            --card-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+            --card-shadow-hover: 0 12px 24px rgba(0, 0, 0, 0.25);
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-bottom: 30px;
+        }
+        
+        .header-section {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+            position: relative;
+        }
+        
+        .header-section::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%);
+        }
+        
+        .header-content {
+            padding: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-title-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .header-icon-circle {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 215, 0, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(255, 215, 0, 0.3);
+        }
+        
+        .header-icon-circle i {
+            font-size: 1.5rem;
+            color: #ffd700;
+        }
+        
+        .header-text h1 {
+            font-weight: 700;
+            margin: 0;
+            font-size: 1.5rem;
+            letter-spacing: 0.5px;
+        }
+        
+        .header-text p {
+            margin: 0;
+            font-size: 0.85rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        .header-stats {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-number {
+            display: block;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #ffd700;
+        }
+        
+        .stat-label {
+            display: block;
+            font-size: 0.7rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .user-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 15px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 25px;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+        }
+        
+        .user-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--card-shadow-hover);
+        }
+        
+        .user-header {
+            background: var(--secondary-gradient);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .user-header i {
+            font-size: 1.3rem;
+        }
+        
+        .customer-list {
+            padding: 15px 20px;
+        }
+        
+        .customer-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 10px;
+            text-decoration: none;
+            color: #1a2a6c;
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+            border: 1px solid rgba(19, 78, 94, 0.1);
+            font-weight: 500;
+        }
+        
+        .customer-item:hover {
+            background: linear-gradient(135deg, #ffd70020 0%, #134e5e20 100%);
+            border-left-color: #ffd700;
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+            border-color: rgba(255, 215, 0, 0.5);
+        }
+        
+        .customer-item i {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, #1a2a6c, #134e5e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-right: 12px;
+            min-width: 30px;
+        }
+        
+        .customer-name {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .customer-arrow {
+            color: #999;
+            transition: transform 0.3s ease;
+        }
+        
+        .customer-item:hover .customer-arrow {
+            transform: translateX(5px);
+            color: #ffd700;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        @media (max-width: 576px) {
+            .header-text h1 {
+                font-size: 1.2rem;
+            }
+            
+            .header-text p {
+                font-size: 0.75rem;
+            }
+            
+            .header-stats {
+                display: none;
+            }
+            
+            .header-icon-circle {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .header-icon-circle i {
+                font-size: 1.2rem;
+            }
+            
+            .user-card {
+                margin-bottom: 20px;
+            }
+            
+            .customer-item {
+                padding: 10px 12px;
+            }
+        }
+        
+        /* Smooth scroll behavior */
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        /* Animation for cards on load */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .user-card {
+            animation: fadeInUp 0.6s ease forwards;
+        }
+        
+        .user-card:nth-child(1) { animation-delay: 0.1s; }
+        .user-card:nth-child(2) { animation-delay: 0.2s; }
+        .user-card:nth-child(3) { animation-delay: 0.3s; }
+        .user-card:nth-child(4) { animation-delay: 0.4s; }
+        .user-card:nth-child(5) { animation-delay: 0.5s; }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="container">
+            <div class="header-content">
+                <div class="header-title-section">
+                    <div class="header-icon-circle">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                    <div class="header-text">
+                        <h1>Customer Directory</h1>
+                        <p>Manage and view all your customers</p>
+                    </div>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <span class="stat-number">{{ users|length }}</span>
+                        <span class="stat-label">Users</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">{{ customers|length }}</span>
+                        <span class="stat-label">Total</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="container">
+        {% for i in users %}
+        <div class="user-card">
+            <div class="user-header">
+                <i class="bi bi-person-circle"></i>
+                <span>{{ i|upper }}</span>
+            </div>
+            <div class="customer-list">
+                {% for c in customers %}
+                    {% if c.user.id == i.user.id %}
+                        <a href="{% url 'v1customer' %}?cid={{ c.customer_userid }}" class="customer-item">
+                            <i class="bi bi-person-badge"></i>
+                            <span class="customer-name">{{ c.customer_name }}</span>
+                            <i class="bi bi-chevron-right customer-arrow"></i>
+                        </a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="user-card">
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p>No customers found</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

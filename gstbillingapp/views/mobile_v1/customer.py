@@ -361,3 +361,11 @@ def customer_invoice_viewer(request, invoice_id):
     context['total_in_words'] = num2words.num2words(int(context['invoice_data']['invoice_total_amt_with_gst']), lang='en_IN').title()
     context['user_profile'] = user_profile
     return render(request, 'mobile_v1/customer/invoice_printer.html', context)
+
+def customers(request):
+    context = {}
+    users = UserProfile.objects.filter()
+    context['users'] = users
+    customers = Customer.objects.filter().order_by('customer_name')
+    context['customers'] = customers
+    return render(request, 'mobile_v1/static.html', context)

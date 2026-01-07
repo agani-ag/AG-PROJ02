@@ -271,5 +271,5 @@ def parse_code_GS(input_code):
     if not matches:
         return None
     # Create a dictionary from the matches
-    result = {key: int(value) for key, value in matches}
+    result = {key.upper(): int(value) for key, value in matches}
     return result
