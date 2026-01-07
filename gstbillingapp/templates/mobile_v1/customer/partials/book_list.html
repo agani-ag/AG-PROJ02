@@ -102,7 +102,21 @@
         </ul>
     </div>
     {% endif %}
-
+<script>
+    function booknotes(desc, createdby) {
+        if (!desc) {
+            desc = "No notes available";
+        }
+        if (!createdby) {
+            createdby = "Unknown";
+        }
+        Swal.fire({
+            title: "Notes",
+            text: desc + "\n\n- " + createdby,
+            icon: 'info',
+        });
+    }
+</script>
 {% else %}
     <!-- Empty State -->
     <div class="empty-state">
