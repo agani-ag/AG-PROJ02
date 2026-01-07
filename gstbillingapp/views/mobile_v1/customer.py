@@ -264,6 +264,10 @@ def customer_home(request):
         returned_count=Count(Case(When(change_type=2, then=1), output_field=IntegerField())),
         others_count=Count(Case(When(change_type=3, then=1), output_field=IntegerField())),
     )
+    overall_payment_percentage = 0
+    if totals['total_purchased'] and totals['total_purchased'] != 0:
+        overall_payment_percentage = (abs(totals['total_paid'] or 0) / abs(totals['total_purchased'])) * 100
+    context['overall_payment_percentage'] = int(overall_payment_percentage)
     # Fill in context with totals, using 0 if None
     total_purchased = totals['total_purchased'] or 0
     total_paid = totals['total_paid'] or 0
@@ -299,6 +303,10 @@ def customer_home(request):
         current_month_paid_count=Count(Case(When(change_type=0, then=1), output_field=IntegerField())),
         current_month_purchased_count=Count(Case(When(change_type=1, then=1), output_field=IntegerField())),
     )
+    current_month_payment_percentage = 0
+    if current_month_totals['current_month_total_purchased'] and current_month_totals['current_month_total_purchased'] != 0:
+        current_month_payment_percentage = (abs(current_month_totals['current_month_total_paid'] or 0) / abs(current_month_totals['current_month_total_purchased'])) * 100
+    context['current_month_payment_percentage'] = int(current_month_payment_percentage)
     current_month_total_purchased = current_month_totals['current_month_total_purchased'] or 0
     current_month_total_paid = current_month_totals['current_month_total_paid'] or 0
     current_month_paid_count = current_month_totals['current_month_paid_count'] or 0
@@ -326,6 +334,10 @@ def customer_home(request):
         last_month_paid_count=Count(Case(When(change_type=0, then=1), output_field=IntegerField())),
         last_month_purchased_count=Count(Case(When(change_type=1, then=1), output_field=IntegerField())),
     )
+    last_month_payment_percentage = 0
+    if last_month_totals['last_month_total_purchased'] and last_month_totals['last_month_total_purchased'] != 0:
+        last_month_payment_percentage = (abs(last_month_totals['last_month_total_paid'] or 0) / abs(last_month_totals['last_month_total_purchased'])) * 100
+    context['last_month_payment_percentage'] = int(last_month_payment_percentage)
     last_month_total_purchased = last_month_totals['last_month_total_purchased'] or 0
     last_month_total_paid = last_month_totals['last_month_total_paid'] or 0
     last_month_paid_count = last_month_totals['last_month_paid_count'] or 0
