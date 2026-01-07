@@ -381,4 +381,4 @@ def customers(request):
     context['users'] = users
     customers = Customer.objects.filter().order_by('customer_name')
     context['customers'] = customers
-    return render(request, 'mobile_v1/static.html', context)
+    return render(request, 'mobile_v1/customers.html', context)

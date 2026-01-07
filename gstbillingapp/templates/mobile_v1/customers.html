@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customers</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <style>
+        /* Samsung One UI Design System */
+        :root {
+            --oneui-primary: #667eea;
+            --oneui-primary-dark: #5568d3;
+            --oneui-secondary: #764ba2;
+            --oneui-accent: #34c759;
+            --oneui-bg: #f5f5f7;
+            --oneui-bg-secondary: #e5e5ea;
+            --oneui-surface: #ffffff;
+            --oneui-text-primary: #1c1c1e;
+            --oneui-text-secondary: #8e8e93;
+            --oneui-divider: #d1d1d6;
+            --oneui-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+            --oneui-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+            --oneui-radius: 16px;
+            --oneui-radius-sm: 12px;
+            --gradient-header: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-accent: linear-gradient(135deg, #34c759 0%, #30d158 100%);
+        }
+        
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            background: var(--oneui-bg);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Pro Display', sans-serif;
+            padding-bottom: 30px;
+            margin: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .header-section {
+            background: var(--gradient-header);
+            color: white;
+            padding: 0;
+            box-shadow: var(--oneui-shadow-lg);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(20px);
+        }
+        
+        .header-section::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--gradient-accent);
+            opacity: 0.6;
+        }
+        
+        .header-content {
+            padding: 16px 0 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-title-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header-icon-circle {
+            width: 44px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header-icon-circle i {
+            font-size: 1.3rem;
+            color: white;
+        }
+        
+        .header-text h1 {
+            font-weight: 700;
+            margin: 0;
+            font-size: 1.375rem;
+            letter-spacing: -0.3px;
+        }
+        
+        .header-text p {
+            margin: 0;
+            font-size: 0.813rem;
+            opacity: 0.85;
+            font-weight: 400;
+        }
+        
+        .header-stats {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        
+        .stat-number {
+            display: block;
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .stat-label {
+            display: block;
+            font-size: 0.688rem;
+            opacity: 0.75;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+        
+        /* Search Bar - Samsung One UI Style */
+        .search-container {
+            padding: 0;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .search-wrapper {
+            position: relative;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 44px;
+            border: none;
+            border-radius: var(--oneui-radius-sm);
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            color: white;
+            font-size: 0.938rem;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .search-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.22);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.125rem;
+            pointer-events: none;
+        }
+        
+        .clear-search {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            padding: 0;
+        }
+        
+        .clear-search:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .clear-search.active {
+            display: flex;
+        }
+        
+        .user-card {
+            background: var(--oneui-surface);
+            border-radius: var(--oneui-radius);
+            box-shadow: var(--oneui-shadow);
+            margin-bottom: 16px;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--oneui-divider);
+            contain: layout style paint;
+        }
+        
+        .user-card.hidden {
+            display: none;
+        }
+        
+        .user-header {
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            color: var(--oneui-text-primary);
+            padding: 16px 20px;
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            letter-spacing: -0.2px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid var(--oneui-divider);
+        }
+        
+        .user-header:active {
+            background: linear-gradient(135deg, #667eea25, #764ba225);
+        }
+        
+        .user-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: var(--gradient-header);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .user-icon i {
+            font-size: 1.125rem;
+            color: white;
+        }
+        
+        .user-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .user-title {
+            font-weight: 600;
+            font-size: 0.938rem;
+            color: var(--oneui-text-primary);
+            margin: 0 0 2px;
+            display: block;
+        }
+        
+        .customer-count {
+            font-size: 0.75rem;
+            color: var(--oneui-text-secondary);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .count-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 6px;
+            background: var(--gradient-accent);
+            color: white;
+            border-radius: 10px;
+            font-size: 0.688rem;
+            font-weight: 700;
+            margin-left: 4px;
+        }
+        
+        .collapse-toggle {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: rgba(102, 126, 234, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0;
+        }
+        
+        .collapse-toggle i {
+            font-size: 0.938rem;
+            color: var(--oneui-primary);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .collapse-toggle.expanded {
+            background: rgba(102, 126, 234, 0.15);
+        }
+        
+        .collapse-toggle.expanded i {
+            transform: rotate(180deg);
+        }
+        
+        .customer-list {
+            padding: 0 12px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--oneui-surface);
+        }
+        
+        .customer-list.expanded {
+            max-height: 70vh;
+            padding: 12px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        /* Custom Scrollbar for Samsung One UI */
+        .customer-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .customer-list::-webkit-scrollbar-track {
+            background: transparent;
+            margin: 8px 0;
+        }
+        
+        .customer-list::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #667eea80, #764ba280);
+            border-radius: 10px;
+            transition: background 0.3s ease;
+        }
+        
+        .customer-list::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+        
+        /* Firefox scrollbar */
+        .customer-list {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(102, 126, 234, 0.5) transparent;
+        }
+        
+        .customer-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 12px;
+            margin-bottom: 8px;
+            background: var(--oneui-bg);
+            border-radius: var(--oneui-radius-sm);
+            text-decoration: none;
+            color: var(--oneui-text-primary);
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+            font-weight: 500;
+            position: relative;
+        }
+        
+        .customer-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .customer-item:active {
+            background: linear-gradient(135deg, #667eea08, #764ba208);
+            border-color: rgba(102, 126, 234, 0.2);
+            transform: scale(0.98);
+        }
+        
+        .customer-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .customer-icon i {
+            font-size: 1rem;
+            color: var(--oneui-primary);
+        }
+        
+        .customer-name {
+            font-weight: 500;
+            flex: 1;
+            font-size: 0.938rem;
+            color: var(--oneui-text-primary);
+        }
+        
+        .customer-arrow {
+            color: var(--oneui-text-secondary);
+            transition: transform 0.2s ease;
+            font-size: 0.875rem;
+        }
+        
+        .customer-item:active .customer-arrow {
+            transform: translateX(3px);
+            color: var(--oneui-primary);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--oneui-text-secondary);
+        }
+        
+        .empty-state-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #667eea15, #764ba215);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .empty-state-icon i {
+            font-size: 2.5rem;
+            color: var(--oneui-text-secondary);
+            opacity: 0.6;
+        }
+        
+        .empty-state-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--oneui-text-primary);
+            margin: 0 0 8px;
+        }
+        
+        .empty-state-text {
+            font-size: 0.875rem;
+            color: var(--oneui-text-secondary);
+            margin: 0;
+        }
+        
+        /* Result Count */
+        .result-info {
+            padding: 12px 0;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .result-count {
+            font-size: 0.875rem;
+            color: var(--oneui-text-secondary);
+            font-weight: 500;
+        }
+        
+        .result-count strong {
+            color: var(--oneui-text-primary);
+            font-weight: 600;
+        }
+        
+        @media (max-width: 576px) {
+            .header-text h1 {
+                font-size: 1.25rem;
+            }
+            
+            .header-text p {
+                font-size: 0.75rem;
+            }
+            
+            .header-stats {
+                gap: 8px;
+            }
+            
+            .stat-item {
+                padding: 4px 10px;
+            }
+            
+            .stat-number {
+                font-size: 1rem;
+            }
+            
+            .stat-label {
+                font-size: 0.625rem;
+            }
+            
+            .header-icon-circle {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .header-icon-circle i {
+                font-size: 1.125rem;
+            }
+            
+            .user-card {
+                margin-bottom: 12px;
+            }
+            
+            .user-header {
+                padding: 14px 16px;
+            }
+            
+            .customer-item {
+                padding: 12px 10px;
+            }
+        }
+        
+        /* Smooth scroll behavior */
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        /* Optimized animations for performance */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
+        .user-card {
+            animation: fadeIn 0.3s ease forwards;
+            will-change: opacity;
+        }
+        
+        /* Highlight animation for search results */
+        @keyframes highlight {
+            0%, 100% {
+                background: var(--oneui-surface);
+            }
+            50% {
+                background: linear-gradient(135deg, #667eea08, #764ba208);
+            }
+        }
+        
+        .user-card.highlight {
+            animation: highlight 0.6s ease;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="container">
+            <div class="header-content">
+                <div class="header-top">
+                    <div class="header-title-section">
+                        <div class="header-icon-circle">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                        <div class="header-text">
+                            <h1>Customer Directory</h1>
+                            <!-- <p>Manage and view all your customers</p> -->
+                        </div>
+                    </div>
+                    <div class="header-stats">
+                        <div class="stat-item">
+                            <span class="stat-number" id="visibleUsersCount">{{ users|length }}</span>
+                            <span class="stat-label">Users</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">{{ customers|length }}</span>
+                            <span class="stat-label">Total</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="search-container">
+                    <div class="search-wrapper">
+                        <i class="bi bi-search search-icon"></i>
+                        <input 
+                            type="text" 
+                            class="search-input" 
+                            id="searchInput" 
+                            placeholder="Search users or customers..."
+                            autocomplete="off"
+                        >
+                        <button class="clear-search" id="clearSearch" aria-label="Clear search">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="container">
+        <div class="result-info" id="resultInfo" style="display: none;">
+            <span class="result-count">
+                Showing <strong id="resultCount">0</strong> results
+            </span>
+        </div>
+        
+        <div id="userCardsContainer">
+            {% for i in users %}
+            <div class="user-card" data-user-name="{{ i|lower }}" data-user-id="{{ forloop.counter }}">
+                <div class="user-header" onclick="toggleCard(this)">
+                    <div class="user-icon">
+                        <i class="bi bi-person-circle"></i>
+                    </div>
+                    <div class="user-info">
+                        <span class="user-title">{{ i|upper }}</span>
+                        <div class="customer-count">
+                            <i class="bi bi-person-badge"></i>
+                            <span class="count-text" data-count="{{ forloop.counter }}">Loading...</span>
+                            <span class="count-badge" data-badge="{{ forloop.counter }}">0</span>
+                        </div>
+                    </div>
+                    <div class="collapse-toggle">
+                        <i class="bi bi-chevron-down"></i>
+                    </div>
+                </div>
+                <div class="customer-list">
+                    {% for c in customers %}
+                        {% if c.user.id == i.id %}
+                            <a href="{% url 'v1customerprofile' %}?cid={{ c.customer_userid }}" 
+                               class="customer-item"
+                               data-customer-name="{{ c.customer_name|lower }}">
+                                <div class="customer-icon">
+                                    <i class="bi bi-person-badge"></i>
+                                </div>
+                                <span class="customer-name">{{ c.customer_name }}</span>
+                                <i class="bi bi-chevron-right customer-arrow"></i>
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="user-card">
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-inbox"></i>
+                    </div>
+                    <h3 class="empty-state-title">No Customers Yet</h3>
+                    <p class="empty-state-text">Start adding customers to see them here</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- No Results State -->
+        <div id="noResultsState" class="user-card" style="display: none;">
+            <div class="empty-state">
+                <div class="empty-state-icon">
+                    <i class="bi bi-search"></i>
+                </div>
+                <h3 class="empty-state-title">No Results Found</h3>
+                <p class="empty-state-text">Try searching with different keywords</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // State management
+        let allCards = [];
+        let searchTimeout = null;
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+        
+        function initializeApp() {
+            allCards = Array.from(document.querySelectorAll('.user-card[data-user-id]'));
+            
+            // Calculate and display customer counts
+            calculateCustomerCounts();
+            
+            {% if users|length == 1 %}
+                // Auto-expand first card
+                const firstHeader = document.querySelector('.user-header');
+                if (firstHeader) {
+                    setTimeout(() => toggleCard(firstHeader), 100);
+                }
+            {% endif %}
+
+            
+            // Setup search functionality
+            setupSearch();
+        }
+        
+        // Calculate customer counts for each user
+        function calculateCustomerCounts() {
+            allCards.forEach(card => {
+                const userId = card.getAttribute('data-user-id');
+                const customerItems = card.querySelectorAll('.customer-item');
+                const count = customerItems.length;
+                
+                const countText = card.querySelector(`.count-text[data-count="${userId}"]`);
+                const countBadge = card.querySelector(`.count-badge[data-badge="${userId}"]`);
+                
+                if (countText) {
+                    countText.textContent = count === 1 ? '1 customer' : `${count} customers`;
+                }
+                if (countBadge) {
+                    countBadge.textContent = count;
+                }
+            });
+        }
+        
+        // Accordion toggle function - only one card open at a time
+        function toggleCard(header) {
+            const toggle = header.querySelector('.collapse-toggle');
+            const customerList = header.nextElementSibling;
+            const isCurrentlyExpanded = toggle.classList.contains('expanded');
+            
+            // Close all cards with smooth animation
+            document.querySelectorAll('.collapse-toggle').forEach(t => {
+                t.classList.remove('expanded');
+            });
+            document.querySelectorAll('.customer-list').forEach(list => {
+                list.classList.remove('expanded');
+            });
+            
+            // If the clicked card wasn't expanded, expand it
+            if (!isCurrentlyExpanded) {
+                toggle.classList.add('expanded');
+                customerList.classList.add('expanded');
+                
+                // Smooth scroll to card if needed
+                setTimeout(() => {
+                    const card = header.closest('.user-card');
+                    const rect = card.getBoundingClientRect();
+                    const headerHeight = document.querySelector('.header-section').offsetHeight;
+                    
+                    if (rect.top < headerHeight) {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 100);
+            }
+            
+            // Haptic feedback
+            triggerHaptic();
+        }
+        
+        // Search functionality with debounce
+        function setupSearch() {
+            const searchInput = document.getElementById('searchInput');
+            const clearButton = document.getElementById('clearSearch');
+            
+            searchInput.addEventListener('input', function(e) {
+                const query = e.target.value.trim();
+                
+                // Show/hide clear button
+                if (query.length > 0) {
+                    clearButton.classList.add('active');
+                } else {
+                    clearButton.classList.remove('active');
+                }
+                
+                // Debounce search
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    performSearch(query);
+                }, 150);
+            });
+            
+            clearButton.addEventListener('click', function() {
+                searchInput.value = '';
+                clearButton.classList.remove('active');
+                performSearch('');
+                searchInput.focus();
+                triggerHaptic();
+            });
+            
+            // Enter key to close keyboard
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.target.blur();
+                }
+            });
+        }
+        
+        // Perform search with optimized filtering
+        function performSearch(query) {
+            const lowerQuery = query.toLowerCase();
+            const resultInfo = document.getElementById('resultInfo');
+            const noResultsState = document.getElementById('noResultsState');
+            const visibleUsersCount = document.getElementById('visibleUsersCount');
+            let visibleCount = 0;
+            let hasResults = false;
+            
+            if (query.length === 0) {
+                // Show all cards
+                allCards.forEach(card => {
+                    card.classList.remove('hidden');
+                    card.style.display = '';
+                });
+                resultInfo.style.display = 'none';
+                noResultsState.style.display = 'none';
+                visibleUsersCount.textContent = allCards.length;
+                
+                // Recalculate counts
+                calculateCustomerCounts();
+                return;
+            }
+            
+            // Filter cards
+            allCards.forEach(card => {
+                const userName = card.getAttribute('data-user-name');
+                const customerItems = card.querySelectorAll('.customer-item');
+                let hasMatch = false;
+                let visibleCustomers = 0;
+                
+                // Check user name match
+                if (userName.includes(lowerQuery)) {
+                    hasMatch = true;
+                    // Show all customers for this user
+                    customerItems.forEach(item => {
+                        item.style.display = '';
+                        visibleCustomers++;
+                    });
+                } else {
+                    // Check customer names
+                    customerItems.forEach(item => {
+                        const customerName = item.getAttribute('data-customer-name');
+                        if (customerName.includes(lowerQuery)) {
+                            item.style.display = '';
+                            hasMatch = true;
+                            visibleCustomers++;
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
+                }
+                
+                // Show/hide card based on matches
+                if (hasMatch) {
+                    card.classList.remove('hidden');
+                    card.style.display = '';
+                    card.classList.add('highlight');
+                    setTimeout(() => card.classList.remove('highlight'), 600);
+                    visibleCount++;
+                    hasResults = true;
+                    
+                    // Update customer count for this card
+                    const userId = card.getAttribute('data-user-id');
+                    const countText = card.querySelector(`.count-text[data-count="${userId}"]`);
+                    const countBadge = card.querySelector(`.count-badge[data-badge="${userId}"]`);
+                    
+                    if (countText) {
+                        countText.textContent = visibleCustomers === 1 ? '1 customer' : `${visibleCustomers} customers`;
+                    }
+                    if (countBadge) {
+                        countBadge.textContent = visibleCustomers;
+                    }
+                } else {
+                    card.classList.add('hidden');
+                    card.style.display = 'none';
+                }
+            });
+            
+            // Update UI based on results
+            if (hasResults) {
+                resultInfo.style.display = 'flex';
+                noResultsState.style.display = 'none';
+                document.getElementById('resultCount').textContent = visibleCount;
+                visibleUsersCount.textContent = visibleCount;
+            } else {
+                resultInfo.style.display = 'none';
+                noResultsState.style.display = 'block';
+                visibleUsersCount.textContent = '0';
+            }
+        }
+        
+        // Haptic feedback helper
+        function triggerHaptic() {
+            if (typeof haptic !== 'undefined') {
+                haptic.light();
+            }
+        }
+    </script>
+</body>
+</html>

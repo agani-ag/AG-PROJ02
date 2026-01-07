@@ -284,6 +284,112 @@
         margin: 0 8px 16px;
     }
     
+    /* Collapsible Section */
+    .collapsible-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.2s ease;
+    }
+    
+    .collapsible-header:active {
+        background: rgba(0, 0, 0, 0.03);
+    }
+    
+    .collapsible-title-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .collapsible-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #34c75915, #30d15815);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .collapsible-icon i {
+        font-size: 18px;
+        color: #34c759;
+    }
+    
+    .collapsible-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0;
+    }
+    
+    .collapsible-toggle {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.05);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .collapsible-toggle i {
+        font-size: 16px;
+        color: var(--oneui-text-secondary);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .collapsible-toggle.expanded i {
+        transform: rotate(180deg);
+    }
+    
+    .collapsible-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .collapsible-content.expanded {
+        max-height: 1000px;
+    }
+    
+    .qr-container {
+        padding: 20px;
+        text-align: center;
+        border-top: 1px solid var(--oneui-divider);
+        background: linear-gradient(135deg, #667eea08, #764ba208);
+    }
+    
+    .qr-wrapper {
+        display: inline-block;
+        text-decoration: none;
+        padding: 16px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
+    }
+    
+    .qr-wrapper:active {
+        transform: scale(0.97);
+    }
+    
+    .qr-label {
+        margin-top: 12px;
+        font-size: 13px;
+        color: #667eea;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+    
     /* Responsive Adjustments */
     @media (max-width: 375px) {
         .profile-header {
@@ -443,8 +549,115 @@
                 </div>
             </div>
         </div>
-        
-    </div>
+
+        <!-- Payment Information Card -->
+        {% if users.bankdetails %}
+        <div class="oneui-card">
+            <div class="collapsible-header" onclick="togglePaymentSection()">
+                <div class="collapsible-title-group">
+                    <div class="collapsible-icon">
+                        <i class="fas fa-university"></i>
+                    </div>
+                    <h3 class="collapsible-title">Payment Information</h3>
+                </div>
+                <div class="collapsible-toggle" id="paymentToggle">
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+            
+            <div class="collapsible-content" id="paymentContent">
+                <!-- Account Name -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">Account Name</p>
+                        {% if users.bankdetails.account_name %}
+                            <p class="info-value">{{ users.bankdetails.account_name }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Account Number -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-credit-card"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">Account Number</p>
+                        {% if users.bankdetails.account_number %}
+                            <p class="info-value">{{ users.bankdetails.account_number }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Bank Name -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">Bank Name</p>
+                        {% if users.bankdetails.bank_name %}
+                            <p class="info-value">{{ users.bankdetails.bank_name }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- IFSC Code -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">IFSC Code</p>
+                        {% if users.bankdetails.ifsc_code %}
+                            <p class="info-value">{{ users.bankdetails.ifsc_code }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Branch -->
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <div class="info-content">
+                        <p class="info-label">Branch</p>
+                        {% if users.bankdetails.branch_name %}
+                            <p class="info-value">{{ users.bankdetails.branch_name }}</p>
+                        {% else %}
+                            <p class="info-value na">Not Available</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- UPI QR Code -->
+                {% if users.bankdetails.upi_id %}
+                <div class="qr-container">
+                    <a href="upi://pay?pa={{ users.bankdetails.upi_id }}&cu=INR" 
+                       class="qr-wrapper"
+                       onclick="haptic.light();">
+                        <div id="upi_qr" data-upi_id="upi://pay?pa={{ users.bankdetails.upi_id }}"></div>
+                        <div class="qr-label">
+                            <i class="fas fa-mobile-alt"></i>
+                            <span>Tap to Pay via UPI</span>
+                        </div>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
     
     {% else %}
     <div class="oneui-alert">
@@ -456,6 +669,48 @@
 {% endblock %}
 
 {% block includejs %}
+<script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
+<script>
+    // Toggle Payment Section
+    function togglePaymentSection() {
+        const content = document.getElementById('paymentContent');
+        const toggle = document.getElementById('paymentToggle');
+        
+        content.classList.toggle('expanded');
+        toggle.classList.toggle('expanded');
+        
+        // Trigger haptic feedback
+        if (typeof haptic !== 'undefined') {
+            haptic.light();
+        }
+    }
+    
+    // Initialize UPI QR Code
+    {% if users.bankdetails.upi_id %}
+    document.addEventListener('DOMContentLoaded', function() {
+        const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
+        const qr = new QRCodeStyling({
+            width: 120,
+            height: 120,
+            data: upiQR,
+            dotsOptions: { 
+                color: "#667eea", 
+                type: "rounded" 
+            },
+            cornersSquareOptions: {
+                color: "#764ba2",
+                type: "extra-rounded"
+            },
+            cornersDotOptions: {
+                color: "#34c759",
+                type: "dot"
+            }
+        });
+        qr.append(document.getElementById("upi_qr"));
+    });
+    {% endif %}
+</script>
+
 {% if customer.customer_latitude and customer.customer_longitude %}
 <script>
     // Map initialization with smooth animations

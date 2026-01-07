@@ -393,7 +393,7 @@
         const search = document.getElementById('searchInput').value;
         const cid = "{{ request.GET.cid }}";
 
-        fetch(`?cid=${cid}&search=${search}&page=${page}`, {
+        fetch(`?cid=${cid}&search=${search}&page=${page}&filter_page={{ request.GET.filter_page }}`, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(res => res.json())
