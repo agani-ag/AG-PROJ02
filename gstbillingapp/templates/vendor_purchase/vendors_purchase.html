@@ -38,7 +38,7 @@
 	 				<td>{% if vendor.vendor_gst %}{{vendor.vendor_gst}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 	 				<td>
 						<div class="btn-group" role="group" aria-label="Basic example">
-							<a href="{% url 'vendor_purchase_edit' vendor.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
+							<a href="{% url 'vendor_purchase_edit' vendor.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
 							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#vendorPurchaseDeleteModal" data-vendor-purchase-id="{{vendor.id}}" data-vendor-purchase-name="{{vendor.vendor_name}}"><i class="fas fa-trash"></i></button>
 						</div>
 					</td>

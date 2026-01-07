@@ -41,12 +41,12 @@
 			</td>
 			<td>
 				<div class="btn-group" role="group" aria-label="Basic example">
-					<a href="{% url 'customer_edit' customer.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-edit"></i></a>
+					<a href="{% url 'customer_edit' customer.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
 					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#customerDeleteModal" data-customer-id="{{customer.id}}" data-customer-name="{{customer.customer_name}}"><i class="fas fa-trash"></i></button>
-					<a href="{% url 'book_logs' customer.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-alt"></i></a>
+					<a href="{% url 'book_logs' customer.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-lines"></i></a>
 					{% if customer.customer_latitude and customer.customer_longitude %}
 					<a href="#" class="btn btn-success btn-sm btn-curve" onclick="popup_Customer_maps('{{ customer.customer_latitude }}', '{{ customer.customer_longitude }}', '{{ customer.customer_name }}')">
-						<i class="fas fa-map-marker-alt"></i></a>
+						<i class="fas fa-location-dot"></i></a>
 					{% endif %}
 				</div>
 			</td>
