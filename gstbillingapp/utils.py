@@ -4,6 +4,7 @@ from gstbilling import settings
 from django.shortcuts import get_object_or_404
 
 # Python imports
+import re
 import json
 import datetime
 
@@ -144,22 +145,11 @@ def create_inventory(product):
         new_inventory = Inventory(user=product.user, product=product)
         new_inventory.save()
 
-def create_inventory_with_stockalert(product,alert_level):
-    if not Inventory.objects.filter(user=product.user, product=product).exists():
-        new_inventory = Inventory(user=product.user, product=product,alert_level=alert_level)
-        new_inventory.save()
-
-def update_inventory_stockalert(product,alert_level):
-    if Inventory.objects.filter(user=product.user, product=product).exists():
-        inventory = Inventory.objects.get(user=product.user, product=product)
-        inventory.alert_level=alert_level
-        inventory.save()
-
 def update_inventory(invoice, request):
-    if invoice.non_gst_mode:
-        description = "Non-GST Sale - Auto Deduct"
-    else:
+    if invoice.is_gst:
         description = "Sale - Auto Deduct"
+    else:
+        description = "Non-GST Sale - Auto Deduct"
     invoice_data =  json.loads(invoice.invoice_json)
     for item in invoice_data['items']:
         product = Product.objects.get(user=request.user,
@@ -224,10 +214,10 @@ def add_customer_book(customer):
 
 def auto_deduct_book_from_invoice(invoice):
     invoice_data =  json.loads(invoice.invoice_json)
-    if invoice.non_gst_mode:
-        description = "Non-GST Sale - Auto Deduct"
-    else:
+    if invoice.is_gst:
         description = "Purchase - Auto Deduct"
+    else:
+        description = "Non-GST Sale - Auto Deduct"
 
     book = Book.objects.get(user=invoice.user, customer=invoice.invoice_customer)
 
@@ -245,7 +235,7 @@ def auto_deduct_book_from_invoice(invoice):
     book.save()
 
 def recalculate_book_current_balance(book_obj):
-    new_total = BookLog.objects.filter(parent_book=book_obj, is_active=True).aggregate(Sum('change'))['change__sum']
+    new_total = BookLog.objects.filter(parent_book=book_obj, is_active=True, change_type__in=[0,1,2,3]).aggregate(Sum('change'))['change__sum']
     if not new_total:
         new_total = 0
     book_obj.current_balance = new_total
@@ -268,3 +258,18 @@ def customer_already_exists(user, customer_phone, customer_email, customer_gst):
        Customer.objects.filter(user=user, customer_gst=customer_gst).exists():
         return True
     return False
+
+# ================ Utility Methods ===========================
+def parse_code_GS(input_code):
+    if not input_code:
+        return None
+    # Regex to match the pattern
+    pattern = r'([A-Za-z]+)(\d+)'
+    # Find all matches
+    matches = re.findall(pattern, input_code)
+    # If no valid pattern found, return None
+    if not matches:
+        return None
+    # Create a dictionary from the matches
+    result = {key.upper(): int(value) for key, value in matches}
+    return result

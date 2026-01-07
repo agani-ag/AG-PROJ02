@@ -107,14 +107,7 @@ class Invoice(models.Model):
     invoice_json = models.TextField()
     inventory_reflected = models.BooleanField(default=True)
     books_reflected = models.BooleanField(default=True)
-    is_gst_mode = models.BooleanField(default=True)
-    non_gst_mode = models.BooleanField(default=False)
-    
-    def save(self, *args, **kwargs):
-        if self.non_gst_mode:
-            self.is_gst_mode = False
-        
-        super().save(*args, **kwargs)
+    is_gst = models.BooleanField(default=True)
     
     def __str__(self):
         return str(self.invoice_number) + " | " + str(self.invoice_date)
@@ -193,6 +186,7 @@ class BookLog(models.Model):
         (1, 'Purchased Items'),
         (2, 'Returned Items'),
         (3, 'Other'),
+        (4, 'Pending'),
     ]
     change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)
     change = models.FloatField(default=0.0)

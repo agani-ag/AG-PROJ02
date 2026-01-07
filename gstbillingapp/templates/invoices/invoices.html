@@ -4,7 +4,7 @@
 {% block content %}
 
 	{% if non_gst_mode %}	
-		<h2> Non-GST Invoices</h2>
+		<h2>Non-GST Invoices</h2>
 	{% else %}
 		<h2>Invoices</h2>
 	{% endif %}
@@ -24,10 +24,10 @@
 			<tr>
  				<!-- <td>{{invoice.id}}</td> -->
  				<td>
-					{% if invoice.non_gst_mode %}
-						<span class="text-danger font-weight-bold">NG{{invoice.invoice_number}}</span>
-					{% else %}
+					{% if invoice.is_gst %}
 						{{invoice.invoice_number}}
+					{% else %}
+						<span class="text-danger font-weight-bold">NG{{invoice.invoice_number}}</span>
 					{% endif %}
 				</td>
  				<td>{{invoice.invoice_date}}</td>

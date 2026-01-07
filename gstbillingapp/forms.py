@@ -50,6 +50,10 @@ class BookLogForm(ModelForm):
     class Meta:
         model = BookLog
         fields = ['date', 'change', 'change_type', 'description']
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['description'].required = True
 
 class BookLogFullForm(ModelForm):
     class Meta:
@@ -60,6 +64,7 @@ class BookLogFullForm(ModelForm):
         self.user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
         self.fields['parent_book'].required = True
+        self.fields['description'].required = True
         self.fields['change_type'].choices = [
             (0, 'Paid'),
             (3, 'Other'),

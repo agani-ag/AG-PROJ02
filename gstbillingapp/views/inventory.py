@@ -135,6 +135,17 @@ def inventory_api_stock_add(request):
         return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products Stock added successfully.\n{not_inserted_count} Products Stock not added.\nQuantity Added: {increased_quantity}\nQuantity Removed: {decreased_quantity}'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add products stock.'})
 
+@csrf_exempt
+def invertory_stock_alert_update(request):
+    if request.method == "POST":
+        inventory_id = request.POST["inventory_id"]
+        alert_level = request.POST["alert_level"]
+        inventory = get_object_or_404(Inventory, id=inventory_id, user=request.user)
+        inventory.alert_level = int(alert_level)
+        inventory.save()
+        return JsonResponse({'status': 'success', 'message': f'Product Alert Stock {alert_level} set successfully.'})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to add products alert stock.'})
+
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum

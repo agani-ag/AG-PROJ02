@@ -40,7 +40,7 @@ def invoice_create(request):
         return redirect('user_profile_edit')
 
     context = {}
-    context['non_gst_invoice_number'] = Invoice.objects.filter(user=request.user, non_gst_mode=True).aggregate(Max('invoice_number'))['invoice_number__max']
+    context['non_gst_invoice_number'] = Invoice.objects.filter(user=request.user, is_gst=False).aggregate(Max('invoice_number'))['invoice_number__max']
     if not context['non_gst_invoice_number']:
         context['non_gst_invoice_number'] = 1
     else:
@@ -49,7 +49,7 @@ def invoice_create(request):
     max_invoice_number = []
     user_profiles = UserProfile.objects.filter(business_gst=user_profile.business_gst)
     for profile in user_profiles:
-        max_invoice_number.append(Invoice.objects.filter(user=profile.user, is_gst_mode=True).aggregate(Max('invoice_number'))['invoice_number__max'])
+        max_invoice_number.append(Invoice.objects.filter(user=profile.user, is_gst=True).aggregate(Max('invoice_number'))['invoice_number__max'])
     max_invoice_number = [num for num in max_invoice_number if num is not None]
 
     if max_invoice_number:
@@ -64,6 +64,10 @@ def invoice_create(request):
 
         invoice_data = request.POST
         non_gst_mode = 'nongstcheck' in invoice_data
+        if non_gst_mode:
+            is_gst = False
+        else:
+            is_gst = True
         validation_error = invoice_data_validator(invoice_data)
         if validation_error:
             context["error_message"] = validation_error
@@ -109,7 +113,7 @@ def invoice_create(request):
         new_invoice = Invoice(user=request.user,
             invoice_number=int(invoice_data['invoice-number']),
             invoice_date=datetime.datetime.strptime(invoice_data['invoice-date'], '%Y-%m-%d'),
-            invoice_customer=customer, invoice_json=invoice_data_processed_json, non_gst_mode=non_gst_mode)
+            invoice_customer=customer, invoice_json=invoice_data_processed_json, is_gst= is_gst)
         new_invoice.save()
         print("INVOICE SAVED")
 
@@ -128,13 +132,13 @@ def invoice_create(request):
 @login_required
 def invoices(request):
     context = {}
-    context['invoices'] = Invoice.objects.filter(user=request.user,non_gst_mode=False).order_by('-id')
+    context['invoices'] = Invoice.objects.filter(user=request.user,is_gst=True).order_by('-id')
     return render(request, 'invoices/invoices.html', context)
 
 @login_required
 def non_gst_invoices(request):
     context = {}
-    context['invoices'] = Invoice.objects.filter(user=request.user,non_gst_mode=True).order_by('-id')
+    context['invoices'] = Invoice.objects.filter(user=request.user,is_gst=False).order_by('-id')
     context['non_gst_mode'] = True
     return render(request, 'invoices/invoices.html', context)
 
@@ -146,7 +150,6 @@ def invoice_viewer(request, invoice_id):
     context = {}
     context['invoice'] = invoice_obj
     context['invoice_data'] = json.loads(invoice_obj.invoice_json)
-    print(context['invoice_data'])
     context['currency'] = "₹"
     context['total_in_words'] = num2words.num2words(int(context['invoice_data']['invoice_total_amt_with_gst']), lang='en_IN').title()
     context['user_profile'] = user_profile
@@ -159,7 +162,7 @@ def invoice_delete(request):
     if request.method == "POST":
         invoice_id = request.POST["invoice_id"]
         invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
-        is_non_gst = invoice_obj.non_gst_mode
+        is_non_gst = not invoice_obj.is_gst
         if len(request.POST.getlist('inventory-del')):
             remove_inventory_entries_for_invoice(invoice_obj, request.user)
         if len(request.POST.getlist('book-del')):
@@ -174,7 +177,6 @@ def invoice_delete(request):
             book.last_log = new_last_log
             book.save()
         invoice_obj.delete()
-        print(is_non_gst)
         if is_non_gst:
             return redirect('non_gst_invoices')
     return redirect('invoices')
@@ -193,9 +195,9 @@ def customerInvoiceFilter(request):
     for inv in invoices:
         data.append({
             "id": inv.id,
-            "invoice_number": inv.invoice_number or inv.non_gst_invoice_number,
+            "invoice_number": inv.invoice_number,
             "invoice_date": inv.invoice_date.strftime("%Y-%m-%d"),
-            "non_gst": inv.non_gst_mode,
+            "non_gst": inv.is_gst == False,
         })
 
     return JsonResponse(data, safe=False)

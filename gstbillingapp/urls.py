@@ -54,6 +54,7 @@ urlpatterns = [
     path('books/api/add', books.book_logs_api_add, name='book_logs_api_add'),
     path('books/api/active', books.book_logs_api_active, name='book_logs_api_active'),
     path('customer/book/filter/', books.customerBookFilter, name='customer_book_filter'),
+    path('customer/book/pending-logs', books.book_logs_pending, name='book_logs_pending'),
 
     # Product URLs
     path('products', products.products, name='products'),
@@ -71,6 +72,7 @@ urlpatterns = [
     path('inventory/del/<int:inventorylog_id>', inventory.inventory_logs_del, name='inventory_logs_del'),
     path('inventory/logs', inventory.inventory_logs_full, name='inventory_logs_full'),
     # API Endpoints
+    path('inventory/api/stock-alert-level/add', inventory.invertory_stock_alert_update, name='invertory_stock_alert_update'),
     path('inventory/api/stock/add', inventory.inventory_api_stock_add, name='inventory_api_stock_add'),
     path('inventory/logs/ajax/', inventory.inventory_logs_ajax, name='inventory_logs_ajax'),
     path('inventory/chart/trend/', inventory.inventory_trend_chart, name='inventory_trend_chart'),
