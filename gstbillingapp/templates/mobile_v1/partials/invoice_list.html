@@ -1,0 +1,46 @@
+{% if page_obj %}
+    {% for invoice in page_obj %}
+    <a href="{% url 'v1customerinvoiceviewer' invoice.id %}?cid={{ invoice.invoice_customer.customer_userid }}" 
+       class="invoice-item" 
+       data-invoice-id="{{ invoice.id }}"
+       data-user-id="{{ invoice.user.id }}"
+       data-customer-id="{{ invoice.invoice_customer.id }}"
+       data-amount="{{ invoice.amount }}"
+       data-is-gst="{{ invoice.is_gst|yesno:'true,false' }}"
+       data-date="{{ invoice.invoice_date|date:'Y-m-d' }}">
+        <div class="invoice-icon">
+            <i class="bi bi-receipt"></i>
+        </div>
+        <div class="invoice-details">
+            <div class="invoice-top-row">
+                <span class="invoice-number">#{{ invoice.invoice_number }}</span>
+                <span class="invoice-amount">₹{{ invoice.amount|floatformat:2 }}</span>
+            </div>
+            <div class="invoice-customer">
+                <i class="bi bi-person"></i>
+                {{ invoice.invoice_customer.customer_name }}
+            </div>
+            <div class="invoice-meta">
+                <span class="invoice-date">
+                    <i class="bi bi-calendar"></i>
+                    {{ invoice.invoice_date|date:"d M, Y" }}
+                </span>
+                <span class="invoice-badge {% if invoice.is_gst %}gst{% else %}non-gst{% endif %}">
+                    {% if invoice.is_gst %}GST{% else %}Non-GST{% endif %}
+                </span>
+                <span class="invoice-badge user-badge" title="{{ invoice.user.userprofile.business_title }}">
+                    <i class="bi bi-building"></i> {{ invoice.user.userprofile.business_title|truncatewords:2 }}
+                </span>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="bi bi-inbox"></i>
+        </div>
+        <h3 class="empty-state-title">No Invoices Found</h3>
+        <p class="empty-state-text">Try adjusting your filters or search criteria</p>
+    </div>
+{% endif %}

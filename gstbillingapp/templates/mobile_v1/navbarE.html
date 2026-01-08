@@ -2,46 +2,68 @@
     <div class="nav-scroll">
 
         <!-- Home -->
-        <a href="{% url 'landing_page' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-house"></i>
+        <a href="{% url 'v1customerhome' %}?u={{ request.GET.u }}" class="nav-item" data-page="home">
+            <i class="fas fa-home"></i>
             <span>Home</span>
         </a>
 
         <!-- Invoices -->
-        <a href="{% url 'v1customerinvoices' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-file-invoice-dollar"></i>
+        <a href="{% url 'v1invoices' %}?u={{ request.GET.u }}" class="nav-item" data-page="invoices">
+            <i class="fas fa-file-invoice"></i>
             <span>Invoices</span>
+        </a>
+        
+        <!-- Books -->
+        <a href="{% url 'v1customerbooks' %}?u={{ request.GET.u }}" class="nav-item" data-page="books">
+            <i class="fas fa-book-open"></i>
+            <span>Books</span>
         </a>
 
         <!-- Customers -->
-        <a href="{% url 'customers' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-user-friends"></i>
+        <a href="{% url 'v1customers' %}?u={{ request.GET.u }}" class="nav-item" data-page="customers">
+            <i class="fas fa-users"></i>
             <span>Customers</span>
         </a>
-
-        <!-- Products -->
-        <a href="{% url 'products' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-box-open"></i>
-            <span>Products</span>
-        </a>
-
-        <!-- Inventory -->
-        <a href="{% url 'inventory' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-warehouse"></i>
-            <span>Inventory</span>
-        </a>
-
-        <!-- Sales Dashboard / Graphs -->
-        <a href="{% url 'sales_dashboard' %}?cid={{ request.GET.cid }}" class="nav-item">
-            <i class="fas fa-chart-line"></i>
-            <span>Graphs</span>
-        </a>
-
+        
         <!-- Profile -->
-        <a href="{% url 'v1customer' %}?cid={{ request.GET.cid }}" class="nav-item">
+        <a href="{% url 'v1customerprofile' %}?u={{ request.GET.u }}" class="nav-item" data-page="profile">
             <i class="fas fa-user-circle"></i>
             <span>Profile</span>
         </a>
-
     </div>
 </nav>
+
+<script>
+    // Add All With users_filter={{ request.GET.users_filter }}&u={{ request.GET.u }}
+    document.querySelectorAll('.nav-item').forEach(item => {
+        const url = new URL(item.href);
+        url.searchParams.set('users_filter', '{{ request.GET.users_filter }}');
+        item.href = url.toString();
+    });
+    // Highlight active nav item based on current URL
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentPath = window.location.pathname;
+        const navItems = document.querySelectorAll('.nav-item');
+        
+        navItems.forEach(item => {
+            const page = item.dataset.page;
+            
+            // Remove active class first
+            item.classList.remove('active');
+            
+            // Check for exact page matches
+            if (page === 'home' && currentPath.includes('customer/home')) {
+                item.classList.add('active');
+            } else if (page === 'invoices' && currentPath.includes('customer/invoices')) {
+                item.classList.add('active');
+            } else if (page === 'books' && currentPath.includes('customer/books')) {
+                item.classList.add('active');
+            } else if (page === 'profile' && currentPath.includes('customer/profile') && 
+                       !currentPath.includes('home') && 
+                       !currentPath.includes('invoices') && 
+                       !currentPath.includes('books')) {
+                item.classList.add('active');
+            }
+        });
+    });
+</script>

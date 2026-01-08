@@ -84,6 +84,15 @@ def customer_invoices(request):
     paginator = Paginator(invoices_qs, 7)
     invoices = paginator.get_page(page_number)
 
+    # Add the invoice_total_amt_with_gst to each invoice object
+    for invoice in invoices:
+        # assuming invoice_json is stored as a JSON string
+        if isinstance(invoice.invoice_json, str):
+            invoice_data = json.loads(invoice.invoice_json)
+        else:
+            invoice_data = invoice.invoice_json  # if it's already a dict
+        invoice.total_amt_with_gst = invoice_data.get('invoice_total_amt_with_gst', 0)
+    
     context.update({
         'users': user,
         'customer': customer,
@@ -376,17 +385,181 @@ def customer_invoice_viewer(request, invoice_id):
     return render(request, 'mobile_v1/customer/invoice_printer.html', context)
 
 def customers(request):
+    from django.core.paginator import Paginator
+    from django.http import JsonResponse
+    from django.template.loader import render_to_string
+    from django.db.models import Q, Count
+    
     context = {}
-    users = UserProfile.objects.filter()
-    customers = Customer.objects.filter().order_by('customer_name')
-    users_filter = request.GET.get('users_filter')
-    if users_filter:
-        user_ids = users_filter.split(',')
-        user_ids = [int(id) for id in user_ids]
-        users = users.filter(id__in=user_ids)
-    context['users'] = users
-    context['customers'] = customers
+    
+    # Get filter parameters
+    user_id = request.GET.get('user_id', '')
+    search_query = request.GET.get('search', '').strip()
+    page_number = request.GET.get('page', 1)
+    
+    # Base querysets
+    users = UserProfile.objects.all().order_by('business_title')
+    customers_qs = Customer.objects.select_related('user').order_by('customer_name')
+    
+    # Apply user filter
+    if user_id and user_id.isdigit():
+        customers_qs = customers_qs.filter(user__id=int(user_id))
+    
+    # Apply search filter
+    if search_query:
+        customers_qs = customers_qs.filter(
+            Q(customer_name__icontains=search_query) |
+            Q(customer_phone__icontains=search_query) |
+            Q(customer_gst__icontains=search_query) |
+            Q(customer_email__icontains=search_query)
+        )
+    
+    # Pagination
+    paginator = Paginator(customers_qs, 20)
+    page_obj = paginator.get_page(page_number)
+    
+    # Calculate totals
+    total_count = customers_qs.count()
+    
+    # Get customer counts per user
+    user_customer_counts = Customer.objects.values('user__id').annotate(
+        count=Count('id')
+    )
+    user_counts_dict = {item['user__id']: item['count'] for item in user_customer_counts}
+    
+    # Add counts to users
+    for user in users:
+        user.customer_count = user_counts_dict.get(user.user.id, 0)
+    
+    context.update({
+        'users': users,
+        'page_obj': page_obj,
+        'total_count': total_count,
+        'current_user_id': user_id,
+        'current_search': search_query,
+    })
+    
+    # AJAX request - return JSON with HTML
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/customer_list.html', context, request=request)
+        return JsonResponse({
+            'html': html,
+            'total_count': total_count,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+        })
+    
     return render(request, 'mobile_v1/customers.html', context)
+
+def invoices(request):
+    import json
+    from django.core.paginator import Paginator
+    from django.http import JsonResponse
+    from django.template.loader import render_to_string
+    from django.db.models import Q
+    from datetime import datetime, timedelta
+    
+    context = {}
+    
+    # Get filter parameters
+    user_id = request.GET.get('user_id', '')
+    customer_id = request.GET.get('customer_id', '')
+    search_query = request.GET.get('search', '').strip()
+    date_filter = request.GET.get('date_filter', 'all')
+    gst_filter = request.GET.get('gst_filter', 'all')
+    page_number = request.GET.get('page', 1)
+    
+    # Base querysets
+    users = UserProfile.objects.all().order_by('business_title')
+    customers = Customer.objects.all().order_by('customer_name')
+    invoices_qs = Invoice.objects.select_related('user', 'invoice_customer').order_by('-invoice_date', '-invoice_number')
+    
+    # Apply user filter
+    if user_id and user_id.isdigit():
+        invoices_qs = invoices_qs.filter(user__id=int(user_id))
+        customers = customers.filter(user__id=int(user_id))
+    
+    # Apply customer filter
+    if customer_id and customer_id.isdigit():
+        invoices_qs = invoices_qs.filter(invoice_customer__id=int(customer_id))
+    
+    # Apply GST filter
+    if gst_filter == 'gst':
+        invoices_qs = invoices_qs.filter(is_gst=True)
+    elif gst_filter == 'non-gst':
+        invoices_qs = invoices_qs.filter(is_gst=False)
+    
+    # Apply date filter
+    today = datetime.now().date()
+    if date_filter == 'today':
+        invoices_qs = invoices_qs.filter(invoice_date=today)
+    elif date_filter == 'week':
+        week_ago = today - timedelta(days=7)
+        invoices_qs = invoices_qs.filter(invoice_date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = today - timedelta(days=30)
+        invoices_qs = invoices_qs.filter(invoice_date__gte=month_ago)
+    
+    # Apply search filter
+    if search_query:
+        invoices_qs = invoices_qs.filter(
+            Q(invoice_number__icontains=search_query) |
+            Q(invoice_customer__customer_name__icontains=search_query) |
+            Q(invoice_customer__customer_phone__icontains=search_query)
+        )
+    
+    # Add invoice amounts
+    invoices_with_amounts = []
+    for invoice in invoices_qs:
+        try:
+            invoice_data = json.loads(invoice.invoice_json)
+            invoice.amount = invoice_data.get('invoice_total_amt_with_gst', 0)
+        except:
+            invoice.amount = 0
+        invoices_with_amounts.append(invoice)
+    
+    # Pagination
+    paginator = Paginator(invoices_with_amounts, 15)
+    page_obj = paginator.get_page(page_number)
+    
+    # Calculate totals for current filtered results
+    total_amount = sum(inv.amount for inv in invoices_with_amounts)
+    total_count = len(invoices_with_amounts)
+    
+    context.update({
+        'users': users,
+        'customers': customers,
+        'page_obj': page_obj,
+        'total_amount': total_amount,
+        'total_count': total_count,
+        'current_user_id': user_id,
+        'current_customer_id': customer_id,
+        'current_search': search_query,
+        'current_date_filter': date_filter,
+        'current_gst_filter': gst_filter,
+    })
+    
+    # AJAX request - return JSON with HTML
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/invoice_list.html', context, request=request)
+        return JsonResponse({
+            'html': html,
+            'total_count': total_count,
+            'total_amount': total_amount,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+        })
+    
+    return render(request, 'mobile_v1/invoices.html', context)
+
+
+def books(request):
+    context = {}
+    return render(request, 'mobile_v1/books.html', context)
 
 def customersapi(request):
     customers = Customer.objects.all().values(

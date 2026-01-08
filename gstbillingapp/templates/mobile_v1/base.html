@@ -327,15 +327,15 @@
         /* Dark Mode Toggle */
         .theme-toggle {
             position: fixed;
-            top: 16px;
+            bottom: 80px;
             right: 16px;
-            z-index: 10000;
+            z-index: 999;
             width: 48px;
             height: 48px;
             border-radius: 50%;
             background: var(--oneui-surface);
             border: none;
-            box-shadow: var(--oneui-shadow);
+            box-shadow: var(--oneui-shadow-lg);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -350,6 +350,13 @@
         .theme-toggle i {
             font-size: 20px;
             color: var(--oneui-text-primary);
+        }
+        
+        /* Keep theme toggle visible on scroll */
+        @media (max-width: 768px) {
+            .theme-toggle {
+                bottom: 76px;
+            }
         }
         
         /* Pull to Refresh */
@@ -458,7 +465,9 @@
             CONTENT BLOCK
         {% endblock %}
         <!-- CUSTOMER NAVBAR -->
-        {% include "mobile_v1/navbarC.html" %}
+        {% if request.GET.u != "emp" %}
+            {% include "mobile_v1/navbarC.html" %}
+        {% endif %}
         <!-- EMPLOYEE NAVBAR -->
     </div>
 
