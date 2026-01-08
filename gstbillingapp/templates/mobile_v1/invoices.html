@@ -1,5 +1,5 @@
 {% extends 'mobile_v1/base.html' %}
-
+{% load humanize %}
 {% block title %}Invoices - GST Sync{% endblock %}
 
 {% block includecss %}
@@ -74,28 +74,81 @@
         opacity: 0.9;
     }
     
-    .header-stats {
+    /* Stats Section */
+    .stats-section {
+        background: white;
+        padding: 16px;
+        border-radius: var(--oneui-radius-sm);
+        box-shadow: var(--oneui-shadow);
+        margin-bottom: 16px;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    .stats-section::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .stats-container {
         display: flex;
         gap: 16px;
     }
     
     .stat-item {
+        flex: 1;
+        min-width: 120px;
         text-align: center;
-        padding: 8px 12px;
-        background: rgba(255, 255, 255, 0.15);
+        padding: 16px;
+        background: var(--oneui-bg);
+        border-radius: 12px;
+        transition: all 0.2s;
+    }
+    
+    .stat-item:active {
+        transform: scale(0.98);
+    }
+    
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        margin: 0 auto 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         border-radius: 10px;
+        font-size: 1.25rem;
+    }
+    
+    .stat-icon.invoices {
+        background: linear-gradient(135deg, #ff9500 0%, #ff6b00 100%);
+        color: white;
+    }
+    
+    .stat-icon.amount {
+        background: linear-gradient(135deg, #34c759 0%, #30d158 100%);
+        color: white;
     }
     
     .stat-number {
         display: block;
-        font-size: 1.25rem;
-        font-weight: 700;
+        font-size: 1.5rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+    
+    .stat-number.invoices-color {
+        color: #ff9500;
+    }
+    
+    .stat-number.amount-color {
+        color: #34c759;
     }
     
     .stat-label {
         display: block;
-        font-size: 0.688rem;
-        opacity: 0.8;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--oneui-text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
@@ -475,11 +528,16 @@
         --oneui-divider: #38383a;
     }
     
+    [data-theme="dark"] .stats-section,
     [data-theme="dark"] .filter-section,
     [data-theme="dark"] .filter-tabs,
     [data-theme="dark"] .invoice-item {
         background: var(--oneui-surface);
         border-color: var(--oneui-divider);
+    }
+    
+    [data-theme="dark"] .stat-item {
+        background: var(--oneui-bg);
     }
     
     [data-theme="dark"] .form-select,
@@ -533,25 +591,34 @@
                 </div>
                 <div class="header-text">
                     <h1>Invoices</h1>
-                    <!-- <p>Manage and view all invoices</p> -->
-                </div>
-            </div>
-            <div class="header-stats">
-                <div class="stat-item">
-                    <span class="stat-number" id="totalInvoices">{{ total_count|default:0 }}</span>
-                    <span class="stat-label">Invoices</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-number" id="totalAmount">₹{{ total_amount|default:0|floatformat:0 }}</span>
-                    <span class="stat-label">Total</span>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Filter Section -->
+<!-- Stats Section -->
 <div class="container-fluid mt-3">
+    <div class="stats-section">
+        <div class="stats-container">
+            <div class="stat-item">
+                <!-- <div class="stat-icon invoices">
+                    <i class="bi bi-receipt"></i>
+                </div> -->
+                <span class="stat-number invoices-color" id="totalInvoices">{{ total_count|default:0 }}</span>
+                <span class="stat-label">Total Invoices</span>
+            </div>
+            <div class="stat-item">
+                <!-- <div class="stat-icon amount">
+                    <i class="bi bi-currency-rupee"></i>
+                </div> -->
+                <span class="stat-number amount-color" id="totalAmount">₹{{ total_amount|default:0|floatformat:0|intcomma }}</span>
+                <span class="stat-label">Total Amount</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filter Section -->
     <div class="filter-section">
         <div class="filter-row">
             <div class="form-group">
@@ -870,8 +937,8 @@
             invoiceList.style.opacity = '1';
             
             // Update stats
-            document.getElementById('totalInvoices').textContent = data.total_count;
-            document.getElementById('totalAmount').textContent = '₹' + parseFloat(data.total_amount).toFixed(0);
+            document.getElementById('totalInvoices').textContent = parseInt(data.total_count).toLocaleString('en-IN');
+            document.getElementById('totalAmount').textContent = '₹' + parseFloat(data.total_amount).toLocaleString('en-IN', {maximumFractionDigits: 0});
             
             // Update pagination
             updatePagination(data);

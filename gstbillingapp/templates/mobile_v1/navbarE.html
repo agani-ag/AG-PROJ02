@@ -24,6 +24,12 @@
             <i class="fas fa-users"></i>
             <span>Customers</span>
         </a>
+
+        <!-- Products -->
+        <a href="{% url 'v1products' %}?u={{ request.GET.u }}" class="nav-item" data-page="products">
+            <i class="fas fa-box"></i>
+            <span>Products</span>
+        </a>
         
         <!-- Expenses Tracker -->
         <a href="{% url 'v1expensestracker' %}?u={{ request.GET.u }}" class="nav-item" data-page="expensestracker">

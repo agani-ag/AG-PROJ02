@@ -554,7 +554,7 @@
                 <option value="">All Users</option>
                 {% for user in users %}
                 <option value="{{ user.user.id }}" {% if current_user_id|stringformat:"s" == user.user.id|stringformat:"s" %}selected{% endif %}>
-                    {{ user.business_title|default:user.user.username }}
+                    {{ user.business_brand|default:user.user.username }}
                 </option>
                 {% endfor %}
             </select>

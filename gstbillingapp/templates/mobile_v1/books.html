@@ -80,29 +80,59 @@
     .header-stats {
         display: flex;
         gap: 12px;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    
+    .stats-card {
+        padding: 16px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+    }
+    
+    .header-stats::-webkit-scrollbar {
+        display: none;
     }
     
     .stat-item {
         text-align: center;
-        padding: 6px 10px;
-        background: rgba(255, 255, 255, 0.15);
+        padding: 10px 14px;
+        background: transparent;
         border-radius: 10px;
-        min-width: 70px;
+        min-width: 110px;
+        flex-shrink: 0;
     }
     
     .stat-number {
         display: block;
-        font-size: 1.125rem;
-        font-weight: 700;
+        font-size: 1.25rem;
+        font-weight: 800;
+        white-space: nowrap;
+        color: var(--oneui-text-primary);
+    }
+    
+    .stat-number.purchase-color {
+        color: #ff3b30;
+    }
+    
+    .stat-number.paid-color {
+        color: #34c759;
+    }
+    
+    .stat-number.balance-color {
+        color: #007aff;
     }
     
     .stat-label {
         display: block;
-        font-size: 0.625rem;
-        opacity: 0.8;
+        font-size: 0.75rem;
+        color: var(--oneui-text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.5px;
+        font-weight: 600;
+        margin-top: 4px;
     }
     
     /* Filter Section */
@@ -622,7 +652,8 @@
     
     [data-theme="dark"] .filter-section,
     [data-theme="dark"] .filter-tabs,
-    [data-theme="dark"] .book-item {
+    [data-theme="dark"] .book-item,
+    [data-theme="dark"] .stats-card {
         background: var(--oneui-surface);
     }
     
@@ -673,14 +704,8 @@
     }
     
     @media (max-width: 576px) {
-        .header-stats {
-            flex-direction: column;
-            gap: 8px;
-            align-items: flex-end;
-        }
-        
         .stat-item {
-            min-width: 60px;
+            min-width: 85px;
         }
         
         .filter-row {
@@ -725,20 +750,24 @@
                     <p id="bookCount">{{ total_count }} entries</p>
                 </div>
             </div>
-            <div class="header-stats">
-                <div class="stat-item">
-                    <span class="stat-number" id="totalPurchased">₹{{ total_purchased|floatformat:0|intcomma }}</span>
-                    <span class="stat-label">Purchase</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-number" id="totalPaid">₹{{ total_paid|floatformat:0|intcomma }}</span>
-                    <span class="stat-label">Paid</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-number" id="totalBalance">₹{{ total_balance|floatformat:0|intcomma }}</span>
-                    <span class="stat-label">Balance</span>
-                </div>
-            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Section -->
+<div class="container-fluid" style="margin-top: 12px; margin-bottom: 16px;">
+    <div class="header-stats stats-card">
+        <div class="stat-item">
+            <span class="stat-number purchase-color" id="totalPurchased">₹{{ total_purchased|floatformat:0|intcomma }}</span>
+            <span class="stat-label">Purchase</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number paid-color" id="totalPaid">₹{{ total_paid|floatformat:0|intcomma }}</span>
+            <span class="stat-label">Paid</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number balance-color" id="totalBalance">₹{{ total_balance|floatformat:0|intcomma }}</span>
+            <span class="stat-label">Balance</span>
         </div>
     </div>
 </div>

@@ -14,7 +14,8 @@ from django.db.models import (
 # Models
 from ...models import (
     Customer, UserProfile, Invoice,
-    BookLog, ExpenseTracker
+    BookLog, ExpenseTracker, Product,
+    PurchaseLog, VendorPurchase, Inventory
 )
 
 # Python imports
@@ -948,3 +949,133 @@ def purchase_logs(request):
         })
     
     return render(request, 'mobile_v1/purchase_log.html', context)
+
+def products(request):
+    user_id = request.GET.get('user_id', None)
+    search_query = request.GET.get('search', '').strip()
+    stock_filter = request.GET.get('stock_filter', 'all')  # all, in_stock, low_stock, out_of_stock
+    discount_filter = request.GET.get('discount_filter', 'all')  # all, with_discount, no_discount
+    hsn_filter = request.GET.get('hsn_filter', '')
+    page_number = request.GET.get('page', 1)
+    
+    # Get all users for dropdown
+    users = UserProfile.objects.all().select_related('user')
+    
+    # Get distinct HSN codes
+    hsn_codes = Product.objects.filter(product_hsn__isnull=False).exclude(product_hsn='').values_list('product_hsn', flat=True).distinct().order_by('product_hsn')
+    
+    # Filter products
+    products_qs = Product.objects.all().select_related('user')
+    
+    if user_id:
+        products_qs = products_qs.filter(user__id=user_id)
+    
+    if search_query:
+        products_qs = products_qs.filter(
+            Q(model_no__icontains=search_query) |
+            Q(product_name__icontains=search_query) |
+            Q(product_hsn__icontains=search_query)
+        )
+    
+    # HSN filter
+    if hsn_filter:
+        products_qs = products_qs.filter(product_hsn=hsn_filter)
+    
+    # Discount filter
+    if discount_filter == 'with_discount':
+        products_qs = products_qs.filter(product_discount__gt=0)
+    elif discount_filter == 'no_discount':
+        products_qs = products_qs.filter(Q(product_discount=0) | Q(product_discount__isnull=True))
+    
+    # Get product IDs with inventory data
+    product_ids = list(products_qs.values_list('id', flat=True))
+    
+    # Apply stock filter
+    if stock_filter == 'in_stock':
+        inventory_ids = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0).values_list('product_id', flat=True)
+        products_qs = products_qs.filter(id__in=inventory_ids)
+    elif stock_filter == 'low_stock':
+        inventory_low = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0, current_stock__lte=F('alert_level')).values_list('product_id', flat=True)
+        products_qs = products_qs.filter(id__in=inventory_low)
+    elif stock_filter == 'out_of_stock':
+        inventory_out = Inventory.objects.filter(product__id__in=product_ids, current_stock=0).values_list('product_id', flat=True)
+        products_qs = products_qs.filter(id__in=inventory_out)
+    
+    products_qs = products_qs.order_by('-id')
+    
+    # Pagination
+    paginator = Paginator(products_qs, 15)
+    products_page = paginator.get_page(page_number)
+    
+    # Add inventory data to products
+    for product in products_page:
+        try:
+            inventory = Inventory.objects.get(product=product)
+            product.current_stock = inventory.current_stock
+            product.alert_level = inventory.alert_level
+            product.is_low_stock = inventory.current_stock > 0 and inventory.current_stock <= inventory.alert_level
+        except Inventory.DoesNotExist:
+            product.current_stock = None
+            product.alert_level = None
+            product.is_low_stock = False
+        
+        # Calculate price breakdown for discounted products
+        if product.product_discount > 0:
+            # Calculate base price (remove GST from product_rate_with_gst)
+            gst_multiplier = 1 + (product.product_gst_percentage / 100)
+            product.base_price = product.product_rate_with_gst / gst_multiplier
+            
+            # Calculate discounted base price
+            discount_multiplier = 1 - (product.product_discount / 100)
+            product.discounted_base_price = product.base_price * discount_multiplier
+            
+            # Calculate final price with GST
+            product.final_price_with_gst = product.discounted_base_price * gst_multiplier
+    
+    # Get stats
+    total_products = products_qs.count()
+    in_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0).count()
+    low_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0, current_stock__lte=F('alert_level')).count()
+    out_of_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock=0).count()
+    with_discount_count = Product.objects.filter(id__in=product_ids, product_discount__gt=0).count()
+    
+    context = {
+        'users': users,
+        'hsn_codes': hsn_codes,
+        'products': products_page,
+        'total_products': total_products,
+        'in_stock_count': in_stock_count,
+        'low_stock_count': low_stock_count,
+        'out_of_stock_count': out_of_stock_count,
+        'with_discount_count': with_discount_count,
+        'current_user_id': user_id or '',
+        'current_search': search_query,
+        'current_stock_filter': stock_filter,
+        'current_discount_filter': discount_filter,
+        'current_hsn_filter': hsn_filter,
+    }
+    
+    # AJAX request
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/product_list.html', {
+            'products': products_page,
+        }, request=request)
+        
+        return JsonResponse({
+            'html': html,
+            'total_count': total_products,
+            'in_stock_count': in_stock_count,
+            'low_stock_count': low_stock_count,
+            'out_of_stock_count': out_of_stock_count,
+            'with_discount_count': with_discount_count,
+            'has_previous': products_page.has_previous(),
+            'has_next': products_page.has_next(),
+            'current_page': products_page.number,
+            'total_pages': paginator.num_pages,
+        })
+    
+    return render(request, 'mobile_v1/products.html', context)
+
+def home(request):
+    context = {}
+    return render(request, 'mobile_v1/products.html', context)

@@ -20,6 +20,8 @@ urlpatterns = [
     path('books', customer.books, name='v1books'),
     path('expensestracker', customer.expenses_tracker, name='v1expensestracker'),
     path('purchaselogs', customer.purchase_logs, name='v1purchaselogs'),
+    path('products', customer.products, name='v1products'),
+    path('home', customer.home, name='v1home'),
 
     # API URLs
     path('customers/api', customer.customersapi, name='v1customersapi'),
