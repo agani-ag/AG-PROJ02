@@ -1,0 +1,668 @@
+{% extends "mobile_v1/base.html" %}
+{% load static %}
+
+{% block title %}Expense Tracker{% endblock %}
+
+{% block includecss %}
+<style>
+    /* Expenses Tracker Page - Samsung One UI */
+    .expenses-wrapper {
+        max-width: 640px;
+        margin: 0 auto;
+        padding-bottom: 80px;
+    }
+    
+    /* Page Header */
+    .page-header {
+        background: linear-gradient(135deg, #5856d6 0%, #7b79e8 100%);
+        border-radius: 0 0 16px 16px;
+        padding: 32px 20px 24px;
+        margin: -12px -8px 20px;
+        box-shadow: 0 8px 24px rgba(88, 86, 214, 0.2);
+    }
+    
+    .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .header-title-section {
+        flex: 1;
+    }
+    
+    .header-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+    }
+    
+    .header-icon i {
+        font-size: 20px;
+        color: white;
+    }
+    
+    .page-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: white;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+    
+    .header-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: rgba(255, 255, 255, 0.25);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        color: white;
+        margin-top: 8px;
+    }
+    
+    /* Search Bar */
+    .search-container {
+        padding: 0 8px 16px;
+    }
+    
+    .search-box {
+        position: relative;
+        background: var(--oneui-surface);
+        border-radius: 16px;
+        box-shadow: var(--oneui-shadow);
+        overflow: hidden;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 16px 50px 16px 20px;
+        border: none;
+        background: transparent;
+        font-size: 16px;
+        color: var(--oneui-text-primary);
+        outline: none;
+    }
+    
+    .search-input::placeholder {
+        color: var(--oneui-text-secondary);
+    }
+    
+    .search-icon {
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--oneui-text-secondary);
+        font-size: 18px;
+    }
+    
+    /* Expense Card */
+    .expense-item {
+        background: var(--oneui-surface);
+        border-radius: 16px;
+        padding: 20px;
+        margin: 0 8px 12px;
+        box-shadow: var(--oneui-shadow);
+        display: flex;
+        gap: 16px;
+        border-left: 4px solid #ff3b30;
+    }
+    
+    .expense-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: #ff3b3015;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .expense-icon i {
+        font-size: 24px;
+        color: #ff3b30;
+    }
+    
+    .expense-details {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .expense-header {
+        flex: 1;
+    }
+    
+    .expense-top-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+    
+    .expense-info-wrapper {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .expense-reference {
+        display: block;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin-bottom: 8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .expense-meta-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    .expense-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .category-badge {
+        background: #ff3b3015;
+        color: #ff3b30;
+    }
+    
+    .user-badge {
+        background: #5856d615;
+        color: #5856d6;
+    }
+    
+    .expense-amount-wrapper {
+        flex-shrink: 0;
+    }
+    
+    .expense-amount {
+        font-size: 20px;
+        font-weight: 800;
+        color: #ff3b30;
+        white-space: nowrap;
+    }
+    
+    .expense-notes {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+        line-height: 1.5;
+        padding: 8px;
+        background: var(--oneui-background);
+        border-radius: 8px;
+    }
+    
+    .expense-notes i {
+        font-size: 14px;
+        margin-top: 2px;
+        flex-shrink: 0;
+    }
+    
+    .expense-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .expense-date {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+    }
+    
+    .expense-date i {
+        font-size: 14px;
+    }
+    
+    /* Dropdown Filters */
+    .dropdown-filters {
+        padding: 0 8px 16px;
+        display: flex;
+        gap: 12px;
+    }
+    
+    .filter-dropdown {
+        flex: 1;
+        position: relative;
+    }
+    
+    .dropdown-label {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        margin-bottom: 6px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .dropdown-select {
+        width: 100%;
+        padding: 12px 16px;
+        border: none;
+        border-radius: 12px;
+        background: var(--oneui-surface);
+        color: var(--oneui-text-primary);
+        font-size: 14px;
+        font-weight: 600;
+        box-shadow: var(--oneui-shadow);
+        cursor: pointer;
+        outline: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        padding-right: 40px;
+    }
+    
+    .dropdown-select:focus {
+        box-shadow: 0 0 0 3px rgba(88, 86, 214, 0.2);
+    }
+    
+    /* Filter Tabs */
+    .filter-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 0 8px 16px;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    
+    .filter-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .filter-tab {
+        padding: 10px 16px;
+        border-radius: 12px;
+        background: var(--oneui-surface);
+        color: var(--oneui-text-secondary);
+        border: none;
+        font-size: 14px;
+        font-weight: 600;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: var(--oneui-shadow);
+    }
+    
+    .filter-tab.active {
+        background: #ff3b30;
+        color: white;
+    }
+    
+    .filter-tab:active {
+        transform: scale(0.97);
+    }
+    
+    /* Pagination */
+    .pagination-container {
+        padding: 16px 8px;
+    }
+    
+    .custom-pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .pagination-btn {
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: var(--oneui-surface);
+        color: var(--oneui-text-primary);
+        border: none;
+        font-size: 0.813rem;
+        font-weight: 600;
+        box-shadow: var(--oneui-shadow);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .pagination-btn:active:not(:disabled) {
+        transform: scale(0.95);
+        background: #ff3b30;
+        color: white;
+    }
+    
+    .pagination-info {
+        font-size: 14px;
+        color: var(--oneui-text-secondary);
+        font-weight: 600;
+    }
+    
+    /* Loading State */
+    .loading-container {
+        padding: 8px;
+    }
+    
+    .skeleton-expense {
+        background: var(--oneui-surface);
+        border-radius: 16px;
+        padding: 20px;
+        margin: 0 8px 12px;
+        box-shadow: var(--oneui-shadow);
+    }
+    
+    .skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s infinite;
+        border-radius: 4px;
+        margin-bottom: 8px;
+    }
+    
+    .skeleton-text {
+        height: 14px;
+    }
+    
+    .skeleton-title {
+        height: 20px;
+    }
+    
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+    }
+    
+    .empty-state-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        background: var(--oneui-surface);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--oneui-shadow);
+    }
+    
+    .empty-state-icon i {
+        font-size: 36px;
+        color: var(--oneui-text-secondary);
+    }
+    
+    .empty-state-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin: 0 0 8px;
+    }
+    
+    .empty-state-text {
+        font-size: 14px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+    }
+    
+    /* Stats Section */
+    .stats-section {
+        display: flex;
+        gap: 12px;
+        padding: 0 8px 16px;
+    }
+    
+    .stat-card {
+        flex: 1;
+        background: var(--oneui-surface);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: var(--oneui-shadow);
+    }
+    
+    .stat-label {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+    
+    .stat-value {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--oneui-text-primary);
+    }
+    
+    .stat-value.expense {
+        color: #ff3b30;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="expenses-wrapper">
+    
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-content">
+            <div class="header-title-section">
+                <div class="header-icon">
+                    <i class="bi bi-receipt-cutoff"></i>
+                </div>
+                <h1 class="page-title">Expense Tracker</h1>
+                <div class="header-count">
+                    <i class="bi bi-receipt"></i>
+                    <span>{{ total_count|default:0 }} Expenses</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Search Bar -->
+    <div class="search-container">
+        <div class="search-box">
+            <input type="text"
+                   id="searchInput"
+                   class="search-input"
+                   placeholder="Search expenses..."
+                   value="{{ current_search }}">
+            <i class="bi bi-search search-icon"></i>
+        </div>
+    </div>
+    
+    <!-- Dropdown Filters -->
+    <div class="dropdown-filters">
+        <div class="filter-dropdown">
+            <div class="dropdown-label">
+                <i class="bi bi-building"></i> User/Business
+            </div>
+            <select class="dropdown-select" id="userFilter">
+                <option value="">All Users</option>
+                {% for user in users %}
+                <option value="{{ user.user.id }}" {% if current_user_id|stringformat:"s" == user.user.id|stringformat:"s" %}selected{% endif %}>
+                    {{ user.business_brand|default:user.user.username }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>        <div class="filter-dropdown">
+            <div class="dropdown-label">
+                <i class="bi bi-tag-fill"></i> Category
+            </div>
+            <select class="dropdown-select" id="categoryFilter">
+                <option value="all">All Categories</option>
+                {% for category in categories %}
+                <option value="{{ category }}" {% if current_category == category %}selected{% endif %}>
+                    {{ category }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>    </div>
+    
+    <!-- Filter Tabs -->
+    <div class="filter-tabs">
+        <button class="filter-tab {% if current_date_filter == 'all' %}active{% endif %}" data-filter="all">
+            <i class="bi bi-calendar3"></i> All Time
+        </button>
+        <button class="filter-tab {% if current_date_filter == 'today' %}active{% endif %}" data-filter="today">
+            <i class="bi bi-calendar-day"></i> Today
+        </button>
+        <button class="filter-tab {% if current_date_filter == 'week' %}active{% endif %}" data-filter="week">
+            <i class="bi bi-calendar-week"></i> This Week
+        </button>
+        <button class="filter-tab {% if current_date_filter == 'month' %}active{% endif %}" data-filter="month">
+            <i class="bi bi-calendar-month"></i> This Month
+        </button>
+    </div>
+    
+    <!-- Stats Section -->
+    <div class="stats-section">
+        <div class="stat-card">
+            <div class="stat-label">Total Expenses</div>
+            <div class="stat-value expense">₹{{ total_amount|floatformat:0 }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Count</div>
+            <div class="stat-value">{{ total_count }}</div>
+        </div>
+    </div>
+    
+    <!-- Expense Container -->
+    <div id="expenseContainer">
+        {% include "mobile_v1/partials/expense_list.html" %}
+    </div>
+    
+    {% include "mobile_v1/navbarE.html" %}
+</div>
+
+{% endblock %}
+
+{% block includejs %}
+<script>
+    let typingTimer;
+    const delay = 300;
+    let userId = '{{ current_user_id }}';
+    let searchQuery = '{{ current_search }}';
+    let dateFilter = '{{ current_date_filter }}';
+    let categoryFilter = '{{ current_category }}';
+
+    function showLoading() {
+        const container = document.getElementById('expenseContainer');
+        container.innerHTML = `
+            <div class="loading-container">
+                ${Array(5).fill(0).map(() => `
+                    <div class="skeleton-expense">
+                        <div class="skeleton skeleton-title" style="width: 60%;"></div>
+                        <div class="skeleton skeleton-text" style="width: 40%;"></div>
+                        <div class="skeleton skeleton-text" style="width: 80%;"></div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function loadExpenses(page = 1) {
+        showLoading();
+        
+        const params = new URLSearchParams();
+        if (userId) params.append('user_id', userId);
+        if (searchQuery) params.append('search', searchQuery);
+        if (dateFilter) params.append('date_filter', dateFilter);
+        if (categoryFilter && categoryFilter !== 'all') params.append('category', categoryFilter);
+        params.append('page', page);
+
+        fetch(`?${params.toString()}`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('expenseContainer').innerHTML = data.html;
+            
+            // Update stats
+            const totalAmount = document.querySelector('.stat-value.expense');
+            if (totalAmount) {
+                totalAmount.textContent = '₹' + Math.floor(data.total_amount).toLocaleString('en-IN');
+            }
+            const totalCount = document.querySelectorAll('.stat-value')[1];
+            if (totalCount) {
+                totalCount.textContent = data.total_count;
+            }
+            
+            // Update header count
+            const headerCount = document.querySelector('.header-count span');
+            if (headerCount) {
+                headerCount.textContent = data.total_count + ' Expenses';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading expenses:', error);
+            document.getElementById('expenseContainer').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                    <h3 class="empty-state-title">Unable to Load</h3>
+                    <p class="empty-state-text">Please check your connection and try again.</p>
+                </div>
+            `;
+        });
+    }
+
+    // Search input
+    document.getElementById('searchInput').addEventListener('keyup', function () {
+        searchQuery = this.value;
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => loadExpenses(1), delay);
+    });
+
+    // User filter
+    document.getElementById('userFilter').addEventListener('change', function() {
+        userId = this.value;
+        loadExpenses(1);
+    });
+
+    // Category filter
+    document.getElementById('categoryFilter').addEventListener('change', function() {
+        categoryFilter = this.value;
+        loadExpenses(1);
+    });
+
+    // Date filter tabs
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            dateFilter = this.getAttribute('data-filter');
+            loadExpenses(1);
+        });
+    });
+</script>
+{% endblock %}

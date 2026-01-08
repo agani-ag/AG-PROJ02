@@ -17,6 +17,8 @@ urlpatterns = [
     # Employee URLs
     path('customers', customer.customers, name='v1customers'),
     path('invoices', customer.invoices, name='v1invoices'),
+    path('books', customer.books, name='v1books'),
+    path('expensestracker', customer.ExpensesTracker, name='v1expensestracker'),
 
     # API URLs
     path('customers/api', customer.customersapi, name='v1customersapi'),

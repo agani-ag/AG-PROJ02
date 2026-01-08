@@ -1,0 +1,1174 @@
+{% extends 'mobile_v1/base.html' %}
+{% load humanize %}
+
+{% block title %}Books - GST Sync{% endblock %}
+
+{% block includecss %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<style>
+    /* Samsung One UI Design System */
+    :root {
+        --oneui-primary: #667eea;
+        --oneui-primary-dark: #5568d3;
+        --oneui-secondary: #764ba2;
+        --oneui-accent: #34c759;
+        --oneui-warning: #ff9500;
+        --oneui-danger: #ff3b30;
+        --oneui-info: #007aff;
+        --oneui-bg: #f5f5f7;
+        --oneui-surface: #ffffff;
+        --oneui-text-primary: #1c1c1e;
+        --oneui-text-secondary: #8e8e93;
+        --oneui-divider: #d1d1d6;
+        --oneui-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+        --oneui-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+        --oneui-radius: 16px;
+        --oneui-radius-sm: 12px;
+        --gradient-header: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    * { -webkit-tap-highlight-color: transparent; }
+    
+    body {
+        background: var(--oneui-bg);
+        min-height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        padding-bottom: 80px;
+        margin: 0;
+    }
+    
+    /* Header */
+    .header-section {
+        background: var(--gradient-header);
+        color: white;
+        padding: 20px 0;
+        box-shadow: var(--oneui-shadow-lg);
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+    }
+    
+    .header-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+    }
+    
+    .header-icon-circle {
+        width: 48px;
+        height: 48px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .header-text h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0 0 4px 0;
+    }
+    
+    .header-text p {
+        margin: 0;
+        font-size: 0.875rem;
+        opacity: 0.9;
+    }
+    
+    .header-stats {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    
+    .stat-item {
+        text-align: center;
+        padding: 6px 10px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        min-width: 70px;
+    }
+    
+    .stat-number {
+        display: block;
+        font-size: 1.125rem;
+        font-weight: 700;
+    }
+    
+    .stat-label {
+        display: block;
+        font-size: 0.625rem;
+        opacity: 0.8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Filter Section */
+    .filter-section {
+        background: white;
+        padding: 16px;
+        box-shadow: var(--oneui-shadow);
+        margin-bottom: 16px;
+        border-radius: var(--oneui-radius-sm);
+    }
+    
+    .filter-row {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .filter-row:last-child {
+        margin-bottom: 0;
+    }
+    
+    .form-group {
+        flex: 1;
+        position: relative;
+    }
+    
+    .form-label {
+        display: block;
+        font-size: 0.813rem;
+        font-weight: 600;
+        color: var(--oneui-text-secondary);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .form-select {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid var(--oneui-divider);
+        border-radius: var(--oneui-radius-sm);
+        background: white;
+        font-size: 0.938rem;
+        font-weight: 500;
+        color: var(--oneui-text-primary);
+        transition: all 0.2s;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238e8e93' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        padding-right: 36px;
+    }
+    
+    .form-select:focus {
+        outline: none;
+        border-color: var(--oneui-primary);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .form-select:disabled {
+        background: var(--oneui-bg);
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .search-wrapper {
+        position: relative;
+        flex: 1;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 12px 16px 12px 44px;
+        border: 2px solid var(--oneui-divider);
+        border-radius: var(--oneui-radius-sm);
+        font-size: 0.938rem;
+        transition: all 0.2s;
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: var(--oneui-primary);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .search-icon {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--oneui-text-secondary);
+        pointer-events: none;
+    }
+    
+    .clear-search {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: var(--oneui-text-secondary);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        font-size: 0.75rem;
+    }
+    
+    .clear-search.active {
+        display: flex;
+    }
+    
+    /* Filter Tabs */
+    .filter-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 16px;
+        background: white;
+        overflow-x: auto;
+        white-space: nowrap;
+        margin-bottom: 16px;
+        border-radius: var(--oneui-radius-sm);
+        box-shadow: var(--oneui-shadow);
+    }
+    
+    .filter-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .filter-tab {
+        padding: 10px 20px;
+        border: 2px solid var(--oneui-divider);
+        border-radius: 20px;
+        background: white;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+    
+    .filter-tab.active {
+        background: var(--oneui-primary);
+        border-color: var(--oneui-primary);
+        color: white;
+    }
+    
+    /* Book List */
+    .book-list-container {
+        padding: 0 16px;
+    }
+    
+    .book-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 20px;
+        background: white;
+        border-radius: var(--oneui-radius-sm);
+        box-shadow: var(--oneui-shadow);
+        margin-bottom: 16px;
+        color: inherit;
+        transition: all 0.2s;
+        border-left: 4px solid transparent;
+        cursor: default;
+    }
+    
+    .book-item-inactive {
+        opacity: 0.6;
+        background: linear-gradient(to right, rgba(255, 59, 48, 0.05), white);
+    }
+    
+    .book-item-inactive .book-icon {
+        filter: grayscale(50%);
+    }
+    
+    .btn-view-details {
+        padding: 6px 14px;
+        background: var(--oneui-primary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.813rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .btn-view-details:hover {
+        background: var(--oneui-primary-dark);
+        transform: translateY(-1px);
+    }
+    
+    .btn-view-details:active {
+        transform: translateY(0);
+    }
+    
+    .description-text {
+        flex: 1;
+    }
+    
+    .book-item:active {
+        transform: scale(0.98);
+        box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06);
+    }
+    
+    .book-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .book-icon.payment {
+        background: linear-gradient(135deg, #34c759 0%, #30d158 100%);
+    }
+    
+    .book-item:has(.book-icon.payment) {
+        border-left-color: #34c759;
+    }
+    
+    .book-icon.purchase {
+        background: linear-gradient(135deg, #ff3b30 0%, #ff453a 100%);
+    }
+    
+    .book-item:has(.book-icon.purchase) {
+        border-left-color: #ff3b30;
+    }
+    
+    .book-icon.return {
+        background: linear-gradient(135deg, #007aff 0%, #0a84ff 100%);
+    }
+    
+    .book-item:has(.book-icon.return) {
+        border-left-color: #007aff;
+    }
+    
+    .book-icon.pending {
+        background: linear-gradient(135deg, #ff9500 0%, #ff9f0a 100%);
+    }
+    
+    .book-item:has(.book-icon.pending) {
+        border-left-color: #ff9500;
+    }
+    
+    .book-icon.other {
+        background: linear-gradient(135deg, #8e8e93 0%, #636366 100%);
+    }
+    
+    .book-item:has(.book-icon.other) {
+        border-left-color: #8e8e93;
+    }
+    
+    .book-icon i {
+        font-size: 1.75rem;
+        color: white;
+    }
+    
+    .book-details {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .book-header {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .book-top-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+    }
+    
+    .book-customer-wrapper {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .book-customer {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        word-break: break-word;
+    }
+    
+    .book-meta-badges {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    
+    .book-amount-wrapper {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: center;
+    }
+    
+    .book-amount {
+        font-size: 1.375rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        white-space: nowrap;
+    }
+    
+    .book-amount.payment {
+        color: #34c759;
+    }
+    
+    .book-amount.purchase {
+        color: #ff3b30;
+    }
+    
+    .book-description {
+        font-size: 0.875rem;
+        color: var(--oneui-text-secondary);
+        line-height: 1.6;
+        padding: 10px 14px;
+        background: var(--oneui-bg);
+        border-radius: 10px;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin-top: 4px;
+    }
+    
+    .book-description i {
+        margin-top: 3px;
+        flex-shrink: 0;
+        color: var(--oneui-primary);
+        opacity: 0.7;
+    }
+    
+    .book-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 4px;
+    }
+    
+    .book-date {
+        font-size: 0.813rem;
+        color: var(--oneui-text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-weight: 500;
+    }
+    
+    .book-date i {
+        color: var(--oneui-primary);
+        opacity: 0.7;
+    }
+    
+    .book-badge {
+        font-size: 0.75rem;
+        padding: 5px 10px;
+        border-radius: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+    
+    .book-badge i {
+        font-size: 0.813rem;
+    }
+    
+    .book-badge.type-badge {
+        background: var(--oneui-primary);
+        color: white;
+        border: none;
+    }
+    
+    .book-badge.user-badge {
+        background: rgba(102, 126, 234, 0.12);
+        color: var(--oneui-primary);
+        border: 1px solid rgba(102, 126, 234, 0.25);
+    }
+    
+    /* Pagination */
+    .pagination-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: white;
+        border-radius: var(--oneui-radius-sm);
+        box-shadow: var(--oneui-shadow);
+        margin: 16px 16px 0 16px;
+    }
+    
+    .pagination-btn {
+        padding: 6px 12px;
+        background: var(--oneui-primary);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.813rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .pagination-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    
+    .pagination-btn:not(:disabled):active {
+        transform: scale(0.95);
+    }
+    
+    .pagination-info {
+        font-size: 0.813rem;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+    }
+    
+    .empty-state-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        background: var(--oneui-bg);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .empty-state-icon i {
+        font-size: 2.5rem;
+        color: var(--oneui-text-secondary);
+    }
+    
+    .empty-state-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin-bottom: 8px;
+    }
+    
+    .empty-state-text {
+        color: var(--oneui-text-secondary);
+    }
+    
+    /* Loading Spinner */
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 40px;
+    }
+    
+    .loading-spinner.active {
+        display: block;
+    }
+    
+    .spinner {
+        width: 40px;
+        height: 40px;
+        margin: 0 auto;
+        border: 4px solid var(--oneui-divider);
+        border-top-color: var(--oneui-primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    /* Dark Mode */
+    [data-theme="dark"] {
+        --oneui-bg: #000000;
+        --oneui-surface: #1c1c1e;
+        --oneui-text-primary: #ffffff;
+        --oneui-text-secondary: #8e8e93;
+        --oneui-divider: #38383a;
+    }
+    
+    [data-theme="dark"] .filter-section,
+    [data-theme="dark"] .filter-tabs,
+    [data-theme="dark"] .book-item {
+        background: var(--oneui-surface);
+    }
+    
+    [data-theme="dark"] .form-select,
+    [data-theme="dark"] .search-input {
+        background: var(--oneui-surface);
+        color: var(--oneui-text-primary);
+    }
+    
+    [data-theme="dark"] .filter-tab {
+        background: var(--oneui-surface);
+        border-color: var(--oneui-divider);
+    }
+    
+    [data-theme="dark"] .pagination-container {
+        background: var(--oneui-surface);
+    }
+    
+    [data-theme="dark"] .book-description {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    
+    [data-theme="dark"] .book-badge.type-badge {
+        background: var(--oneui-primary);
+    }
+    
+    [data-theme="dark"] .book-badge.user-badge {
+        background: rgba(102, 126, 234, 0.15);
+        border-color: rgba(102, 126, 234, 0.3);
+    }
+    
+    /* SweetAlert Custom Styles */
+    .book-details-popup {
+        border-radius: 20px !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    }
+    
+    .book-details-title {
+        color: var(--oneui-text-primary) !important;
+        padding-bottom: 10px !important;
+    }
+    
+    .book-details-btn {
+        border-radius: 12px !important;
+        padding: 12px 28px !important;
+        font-weight: 600 !important;
+        font-size: 0.938rem !important;
+    }
+    
+    @media (max-width: 576px) {
+        .header-stats {
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        
+        .stat-item {
+            min-width: 60px;
+        }
+        
+        .filter-row {
+            flex-direction: column;
+        }
+        
+        .book-customer {
+            font-size: 1rem;
+        }
+        
+        .book-amount {
+            font-size: 1.25rem;
+        }
+        
+        .book-icon {
+            width: 48px;
+            height: 48px;
+        }
+        
+        .book-icon i {
+            font-size: 1.5rem;
+        }
+        
+        .book-item {
+            padding: 16px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="header-section">
+    <div class="container-fluid">
+        <div class="header-content">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="header-icon-circle">
+                    <i class="bi bi-journal-text" style="font-size: 1.5rem;"></i>
+                </div>
+                <div class="header-text">
+                    <h1>Books</h1>
+                    <p id="bookCount">{{ total_count }} entries</p>
+                </div>
+            </div>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <span class="stat-number" id="totalPurchased">₹{{ total_purchased|floatformat:0|intcomma }}</span>
+                    <span class="stat-label">Purchase</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" id="totalPaid">₹{{ total_paid|floatformat:0|intcomma }}</span>
+                    <span class="stat-label">Paid</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number" id="totalBalance">₹{{ total_balance|floatformat:0|intcomma }}</span>
+                    <span class="stat-label">Balance</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="container-fluid mt-3">
+    <div class="filter-section">
+        <div class="filter-row">
+            <div class="form-group">
+                <label class="form-label">Filter by User</label>
+                <select class="form-select" id="userSelect">
+                    <option value="">All Brands</option>
+                    {% for user in users %}
+                    <option value="{{ user.user.id }}" {% if user.user.id|stringformat:"s" == current_user_id %}selected{% endif %}>
+                        {{ user.business_brand }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Filter by Customer</label>
+                <select class="form-select" id="customerSelect" {% if not current_user_id %}disabled{% endif %}>
+                    <option value="">All Customers</option>
+                    {% for customer in customers %}
+                    <option value="{{ customer.id }}" data-user="{{ customer.user.id }}" {% if customer.id|stringformat:"s" == current_customer_id %}selected{% endif %}>
+                        {{ customer.customer_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="filter-row">
+            <div class="search-wrapper">
+                <i class="bi bi-search search-icon"></i>
+                <input 
+                    type="text" 
+                    class="search-input" 
+                    id="searchInput" 
+                    placeholder="Search customer, description, amount..."
+                    value="{{ current_search }}"
+                >
+                <button class="clear-search" id="clearSearch">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filter Tabs -->
+    <div class="filter-tabs">
+        <button class="filter-tab {% if current_filter_type == 'all' %}active{% endif %}" data-filter="all">
+            <i class="bi bi-grid"></i> All
+        </button>
+        <button class="filter-tab {% if current_filter_type == 'payments' %}active{% endif %}" data-filter="payments">
+            <i class="bi bi-cash-coin"></i> Payments
+        </button>
+        <button class="filter-tab {% if current_filter_type == 'purchases' %}active{% endif %}" data-filter="purchases">
+            <i class="bi bi-cart-plus"></i> Purchases
+        </button>
+        <button class="filter-tab {% if current_filter_type == 'returns' %}active{% endif %}" data-filter="returns">
+            <i class="bi bi-arrow-return-left"></i> Returns
+        </button>
+        <button class="filter-tab {% if current_filter_type == 'pending' %}active{% endif %}" data-filter="pending">
+            <i class="bi bi-clock-history"></i> Pending
+        </button>
+        <button class="filter-tab {% if current_filter_type == 'others' %}active{% endif %}" data-filter="others">
+            <i class="bi bi-three-dots"></i> Others
+        </button>
+    </div>
+    
+    <!-- Active Status Filter -->
+    <div class="filter-tabs" style="margin-top: 8px;">
+        <button class="filter-tab {% if current_status_filter == 'active' %}active{% endif %}" data-status="active">
+            <i class="bi bi-check-circle"></i> Active
+        </button>
+        <button class="filter-tab {% if current_status_filter == 'inactive' %}active{% endif %}" data-status="inactive">
+            <i class="bi bi-x-circle"></i> Inactive
+        </button>
+        <button class="filter-tab {% if current_status_filter == 'all' %}active{% endif %}" data-status="all">
+            <i class="bi bi-list"></i> All Status
+        </button>
+    </div>
+    
+    <!-- Book List -->
+    <div class="book-list-container" id="bookList">
+        {% include 'mobile_v1/partials/book_list.html' %}
+    </div>
+    
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loadingSpinner">
+        <div class="spinner"></div>
+    </div>
+    
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="pagination-container">
+        <button class="pagination-btn" id="prevBtn" {% if not page_obj.has_previous %}disabled{% endif %}>
+            <i class="bi bi-chevron-left"></i> Previous
+        </button>
+        <span class="pagination-info">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        <button class="pagination-btn" id="nextBtn" {% if not page_obj.has_next %}disabled{% endif %}>
+            Next <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- EMPLOYEE NAVBAR -->
+{% include "mobile_v1/navbarE.html" %}
+
+{% endblock %}
+
+{% block includejs %}
+<script>
+    // State Management
+    let currentPage = {{ page_obj.number|default:1 }};
+    let userId = '{{ current_user_id }}';
+    let customerId = '{{ current_customer_id }}';
+    let searchQuery = '{{ current_search }}';
+    let filterType = '{{ current_filter_type|default:"all" }}';
+    let statusFilter = '{{ current_status_filter|default:"active" }}';
+    let searchTimeout = null;
+    let allCustomers = [];
+    
+    // DOM Elements
+    const userSelect = document.getElementById('userSelect');
+    const customerSelect = document.getElementById('customerSelect');
+    const searchInput = document.getElementById('searchInput');
+    const clearSearchBtn = document.getElementById('clearSearch');
+    const bookList = document.getElementById('bookList');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const filterTabs = document.querySelectorAll('.filter-tab');
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeCustomers();
+        setupEventListeners();
+        updateClearButton();
+    });
+    
+    // Setup Event Listeners
+    function setupEventListeners() {
+        // User dropdown change
+        userSelect.addEventListener('change', function() {
+            userId = this.value;
+            customerId = '';
+            currentPage = 1;
+            updateCustomerDropdown();
+            loadBooks();
+        });
+        
+        // Customer dropdown change
+        customerSelect.addEventListener('change', function() {
+            customerId = this.value;
+            currentPage = 1;
+            loadBooks();
+        });
+        
+        // Search input with debounce
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                searchQuery = this.value.trim();
+                currentPage = 1;
+                loadBooks();
+            }, 300);
+            updateClearButton();
+        });
+        
+        // Clear search
+        clearSearchBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            searchQuery = '';
+            currentPage = 1;
+            updateClearButton();
+            loadBooks();
+        });
+        
+        // Filter tabs
+        filterTabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                if (this.dataset.filter) {
+                    filterTabs.forEach(t => {
+                        if (t.dataset.filter) t.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    filterType = this.dataset.filter;
+                    currentPage = 1;
+                    triggerHaptic();
+                    loadBooks();
+                } else if (this.dataset.status) {
+                    filterTabs.forEach(t => {
+                        if (t.dataset.status) t.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    statusFilter = this.dataset.status;
+                    currentPage = 1;
+                    triggerHaptic();
+                    loadBooks();
+                }
+            });
+        });
+        
+        // Pagination
+        if (prevBtn) {
+            prevBtn.addEventListener('click', function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    loadBooks();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', function() {
+                currentPage++;
+                loadBooks();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+    }
+    
+    // Initialize Customers Data
+    function initializeCustomers() {
+        const customerOptions = customerSelect.querySelectorAll('option[data-user]');
+        allCustomers = Array.from(customerOptions).map(option => ({
+            id: option.value,
+            userId: option.dataset.user,
+            name: option.textContent.trim()
+        }));
+    }
+    
+    // Update Customer Dropdown Based on Selected User
+    function updateCustomerDropdown() {
+        customerSelect.innerHTML = '<option value="">All Customers</option>';
+        
+        if (userId) {
+            const filteredCustomers = allCustomers.filter(c => c.userId === userId);
+            filteredCustomers.forEach(customer => {
+                const option = document.createElement('option');
+                option.value = customer.id;
+                option.textContent = customer.name;
+                customerSelect.appendChild(option);
+            });
+            customerSelect.disabled = false;
+        } else {
+            allCustomers.forEach(customer => {
+                const option = document.createElement('option');
+                option.value = customer.id;
+                option.dataset.user = customer.userId;
+                option.textContent = customer.name;
+                customerSelect.appendChild(option);
+            });
+            customerSelect.disabled = false;
+        }
+        
+        customerSelect.value = customerId;
+    }
+    
+    // Load Books via AJAX
+    function loadBooks() {
+        loadingSpinner.classList.add('active');
+        bookList.style.opacity = '0.5';
+        
+        const params = new URLSearchParams({
+            user_id: userId,
+            customer_id: customerId,
+            search: searchQuery,
+            filter_type: filterType,
+            status_filter: statusFilter,
+            page: currentPage
+        });
+        
+        fetch(`?${params.toString()}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            bookList.innerHTML = data.html;
+            bookList.style.opacity = '1';
+            loadingSpinner.classList.remove('active');
+            
+            // Update header stats
+            document.getElementById('bookCount').textContent = `${data.total_count} entries`;
+            document.getElementById('totalPurchased').textContent = `₹${Math.round(data.total_purchased).toLocaleString('en-IN')}`;
+            document.getElementById('totalPaid').textContent = `₹${Math.round(data.total_paid).toLocaleString('en-IN')}`;
+            document.getElementById('totalBalance').textContent = `₹${Math.round(data.total_balance).toLocaleString('en-IN')}`;
+            
+            updatePagination(data);
+        })
+        .catch(error => {
+            console.error('Error loading books:', error);
+            loadingSpinner.classList.remove('active');
+            bookList.style.opacity = '1';
+        });
+    }
+    
+    // Update Pagination Controls
+    function updatePagination(data) {
+        if (prevBtn) {
+            prevBtn.disabled = !data.has_previous;
+        }
+        if (nextBtn) {
+            nextBtn.disabled = !data.has_next;
+        }
+        
+        const paginationInfo = document.querySelector('.pagination-info');
+        if (paginationInfo) {
+            paginationInfo.textContent = `Page ${data.current_page} of ${data.total_pages}`;
+        }
+    }
+    
+    // Update Clear Search Button Visibility
+    function updateClearButton() {
+        if (searchInput.value.trim()) {
+            clearSearchBtn.classList.add('active');
+        } else {
+            clearSearchBtn.classList.remove('active');
+        }
+    }
+    
+    // Haptic Feedback (if supported)
+    function triggerHaptic() {
+        if (window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(10);
+        }
+    }
+    
+    // Show Book Details in SweetAlert
+    function showBookDetails(bookItem) {
+        const customer = bookItem.dataset.customer;
+        const business = bookItem.dataset.business;
+        const amount = bookItem.dataset.amount;
+        const type = bookItem.dataset.type;
+        const typeId = bookItem.dataset.typeId;
+        const description = bookItem.dataset.description;
+        const createdby = bookItem.dataset.createdby;
+        const date = bookItem.dataset.date;
+        const time = bookItem.dataset.time;
+        const status = bookItem.dataset.status;
+        
+        // Determine icon and color based on type
+        let icon = 'bi-three-dots';
+        let iconColor = '#8e8e93';
+        let prefix = '';
+        
+        if (typeId == '0') {
+            icon = 'bi-cash-coin';
+            iconColor = '#34c759';
+            prefix = '-';
+        } else if (typeId == '1') {
+            icon = 'bi-cart-plus';
+            iconColor = '#ff3b30';
+            prefix = '+';
+        } else if (typeId == '2') {
+            icon = 'bi-arrow-return-left';
+            iconColor = '#007aff';
+        } else if (typeId == '4') {
+            icon = 'bi-clock-history';
+            iconColor = '#ff9500';
+        }
+        
+        const htmlContent = `
+            <div style="text-align: left; padding: 0;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: ${iconColor}15; border-radius: 8px;">
+                    <div style="width: 40px; height: 40px; background: ${iconColor}; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                        <i class="bi ${icon}" style="font-size: 1.25rem; color: white;"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.75rem; color: #8e8e93; margin-bottom: 2px;">${type}</div>
+                        <div style="font-size: 1.25rem; font-weight: 700; color: ${iconColor};">${prefix}₹${amount}</div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 0.688rem; color: #8e8e93; text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Customer</div>
+                    <div style="font-size: 0.938rem; font-weight: 600; color: #1c1c1e;">${customer}</div>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 0.688rem; color: #8e8e93; text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Business</div>
+                    <div style="font-size: 0.875rem; color: #1c1c1e;">${business}</div>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <div style="font-size: 0.688rem; color: #8e8e93; text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Description</div>
+                    <div style="font-size: 0.875rem; color: #1c1c1e; line-height: 1.5; padding: 8px; background: #f5f5f7; border-radius: 6px;">${description}</div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+                    <div>
+                        <div style="font-size: 0.688rem; color: #8e8e93; text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Date & Time</div>
+                        <div style="font-size: 0.813rem; color: #1c1c1e;">${date} ${time}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.688rem; color: #8e8e93; text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Created By</div>
+                        <div style="font-size: 0.813rem; color: #667eea; font-weight: 600;">${createdby}</div>
+                    </div>
+                </div>
+                
+                <div>
+                    <div style="font-size: 0.688rem; color: #8e8e93; text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Status</div>
+                    <div style="font-size: 0.813rem; color: ${status === 'Active' ? '#34c759' : '#ff3b30'}; font-weight: 600;">
+                        <i class="bi ${status === 'Active' ? 'bi-check-circle-fill' : 'bi-x-circle-fill'}"></i> ${status}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        Swal.fire({
+            title: '<strong style="font-size: 1.125rem;">Entry Details</strong>',
+            html: htmlContent,
+            width: '420px',
+            padding: '1.25rem',
+            showCloseButton: true,
+            showConfirmButton: false,
+            customClass: {
+                popup: 'book-details-popup',
+                title: 'book-details-title'
+            }
+        });
+        
+        triggerHaptic();
+    }
+</script>
+{% endblock %}

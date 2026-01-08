@@ -9,7 +9,11 @@
                 <div class="transaction-header">
                     <div class="transaction-type">
                         <span class="type-badge">
-                            {{ book.get_change_type_display }}
+                            {% if not book.is_active %}
+                                Inactive
+                            {% else %}
+                                {{ book.get_change_type_display }}
+                            {% endif %}
                         </span>
                     </div>
                     <div class="transaction-date">
