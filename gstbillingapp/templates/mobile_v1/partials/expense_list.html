@@ -9,8 +9,15 @@
             <div class="expense-header">
                 <div class="expense-top-section">
                     <div class="expense-info-wrapper">
-                        <span class="expense-reference">{{ expense.reference }}</span>
+                        <span class="expense-reference">{{ expense.date|date:"d M, Y" }}</span>
+                        <span class="expense-time">{{ expense.date|date:"h:i A" }} • {{ expense.date|timesince }} ago</span>
                         <div class="expense-meta-badges">
+                            {% if expense.reference %}
+                            <span class="expense-badge" style="background: #007aff15; color: #007aff;">
+                                <i class="bi bi-receipt"></i>
+                                {{ expense.reference }}
+                            </span>
+                            {% endif %}
                             <span class="expense-badge category-badge">
                                 <i class="bi bi-tag-fill"></i>
                                 {{ expense.category }}
@@ -35,12 +42,6 @@
                     {{ expense.notes|truncatechars:100 }}
                 </div>
                 {% endif %}
-            </div>
-            <div class="expense-footer">
-                <span class="expense-date">
-                    <i class="bi bi-calendar3"></i>
-                    {{ expense.date|date:"d M, Y" }} • {{ expense.date|date:"h:i A" }}
-                </span>
             </div>
         </div>
     </div>

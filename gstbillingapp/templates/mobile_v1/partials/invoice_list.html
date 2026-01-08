@@ -29,7 +29,7 @@
                     {% if invoice.is_gst %}GST{% else %}Non-GST{% endif %}
                 </span>
                 <span class="invoice-badge user-badge" title="{{ invoice.user.userprofile.business_title }}">
-                    <i class="bi bi-building"></i> {{ invoice.user.userprofile.business_title|truncatewords:2 }}
+                    <i class="bi bi-building"></i> {{ invoice.user.userprofile.business_brand }}
                 </span>
             </div>
         </div>

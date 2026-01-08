@@ -729,7 +729,7 @@ def customersapi(request):
 
     return JsonResponse(customers_dict, safe=False)
 
-def ExpensesTracker(request):
+def expenses_tracker(request):
     """Expense Tracker listing with filtering, search, and pagination"""
     from django.core.paginator import Paginator
     from django.http import JsonResponse
@@ -824,3 +824,127 @@ def ExpensesTracker(request):
         })
     
     return render(request, 'mobile_v1/expenses_tracker.html', context)
+
+def purchase_logs(request):
+    """Purchase Logs listing with filtering, search, and pagination"""
+    from django.core.paginator import Paginator
+    from django.http import JsonResponse
+    from django.template.loader import render_to_string
+    from django.db.models import Q, Sum
+    from datetime import datetime, timedelta
+    from ...models import PurchaseLog, VendorPurchase
+    
+    context = {}
+    
+    # Get filter parameters
+    user_id = request.GET.get('user_id', '')
+    vendor_id = request.GET.get('vendor_id', '')
+    search_query = request.GET.get('search', '').strip()
+    category_filter = request.GET.get('category', 'all')
+    type_filter = request.GET.get('type_filter', 'all')  # all, purchase, paid, others
+    date_filter = request.GET.get('date_filter', 'all')
+    page_number = request.GET.get('page', 1)
+    
+    # Get all users for dropdown
+    users = UserProfile.objects.all().select_related('user').order_by('business_title')
+    
+    # Base queryset
+    purchases_qs = PurchaseLog.objects.select_related('user', 'vendor').order_by('-date')
+    
+    # Apply user filter
+    if user_id:
+        purchases_qs = purchases_qs.filter(user__id=user_id)
+    
+    # Apply vendor filter
+    if vendor_id:
+        purchases_qs = purchases_qs.filter(vendor__id=vendor_id)
+    
+    # Apply type filter
+    if type_filter == 'purchase':
+        purchases_qs = purchases_qs.filter(change_type=0)
+    elif type_filter == 'paid':
+        purchases_qs = purchases_qs.filter(change_type=1)
+    elif type_filter == 'others':
+        purchases_qs = purchases_qs.filter(change_type=3)
+    
+    # Apply date filter
+    today = datetime.now().date()
+    if date_filter == 'today':
+        purchases_qs = purchases_qs.filter(date__date=today)
+    elif date_filter == 'week':
+        week_ago = today - timedelta(days=7)
+        purchases_qs = purchases_qs.filter(date__date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = today - timedelta(days=30)
+        purchases_qs = purchases_qs.filter(date__date__gte=month_ago)
+    
+    # Get all categories and vendors for the selected user
+    if user_id:
+        categories = PurchaseLog.objects.filter(user__id=user_id).values_list('category', flat=True).distinct().order_by('category')
+        vendors = VendorPurchase.objects.filter(user__id=user_id).order_by('vendor_name')
+    else:
+        categories = PurchaseLog.objects.values_list('category', flat=True).distinct().order_by('category')
+        vendors = VendorPurchase.objects.all().order_by('vendor_name')
+    
+    # Apply category filter
+    if category_filter != 'all':
+        purchases_qs = purchases_qs.filter(category=category_filter)
+    
+    # Apply search filter
+    if search_query:
+        purchases_qs = purchases_qs.filter(
+            Q(reference__icontains=search_query) |
+            Q(category__icontains=search_query) |
+            Q(vendor__vendor_name__icontains=search_query) |
+            Q(change__icontains=search_query)
+        )
+    
+    # Pagination
+    paginator = Paginator(purchases_qs, 15)  # 15 items per page
+    page_obj = paginator.get_page(page_number)
+    
+    # Calculate totals for current filter
+    totals = purchases_qs.aggregate(
+        total_purchase=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_paid=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+    )
+    
+    total_purchase = abs(totals['total_purchase'] or 0)
+    total_paid = abs(totals['total_paid'] or 0)
+    total_balance = total_purchase - total_paid
+    total_count = paginator.count
+    
+    context.update({
+        'users': users,
+        'vendors': vendors,
+        'categories': categories,
+        'page_obj': page_obj,
+        'total_purchase': total_purchase,
+        'total_paid': total_paid,
+        'total_balance': total_balance,
+        'total_count': total_count,
+        'current_user_id': user_id,
+        'current_vendor_id': vendor_id,
+        'current_search': search_query,
+        'current_category': category_filter,
+        'current_type_filter': type_filter,
+        'current_date_filter': date_filter,
+    })
+    
+    # AJAX request
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/purchase_list.html', context, request=request)
+        return JsonResponse({
+            'html': html,
+            'total_count': total_count,
+            'total_purchase': float(total_purchase),
+            'total_paid': float(total_paid),
+            'total_balance': float(total_balance),
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+        })
+    
+    return render(request, 'mobile_v1/purchase_log.html', context)

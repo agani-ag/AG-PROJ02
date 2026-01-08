@@ -30,6 +30,12 @@
             <i class="fas fa-wallet"></i>
             <span>Expenses</span>
         </a>
+
+        <!-- Purchase Logs -->
+        <a href="{% url 'v1purchaselogs' %}?u={{ request.GET.u }}" class="nav-item" data-page="purchaselogs">
+            <i class="fas fa-shopping-cart"></i>
+            <span>Purchase Logs</span>
+        </a>
         
         <!-- Profile -->
         <a href="{% url 'v1customerprofile' %}?u={{ request.GET.u }}" class="nav-item" data-page="profile">

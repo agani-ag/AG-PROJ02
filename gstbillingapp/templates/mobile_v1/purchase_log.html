@@ -1,11 +1,12 @@
 {% extends "mobile_v1/base.html" %}
 {% load static %}
+{% load humanize %}
 
-{% block title %}Expense Tracker{% endblock %}
+{% block title %}Purchase Logs{% endblock %}
 
 {% block includecss %}
 <style>
-    /* Expenses Tracker Page - Samsung One UI */
+    /* Purchase Logs Page - Samsung One UI */
     .expenses-wrapper {
         max-width: 640px;
         margin: 0 auto;
@@ -14,11 +15,11 @@
     
     /* Page Header */
     .page-header {
-        background: linear-gradient(135deg, #5856d6 0%, #7b79e8 100%);
+        background: linear-gradient(135deg, #34c759 0%, #30d158 100%);
         border-radius: 0 0 16px 16px;
         padding: 32px 20px 24px;
         margin: -12px -8px 20px;
-        box-shadow: 0 8px 24px rgba(88, 86, 214, 0.2);
+        box-shadow: 0 8px 24px rgba(52, 199, 89, 0.2);
     }
     
     .header-content {
@@ -105,35 +106,52 @@
         font-size: 18px;
     }
     
-    /* Expense Card */
-    .expense-item {
+    /* Purchase Card */
+    .purchase-item {
         background: var(--oneui-surface);
         border-radius: 16px;
-        padding: 20px;
+        padding: 16px;
         margin: 0 8px 12px;
         box-shadow: var(--oneui-shadow);
         display: flex;
-        gap: 16px;
-        border-left: 4px solid #ff3b30;
+        gap: 12px;
     }
     
-    .expense-icon {
-        width: 56px;
-        height: 56px;
-        border-radius: 16px;
-        background: #ff3b3015;
+    .purchase-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: #34c75915;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
     }
     
-    .expense-icon i {
-        font-size: 24px;
+    .purchase-icon.purchase {
+        background: #34c75915;
+    }
+    
+    .purchase-icon.purchase i {
+        font-size: 22px;
+        color: #34c759;
+    }
+    
+    .purchase-icon.paid {
+        background: #ff3b3015;
+    }
+    
+    .purchase-icon.paid i {
+        font-size: 22px;
         color: #ff3b30;
     }
     
-    .expense-details {
+    .purchase-icon.other i {
+        font-size: 22px;
+        color: #8e8e93;
+    }
+    
+    .purchase-details {
         flex: 1;
         min-width: 0;
         display: flex;
@@ -141,11 +159,11 @@
         gap: 8px;
     }
     
-    .expense-header {
+    .purchase-header {
         flex: 1;
     }
     
-    .expense-top-section {
+    .purchase-top-section {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
@@ -153,12 +171,12 @@
         margin-bottom: 8px;
     }
     
-    .expense-info-wrapper {
+    .purchase-info-wrapper {
         flex: 1;
         min-width: 0;
     }
     
-    .expense-reference {
+    .purchase-reference {
         display: block;
         font-size: 14px;
         font-weight: 600;
@@ -166,7 +184,7 @@
         margin-bottom: 4px;
     }
     
-    .expense-time {
+    .purchase-time {
         display: block;
         font-size: 12px;
         font-weight: 500;
@@ -174,13 +192,13 @@
         margin-bottom: 8px;
     }
     
-    .expense-meta-badges {
+    .purchase-meta-badges {
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
     }
     
-    .expense-badge {
+    .purchase-badge {
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -191,8 +209,13 @@
     }
     
     .category-badge {
-        background: #ff3b3015;
-        color: #ff3b30;
+        background: #34c75915;
+        color: #34c759;
+    }
+    
+    .vendor-badge {
+        background: #ff9f0a15;
+        color: #ff9f0a;
     }
     
     .user-badge {
@@ -200,42 +223,32 @@
         color: #5856d6;
     }
     
-    .expense-amount-wrapper {
+    .purchase-amount-wrapper {
         flex-shrink: 0;
     }
     
-    .expense-amount {
-        font-size: 20px;
+    .purchase-amount {
+        font-size: 18px;
         font-weight: 800;
-        color: #ff3b30;
         white-space: nowrap;
     }
     
-    .expense-notes {
-        display: flex;
-        align-items: flex-start;
-        gap: 8px;
-        font-size: 13px;
-        color: var(--oneui-text-secondary);
-        line-height: 1.5;
-        padding: 8px;
-        background: var(--oneui-background);
-        border-radius: 8px;
+    .purchase-amount.purchase {
+        color: #34c759;
     }
     
-    .expense-notes i {
-        font-size: 14px;
-        margin-top: 2px;
-        flex-shrink: 0;
+    .purchase-amount.paid {
+        color: #ff3b30;
     }
     
-    .expense-footer {
+    .purchase-footer {
         display: flex;
-        justify-content: space-between;
+        justify-content: flex-start;
         align-items: center;
+        margin-top: 4px;
     }
     
-    .expense-date {
+    .purchase-date {
         display: flex;
         align-items: center;
         gap: 6px;
@@ -243,8 +256,17 @@
         color: var(--oneui-text-secondary);
     }
     
-    .expense-date i {
+    .purchase-date i {
         font-size: 14px;
+    }
+    
+    .purchase-type-label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--oneui-text-secondary);
     }
     
     /* Dropdown Filters */
@@ -319,7 +341,7 @@
     }
     
     .filter-tab.active {
-        background: #ff3b30;
+        background: #34c759;
         color: white;
     }
     
@@ -357,7 +379,7 @@
     
     .pagination-btn:active:not(:disabled) {
         transform: scale(0.95);
-        background: #ff3b30;
+        background: #34c759;
         color: white;
     }
     
@@ -372,7 +394,7 @@
         padding: 8px;
     }
     
-    .skeleton-expense {
+    .skeleton-purchase {
         background: var(--oneui-surface);
         border-radius: 16px;
         padding: 20px;
@@ -442,32 +464,50 @@
         display: flex;
         gap: 12px;
         padding: 0 8px 16px;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    
+    .stats-section::-webkit-scrollbar {
+        display: none;
     }
     
     .stat-card {
-        flex: 1;
+        flex: 0 0 auto;
+        min-width: 140px;
         background: var(--oneui-surface);
         border-radius: 12px;
-        padding: 16px;
+        padding: 12px 16px;
         box-shadow: var(--oneui-shadow);
     }
     
     .stat-label {
-        font-size: 12px;
+        font-size: 11px;
         color: var(--oneui-text-secondary);
         margin-bottom: 4px;
         text-transform: uppercase;
         font-weight: 600;
+        white-space: nowrap;
     }
     
     .stat-value {
-        font-size: 20px;
+        font-size: 16px;
         font-weight: 800;
         color: var(--oneui-text-primary);
+        white-space: nowrap;
+        line-height: 1.2;
     }
     
-    .stat-value.expense {
+    .stat-value.purchase {
+        color: #34c759;
+    }
+    
+    .stat-value.paid {
         color: #ff3b30;
+    }
+    
+    .stat-value.balance {
+        color: #007aff;
     }
 </style>
 {% endblock %}
@@ -481,12 +521,12 @@
         <div class="header-content">
             <div class="header-title-section">
                 <div class="header-icon">
-                    <i class="bi bi-receipt-cutoff"></i>
+                    <i class="bi bi-cart-check"></i>
                 </div>
-                <h1 class="page-title">Expense Tracker</h1>
+                <h1 class="page-title">Purchase Logs</h1>
                 <div class="header-count">
                     <i class="bi bi-receipt"></i>
-                    <span>{{ total_count|default:0 }} Expenses</span>
+                    <span>{{ total_count|default:0 }} Entries</span>
                 </div>
             </div>
         </div>
@@ -498,7 +538,7 @@
             <input type="text"
                    id="searchInput"
                    class="search-input"
-                   placeholder="Search expenses..."
+                   placeholder="Search purchases..."
                    value="{{ current_search }}">
             <i class="bi bi-search search-icon"></i>
         </div>
@@ -514,11 +554,28 @@
                 <option value="">All Users</option>
                 {% for user in users %}
                 <option value="{{ user.user.id }}" {% if current_user_id|stringformat:"s" == user.user.id|stringformat:"s" %}selected{% endif %}>
-                    {{ user.business_brand|default:user.user.username }}
+                    {{ user.business_title|default:user.user.username }}
                 </option>
                 {% endfor %}
             </select>
-        </div>        <div class="filter-dropdown">
+        </div>
+        <div class="filter-dropdown">
+            <div class="dropdown-label">
+                <i class="bi bi-shop"></i> Vendor
+            </div>
+            <select class="dropdown-select" id="vendorFilter">
+                <option value="">All Vendors</option>
+                {% for vendor in vendors %}
+                <option value="{{ vendor.id }}" {% if current_vendor_id|stringformat:"s" == vendor.id|stringformat:"s" %}selected{% endif %}>
+                    {{ vendor.vendor_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    
+    <div class="dropdown-filters">
+        <div class="filter-dropdown">
             <div class="dropdown-label">
                 <i class="bi bi-tag-fill"></i> Category
             </div>
@@ -530,7 +587,19 @@
                 </option>
                 {% endfor %}
             </select>
-        </div>    </div>
+        </div>
+        <div class="filter-dropdown">
+            <div class="dropdown-label">
+                <i class="bi bi-filter"></i> Type
+            </div>
+            <select class="dropdown-select" id="typeFilter">
+                <option value="all" {% if current_type_filter == 'all' %}selected{% endif %}>All Types</option>
+                <option value="purchase" {% if current_type_filter == 'purchase' %}selected{% endif %}>Purchase</option>
+                <option value="paid" {% if current_type_filter == 'paid' %}selected{% endif %}>Paid</option>
+                <option value="others" {% if current_type_filter == 'others' %}selected{% endif %}>Others</option>
+            </select>
+        </div>
+    </div>
     
     <!-- Filter Tabs -->
     <div class="filter-tabs">
@@ -551,18 +620,22 @@
     <!-- Stats Section -->
     <div class="stats-section">
         <div class="stat-card">
-            <div class="stat-label">Total Expenses</div>
-            <div class="stat-value expense">₹{{ total_amount|floatformat:0 }}</div>
+            <div class="stat-label">Purchase</div>
+            <div class="stat-value purchase">₹{{ total_purchase|floatformat:0|intcomma }}</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">Count</div>
-            <div class="stat-value">{{ total_count }}</div>
+            <div class="stat-label">Paid</div>
+            <div class="stat-value paid">₹{{ total_paid|floatformat:0|intcomma }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Balance</div>
+            <div class="stat-value balance">₹{{ total_balance|floatformat:0|intcomma }}</div>
         </div>
     </div>
     
-    <!-- Expense Container -->
-    <div id="expenseContainer">
-        {% include "mobile_v1/partials/expense_list.html" %}
+    <!-- Purchase Container -->
+    <div id="purchaseContainer">
+        {% include "mobile_v1/partials/purchase_list.html" %}
     </div>
     
     {% include "mobile_v1/navbarE.html" %}
@@ -575,16 +648,18 @@
     let typingTimer;
     const delay = 300;
     let userId = '{{ current_user_id }}';
+    let vendorId = '{{ current_vendor_id }}';
     let searchQuery = '{{ current_search }}';
     let dateFilter = '{{ current_date_filter }}';
     let categoryFilter = '{{ current_category }}';
+    let typeFilter = '{{ current_type_filter }}';
 
     function showLoading() {
-        const container = document.getElementById('expenseContainer');
+        const container = document.getElementById('purchaseContainer');
         container.innerHTML = `
             <div class="loading-container">
                 ${Array(5).fill(0).map(() => `
-                    <div class="skeleton-expense">
+                    <div class="skeleton-purchase">
                         <div class="skeleton skeleton-title" style="width: 60%;"></div>
                         <div class="skeleton skeleton-text" style="width: 40%;"></div>
                         <div class="skeleton skeleton-text" style="width: 80%;"></div>
@@ -594,14 +669,16 @@
         `;
     }
 
-    function loadExpenses(page = 1) {
+    function loadPurchases(page = 1) {
         showLoading();
         
         const params = new URLSearchParams();
         if (userId) params.append('user_id', userId);
+        if (vendorId) params.append('vendor_id', vendorId);
         if (searchQuery) params.append('search', searchQuery);
         if (dateFilter) params.append('date_filter', dateFilter);
         if (categoryFilter && categoryFilter !== 'all') params.append('category', categoryFilter);
+        if (typeFilter && typeFilter !== 'all') params.append('type_filter', typeFilter);
         params.append('page', page);
 
         fetch(`?${params.toString()}`, {
@@ -609,27 +686,31 @@
         })
         .then(res => res.json())
         .then(data => {
-            document.getElementById('expenseContainer').innerHTML = data.html;
+            document.getElementById('purchaseContainer').innerHTML = data.html;
             
             // Update stats
-            const totalAmount = document.querySelector('.stat-value.expense');
-            if (totalAmount) {
-                totalAmount.textContent = '₹' + Math.floor(data.total_amount).toLocaleString('en-IN');
+            const totalPurchase = document.querySelector('.stat-value.purchase');
+            if (totalPurchase) {
+                totalPurchase.textContent = '₹' + Math.floor(data.total_purchase).toLocaleString('en-IN');
             }
-            const totalCount = document.querySelectorAll('.stat-value')[1];
-            if (totalCount) {
-                totalCount.textContent = data.total_count;
+            const totalPaid = document.querySelector('.stat-value.paid');
+            if (totalPaid) {
+                totalPaid.textContent = '₹' + Math.floor(data.total_paid).toLocaleString('en-IN');
+            }
+            const totalBalance = document.querySelector('.stat-value.balance');
+            if (totalBalance) {
+                totalBalance.textContent = '₹' + Math.floor(data.total_balance).toLocaleString('en-IN');
             }
             
             // Update header count
             const headerCount = document.querySelector('.header-count span');
             if (headerCount) {
-                headerCount.textContent = data.total_count + ' Expenses';
+                headerCount.textContent = data.total_count + ' Entries';
             }
         })
         .catch(error => {
-            console.error('Error loading expenses:', error);
-            document.getElementById('expenseContainer').innerHTML = `
+            console.error('Error loading purchases:', error);
+            document.getElementById('purchaseContainer').innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">
                         <i class="bi bi-exclamation-triangle"></i>
@@ -645,19 +726,31 @@
     document.getElementById('searchInput').addEventListener('keyup', function () {
         searchQuery = this.value;
         clearTimeout(typingTimer);
-        typingTimer = setTimeout(() => loadExpenses(1), delay);
+        typingTimer = setTimeout(() => loadPurchases(1), delay);
     });
 
     // User filter
     document.getElementById('userFilter').addEventListener('change', function() {
         userId = this.value;
-        loadExpenses(1);
+        loadPurchases(1);
+    });
+
+    // Vendor filter
+    document.getElementById('vendorFilter').addEventListener('change', function() {
+        vendorId = this.value;
+        loadPurchases(1);
     });
 
     // Category filter
     document.getElementById('categoryFilter').addEventListener('change', function() {
         categoryFilter = this.value;
-        loadExpenses(1);
+        loadPurchases(1);
+    });
+
+    // Type filter
+    document.getElementById('typeFilter').addEventListener('change', function() {
+        typeFilter = this.value;
+        loadPurchases(1);
     });
 
     // Date filter tabs
@@ -666,7 +759,7 @@
             document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
             this.classList.add('active');
             dateFilter = this.getAttribute('data-filter');
-            loadExpenses(1);
+            loadPurchases(1);
         });
     });
 </script>
