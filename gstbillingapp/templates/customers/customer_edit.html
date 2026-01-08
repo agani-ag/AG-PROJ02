@@ -38,7 +38,14 @@
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Customer Login ID:</th>
-				<td class="form-input-td" aria-readonly="true">{{customer_userid | upper}}</td>
+				<td class="form-input-td" aria-readonly="true">
+					{{customer_userid | upper}}
+					{% if customer_password == default_password %}
+					  <span class="badge bg-warning">{{customer_password}}</span>
+					{% else %}
+					  <span class="badge bg-success">{{customer_password}}</span>
+					{% endif %}
+				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Is Mobile User:</th>

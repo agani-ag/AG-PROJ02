@@ -20,7 +20,7 @@ from ..forms import CustomerForm
 import json
 
 # Variables
-CPASSWORD = 'password123'
+CPASSWORD = 'pass123'
 
 # ================= Customer Views ===========================
 @login_required
@@ -42,7 +42,8 @@ def customer_add(request):
         else:
             new_customer = customer_form.save(commit=False)
             new_customer.user = request.user
-            new_customer.customer_password = make_password(CPASSWORD)
+            # new_customer.customer_password = make_password(CPASSWORD)
+            new_customer.customer_password = CPASSWORD
             new_customer.is_mobile_user = request.POST.get('is_mobile_user') == 'on'
             new_customer.save()
             # create customer book & userid
@@ -60,7 +61,8 @@ def customer_add(request):
 def customer_edit(request, customer_id):
     customer_obj = get_object_or_404(Customer, user=request.user, id=customer_id)
     if not customer_obj.customer_password:
-        customer_obj.customer_password = make_password(CPASSWORD)
+        # customer_obj.customer_password = make_password(CPASSWORD)
+        customer_obj.customer_password = CPASSWORD
         customer_obj.save()
     if request.method == "POST":
         context = {}
@@ -83,6 +85,10 @@ def customer_edit(request, customer_id):
     context['is_mobile_user'] = customer_obj.is_mobile_user
     context['customer_userid'] = customer_obj.customer_userid
     context['customer_password'] = customer_obj.customer_password
+    print("customer_password:", customer_obj.customer_password)
+    context['default_password'] = CPASSWORD
+    print("default_password:", CPASSWORD)
+    print(context['customer_password'] == context['default_password'])
     context['id'] = customer_obj.id
     return render(request, 'customers/customer_edit.html', context)
 
@@ -108,7 +114,8 @@ def customer_default_password(request):
     if request.method == "POST":
         customer_userid = request.POST["customer_userid"]
         customer_obj = get_object_or_404(Customer, customer_userid=customer_userid)
-        customer_obj.customer_password = make_password(CPASSWORD)
+        # customer_obj.customer_password = make_password(CPASSWORD)
+        customer_obj.customer_password = CPASSWORD
         customer_obj.save()
         return JsonResponse({'status': 'success', 'message': f"{customer_userid.upper()} customer's password reset to default."})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to reset customer password.'})
@@ -121,7 +128,9 @@ def customerall_userid_set(request):
         customer_count = list(Customer.objects.filter(user_id=customer_user))
         customer_obj = Customer.objects.filter(user_id=customer_user)
         for customer in customer_obj:
-            # customer.is_mobile_user = f"{settings.PRODUCT_PREFIX}{customer.user.id}C{customer.id}"
+            if not customer.customer_password:
+                # customer.customer_password = make_password(CPASSWORD)
+                customer.customer_password = CPASSWORD
             customer.is_mobile_user = True
             customer.save()
             add_customer_userid(customer)
@@ -155,7 +164,8 @@ def customer_api_add(request):
                     customer_email=item.get('customer_email', None),
                     customer_address=item.get('customer_address', None),
                     customer_gst=item.get('customer_gst', None),
-                    customer_password=make_password(CPASSWORD),
+                    # customer_password=make_password(CPASSWORD),
+                    customer_password=CPASSWORD,
                     is_mobile_user=True
                 )
                 customer.save()

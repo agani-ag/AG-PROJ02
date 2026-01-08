@@ -1,0 +1,101 @@
+{% load humanize %}
+{% if page_obj %}
+    {% for purchase in page_obj %}
+    <div class="purchase-item" style="border-left: 4px solid {% if purchase.change_type == 0 %}#34c759{% elif purchase.change_type == 1 %}#ff3b30{% else %}#8e8e93{% endif %};">
+        <div class="purchase-icon {% if purchase.change_type == 0 %}purchase{% elif purchase.change_type == 1 %}paid{% else %}other{% endif %}">
+            <i class="bi {% if purchase.change_type == 0 %}bi-cart-plus{% elif purchase.change_type == 1 %}bi-cash-coin{% else %}bi-three-dots{% endif %}"></i>
+        </div>
+        <div class="purchase-details">
+            <div class="purchase-header">
+                <div class="purchase-top-section">
+                    <div class="purchase-info-wrapper">
+                        <span class="purchase-reference">{{ purchase.date|date:"d M, Y" }}</span>
+                        <span class="purchase-time">{{ purchase.date|date:"h:i A" }} • {{ purchase.date|timesince }} ago</span>
+                        <div class="purchase-meta-badges">
+                            {% if purchase.reference %}
+                            <span class="purchase-badge" style="background: #007aff15; color: #007aff;">
+                                <i class="bi bi-receipt"></i>
+                                {{ purchase.reference }}
+                            </span>
+                            {% endif %}
+                            {% if purchase.category %}
+                            <span class="purchase-badge category-badge">
+                                <i class="bi bi-tag-fill"></i>
+                                {{ purchase.category }}
+                            </span>
+                            {% endif %}
+                            {% if purchase.vendor %}
+                            <span class="purchase-badge vendor-badge">
+                                <i class="bi bi-shop"></i>
+                                {{ purchase.vendor.vendor_name }}
+                            </span>
+                            {% endif %}
+                            {% if purchase.user.userprofile.business_brand %}
+                            <span class="purchase-badge user-badge">
+                                <i class="bi bi-building"></i>
+                                {{ purchase.user.userprofile.business_brand }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="purchase-amount-wrapper">
+                        <span class="purchase-amount {% if purchase.change_type == 0 %}purchase{% elif purchase.change_type == 1 %}paid{% endif %}">
+                            {% if purchase.change_type == 1 %}-{% endif %}₹{{ purchase.change|floatformat:0|intcomma }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="purchase-footer">
+                <span class="purchase-type-label">
+                    {% if purchase.change_type == 0 %}
+                        <i class="bi bi-cart-plus"></i> Purchase
+                    {% elif purchase.change_type == 1 %}
+                        <i class="bi bi-cash-coin"></i> Paid
+                    {% else %}
+                        <i class="bi bi-three-dots"></i> Other
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    <!-- Pagination -->
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="pagination-container">
+        <div class="custom-pagination">
+            {% if page_obj.has_previous %}
+            <button class="pagination-btn" onclick="loadPurchases({{ page_obj.previous_page_number }})">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            {% else %}
+            <button class="pagination-btn" disabled style="opacity: 0.3;">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            {% endif %}
+            
+            <span class="pagination-info">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+            
+            {% if page_obj.has_next %}
+            <button class="pagination-btn" onclick="loadPurchases({{ page_obj.next_page_number }})">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+            {% else %}
+            <button class="pagination-btn" disabled style="opacity: 0.3;">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="bi bi-receipt"></i>
+        </div>
+        <h3 class="empty-state-title">No Purchase Logs Found</h3>
+        <p class="empty-state-text">Try adjusting your filters or search criteria</p>
+    </div>
+{% endif %}

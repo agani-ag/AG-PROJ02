@@ -1,0 +1,88 @@
+{% load humanize %}
+{% if page_obj %}
+    {% for expense in page_obj %}
+    <div class="expense-item">
+        <div class="expense-icon">
+            <i class="bi bi-receipt"></i>
+        </div>
+        <div class="expense-details">
+            <div class="expense-header">
+                <div class="expense-top-section">
+                    <div class="expense-info-wrapper">
+                        <span class="expense-reference">{{ expense.date|date:"d M, Y" }}</span>
+                        <span class="expense-time">{{ expense.date|date:"h:i A" }} • {{ expense.date|timesince }} ago</span>
+                        <div class="expense-meta-badges">
+                            {% if expense.reference %}
+                            <span class="expense-badge" style="background: #007aff15; color: #007aff;">
+                                <i class="bi bi-receipt"></i>
+                                {{ expense.reference }}
+                            </span>
+                            {% endif %}
+                            <span class="expense-badge category-badge">
+                                <i class="bi bi-tag-fill"></i>
+                                {{ expense.category }}
+                            </span>
+                            {% if expense.user.userprofile.business_brand %}
+                            <span class="expense-badge user-badge">
+                                <i class="bi bi-building"></i>
+                                {{ expense.user.userprofile.business_brand }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="expense-amount-wrapper">
+                        <span class="expense-amount">
+                            ₹{{ expense.amount|floatformat:0|intcomma }}
+                        </span>
+                    </div>
+                </div>
+                {% if expense.notes %}
+                <div class="expense-notes">
+                    <i class="bi bi-file-text"></i>
+                    {{ expense.notes|truncatechars:100 }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    <!-- Pagination -->
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="pagination-container">
+        <div class="custom-pagination">
+            {% if page_obj.has_previous %}
+            <button class="pagination-btn" onclick="loadExpenses({{ page_obj.previous_page_number }})">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            {% else %}
+            <button class="pagination-btn" disabled style="opacity: 0.3;">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            {% endif %}
+            
+            <span class="pagination-info">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+            
+            {% if page_obj.has_next %}
+            <button class="pagination-btn" onclick="loadExpenses({{ page_obj.next_page_number }})">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+            {% else %}
+            <button class="pagination-btn" disabled style="opacity: 0.3;">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="bi bi-receipt"></i>
+        </div>
+        <h3 class="empty-state-title">No Expenses Found</h3>
+        <p class="empty-state-text">Try adjusting your filters or search criteria</p>
+    </div>
+{% endif %}

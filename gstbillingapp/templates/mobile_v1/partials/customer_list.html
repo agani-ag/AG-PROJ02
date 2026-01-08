@@ -1,0 +1,46 @@
+{% if page_obj %}
+    {% for customer in page_obj %}
+    <a href="{% url 'v1customerhome' %}?cid={{ customer.customer_userid }}&u={{ request.GET.u }}" 
+       class="customer-item"
+       data-customer-id="{{ customer.id }}"
+       data-user-id="{{ customer.user.id }}"
+       data-customer-name="{{ customer.customer_name }}">
+        <div class="customer-icon">
+            <i class="bi bi-person-circle"></i>
+        </div>
+        <div class="customer-details">
+            <div class="customer-name">
+                {{ customer.customer_name }}
+                {% if not customer.is_mobile_user %}
+                <i class="bi bi-lock-fill text-warning" title="Not a mobile user" style="font-size: 0.875rem; margin-left: 6px;"></i>
+                {% endif %}
+            </div>
+            {% if customer.customer_phone %}
+            <div class="customer-meta">
+                <i class="bi bi-telephone"></i>
+                {{ customer.customer_phone }}
+            </div>
+            {% endif %}
+            {% if customer.customer_gst %}
+            <div class="customer-meta">
+                <i class="bi bi-file-earmark-text"></i>
+                {{ customer.customer_gst }}
+            </div>
+            {% endif %}
+            <div class="customer-badge">
+                <i class="bi bi-building"></i>
+                {{ customer.user.userprofile.business_brand|truncatewords:2 }}
+            </div>
+        </div>
+        <i class="bi bi-chevron-right customer-arrow"></i>
+    </a>
+    {% endfor %}
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="bi bi-inbox"></i>
+        </div>
+        <h3 class="empty-state-title">No Customers Found</h3>
+        <p class="empty-state-text">Try adjusting your filters or search criteria</p>
+    </div>
+{% endif %}

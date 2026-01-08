@@ -1,0 +1,80 @@
+{% load humanize %}
+{% if page_obj %}
+    {% for book in page_obj %}
+    <div class="book-item {% if not book.is_active %}book-item-inactive{% endif %}" 
+         data-customer="{{ book.parent_book.customer.customer_name }}"
+         data-business="{{ book.parent_book.user.userprofile.business_brand }}"
+         data-amount="{{ book.change|floatformat:0|intcomma }}"
+         data-type="{{ book.get_change_type_display }}"
+         data-type-id="{{ book.change_type }}"
+         data-description="{{ book.description|default:'No description' }}"
+         data-createdby="{{ book.createdby|default:'SYSTEM' }}"
+         data-date="{{ book.date|date:'d M, Y' }}"
+         data-time="{{ book.date|date:'h:i A' }}"
+         data-status="{% if book.is_active %}Active{% else %}Inactive{% endif %}">
+        <div class="book-icon {% if book.change_type == 0 %}payment{% elif book.change_type == 1 %}purchase{% elif book.change_type == 2 %}return{% elif book.change_type == 4 %}pending{% else %}other{% endif %}">
+            <i class="bi {% if book.change_type == 0 %}bi-cash-coin{% elif book.change_type == 1 %}bi-cart-plus{% elif book.change_type == 2 %}bi-arrow-return-left{% elif book.change_type == 4 %}bi-clock-history{% else %}bi-three-dots{% endif %}"></i>
+        </div>
+        <div class="book-details">
+            <div class="book-header">
+                <div class="book-top-section">
+                    <div class="book-customer-wrapper">
+                        <span class="book-customer">
+                            <a href="/mobile/v1/customer/profile?cid={{ book.parent_book.customer.customer_userid }}&u={{ request.GET.u }}" style="color: inherit; text-decoration: none;">
+                                {{ book.parent_book.customer.customer_name }}
+                            </a>
+                            {% if not book.is_active %}
+                            <i class="bi bi-x-circle-fill text-danger" style="font-size: 0.875rem; margin-left: 4px;" title="Inactive"></i>
+                            {% endif %}
+                        </span>
+                        <div class="book-meta-badges">
+                            <span class="book-badge user-badge">
+                                <i class="bi bi-building"></i>
+                                {{ book.parent_book.user.userprofile.business_brand }}
+                            </span>
+                            <span class="book-badge type-badge">
+                                {% if not book.is_active %}
+                                    <i class="bi bi-x-circle-fill text-danger"></i> Inactive
+                                {% elif book.change_type == 0 %}
+                                    <i class="bi bi-cash"></i> Paid
+                                {% elif book.change_type == 1 %}
+                                    <i class="bi bi-cart-check"></i> Purchased
+                                {% elif book.change_type == 2 %}
+                                    <i class="bi bi-arrow-return-left"></i> Returned
+                                {% elif book.change_type == 4 %}
+                                    <i class="bi bi-clock-history"></i> Pending
+                                {% else %}
+                                    <i class="bi bi-three-dots"></i> Other
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="book-amount-wrapper">
+                        <span class="book-amount {% if book.change_type == 0 %}payment{% elif book.change_type == 1 or book.change_type == 4 %}purchase{% endif %}">
+                            <!-- {% if book.change_type == 1%} -{% endif %} -->
+                            ₹{{ book.change|floatformat:0|intcomma }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="book-footer">
+                <span class="book-date">
+                    <i class="bi bi-calendar3"></i>
+                    {{ book.date|date:"d M, Y" }} • {{ book.date|date:"h:i A" }}
+                </span>
+                <button class="btn-view-details" onclick="showBookDetails(this.closest('.book-item')); event.stopPropagation();">
+                    <i class="bi bi-info-circle"></i> Details
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="bi bi-journal-x"></i>
+        </div>
+        <h3 class="empty-state-title">No Book Entries Found</h3>
+        <p class="empty-state-text">Try adjusting your filters or search criteria</p>
+    </div>
+{% endif %}

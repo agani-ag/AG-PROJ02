@@ -282,11 +282,11 @@
 			<i class="fas fa-print"></i>
 			Print Invoice
 		</button>
-		<a href="{% url 'v1customerinvoices' %}?cid={{ request.GET.cid }}" 
-		   class="btn-oneui btn-danger"
-		   onclick="haptic.light();">
-			<i class="fas fa-times"></i>
-			Close
+		<a href="#"
+			class="btn-oneui btn-danger"
+			onclick="haptic.light(); window.history.back(); return false;">
+			 <i class="fas fa-times"></i>
+			 Close
 		</a>
 	</div>
 

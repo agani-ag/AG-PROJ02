@@ -1,0 +1,875 @@
+{% extends 'mobile_v1/base.html' %}
+{% load humanize %}
+
+{% block title %}Products - GST Sync{% endblock %}
+
+{% block includecss %}
+<style>
+    /* Samsung One UI Design System - Products */
+    :root {
+        --oneui-primary: #667eea;
+        --oneui-primary-dark: #5568d3;
+        --oneui-bg: #f5f5f7;
+        --oneui-surface: #ffffff;
+        --oneui-text-primary: #1c1c1e;
+        --oneui-text-secondary: #8e8e93;
+        --oneui-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+    }
+    
+    * { -webkit-tap-highlight-color: transparent; }
+    
+    body {
+        background: var(--oneui-bg);
+        min-height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        padding-bottom: 80px;
+        margin: 0;
+    }
+    
+    /* Header */
+    .header-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px 0;
+        box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
+        border-radius: 0 0 16px 16px;
+        margin: -12px -8px 20px;
+    }
+    
+    .header-content {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    
+    .header-icon-circle {
+        width: 48px;
+        height: 48px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .header-icon-circle i {
+        font-size: 24px;
+    }
+    
+    .header-text h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin: 0 0 4px 0;
+        letter-spacing: -0.5px;
+    }
+    
+    .header-text p {
+        margin: 0;
+        font-size: 14px;
+        opacity: 0.9;
+    }
+    
+    /* Stats Section */
+    .container-fluid {
+        padding: 0 8px;
+    }
+    
+    .stats-card {
+        padding: 16px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+    }
+    
+    .header-stats {
+        display: flex;
+        gap: 12px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    
+    .header-stats::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .stat-item {
+        text-align: center;
+        background: transparent;
+        padding: 10px 14px;
+        border-radius: 12px;
+        min-width: 110px;
+        flex-shrink: 0;
+    }
+    
+    .stat-number {
+        font-size: 1.25rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+        white-space: nowrap;
+    }
+    
+    .stat-number.product-color {
+        color: #667eea;
+    }
+    
+    .stat-number.in-stock-color {
+        color: #34c759;
+    }
+    
+    .stat-number.low-stock-color {
+        color: #ff9500;
+    }
+    
+    .stat-number.out-stock-color {
+        color: #ff3b30;
+    }
+    
+    .stat-number.discount-color {
+        color: #ff9500;
+    }
+    
+    .stat-label {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0;
+    }
+    
+    /* Filter Section */
+    .filter-section {
+        background: var(--oneui-surface);
+        border-radius: 16px;
+        padding: 16px;
+        margin: 0 8px 16px;
+        box-shadow: var(--oneui-shadow);
+    }
+    
+    .filter-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .filter-row:last-child {
+        margin-bottom: 0;
+    }
+    
+    .form-group {
+        margin: 0;
+    }
+    
+    .form-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--oneui-text-secondary);
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .form-select {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid #d1d1d6;
+        border-radius: 12px;
+        font-size: 15px;
+        color: var(--oneui-text-primary);
+        background: white;
+        transition: all 0.2s;
+        -webkit-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238e8e93' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 16px center;
+        padding-right: 40px;
+    }
+    
+    .form-select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    }
+    
+    .search-wrapper {
+        position: relative;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 12px 46px 12px 16px;
+        border: 1px solid #d1d1d6;
+        border-radius: 12px;
+        font-size: 15px;
+        color: var(--oneui-text-primary);
+        background: white;
+        transition: all 0.2s;
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    }
+    
+    .search-input::placeholder {
+        color: var(--oneui-text-secondary);
+    }
+    
+    .search-icon {
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--oneui-text-secondary);
+        pointer-events: none;
+    }
+    
+    .clear-search {
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--oneui-text-secondary);
+        cursor: pointer;
+        padding: 4px;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.2s;
+    }
+    
+    .clear-search.active {
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    /* Product Card */
+    .product-item {
+        background: var(--oneui-surface);
+        border-radius: 16px;
+        padding: 16px;
+        margin: 0 8px 12px;
+        box-shadow: var(--oneui-shadow);
+        display: flex;
+        gap: 12px;
+        border-left: 4px solid #667eea;
+    }
+    
+    .product-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: #667eea15;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .product-icon i {
+        font-size: 22px;
+        color: #667eea;
+    }
+    
+    .product-details {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .product-header {
+        flex: 1;
+    }
+    
+    .product-top-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+    
+    .product-info-wrapper {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .product-model {
+        display: block;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin-bottom: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .product-name {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--oneui-text-secondary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .product-price-wrapper {
+        flex-shrink: 0;
+        text-align: right;
+    }
+    
+    .product-price {
+        font-size: 18px;
+        font-weight: 800;
+        color: #667eea;
+        white-space: nowrap;
+        display: block;
+    }
+    
+    .product-price.discount-price {
+        font-size: 18px;
+        font-weight: 800;
+        color: #34c759;
+    }
+    
+    .product-price-original {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--oneui-text-secondary);
+        text-decoration: line-through;
+        display: block;
+        margin-bottom: 2px;
+    }
+    
+    .product-price-discount {
+        font-size: 14px;
+        font-weight: 600;
+        color: #ff9500;
+        display: block;
+        margin-bottom: 2px;
+    }
+    
+    .product-meta-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    .product-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .stock-badge.in-stock {
+        background: #34c75915;
+        color: #34c759;
+    }
+    
+    .stock-badge.low-stock {
+        background: #ff950015;
+        color: #ff9500;
+    }
+    
+    .stock-badge.out-of-stock {
+        background: #ff3b3015;
+        color: #ff3b30;
+    }
+    
+    .hsn-badge {
+        background: #007aff15;
+        color: #007aff;
+    }
+    
+    .gst-badge {
+        background: #34c75915;
+        color: #34c759;
+    }
+    
+    .discount-badge {
+        background: #ff3b3015;
+        color: #ff3b30;
+    }
+    
+    .user-badge {
+        background: #5856d615;
+        color: #5856d6;
+    }
+    
+    /* Filter Tabs */
+    .filter-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 0 8px 16px;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    
+    .filter-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .filter-tab {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: var(--oneui-surface);
+        border: 1px solid #d1d1d6;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--oneui-text-secondary);
+        white-space: nowrap;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .filter-tab.active {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+    }
+    
+    .filter-tab:active {
+        transform: scale(0.95);
+    }
+    
+    /* Pagination */
+    .pagination-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 8px;
+        gap: 12px;
+    }
+    
+    .pagination-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: var(--oneui-surface);
+        border: 1px solid #d1d1d6;
+        border-radius: 12px;
+        color: var(--oneui-text-primary);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .pagination-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    
+    .pagination-btn:not(:disabled):active {
+        transform: scale(0.95);
+    }
+    
+    .pagination-info {
+        font-size: 14px;
+        color: var(--oneui-text-secondary);
+    }
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+    }
+    
+    .empty-state-icon {
+        width: 80px;
+        height: 80px;
+        background: #667eea15;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+    }
+    
+    .empty-state-icon i {
+        font-size: 36px;
+        color: #667eea;
+    }
+    
+    .empty-state-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin: 0 0 8px 0;
+    }
+    
+    .empty-state-text {
+        color: var(--oneui-text-secondary);
+        margin: 0;
+    }
+    
+    /* Loading Spinner */
+    .loading-spinner {
+        display: none;
+        text-align: center;
+        padding: 40px;
+    }
+    
+    .loading-spinner.active {
+        display: block;
+    }
+    
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #d1d1d6;
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    /* Dark Mode */
+    [data-theme="dark"] {
+        --oneui-bg: #000000;
+        --oneui-surface: #1c1c1e;
+        --oneui-text-primary: #ffffff;
+        --oneui-text-secondary: #8e8e93;
+        --oneui-divider: #38383a;
+    }
+    
+    [data-theme="dark"] .filter-section,
+    [data-theme="dark"] .product-item,
+    [data-theme="dark"] .stats-card {
+        background: var(--oneui-surface);
+    }
+    
+    [data-theme="dark"] .form-select,
+    [data-theme="dark"] .search-input {
+        background: #2c2c2e;
+        border-color: #38383a;
+    }
+    
+    [data-theme="dark"] .filter-tab {
+        background: #2c2c2e;
+        border-color: #38383a;
+    }
+    
+    [data-theme="dark"] .filter-tab.active {
+        background: #667eea;
+        border-color: #667eea;
+    }
+    
+    [data-theme="dark"] .pagination-container {
+        background: transparent;
+    }
+    
+    @media (max-width: 576px) {
+        .header-text h1 {
+            font-size: 20px;
+        }
+        
+        .stat-number {
+            font-size: 1.125rem;
+        }
+        
+        .product-model {
+            font-size: 15px;
+        }
+        
+        .product-price {
+            font-size: 16px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Section -->
+    <div class="header-section">
+        <div class="container-fluid">
+            <div class="header-content">
+                <div class="header-icon-circle">
+                    <i class="bi bi-box-seam"></i>
+                </div>
+                <div class="header-text">
+                    <h1>Products</h1>
+                    <p>Manage your product inventory</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stats Section -->
+    <div class="container-fluid" style="margin-top: 12px; margin-bottom: 16px;">
+        <div class="header-stats stats-card">
+            <div class="stat-item">
+                <div class="stat-number product-color" id="totalProducts">{{ total_products|intcomma }}</div>
+                <p class="stat-label">Total Products</p>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number in-stock-color" id="inStockCount">{{ in_stock_count|intcomma }}</div>
+                <p class="stat-label">In Stock</p>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number low-stock-color" id="lowStockCount">{{ low_stock_count|intcomma }}</div>
+                <p class="stat-label">Low Stock</p>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number out-stock-color" id="outStockCount">{{ out_of_stock_count|intcomma }}</div>
+                <p class="stat-label">Out of Stock</p>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number discount-color" id="withDiscountCount">{{ with_discount_count|intcomma }}</div>
+                <p class="stat-label">With Discount</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filter Section -->
+    <div class="filter-section">
+        <div class="filter-row">
+            <div class="form-group">
+                <label class="form-label">User</label>
+                <select class="form-select" id="userSelect">
+                    <option value="">All Users</option>
+                    {% for user in users %}
+                    <option value="{{ user.user.id }}" {% if current_user_id == user.user.id|stringformat:"s" %}selected{% endif %}>
+                        {{ user.business_title|default:user.user.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="filter-row">
+            <div class="form-group">
+                <label class="form-label">HSN Code</label>
+                <select class="form-select" id="hsnSelect">
+                    <option value="">All HSN</option>
+                    {% for hsn in hsn_codes %}
+                    <option value="{{ hsn }}" {% if current_hsn_filter == hsn %}selected{% endif %}>
+                        {{ hsn }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="filter-row">
+            <div class="form-group">
+                <label class="form-label">Search</label>
+                <div class="search-wrapper">
+                    <input type="text" class="search-input" id="searchInput" placeholder="Search by model, name, HSN..." value="{{ current_search }}">
+                    <i class="bi bi-search search-icon" id="searchIcon"></i>
+                    <button class="clear-search" id="clearSearch">
+                        <i class="bi bi-x-circle-fill"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Stock Filter Tabs -->
+    <div class="filter-tabs">
+        <button class="filter-tab stock-tab {% if current_stock_filter == 'all' %}active{% endif %}" data-filter="all">
+            <i class="bi bi-list-ul"></i> All
+        </button>
+        <button class="filter-tab stock-tab {% if current_stock_filter == 'in_stock' %}active{% endif %}" data-filter="in_stock">
+            <i class="bi bi-check-circle"></i> In Stock
+        </button>
+        <button class="filter-tab stock-tab {% if current_stock_filter == 'low_stock' %}active{% endif %}" data-filter="low_stock">
+            <i class="bi bi-exclamation-triangle"></i> Low Stock
+        </button>
+        <button class="filter-tab stock-tab {% if current_stock_filter == 'out_of_stock' %}active{% endif %}" data-filter="out_of_stock">
+            <i class="bi bi-x-circle"></i> Out of Stock
+        </button>
+    </div>
+    
+    <!-- Discount Filter Tabs -->
+    <div class="filter-tabs">
+        <button class="filter-tab discount-tab {% if current_discount_filter == 'all' %}active{% endif %}" data-discount="all">
+            <i class="bi bi-grid"></i> All Products
+        </button>
+        <button class="filter-tab discount-tab {% if current_discount_filter == 'with_discount' %}active{% endif %}" data-discount="with_discount">
+            <i class="bi bi-tag-fill"></i> With Discount
+        </button>
+        <button class="filter-tab discount-tab {% if current_discount_filter == 'no_discount' %}active{% endif %}" data-discount="no_discount">
+            <i class="bi bi-tag"></i> No Discount
+        </button>
+    </div>
+    
+    <!-- Product List -->
+    <div id="productList">
+        {% include 'mobile_v1/partials/product_list.html' %}
+    </div>
+    
+    <!-- Loading Spinner -->
+    <div class="loading-spinner" id="loadingSpinner">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<!-- EMPLOYEE NAVBAR -->
+{% include "mobile_v1/navbarE.html" %}
+
+{% endblock %}
+
+{% block includejs %}
+<script>
+    // State Management
+    let currentPage = 1;
+    let userId = '{{ current_user_id }}';
+    let searchQuery = '{{ current_search }}';
+    let stockFilter = '{{ current_stock_filter }}';
+    let discountFilter = '{{ current_discount_filter }}';
+    let hsnFilter = '{{ current_hsn_filter }}';
+    let searchTimeout = null;
+    
+    // DOM Elements
+    const userSelect = document.getElementById('userSelect');
+    const hsnSelect = document.getElementById('hsnSelect');
+    const searchInput = document.getElementById('searchInput');
+    const clearSearchBtn = document.getElementById('clearSearch');
+    const productList = document.getElementById('productList');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const stockTabs = document.querySelectorAll('.stock-tab');
+    const discountTabs = document.querySelectorAll('.discount-tab');
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        setupEventListeners();
+        updateClearButton();
+    });
+    
+    // Setup Event Listeners
+    function setupEventListeners() {
+        // User filter
+        userSelect.addEventListener('change', function() {
+            userId = this.value;
+            loadProducts(1);
+        });
+        
+        // HSN filter
+        hsnSelect.addEventListener('change', function() {
+            hsnFilter = this.value;
+            loadProducts(1);
+        });
+        
+        // Stock filter tabs
+        stockTabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                stockTabs.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                stockFilter = this.dataset.filter;
+                loadProducts(1);
+            });
+        });
+        
+        // Discount filter tabs
+        discountTabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                discountTabs.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                discountFilter = this.dataset.discount;
+                loadProducts(1);
+            });
+        });
+        
+        // Search input
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchQuery = this.value;
+            updateClearButton();
+            searchTimeout = setTimeout(() => loadProducts(1), 300);
+        });
+        
+        // Clear search
+        clearSearchBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            searchQuery = '';
+            updateClearButton();
+            loadProducts(1);
+        });
+    }
+    
+    // Load Products via AJAX
+    function loadProducts(page = 1) {
+        currentPage = page;
+        
+        // Show loading
+        loadingSpinner.classList.add('active');
+        productList.style.opacity = '0.5';
+        
+        // Build query
+        const params = new URLSearchParams({
+            page: page,
+            user_id: userId,
+            search: searchQuery,
+            stock_filter: stockFilter,
+            discount_filter: discountFilter,
+            hsn_filter: hsnFilter
+        });
+        
+        // AJAX request
+        fetch(`?${params.toString()}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            productList.innerHTML = data.html;
+            productList.style.opacity = '1';
+            loadingSpinner.classList.remove('active');
+            
+            // Update stats
+            document.getElementById('totalProducts').textContent = data.total_count.toLocaleString('en-IN');
+            document.getElementById('inStockCount').textContent = data.in_stock_count.toLocaleString('en-IN');
+            document.getElementById('lowStockCount').textContent = data.low_stock_count.toLocaleString('en-IN');
+            document.getElementById('outStockCount').textContent = data.out_of_stock_count.toLocaleString('en-IN');
+            document.getElementById('withDiscountCount').textContent = data.with_discount_count.toLocaleString('en-IN');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            loadingSpinner.classList.remove('active');
+            productList.style.opacity = '1';
+        });
+    }
+    
+    // Update Clear Search Button Visibility
+    function updateClearButton() {
+        if (searchInput.value.trim()) {
+            clearSearchBtn.classList.add('active');
+        } else {
+            clearSearchBtn.classList.remove('active');
+        }
+    }
+    
+    // Clear Search Function
+    function clearSearch() {
+        searchInput.value = '';
+        searchQuery = '';
+        updateClearButton();
+        loadProducts(1);
+    }
+</script>
+{% endblock %}

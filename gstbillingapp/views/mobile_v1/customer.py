@@ -14,7 +14,8 @@ from django.db.models import (
 # Models
 from ...models import (
     Customer, UserProfile, Invoice,
-    BookLog
+    BookLog, ExpenseTracker, Product,
+    PurchaseLog, VendorPurchase, Inventory
 )
 
 # Python imports
@@ -84,6 +85,15 @@ def customer_invoices(request):
     paginator = Paginator(invoices_qs, 7)
     invoices = paginator.get_page(page_number)
 
+    # Add the invoice_total_amt_with_gst to each invoice object
+    for invoice in invoices:
+        # assuming invoice_json is stored as a JSON string
+        if isinstance(invoice.invoice_json, str):
+            invoice_data = json.loads(invoice.invoice_json)
+        else:
+            invoice_data = invoice.invoice_json  # if it's already a dict
+        invoice.total_amt_with_gst = invoice_data.get('invoice_total_amt_with_gst', 0)
+    
     context.update({
         'users': user,
         'customer': customer,
@@ -126,7 +136,6 @@ def customer_books(request):
     books_qs = BookLog.objects.filter(
         parent_book__user__id=user_id,
         parent_book__customer__id=customer_id,
-        is_active=True
     )
 
     if filter_page == 'payments':
@@ -376,9 +385,863 @@ def customer_invoice_viewer(request, invoice_id):
     return render(request, 'mobile_v1/customer/invoice_printer.html', context)
 
 def customers(request):
+    from django.core.paginator import Paginator
+    from django.http import JsonResponse
+    from django.template.loader import render_to_string
+    from django.db.models import Q, Count
+    
     context = {}
-    users = UserProfile.objects.filter()
-    context['users'] = users
-    customers = Customer.objects.filter().order_by('customer_name')
-    context['customers'] = customers
+    
+    # Get filter parameters
+    user_id = request.GET.get('user_id', '')
+    search_query = request.GET.get('search', '').strip()
+    page_number = request.GET.get('page', 1)
+    
+    # Base querysets
+    users = UserProfile.objects.all().order_by('business_title')
+    customers_qs = Customer.objects.select_related('user').order_by('customer_name')
+    
+    # Apply user filter
+    if user_id and user_id.isdigit():
+        customers_qs = customers_qs.filter(user__id=int(user_id))
+    
+    # Apply search filter
+    if search_query:
+        customers_qs = customers_qs.filter(
+            Q(customer_name__icontains=search_query) |
+            Q(customer_phone__icontains=search_query) |
+            Q(customer_gst__icontains=search_query) |
+            Q(customer_email__icontains=search_query)
+        )
+    
+    # Pagination
+    paginator = Paginator(customers_qs, 20)
+    page_obj = paginator.get_page(page_number)
+    
+    # Calculate totals
+    total_count = customers_qs.count()
+    
+    # Get customer counts per user
+    user_customer_counts = Customer.objects.values('user__id').annotate(
+        count=Count('id')
+    )
+    user_counts_dict = {item['user__id']: item['count'] for item in user_customer_counts}
+    
+    # Add counts to users
+    for user in users:
+        user.customer_count = user_counts_dict.get(user.user.id, 0)
+    
+    context.update({
+        'users': users,
+        'page_obj': page_obj,
+        'total_count': total_count,
+        'current_user_id': user_id,
+        'current_search': search_query,
+    })
+    
+    # AJAX request - return JSON with HTML
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/customer_list.html', context, request=request)
+        return JsonResponse({
+            'html': html,
+            'total_count': total_count,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+        })
+    
     return render(request, 'mobile_v1/customers.html', context)
+
+def invoices(request):
+    import json
+    from django.core.paginator import Paginator
+    from django.http import JsonResponse
+    from django.template.loader import render_to_string
+    from django.db.models import Q
+    from datetime import datetime, timedelta
+    
+    context = {}
+    
+    # Get filter parameters
+    user_id = request.GET.get('user_id', '')
+    customer_id = request.GET.get('customer_id', '')
+    search_query = request.GET.get('search', '').strip()
+    date_filter = request.GET.get('date_filter', 'all')
+    gst_filter = request.GET.get('gst_filter', 'all')
+    page_number = request.GET.get('page', 1)
+    
+    # Base querysets
+    users = UserProfile.objects.all().order_by('business_title')
+    customers = Customer.objects.all().order_by('customer_name')
+    invoices_qs = Invoice.objects.select_related('user', 'invoice_customer').order_by('-invoice_date', '-invoice_number')
+    
+    # Apply user filter
+    if user_id and user_id.isdigit():
+        invoices_qs = invoices_qs.filter(user__id=int(user_id))
+        customers = customers.filter(user__id=int(user_id))
+    
+    # Apply customer filter
+    if customer_id and customer_id.isdigit():
+        invoices_qs = invoices_qs.filter(invoice_customer__id=int(customer_id))
+    
+    # Apply GST filter
+    if gst_filter == 'gst':
+        invoices_qs = invoices_qs.filter(is_gst=True)
+    elif gst_filter == 'non-gst':
+        invoices_qs = invoices_qs.filter(is_gst=False)
+    
+    # Apply date filter
+    today = datetime.now().date()
+    if date_filter == 'today':
+        invoices_qs = invoices_qs.filter(invoice_date=today)
+    elif date_filter == 'week':
+        week_ago = today - timedelta(days=7)
+        invoices_qs = invoices_qs.filter(invoice_date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = today - timedelta(days=30)
+        invoices_qs = invoices_qs.filter(invoice_date__gte=month_ago)
+    
+    # Apply search filter
+    if search_query:
+        invoices_qs = invoices_qs.filter(
+            Q(invoice_number__icontains=search_query) |
+            Q(invoice_customer__customer_name__icontains=search_query) |
+            Q(invoice_customer__customer_phone__icontains=search_query)
+        )
+    
+    # Add invoice amounts
+    invoices_with_amounts = []
+    for invoice in invoices_qs:
+        try:
+            invoice_data = json.loads(invoice.invoice_json)
+            invoice.amount = invoice_data.get('invoice_total_amt_with_gst', 0)
+        except:
+            invoice.amount = 0
+        invoices_with_amounts.append(invoice)
+    
+    # Pagination
+    paginator = Paginator(invoices_with_amounts, 15)
+    page_obj = paginator.get_page(page_number)
+    
+    # Calculate totals for current filtered results
+    total_amount = sum(inv.amount for inv in invoices_with_amounts)
+    total_count = len(invoices_with_amounts)
+    
+    context.update({
+        'users': users,
+        'customers': customers,
+        'page_obj': page_obj,
+        'total_amount': total_amount,
+        'total_count': total_count,
+        'current_user_id': user_id,
+        'current_customer_id': customer_id,
+        'current_search': search_query,
+        'current_date_filter': date_filter,
+        'current_gst_filter': gst_filter,
+    })
+    
+    # AJAX request - return JSON with HTML
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/invoice_list.html', context, request=request)
+        return JsonResponse({
+            'html': html,
+            'total_count': total_count,
+            'total_amount': total_amount,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+        })
+    
+    return render(request, 'mobile_v1/invoices.html', context)
+
+
+def books(request):
+    """Books listing with filtering, search, and pagination"""
+    context = {}
+    
+    # Get filter parameters
+    user_id = request.GET.get('user_id', '')
+    customer_id = request.GET.get('customer_id', '')
+    search_query = request.GET.get('search', '').strip()
+    filter_type = request.GET.get('filter_type', 'all')  # all, payments, purchases, returns, others
+    status_filter = request.GET.get('status_filter', 'active')  # active, inactive, all
+    page_number = request.GET.get('page', 1)
+    
+    # Get all users for dropdown
+    users = UserProfile.objects.all().select_related('user')
+    
+    # Base queryset
+    books_qs = BookLog.objects.select_related(
+        'parent_book__customer',
+        'parent_book__user'
+    )
+    
+    # Apply status filter
+    if status_filter == 'active':
+        books_qs = books_qs.filter(is_active=True)
+    elif status_filter == 'inactive':
+        books_qs = books_qs.filter(is_active=False)
+    # else: show all (no filter)
+    
+    # Apply user filter
+    if user_id:
+        books_qs = books_qs.filter(parent_book__user__id=user_id)
+    
+    # Apply customer filter
+    if customer_id:
+        books_qs = books_qs.filter(parent_book__customer__id=customer_id)
+    
+    # Apply filter type
+    if filter_type == 'payments':
+        books_qs = books_qs.filter(change_type=0)
+    elif filter_type == 'purchases':
+        books_qs = books_qs.filter(change_type=1)
+    elif filter_type == 'returns':
+        books_qs = books_qs.filter(change_type=2)
+    elif filter_type == 'pending':
+        books_qs = books_qs.filter(change_type=4)
+    elif filter_type == 'others':
+        books_qs = books_qs.filter(change_type=3)
+    
+    # Apply search
+    if search_query:
+        books_qs = books_qs.filter(
+            Q(parent_book__customer__customer_name__icontains=search_query) |
+            Q(description__icontains=search_query) |
+            Q(change__icontains=search_query)
+        )
+    
+    # Order by date
+    books_qs = books_qs.order_by('-date')
+    
+    # Get all customers for dropdown (filtered by user if selected)
+    if user_id:
+        customers = Customer.objects.filter(user__id=user_id).order_by('customer_name')
+    else:
+        customers = Customer.objects.all().order_by('customer_name')
+    
+    # Pagination
+    paginator = Paginator(books_qs, 15)  # 15 items per page
+    page_obj = paginator.get_page(page_number)
+    
+    # Calculate totals only for active entries
+    totals_qs = BookLog.objects.select_related(
+        'parent_book__customer',
+        'parent_book__user'
+    ).filter(is_active=True)
+    
+    # Apply same filters for totals calculation
+    if user_id:
+        totals_qs = totals_qs.filter(parent_book__user__id=user_id)
+    if customer_id:
+        totals_qs = totals_qs.filter(parent_book__customer__id=customer_id)
+    if search_query:
+        totals_qs = totals_qs.filter(
+            Q(parent_book__customer__customer_name__icontains=search_query) |
+            Q(description__icontains=search_query) |
+            Q(change__icontains=search_query)
+        )
+    
+    # Calculate totals for current filter (only active)
+    totals = totals_qs.aggregate(
+        total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+        total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+    )
+    
+    # Calculate balance
+    total_purchased = abs(totals['total_purchased'] or 0)
+    total_paid = abs(totals['total_paid'] or 0)
+    total_balance = total_purchased - total_paid
+    
+    context.update({
+        'users': users,
+        'customers': customers,
+        'page_obj': page_obj,
+        'total_count': paginator.count,
+        'current_user_id': user_id,
+        'current_customer_id': customer_id,
+        'current_search': search_query,
+        'current_filter_type': filter_type,
+        'current_status_filter': status_filter,
+        'total_purchased': total_purchased,
+        'total_paid': total_paid,
+        'total_balance': total_balance,
+    })
+    
+    # AJAX request
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/book_list.html', context, request=request)
+        return JsonResponse({
+            'html': html,
+            'total_count': paginator.count,
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+            'total_purchased': total_purchased,
+            'total_paid': total_paid,
+            'total_balance': total_balance,
+        })
+    
+    return render(request, 'mobile_v1/books.html', context)
+
+def customersapi(request):
+    customers = Customer.objects.all().values(
+        business_name=F('customer_name'),
+        name=F('customer_userid'),
+        password=F('customer_password'),
+        gst=F('customer_gst')
+    ).exclude(customer_userid__isnull=True).exclude(customer_userid='') \
+     .exclude(customer_password__isnull=True).exclude(customer_password='')\
+     .exclude(is_mobile_user=False)
+
+    # Collect all links per GST
+    gst_map = {}
+
+    for customer in customers:
+        gst = customer['gst']
+        userid = customer['name']
+        link = f"/mobile/v1/customer/home?cid={userid}"
+
+        if gst not in gst_map:
+            gst_map[gst] = []
+
+        if link not in gst_map[gst]:
+            gst_map[gst].append(link)
+
+    # Build final response
+    customers_dict = {}
+
+    for customer in customers:
+        name = customer['name']
+        gst = customer['gst']
+
+        customers_dict[name] = {
+            'business_name': customer['business_name'],
+            'name': name,
+            'password': customer['password'],
+            'deflink': f"/mobile/v1/customer/home?cid={name}",
+            'linklist': gst_map.get(gst, [])
+        }
+
+    return JsonResponse(customers_dict, safe=False)
+
+def expenses_tracker(request):
+    """Expense Tracker listing with filtering, search, and pagination"""
+    from django.core.paginator import Paginator
+    from django.http import JsonResponse
+    from django.template.loader import render_to_string
+    from django.db.models import Q, Sum
+    from datetime import datetime, timedelta
+    
+    context = {}
+    
+    # Get filter parameters
+    user_id = request.GET.get('user_id', '')
+    search_query = request.GET.get('search', '').strip()
+    category_filter = request.GET.get('category', 'all')
+    date_filter = request.GET.get('date_filter', 'all')
+    page_number = request.GET.get('page', 1)
+    
+    # Get all users for dropdown
+    users = UserProfile.objects.all().select_related('user').order_by('business_title')
+    
+    # Base queryset
+    expenses_qs = ExpenseTracker.objects.select_related('user').order_by('-date')
+    
+    # Apply user filter
+    if user_id:
+        expenses_qs = expenses_qs.filter(user__id=user_id)
+    
+    # Apply date filter
+    today = datetime.now().date()
+    if date_filter == 'today':
+        expenses_qs = expenses_qs.filter(date__date=today)
+    elif date_filter == 'week':
+        week_ago = today - timedelta(days=7)
+        expenses_qs = expenses_qs.filter(date__date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = today - timedelta(days=30)
+        expenses_qs = expenses_qs.filter(date__date__gte=month_ago)
+    
+    # Get all categories for the selected user
+    if user_id:
+        categories = ExpenseTracker.objects.filter(user__id=user_id).values_list('category', flat=True).distinct().order_by('category')
+    else:
+        categories = ExpenseTracker.objects.values_list('category', flat=True).distinct().order_by('category')
+    
+    # Apply category filter
+    if category_filter != 'all':
+        expenses_qs = expenses_qs.filter(category=category_filter)
+    
+    # Apply search filter
+    if search_query:
+        expenses_qs = expenses_qs.filter(
+            Q(reference__icontains=search_query) |
+            Q(category__icontains=search_query) |
+            Q(notes__icontains=search_query) |
+            Q(amount__icontains=search_query)
+        )
+    
+    # Pagination
+    paginator = Paginator(expenses_qs, 15)  # 15 items per page
+    page_obj = paginator.get_page(page_number)
+    
+    # Calculate totals for current filter
+    totals = expenses_qs.aggregate(
+        total_amount=Sum('amount')
+    )
+    
+    total_amount = abs(totals['total_amount'] or 0)
+    total_count = paginator.count
+    
+    context.update({
+        'users': users,
+        'categories': categories,
+        'page_obj': page_obj,
+        'total_amount': total_amount,
+        'total_count': total_count,
+        'current_user_id': user_id,
+        'current_search': search_query,
+        'current_category': category_filter,
+        'current_date_filter': date_filter,
+    })
+    
+    # AJAX request
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/expense_list.html', context, request=request)
+        return JsonResponse({
+            'html': html,
+            'total_count': total_count,
+            'total_amount': float(total_amount),
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+        })
+    
+    return render(request, 'mobile_v1/expenses_tracker.html', context)
+
+def purchase_logs(request):
+    """Purchase Logs listing with filtering, search, and pagination"""
+    from django.core.paginator import Paginator
+    from django.http import JsonResponse
+    from django.template.loader import render_to_string
+    from django.db.models import Q, Sum
+    from datetime import datetime, timedelta
+    from ...models import PurchaseLog, VendorPurchase
+    
+    context = {}
+    
+    # Get filter parameters
+    user_id = request.GET.get('user_id', '')
+    vendor_id = request.GET.get('vendor_id', '')
+    search_query = request.GET.get('search', '').strip()
+    category_filter = request.GET.get('category', 'all')
+    type_filter = request.GET.get('type_filter', 'all')  # all, purchase, paid, others
+    date_filter = request.GET.get('date_filter', 'all')
+    page_number = request.GET.get('page', 1)
+    
+    # Get all users for dropdown
+    users = UserProfile.objects.all().select_related('user').order_by('business_title')
+    
+    # Base queryset
+    purchases_qs = PurchaseLog.objects.select_related('user', 'vendor').order_by('-date')
+    
+    # Apply user filter
+    if user_id:
+        purchases_qs = purchases_qs.filter(user__id=user_id)
+    
+    # Apply vendor filter
+    if vendor_id:
+        purchases_qs = purchases_qs.filter(vendor__id=vendor_id)
+    
+    # Apply type filter
+    if type_filter == 'purchase':
+        purchases_qs = purchases_qs.filter(change_type=0)
+    elif type_filter == 'paid':
+        purchases_qs = purchases_qs.filter(change_type=1)
+    elif type_filter == 'others':
+        purchases_qs = purchases_qs.filter(change_type=3)
+    
+    # Apply date filter
+    today = datetime.now().date()
+    if date_filter == 'today':
+        purchases_qs = purchases_qs.filter(date__date=today)
+    elif date_filter == 'week':
+        week_ago = today - timedelta(days=7)
+        purchases_qs = purchases_qs.filter(date__date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = today - timedelta(days=30)
+        purchases_qs = purchases_qs.filter(date__date__gte=month_ago)
+    
+    # Get all categories and vendors for the selected user
+    if user_id:
+        categories = PurchaseLog.objects.filter(user__id=user_id).values_list('category', flat=True).distinct().order_by('category')
+        vendors = VendorPurchase.objects.filter(user__id=user_id).order_by('vendor_name')
+    else:
+        categories = PurchaseLog.objects.values_list('category', flat=True).distinct().order_by('category')
+        vendors = VendorPurchase.objects.all().order_by('vendor_name')
+    
+    # Apply category filter
+    if category_filter != 'all':
+        purchases_qs = purchases_qs.filter(category=category_filter)
+    
+    # Apply search filter
+    if search_query:
+        purchases_qs = purchases_qs.filter(
+            Q(reference__icontains=search_query) |
+            Q(category__icontains=search_query) |
+            Q(vendor__vendor_name__icontains=search_query) |
+            Q(change__icontains=search_query)
+        )
+    
+    # Pagination
+    paginator = Paginator(purchases_qs, 15)  # 15 items per page
+    page_obj = paginator.get_page(page_number)
+    
+    # Calculate totals for current filter
+    totals = purchases_qs.aggregate(
+        total_purchase=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_paid=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+    )
+    
+    total_purchase = abs(totals['total_purchase'] or 0)
+    total_paid = abs(totals['total_paid'] or 0)
+    total_balance = total_purchase - total_paid
+    total_count = paginator.count
+    
+    context.update({
+        'users': users,
+        'vendors': vendors,
+        'categories': categories,
+        'page_obj': page_obj,
+        'total_purchase': total_purchase,
+        'total_paid': total_paid,
+        'total_balance': total_balance,
+        'total_count': total_count,
+        'current_user_id': user_id,
+        'current_vendor_id': vendor_id,
+        'current_search': search_query,
+        'current_category': category_filter,
+        'current_type_filter': type_filter,
+        'current_date_filter': date_filter,
+    })
+    
+    # AJAX request
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/purchase_list.html', context, request=request)
+        return JsonResponse({
+            'html': html,
+            'total_count': total_count,
+            'total_purchase': float(total_purchase),
+            'total_paid': float(total_paid),
+            'total_balance': float(total_balance),
+            'has_next': page_obj.has_next(),
+            'has_previous': page_obj.has_previous(),
+            'current_page': page_obj.number,
+            'total_pages': paginator.num_pages,
+        })
+    
+    return render(request, 'mobile_v1/purchase_log.html', context)
+
+def products(request):
+    user_id = request.GET.get('user_id', None)
+    search_query = request.GET.get('search', '').strip()
+    stock_filter = request.GET.get('stock_filter', 'all')  # all, in_stock, low_stock, out_of_stock
+    discount_filter = request.GET.get('discount_filter', 'all')  # all, with_discount, no_discount
+    hsn_filter = request.GET.get('hsn_filter', '')
+    page_number = request.GET.get('page', 1)
+    
+    # Get all users for dropdown
+    users = UserProfile.objects.all().select_related('user')
+    
+    # Get distinct HSN codes
+    hsn_codes = Product.objects.filter(product_hsn__isnull=False).exclude(product_hsn='').values_list('product_hsn', flat=True).distinct().order_by('product_hsn')
+    
+    # Filter products
+    products_qs = Product.objects.all().select_related('user')
+    
+    if user_id:
+        products_qs = products_qs.filter(user__id=user_id)
+    
+    if search_query:
+        products_qs = products_qs.filter(
+            Q(model_no__icontains=search_query) |
+            Q(product_name__icontains=search_query) |
+            Q(product_hsn__icontains=search_query)
+        )
+    
+    # HSN filter
+    if hsn_filter:
+        products_qs = products_qs.filter(product_hsn=hsn_filter)
+    
+    # Discount filter
+    if discount_filter == 'with_discount':
+        products_qs = products_qs.filter(product_discount__gt=0)
+    elif discount_filter == 'no_discount':
+        products_qs = products_qs.filter(Q(product_discount=0) | Q(product_discount__isnull=True))
+    
+    # Get product IDs with inventory data
+    product_ids = list(products_qs.values_list('id', flat=True))
+    
+    # Apply stock filter
+    if stock_filter == 'in_stock':
+        inventory_ids = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0).values_list('product_id', flat=True)
+        products_qs = products_qs.filter(id__in=inventory_ids)
+    elif stock_filter == 'low_stock':
+        inventory_low = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0, current_stock__lte=F('alert_level')).values_list('product_id', flat=True)
+        products_qs = products_qs.filter(id__in=inventory_low)
+    elif stock_filter == 'out_of_stock':
+        inventory_out = Inventory.objects.filter(product__id__in=product_ids, current_stock=0).values_list('product_id', flat=True)
+        products_qs = products_qs.filter(id__in=inventory_out)
+    
+    products_qs = products_qs.order_by('-id')
+    
+    # Pagination
+    paginator = Paginator(products_qs, 15)
+    products_page = paginator.get_page(page_number)
+    
+    # Add inventory data to products
+    for product in products_page:
+        try:
+            inventory = Inventory.objects.get(product=product)
+            product.current_stock = inventory.current_stock
+            product.alert_level = inventory.alert_level
+            product.is_low_stock = inventory.current_stock > 0 and inventory.current_stock <= inventory.alert_level
+        except Inventory.DoesNotExist:
+            product.current_stock = None
+            product.alert_level = None
+            product.is_low_stock = False
+        
+        # Calculate price breakdown for discounted products
+        if product.product_discount > 0:
+            # Calculate base price (remove GST from product_rate_with_gst)
+            gst_multiplier = 1 + (product.product_gst_percentage / 100)
+            product.base_price = product.product_rate_with_gst / gst_multiplier
+            
+            # Calculate discounted base price
+            discount_multiplier = 1 - (product.product_discount / 100)
+            product.discounted_base_price = product.base_price * discount_multiplier
+            
+            # Calculate final price with GST
+            product.final_price_with_gst = product.discounted_base_price * gst_multiplier
+    
+    # Get stats
+    total_products = products_qs.count()
+    in_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0).count()
+    low_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0, current_stock__lte=F('alert_level')).count()
+    out_of_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock=0).count()
+    with_discount_count = Product.objects.filter(id__in=product_ids, product_discount__gt=0).count()
+    
+    context = {
+        'users': users,
+        'hsn_codes': hsn_codes,
+        'products': products_page,
+        'total_products': total_products,
+        'in_stock_count': in_stock_count,
+        'low_stock_count': low_stock_count,
+        'out_of_stock_count': out_of_stock_count,
+        'with_discount_count': with_discount_count,
+        'current_user_id': user_id or '',
+        'current_search': search_query,
+        'current_stock_filter': stock_filter,
+        'current_discount_filter': discount_filter,
+        'current_hsn_filter': hsn_filter,
+    }
+    
+    # AJAX request
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        html = render_to_string('mobile_v1/partials/product_list.html', {
+            'products': products_page,
+        }, request=request)
+        
+        return JsonResponse({
+            'html': html,
+            'total_count': total_products,
+            'in_stock_count': in_stock_count,
+            'low_stock_count': low_stock_count,
+            'out_of_stock_count': out_of_stock_count,
+            'with_discount_count': with_discount_count,
+            'has_previous': products_page.has_previous(),
+            'has_next': products_page.has_next(),
+            'current_page': products_page.number,
+            'total_pages': paginator.num_pages,
+        })
+    
+    return render(request, 'mobile_v1/products.html', context)
+
+def home(request):
+    """Admin/Employee Dashboard Home Page with comprehensive business overview"""
+    from datetime import datetime, timedelta
+    from django.db.models import Sum, Count
+    
+    context = {}
+    
+    # Current and last month dates
+    today = datetime.now().date()
+    current_month_start = today.replace(day=1)
+    last_month_end = current_month_start - timedelta(days=1)
+    last_month_start = last_month_end.replace(day=1)
+    
+    # Get all users
+    users = UserProfile.objects.all().select_related('user')
+    total_users = users.count()
+    
+    # === CURRENT MONTH STATS ===
+    current_month_invoices = Invoice.objects.filter(invoice_date__gte=current_month_start)
+    current_month_books = BookLog.objects.filter(date__date__gte=current_month_start)
+    current_month_expenses = ExpenseTracker.objects.filter(date__date__gte=current_month_start)
+    current_month_purchases = PurchaseLog.objects.filter(date__date__gte=current_month_start)
+    
+    # Current month invoice count
+    current_month_invoice_count = current_month_invoices.count()
+    
+    # Current month book log totals
+    current_book_stats = current_month_books.aggregate(
+        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+    )
+    current_month_purchases_amount = abs(current_book_stats['purchases'] or 0)
+    current_month_payments_amount = abs(current_book_stats['payments'] or 0)
+    
+    # Current month expenses
+    current_expense_total = current_month_expenses.aggregate(total=Sum('amount'))['total'] or 0
+    current_expense_count = current_month_expenses.count()
+    
+    # Current month purchase logs
+    current_purchase_stats = current_month_purchases.aggregate(
+        total=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        count=Count(Case(When(change_type=0, then=1)))
+    )
+    current_month_purchase_amount = abs(current_purchase_stats['total'] or 0)
+    current_month_purchase_count = current_purchase_stats['count'] or 0
+    
+    # === LAST MONTH STATS ===
+    last_month_invoices = Invoice.objects.filter(invoice_date__gte=last_month_start, invoice_date__lt=current_month_start)
+    last_month_books = BookLog.objects.filter(date__date__gte=last_month_start, date__date__lt=current_month_start)
+    last_month_expenses = ExpenseTracker.objects.filter(date__date__gte=last_month_start, date__date__lt=current_month_start)
+    last_month_purchases = PurchaseLog.objects.filter(date__date__gte=last_month_start, date__date__lt=current_month_start)
+    
+    # Last month invoice count
+    last_month_invoice_count = last_month_invoices.count()
+    
+    # Last month book log totals
+    last_book_stats = last_month_books.aggregate(
+        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+    )
+    last_month_purchases_amount = abs(last_book_stats['purchases'] or 0)
+    last_month_payments_amount = abs(last_book_stats['payments'] or 0)
+    
+    # Last month expenses
+    last_expense_total = last_month_expenses.aggregate(total=Sum('amount'))['total'] or 0
+    last_expense_count = last_month_expenses.count()
+    
+    # === OVERALL STATS ===
+    total_customers = Customer.objects.count()
+    total_products = Product.objects.count()
+    total_invoices = Invoice.objects.count()
+    
+    # Total book logs
+    all_book_stats = BookLog.objects.aggregate(
+        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        returns=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+        others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+    )
+    total_purchases = abs(all_book_stats['purchases'] or 0)
+    total_payments = abs(all_book_stats['payments'] or 0)
+    total_returns = abs(all_book_stats['returns'] or 0)
+    total_others = abs(all_book_stats['others'] or 0)
+    total_balance = total_purchases - total_payments
+    
+    # Total expenses
+    total_expenses = ExpenseTracker.objects.aggregate(total=Sum('amount'))['total'] or 0
+    total_expense_count = ExpenseTracker.objects.count()
+    
+    # Inventory stats
+    inventory_stats = Inventory.objects.aggregate(
+        total_stock=Sum('current_stock'),
+        low_stock_count=Count(Case(When(current_stock__gt=0, current_stock__lte=F('alert_level'), then=1))),
+        out_of_stock_count=Count(Case(When(current_stock=0, then=1)))
+    )
+    total_stock = inventory_stats['total_stock'] or 0
+    low_stock_count = inventory_stats['low_stock_count'] or 0
+    out_of_stock_count = inventory_stats['out_of_stock_count'] or 0
+    
+    # Products with discount
+    discount_products = Product.objects.filter(product_discount__gt=0).count()
+    
+    # Calculate payment progress percentages
+    current_month_payment_percentage = 0
+    if current_month_purchases_amount > 0:
+        current_month_payment_percentage = min(100, (current_month_payments_amount / current_month_purchases_amount) * 100)
+    
+    last_month_payment_percentage = 0
+    if last_month_purchases_amount > 0:
+        last_month_payment_percentage = min(100, (last_month_payments_amount / last_month_purchases_amount) * 100)
+    
+    overall_payment_percentage = 0
+    if total_purchases > 0:
+        overall_payment_percentage = min(100, (total_payments / total_purchases) * 100)
+    
+    # Recent activity - last 5 invoices
+    recent_invoices = Invoice.objects.select_related('invoice_customer', 'user').order_by('-invoice_date')[:5]
+    
+    # Recent expenses - last 5
+    recent_expenses = ExpenseTracker.objects.select_related('user').order_by('-date')[:5]
+    
+    context.update({
+        'current_month_name': current_month_start.strftime('%B %Y'),
+        'last_month_name': last_month_start.strftime('%B %Y'),
+        'total_users': total_users,
+        'total_customers': total_customers,
+        'total_products': total_products,
+        
+        # Current month
+        'current_month_invoice_count': current_month_invoice_count,
+        'current_month_purchases_amount': current_month_purchases_amount,
+        'current_month_payments_amount': current_month_payments_amount,
+        'current_month_expense_total': abs(current_expense_total),
+        'current_month_expense_count': current_expense_count,
+        'current_month_purchase_amount': current_month_purchase_amount,
+        'current_month_purchase_count': current_month_purchase_count,
+        'current_month_payment_percentage': round(current_month_payment_percentage, 1),
+        
+        # Last month
+        'last_month_invoice_count': last_month_invoice_count,
+        'last_month_purchases_amount': last_month_purchases_amount,
+        'last_month_payments_amount': last_month_payments_amount,
+        'last_month_expense_total': abs(last_expense_total),
+        'last_month_expense_count': last_expense_count,
+        'last_month_payment_percentage': round(last_month_payment_percentage, 1),
+        
+        # Overall
+        'total_invoices': total_invoices,
+        'total_purchases': total_purchases,
+        'total_payments': total_payments,
+        'total_returns': total_returns,
+        'total_others': total_others,
+        'total_balance': total_balance,
+        'total_expenses': abs(total_expenses),
+        'total_expense_count': total_expense_count,
+        'overall_payment_percentage': round(overall_payment_percentage, 1),
+        
+        # Inventory
+        'total_stock': total_stock,
+        'low_stock_count': low_stock_count,
+        'out_of_stock_count': out_of_stock_count,
+        'discount_products': discount_products,
+        
+        # Recent activity
+        'recent_invoices': recent_invoices,
+        'recent_expenses': recent_expenses,
+    })
+    
+    return render(request, 'mobile_v1/home.html', context)
