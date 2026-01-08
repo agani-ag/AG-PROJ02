@@ -1,0 +1,85 @@
+{% load humanize %}
+
+{% if products %}
+    {% for product in products %}
+    <div class="product-item">
+        <div class="product-icon">
+            <i class="bi bi-box-seam"></i>
+        </div>
+        <div class="product-details">
+            <div class="product-header">
+                <div class="product-top-section">
+                    <div class="product-info-wrapper">
+                        <span class="product-model">{{ product.model_no }}</span>
+                        {% if product.product_name %}
+                        <span class="product-name">{{ product.product_name }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="product-price-wrapper">
+                        {% if product.product_discount > 0 %}
+                        <span class="product-price-original">₹{{ product.product_rate_with_gst|floatformat:2|intcomma }}</span>
+                        <span class="product-price discount-price">₹{{ product.final_price_with_gst|floatformat:2|intcomma }}</span>
+                        <span class="product-price-discount">₹{{ product.discounted_base_price|floatformat:2|intcomma }}</span>
+                        {% else %}
+                        <span class="product-price">₹{{ product.product_rate_with_gst|floatformat:2|intcomma }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="product-meta-badges">
+                    {% if product.current_stock is not None %}
+                    <span class="product-badge stock-badge {% if product.current_stock == 0 %}out-of-stock{% elif product.is_low_stock %}low-stock{% else %}in-stock{% endif %}">
+                        <i class="bi bi-box"></i> Stock: {{ product.current_stock|intcomma }}
+                        {% if product.alert_level %}
+                        / Alert: {{ product.alert_level|intcomma }}
+                        {% endif %}
+                        {% if product.is_low_stock %}
+                        <i class="bi bi-exclamation-triangle-fill" style="margin-left: 2px;"></i>
+                        {% endif %}
+                    </span>
+                    {% endif %}
+                    {% if product.product_hsn %}
+                    <span class="product-badge hsn-badge">
+                        <i class="bi bi-hash"></i> {{ product.product_hsn }}
+                    </span>
+                    {% endif %}
+                    <span class="product-badge gst-badge">
+                        <i class="bi bi-percent"></i> GST {{ product.product_gst_percentage }}%
+                    </span>
+                    {% if product.product_discount > 0 %}
+                    <span class="product-badge discount-badge">
+                        <i class="bi bi-tag"></i> {{ product.product_discount }}% OFF
+                    </span>
+                    {% endif %}
+                    {% if product.user %}
+                    <span class="product-badge user-badge">
+                        <i class="bi bi-person-circle"></i> {{ product.user.userprofile.business_brand|default:product.user.username }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    <!-- Pagination -->
+    {% if products.has_other_pages %}
+    <div class="pagination-container">
+        <button class="pagination-btn" {% if products.has_previous %}onclick="loadProducts({{ products.previous_page_number }})"{% endif %} {% if not products.has_previous %}disabled{% endif %}>
+            <i class="bi bi-chevron-left"></i> Previous
+        </button>
+        <span class="pagination-info">Page {{ products.number }} of {{ products.paginator.num_pages }}</span>
+        <button class="pagination-btn" {% if products.has_next %}onclick="loadProducts({{ products.next_page_number }})"{% endif %} {% if not products.has_next %}disabled{% endif %}>
+            Next <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
+    {% endif %}
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="bi bi-box-seam"></i>
+        </div>
+        <h3 class="empty-state-title">No Products Found</h3>
+        <p class="empty-state-text">Try adjusting your search or filters</p>
+    </div>
+{% endif %}

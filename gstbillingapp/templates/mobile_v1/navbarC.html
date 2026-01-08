@@ -25,10 +25,25 @@
             <span>Profile</span>
         </a>
 
+        {% if request.GET.u == "emp" %}
+        <!-- Customers -->
+        <a href="{% url 'v1customers' %}" class="nav-item" data-page="customers">
+            <i class="fas fa-users"></i>
+            <span>Customers</span>
+        </a>
+        {% endif %}
     </div>
 </nav>
 
 <script>
+    // Add All With users_filter={{ request.GET.users_filter }}&u={{ request.GET.u }}
+    document.querySelectorAll('.nav-item').forEach(item => {
+        const url = new URL(item.href);
+        url.searchParams.set('users_filter', '{{ request.GET.users_filter }}');
+        url.searchParams.set('u', '{{ request.GET.u }}');
+        url.searchParams.set('cid', '{{ request.GET.cid }}');
+        item.href = url.toString();
+    });
     // Highlight active nav item based on current URL
     document.addEventListener('DOMContentLoaded', function() {
         const currentPath = window.location.pathname;

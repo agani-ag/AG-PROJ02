@@ -11,6 +11,9 @@
                     {% if not invoice.is_gst %}
                         <span class="invoice-type-badge">Non-GST</span>
                     {% endif %}
+                    <div class="transaction-date font-weight-bold">
+                        ₹{{ invoice.total_amt_with_gst }}
+                    </div>
                 </div>
                 
                 <div class="invoice-meta">
