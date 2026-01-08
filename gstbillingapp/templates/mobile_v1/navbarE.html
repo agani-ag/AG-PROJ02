@@ -2,7 +2,7 @@
     <div class="nav-scroll">
 
         <!-- Home -->
-        <a href="{% url 'v1customerhome' %}?u={{ request.GET.u }}" class="nav-item" data-page="home">
+        <a href="{% url 'v1home' %}?u={{ request.GET.u }}" class="nav-item" data-page="home">
             <i class="fas fa-home"></i>
             <span>Home</span>
         </a>
@@ -62,6 +62,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         const currentPath = window.location.pathname;
         const navItems = document.querySelectorAll('.nav-item');
+        let activeItem = null;
         
         navItems.forEach(item => {
             const page = item.dataset.page;
@@ -69,19 +70,43 @@
             // Remove active class first
             item.classList.remove('active');
             
-            // Check for exact page matches
-            if (page === 'home' && currentPath.includes('customer/home')) {
+            // Check for exact page matches (employee URLs)
+            if (page === 'home' && currentPath.endsWith('/home')) {
                 item.classList.add('active');
-            } else if (page === 'invoices' && currentPath.includes('customer/invoices')) {
+                activeItem = item;
+            } else if (page === 'invoices' && currentPath.endsWith('/invoices')) {
                 item.classList.add('active');
-            } else if (page === 'books' && currentPath.includes('customer/books')) {
+                activeItem = item;
+            } else if (page === 'books' && currentPath.endsWith('/books')) {
                 item.classList.add('active');
-            } else if (page === 'profile' && currentPath.includes('customer/profile') && 
-                       !currentPath.includes('home') && 
-                       !currentPath.includes('invoices') && 
-                       !currentPath.includes('books')) {
+                activeItem = item;
+            } else if (page === 'customers' && currentPath.endsWith('/customers')) {
                 item.classList.add('active');
+                activeItem = item;
+            } else if (page === 'products' && currentPath.endsWith('/products')) {
+                item.classList.add('active');
+                activeItem = item;
+            } else if (page === 'expensestracker' && currentPath.endsWith('/expensestracker')) {
+                item.classList.add('active');
+                activeItem = item;
+            } else if (page === 'purchaselogs' && currentPath.endsWith('/purchaselogs')) {
+                item.classList.add('active');
+                activeItem = item;
+            } else if (page === 'profile' && currentPath.includes('/customer/profile')) {
+                item.classList.add('active');
+                activeItem = item;
             }
         });
+        
+        // Scroll active item into view
+        if (activeItem) {
+            setTimeout(() => {
+                activeItem.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                    inline: 'center'
+                });
+            }, 100);
+        }
     });
 </script>

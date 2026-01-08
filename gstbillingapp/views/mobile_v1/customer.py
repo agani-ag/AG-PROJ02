@@ -1077,5 +1077,171 @@ def products(request):
     return render(request, 'mobile_v1/products.html', context)
 
 def home(request):
+    """Admin/Employee Dashboard Home Page with comprehensive business overview"""
+    from datetime import datetime, timedelta
+    from django.db.models import Sum, Count
+    
     context = {}
-    return render(request, 'mobile_v1/products.html', context)
+    
+    # Current and last month dates
+    today = datetime.now().date()
+    current_month_start = today.replace(day=1)
+    last_month_end = current_month_start - timedelta(days=1)
+    last_month_start = last_month_end.replace(day=1)
+    
+    # Get all users
+    users = UserProfile.objects.all().select_related('user')
+    total_users = users.count()
+    
+    # === CURRENT MONTH STATS ===
+    current_month_invoices = Invoice.objects.filter(invoice_date__gte=current_month_start)
+    current_month_books = BookLog.objects.filter(date__date__gte=current_month_start)
+    current_month_expenses = ExpenseTracker.objects.filter(date__date__gte=current_month_start)
+    current_month_purchases = PurchaseLog.objects.filter(date__date__gte=current_month_start)
+    
+    # Current month invoice count
+    current_month_invoice_count = current_month_invoices.count()
+    
+    # Current month book log totals
+    current_book_stats = current_month_books.aggregate(
+        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+    )
+    current_month_purchases_amount = abs(current_book_stats['purchases'] or 0)
+    current_month_payments_amount = abs(current_book_stats['payments'] or 0)
+    
+    # Current month expenses
+    current_expense_total = current_month_expenses.aggregate(total=Sum('amount'))['total'] or 0
+    current_expense_count = current_month_expenses.count()
+    
+    # Current month purchase logs
+    current_purchase_stats = current_month_purchases.aggregate(
+        total=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        count=Count(Case(When(change_type=0, then=1)))
+    )
+    current_month_purchase_amount = abs(current_purchase_stats['total'] or 0)
+    current_month_purchase_count = current_purchase_stats['count'] or 0
+    
+    # === LAST MONTH STATS ===
+    last_month_invoices = Invoice.objects.filter(invoice_date__gte=last_month_start, invoice_date__lt=current_month_start)
+    last_month_books = BookLog.objects.filter(date__date__gte=last_month_start, date__date__lt=current_month_start)
+    last_month_expenses = ExpenseTracker.objects.filter(date__date__gte=last_month_start, date__date__lt=current_month_start)
+    last_month_purchases = PurchaseLog.objects.filter(date__date__gte=last_month_start, date__date__lt=current_month_start)
+    
+    # Last month invoice count
+    last_month_invoice_count = last_month_invoices.count()
+    
+    # Last month book log totals
+    last_book_stats = last_month_books.aggregate(
+        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+    )
+    last_month_purchases_amount = abs(last_book_stats['purchases'] or 0)
+    last_month_payments_amount = abs(last_book_stats['payments'] or 0)
+    
+    # Last month expenses
+    last_expense_total = last_month_expenses.aggregate(total=Sum('amount'))['total'] or 0
+    last_expense_count = last_month_expenses.count()
+    
+    # === OVERALL STATS ===
+    total_customers = Customer.objects.count()
+    total_products = Product.objects.count()
+    total_invoices = Invoice.objects.count()
+    
+    # Total book logs
+    all_book_stats = BookLog.objects.aggregate(
+        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        returns=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+        others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+    )
+    total_purchases = abs(all_book_stats['purchases'] or 0)
+    total_payments = abs(all_book_stats['payments'] or 0)
+    total_returns = abs(all_book_stats['returns'] or 0)
+    total_others = abs(all_book_stats['others'] or 0)
+    total_balance = total_purchases - total_payments
+    
+    # Total expenses
+    total_expenses = ExpenseTracker.objects.aggregate(total=Sum('amount'))['total'] or 0
+    total_expense_count = ExpenseTracker.objects.count()
+    
+    # Inventory stats
+    inventory_stats = Inventory.objects.aggregate(
+        total_stock=Sum('current_stock'),
+        low_stock_count=Count(Case(When(current_stock__gt=0, current_stock__lte=F('alert_level'), then=1))),
+        out_of_stock_count=Count(Case(When(current_stock=0, then=1)))
+    )
+    total_stock = inventory_stats['total_stock'] or 0
+    low_stock_count = inventory_stats['low_stock_count'] or 0
+    out_of_stock_count = inventory_stats['out_of_stock_count'] or 0
+    
+    # Products with discount
+    discount_products = Product.objects.filter(product_discount__gt=0).count()
+    
+    # Calculate payment progress percentages
+    current_month_payment_percentage = 0
+    if current_month_purchases_amount > 0:
+        current_month_payment_percentage = min(100, (current_month_payments_amount / current_month_purchases_amount) * 100)
+    
+    last_month_payment_percentage = 0
+    if last_month_purchases_amount > 0:
+        last_month_payment_percentage = min(100, (last_month_payments_amount / last_month_purchases_amount) * 100)
+    
+    overall_payment_percentage = 0
+    if total_purchases > 0:
+        overall_payment_percentage = min(100, (total_payments / total_purchases) * 100)
+    
+    # Recent activity - last 5 invoices
+    recent_invoices = Invoice.objects.select_related('invoice_customer', 'user').order_by('-invoice_date')[:5]
+    
+    # Recent expenses - last 5
+    recent_expenses = ExpenseTracker.objects.select_related('user').order_by('-date')[:5]
+    
+    context.update({
+        'current_month_name': current_month_start.strftime('%B %Y'),
+        'last_month_name': last_month_start.strftime('%B %Y'),
+        'total_users': total_users,
+        'total_customers': total_customers,
+        'total_products': total_products,
+        
+        # Current month
+        'current_month_invoice_count': current_month_invoice_count,
+        'current_month_purchases_amount': current_month_purchases_amount,
+        'current_month_payments_amount': current_month_payments_amount,
+        'current_month_expense_total': abs(current_expense_total),
+        'current_month_expense_count': current_expense_count,
+        'current_month_purchase_amount': current_month_purchase_amount,
+        'current_month_purchase_count': current_month_purchase_count,
+        'current_month_payment_percentage': round(current_month_payment_percentage, 1),
+        
+        # Last month
+        'last_month_invoice_count': last_month_invoice_count,
+        'last_month_purchases_amount': last_month_purchases_amount,
+        'last_month_payments_amount': last_month_payments_amount,
+        'last_month_expense_total': abs(last_expense_total),
+        'last_month_expense_count': last_expense_count,
+        'last_month_payment_percentage': round(last_month_payment_percentage, 1),
+        
+        # Overall
+        'total_invoices': total_invoices,
+        'total_purchases': total_purchases,
+        'total_payments': total_payments,
+        'total_returns': total_returns,
+        'total_others': total_others,
+        'total_balance': total_balance,
+        'total_expenses': abs(total_expenses),
+        'total_expense_count': total_expense_count,
+        'overall_payment_percentage': round(overall_payment_percentage, 1),
+        
+        # Inventory
+        'total_stock': total_stock,
+        'low_stock_count': low_stock_count,
+        'out_of_stock_count': out_of_stock_count,
+        'discount_products': discount_products,
+        
+        # Recent activity
+        'recent_invoices': recent_invoices,
+        'recent_expenses': recent_expenses,
+    })
+    
+    return render(request, 'mobile_v1/home.html', context)

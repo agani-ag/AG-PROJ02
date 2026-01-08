@@ -1,24 +1,51 @@
 {% extends "mobile_v1/base.html" %}
 {% load static %}
 {% load humanize %}
-{% block title %}Customer Home{% endblock %}
+{% block title %}Dashboard - GST Sync{% endblock %}
 
 {% block includecss %}
 <style>
-    /* Samsung One UI Home Page Styling */
-    .home-wrapper {
+    /* Samsung One UI Dashboard Styling */
+    :root {
+        --oneui-primary: #667eea;
+        --oneui-secondary: #764ba2;
+        --oneui-accent: #34c759;
+        --oneui-warning: #ff9500;
+        --oneui-danger: #ff3b30;
+        --oneui-info: #007aff;
+        --oneui-bg: #f5f5f7;
+        --oneui-surface: #ffffff;
+        --oneui-text-primary: #1c1c1e;
+        --oneui-text-secondary: #8e8e93;
+        --oneui-divider: #d1d1d6;
+        --oneui-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+        --oneui-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+        --oneui-radius: 16px;
+        --gradient-header: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    * { -webkit-tap-highlight-color: transparent; }
+    
+    body {
+        background: var(--oneui-bg);
+        min-height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        padding-bottom: 80px;
+        margin: 0;
+    }
+    
+    .dashboard-wrapper {
         max-width: 640px;
         margin: 0 auto;
-        padding-bottom: 80px;
     }
     
     /* Welcome Header */
     .welcome-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--gradient-header);
         border-radius: 0 0 16px 16px;
         padding: 32px 20px 24px;
         margin: -12px -8px 20px;
-        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+        box-shadow: var(--oneui-shadow-lg);
     }
     
     .greeting-text {
@@ -28,12 +55,82 @@
         font-weight: 500;
     }
     
-    .customer-name {
-        font-size: 26px;
+    .dashboard-title {
+        font-size: 28px;
         font-weight: 700;
         color: white;
-        margin: 0;
+        margin: 0 0 8px;
         letter-spacing: -0.5px;
+    }
+    
+    .dashboard-subtitle {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.8);
+        margin: 0;
+        font-weight: 500;
+    }
+    
+    /* Quick Stats Grid */
+    .quick-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+        padding: 0 8px;
+    }
+    
+    .quick-stat {
+        background: white;
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        box-shadow: var(--oneui-shadow);
+        transition: all 0.2s;
+    }
+    
+    .quick-stat:active {
+        transform: scale(0.97);
+    }
+    
+    .quick-stat-icon {
+        width: 36px;
+        height: 36px;
+        margin: 0 auto 8px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+    
+    .quick-stat-icon.purple {
+        background: rgba(102, 126, 234, 0.15);
+        color: #667eea;
+    }
+    
+    .quick-stat-icon.green {
+        background: rgba(52, 199, 89, 0.15);
+        color: #34c759;
+    }
+    
+    .quick-stat-icon.blue {
+        background: rgba(0, 122, 255, 0.15);
+        color: #007aff;
+    }
+    
+    .quick-stat-value {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+    }
+    
+    .quick-stat-label {
+        font-size: 11px;
+        color: var(--oneui-text-secondary);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     
     /* Section Headers */
@@ -62,14 +159,15 @@
         grid-template-columns: 1fr 1fr;
         gap: 12px;
         margin-bottom: 20px;
+        padding: 0 8px;
     }
     
     .stat-card {
         background: white;
         border-radius: 16px;
         padding: 20px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: var(--oneui-shadow);
+        transition: all 0.2s;
         text-decoration: none;
         display: block;
         position: relative;
@@ -91,21 +189,11 @@
         transform: scale(0.97);
     }
     
-    .stat-card.danger {
-        color: #ff3b30;
-    }
-    
-    .stat-card.success {
-        color: #34c759;
-    }
-    
-    .stat-card.warning {
-        color: #ff9500;
-    }
-    
-    .stat-card.info {
-        color: #007aff;
-    }
+    .stat-card.danger { color: #ff3b30; }
+    .stat-card.success { color: #34c759; }
+    .stat-card.warning { color: #ff9500; }
+    .stat-card.info { color: #007aff; }
+    .stat-card.purple { color: #667eea; }
     
     .stat-icon {
         width: 36px;
@@ -117,41 +205,13 @@
         margin-bottom: 12px;
     }
     
-    .stat-card.danger .stat-icon {
-        background: rgba(255, 59, 48, 0.12);
-    }
+    .stat-card.danger .stat-icon { background: rgba(255, 59, 48, 0.12); }
+    .stat-card.success .stat-icon { background: rgba(52, 199, 89, 0.12); }
+    .stat-card.warning .stat-icon { background: rgba(255, 149, 0, 0.12); }
+    .stat-card.info .stat-icon { background: rgba(0, 122, 255, 0.12); }
+    .stat-card.purple .stat-icon { background: rgba(102, 126, 234, 0.12); }
     
-    .stat-card.success .stat-icon {
-        background: rgba(52, 199, 89, 0.12);
-    }
-    
-    .stat-card.warning .stat-icon {
-        background: rgba(255, 149, 0, 0.12);
-    }
-    
-    .stat-card.info .stat-icon {
-        background: rgba(0, 122, 255, 0.12);
-    }
-    
-    .stat-icon i {
-        font-size: 18px;
-    }
-    
-    .stat-card.danger .stat-icon i {
-        color: #ff3b30;
-    }
-    
-    .stat-card.success .stat-icon i {
-        color: #34c759;
-    }
-    
-    .stat-card.warning .stat-icon i {
-        color: #ff9500;
-    }
-    
-    .stat-card.info .stat-icon i {
-        color: #007aff;
-    }
+    .stat-icon i { font-size: 18px; }
     
     .stat-label {
         font-size: 13px;
@@ -179,8 +239,8 @@
         background: white;
         border-radius: 16px;
         padding: 20px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-        margin-bottom: 20px;
+        box-shadow: var(--oneui-shadow);
+        margin: 0 8px 20px;
     }
     
     .summary-title {
@@ -227,114 +287,18 @@
         margin-left: 6px;
     }
     
-    .badge-danger {
-        background: #ffebee;
-        color: #c62828;
-    }
-    
-    .badge-success {
-        background: #e8f5e9;
-        color: #2e7d32;
-    }
-    
-    .badge-warning {
-        background: #fff3e0;
-        color: #e65100;
-    }
-    
-    .badge-info {
-        background: #e3f2fd;
-        color: #1565c0;
-    }
-    
-    /* Footer Info */
-    .page-footer {
-        background: white;
-        border-radius: 16px;
-        padding: 16px 20px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-    
-    .footer-info {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 13px;
-        color: var(--oneui-text-secondary);
-    }
-    
-    .footer-info i {
-        font-size: 16px;
-    }
-    
-    .footer-value {
-        font-weight: 600;
-        color: var(--oneui-text-primary);
-    }
-    
-    /* Dark Mode Overrides */
-    [data-theme="dark"] .stat-card {
-        background: var(--oneui-card-bg);
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-    }
-    
-    [data-theme="dark"] .summary-section {
-        background: var(--oneui-card-bg);
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-    }
-    
-    [data-theme="dark"] .page-footer {
-        background: var(--oneui-card-bg);
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-    }
-    
-    [data-theme="dark"] .stat-card.danger .stat-icon {
-        background: rgba(255, 59, 48, 0.2);
-    }
-    
-    [data-theme="dark"] .stat-card.success .stat-icon {
-        background: rgba(52, 199, 89, 0.2);
-    }
-    
-    [data-theme="dark"] .stat-card.warning .stat-icon {
-        background: rgba(255, 149, 0, 0.2);
-    }
-    
-    [data-theme="dark"] .stat-card.info .stat-icon {
-        background: rgba(0, 122, 255, 0.2);
-    }
-    
-    [data-theme="dark"] .badge-danger {
-        background: rgba(255, 59, 48, 0.15);
-        color: #ff6b6b;
-    }
-    
-    [data-theme="dark"] .badge-success {
-        background: rgba(52, 199, 89, 0.15);
-        color: #69db7c;
-    }
-    
-    [data-theme="dark"] .badge-warning {
-        background: rgba(255, 149, 0, 0.15);
-        color: #ffa94d;
-    }
-    
-    [data-theme="dark"] .badge-info {
-        background: rgba(0, 122, 255, 0.15);
-        color: #4dabf7;
-    }
+    .badge-danger { background: #ffebee; color: #c62828; }
+    .badge-success { background: #e8f5e9; color: #2e7d32; }
+    .badge-warning { background: #fff3e0; color: #e65100; }
+    .badge-info { background: #e3f2fd; color: #1565c0; }
     
     /* Progress Section */
     .progress-section {
         background: white;
         border-radius: 16px;
         padding: 20px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-        margin-bottom: 20px;
+        box-shadow: var(--oneui-shadow);
+        margin: 0 8px 20px;
     }
     
     .progress-header {
@@ -387,10 +351,6 @@
         gap: 8px;
     }
     
-    .progress-label i {
-        font-size: 16px;
-    }
-    
     .progress-percentage {
         font-size: 15px;
         font-weight: 700;
@@ -420,39 +380,19 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background: linear-gradient(
-            90deg,
-            rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.3) 50%,
-            rgba(255, 255, 255, 0) 100%
-        );
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.3) 50%, rgba(255, 255, 255, 0) 100%);
         animation: shimmer 2s infinite;
     }
     
     @keyframes shimmer {
-        0% {
-            transform: translateX(-100%);
-        }
-        100% {
-            transform: translateX(100%);
-        }
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
     }
     
-    .progress-bar.success {
-        background: linear-gradient(90deg, #34c759 0%, #30d158 100%);
-    }
-    
-    .progress-bar.danger {
-        background: linear-gradient(90deg, #ff3b30 0%, #ff453a 100%);
-    }
-    
-    .progress-bar.warning {
-        background: linear-gradient(90deg, #ff9500 0%, #ffa726 100%);
-    }
-    
-    .progress-bar.info {
-        background: linear-gradient(90deg, #007aff 0%, #0a84ff 100%);
-    }
+    .progress-bar.success { background: linear-gradient(90deg, #34c759 0%, #30d158 100%); }
+    .progress-bar.danger { background: linear-gradient(90deg, #ff3b30 0%, #ff453a 100%); }
+    .progress-bar.warning { background: linear-gradient(90deg, #ff9500 0%, #ffa726 100%); }
+    .progress-bar.info { background: linear-gradient(90deg, #007aff 0%, #0a84ff 100%); }
     
     .progress-values {
         display: flex;
@@ -466,10 +406,172 @@
         font-weight: 600;
     }
     
-    /* Dark Mode - Progress Section */
-    [data-theme="dark"] .progress-section {
-        background: var(--oneui-card-bg);
+    /* Recent Activity */
+    .activity-list {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: var(--oneui-shadow);
+        margin: 0 8px 20px;
+    }
+    
+    .activity-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--oneui-divider);
+        text-decoration: none;
+        color: inherit;
+    }
+    
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    
+    .activity-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 16px;
+    }
+    
+    .activity-icon.invoice {
+        background: rgba(255, 149, 0, 0.15);
+        color: #ff9500;
+    }
+    
+    .activity-icon.expense {
+        background: rgba(255, 59, 48, 0.15);
+        color: #ff3b30;
+    }
+    
+    .activity-details {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .activity-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .activity-subtitle {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+    }
+    
+    .activity-amount {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        flex-shrink: 0;
+    }
+    
+    /* Inventory Alerts */
+    .alert-card {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: var(--oneui-shadow);
+        margin: 0 8px 20px;
+    }
+    
+    .alert-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--oneui-bg);
+        border-radius: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .alert-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    .alert-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 18px;
+    }
+    
+    .alert-icon.warning {
+        background: rgba(255, 149, 0, 0.15);
+        color: #ff9500;
+    }
+    
+    .alert-icon.danger {
+        background: rgba(255, 59, 48, 0.15);
+        color: #ff3b30;
+    }
+    
+    .alert-icon.success {
+        background: rgba(52, 199, 89, 0.15);
+        color: #34c759;
+    }
+    
+    .alert-content {
+        flex: 1;
+    }
+    
+    .alert-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+    }
+    
+    .alert-description {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+    }
+    
+    .alert-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        flex-shrink: 0;
+    }
+    
+    /* Dark Mode */
+    [data-theme="dark"] {
+        --oneui-bg: #000000;
+        --oneui-surface: #1c1c1e;
+        --oneui-text-primary: #ffffff;
+        --oneui-text-secondary: #8e8e93;
+        --oneui-divider: #38383a;
+    }
+    
+    [data-theme="dark"] .quick-stat,
+    [data-theme="dark"] .stat-card,
+    [data-theme="dark"] .summary-section,
+    [data-theme="dark"] .progress-section,
+    [data-theme="dark"] .activity-list,
+    [data-theme="dark"] .alert-card {
+        background: var(--oneui-surface);
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-theme="dark"] .alert-item {
+        background: rgba(255, 255, 255, 0.05);
     }
     
     [data-theme="dark"] .progress-bar-container {
@@ -479,158 +581,281 @@
     [data-theme="dark"] .progress-period {
         background: rgba(255, 255, 255, 0.1);
     }
+    
+    [data-theme="dark"] .stat-card.danger .stat-icon { background: rgba(255, 59, 48, 0.2); }
+    [data-theme="dark"] .stat-card.success .stat-icon { background: rgba(52, 199, 89, 0.2); }
+    [data-theme="dark"] .stat-card.warning .stat-icon { background: rgba(255, 149, 0, 0.2); }
+    [data-theme="dark"] .stat-card.info .stat-icon { background: rgba(0, 122, 255, 0.2); }
+    [data-theme="dark"] .stat-card.purple .stat-icon { background: rgba(102, 126, 234, 0.2); }
+    
+    [data-theme="dark"] .badge-danger { background: rgba(255, 59, 48, 0.15); color: #ff6b6b; }
+    [data-theme="dark"] .badge-success { background: rgba(52, 199, 89, 0.15); color: #69db7c; }
+    [data-theme="dark"] .badge-warning { background: rgba(255, 149, 0, 0.15); color: #ffa94d; }
+    [data-theme="dark"] .badge-info { background: rgba(0, 122, 255, 0.15); color: #4dabf7; }
 </style>
 {% endblock %}
 
 {% block content %}
-
-<div class="home-wrapper">
+<div class="dashboard-wrapper">
     
     <!-- Welcome Header -->
     <div class="welcome-header">
         <p class="greeting-text" id="greeting">Hi, Good Evening</p>
-        <h1 class="customer-name">{{ customer.customer_name|default:"Valued Customer" }}</h1>
+        <h1 class="dashboard-title">Dashboard</h1>
+        <p class="dashboard-subtitle">Business Overview & Analytics</p>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="quick-stats">
+        <div class="quick-stat">
+            <div class="quick-stat-icon purple">
+                <i class="bi bi-people"></i>
+            </div>
+            <div class="quick-stat-value">{{ total_users|intcomma }}</div>
+            <div class="quick-stat-label">Users</div>
+        </div>
+        <div class="quick-stat">
+            <div class="quick-stat-icon green">
+                <i class="bi bi-person-check"></i>
+            </div>
+            <div class="quick-stat-value">{{ total_customers|intcomma }}</div>
+            <div class="quick-stat-label">Customers</div>
+        </div>
+        <div class="quick-stat">
+            <div class="quick-stat-icon blue">
+                <i class="bi bi-box-seam"></i>
+            </div>
+            <div class="quick-stat-value">{{ total_products|intcomma }}</div>
+            <div class="quick-stat-label">Products</div>
+        </div>
     </div>
     
     <!-- Current Month Section -->
     <div class="section-header">
         <h2 class="section-title">Current Month</h2>
-        <p class="section-subtitle">{% now "F Y" %}</p>
+        <p class="section-subtitle">{{ current_month_name }}</p>
     </div>
     
     <div class="stats-grid">
-        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=current_month_purchases" 
-           class="stat-card danger">
+        <div class="stat-card warning">
             <div class="stat-icon">
-                <i class="fas fa-receipt"></i>
+                <i class="bi bi-receipt"></i>
             </div>
-            <p class="stat-label">Purchased</p>
-            <h3 class="stat-value">₹{{ current_month_total_purchased|default:0|intcomma }}</h3>
-            <p class="stat-count">{{ current_month_purchased_count|default:0 }} transactions</p>
-        </a>
+            <p class="stat-label">Invoices</p>
+            <h3 class="stat-value">{{ current_month_invoice_count|intcomma }}</h3>
+            <p class="stat-count">invoice{{ current_month_invoice_count|pluralize }} created</p>
+        </div>
         
-        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=current_month_payments" 
-           class="stat-card success">
+        <div class="stat-card danger">
             <div class="stat-icon">
-                <i class="fas fa-circle-check"></i>
+                <i class="bi bi-cart-dash"></i>
             </div>
-            <p class="stat-label">Paid</p>
-            <h3 class="stat-value">₹{{ current_month_total_paid|default:0|intcomma }}</h3>
-            <p class="stat-count">{{ current_month_paid_count|default:0 }} payments</p>
-        </a>
+            <p class="stat-label">Purchases</p>
+            <h3 class="stat-value">₹{{ current_month_purchases_amount|floatformat:0|intcomma }}</h3>
+            <p class="stat-count">Customer orders</p>
+        </div>
+        
+        <div class="stat-card success">
+            <div class="stat-icon">
+                <i class="bi bi-currency-rupee"></i>
+            </div>
+            <p class="stat-label">Payments</p>
+            <h3 class="stat-value">₹{{ current_month_payments_amount|floatformat:0|intcomma }}</h3>
+            <p class="stat-count">Received</p>
+        </div>
+        
+        <div class="stat-card danger">
+            <div class="stat-icon">
+                <i class="bi bi-cash-coin"></i>
+            </div>
+            <p class="stat-label">Expenses</p>
+            <h3 class="stat-value">₹{{ current_month_expense_total|floatformat:0|intcomma }}</h3>
+            <p class="stat-count">{{ current_month_expense_count|intcomma }} transaction{{ current_month_expense_count|pluralize }}</p>
+        </div>
+        
+        <div class="stat-card purple">
+            <div class="stat-icon">
+                <i class="bi bi-bag"></i>
+            </div>
+            <p class="stat-label">Vendor Purchases</p>
+            <h3 class="stat-value">₹{{ current_month_purchase_amount|floatformat:0|intcomma }}</h3>
+            <p class="stat-count">{{ current_month_purchase_count|intcomma }} purchase{{ current_month_purchase_count|pluralize }}</p>
+        </div>
+        
+        <div class="stat-card info">
+            <div class="stat-icon">
+                <i class="bi bi-graph-up-arrow"></i>
+            </div>
+            <p class="stat-label">Collection Rate</p>
+            <h3 class="stat-value">{{ current_month_payment_percentage }}%</h3>
+            <p class="stat-count">Payment progress</p>
+        </div>
     </div>
     
     <!-- Last Month Section -->
     <div class="section-header">
         <h2 class="section-title">Last Month</h2>
-        <p class="section-subtitle">{{ total_last_month_name }}</p>
+        <p class="section-subtitle">{{ last_month_name }}</p>
     </div>
     
     <div class="stats-grid">
-        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=last_month_purchases" 
-           class="stat-card danger">
+        <div class="stat-card warning">
             <div class="stat-icon">
-                <i class="fas fa-receipt"></i>
+                <i class="bi bi-receipt"></i>
             </div>
-            <p class="stat-label">Purchased</p>
-            <h3 class="stat-value">₹{{ last_month_total_purchased|default:0|intcomma }}</h3>
-            <p class="stat-count">{{ last_month_purchased_count|default:0 }} transactions</p>
-        </a>
+            <p class="stat-label">Invoices</p>
+            <h3 class="stat-value">{{ last_month_invoice_count|intcomma }}</h3>
+            <p class="stat-count">invoice{{ last_month_invoice_count|pluralize }} created</p>
+        </div>
         
-        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=last_month_payments" 
-           class="stat-card success">
+        <div class="stat-card danger">
             <div class="stat-icon">
-                <i class="fas fa-circle-check"></i>
+                <i class="bi bi-cart-dash"></i>
             </div>
-            <p class="stat-label">Paid</p>
-            <h3 class="stat-value">₹{{ last_month_total_paid|default:0|intcomma }}</h3>
-            <p class="stat-count">{{ last_month_paid_count|default:0 }} payments</p>
-        </a>
+            <p class="stat-label">Purchases</p>
+            <h3 class="stat-value">₹{{ last_month_purchases_amount|floatformat:0|intcomma }}</h3>
+            <p class="stat-count">Customer orders</p>
+        </div>
+        
+        <div class="stat-card success">
+            <div class="stat-icon">
+                <i class="bi bi-currency-rupee"></i>
+            </div>
+            <p class="stat-label">Payments</p>
+            <h3 class="stat-value">₹{{ last_month_payments_amount|floatformat:0|intcomma }}</h3>
+            <p class="stat-count">Received</p>
+        </div>
+        
+        <div class="stat-card danger">
+            <div class="stat-icon">
+                <i class="bi bi-cash-coin"></i>
+            </div>
+            <p class="stat-label">Expenses</p>
+            <h3 class="stat-value">₹{{ last_month_expense_total|floatformat:0|intcomma }}</h3>
+            <p class="stat-count">{{ last_month_expense_count|intcomma }} transaction{{ last_month_expense_count|pluralize }}</p>
+        </div>
+        
+        <div class="stat-card info">
+            <div class="stat-icon">
+                <i class="bi bi-graph-up-arrow"></i>
+            </div>
+            <p class="stat-label">Collection Rate</p>
+            <h3 class="stat-value">{{ last_month_payment_percentage }}%</h3>
+            <p class="stat-count">Payment progress</p>
+        </div>
     </div>
     
-    <!-- Global Transactions Summary -->
+    <!-- Overall Summary -->
     <div class="section-header">
         <h2 class="section-title">Overall Summary</h2>
-        <p class="section-subtitle">{{ start_end_year }}</p>
+        <p class="section-subtitle">All time totals</p>
     </div>
     
     <div class="summary-section">
         <h3 class="summary-title">
-            <i class="fas fa-chart-line"></i>
-            Transaction Overview
+            <i class="bi bi-clipboard-data"></i>
+            Financial Overview
         </h3>
         
-        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=purchases" 
-           class="summary-item" style="text-decoration: none;">
+        <div class="summary-item">
             <span class="summary-label">
-                <i class="fas fa-receipt" style="color: #ff3b30;"></i>
-                Total Purchased
-                <span class="summary-badge badge-danger">{{ purchased_count|default:0 }}</span>
+                <i class="bi bi-receipt"></i>
+                Total Invoices
             </span>
-            <span class="summary-value">₹{{ total_purchased|default:0|floatformat:2|intcomma }}</span>
-        </a>
+            <span class="summary-value">
+                {{ total_invoices|intcomma }}
+                <span class="summary-badge badge-warning">Created</span>
+            </span>
+        </div>
         
-        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=payments" 
-           class="summary-item" style="text-decoration: none;">
+        <div class="summary-item">
             <span class="summary-label">
-                <i class="fas fa-circle-check" style="color: #34c759;"></i>
-                Total Paid
-                <span class="summary-badge badge-success">{{ paid_count|default:0 }}</span>
+                <i class="bi bi-cart-dash"></i>
+                Customer Purchases
             </span>
-            <span class="summary-value">₹{{ total_paid|default:0|floatformat:2|intcomma }}</span>
-        </a>
+            <span class="summary-value">
+                ₹{{ total_purchases|floatformat:0|intcomma }}
+                <span class="summary-badge badge-danger">DR</span>
+            </span>
+        </div>
         
-        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=returns" 
-           class="summary-item" style="text-decoration: none;">
+        <div class="summary-item">
             <span class="summary-label">
-                <i class="fas fa-reply" style="color: #ff9500;"></i>
-                Total Returned
-                <span class="summary-badge badge-warning">{{ returned_count|default:0 }}</span>
+                <i class="bi bi-currency-rupee"></i>
+                Payments Received
             </span>
-            <span class="summary-value">₹{{ total_returned|default:0|floatformat:2|intcomma }}</span>
-        </a>
+            <span class="summary-value">
+                ₹{{ total_payments|floatformat:0|intcomma }}
+                <span class="summary-badge badge-success">CR</span>
+            </span>
+        </div>
         
-        <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}&filter_page=others" 
-           class="summary-item" style="text-decoration: none;">
+        <div class="summary-item">
             <span class="summary-label">
-                <i class="fas fa-ellipsis" style="color: #007aff;"></i>
-                Other Transactions
-                <span class="summary-badge badge-info">{{ others_count|default:0 }}</span>
+                <i class="bi bi-arrow-return-left"></i>
+                Returns
             </span>
-            <span class="summary-value">₹{{ total_others|default:0|floatformat:2|intcomma }}</span>
-        </a>
+            <span class="summary-value">
+                ₹{{ total_returns|floatformat:0|intcomma }}
+            </span>
+        </div>
+        
+        <div class="summary-item">
+            <span class="summary-label">
+                <i class="bi bi-wallet2"></i>
+                Outstanding Balance
+            </span>
+            <span class="summary-value">
+                ₹{{ total_balance|floatformat:0|intcomma }}
+                <span class="summary-badge {% if total_balance > 0 %}badge-danger{% else %}badge-success{% endif %}">
+                    {% if total_balance > 0 %}Receivable{% else %}Paid{% endif %}
+                </span>
+            </span>
+        </div>
+        
+        <div class="summary-item">
+            <span class="summary-label">
+                <i class="bi bi-cash-stack"></i>
+                Total Expenses
+            </span>
+            <span class="summary-value">
+                ₹{{ total_expenses|floatformat:0|intcomma }}
+                <span class="summary-badge badge-danger">{{ total_expense_count|intcomma }}</span>
+            </span>
+        </div>
     </div>
     
-    <!-- Progress Section -->
+    <!-- Payment Progress -->
     <div class="section-header">
-        <h2 class="section-title">Payment Progress</h2>
-        <p class="section-subtitle">Track your payment completion</p>
+        <h2 class="section-title">Payment Collection</h2>
+        <p class="section-subtitle">Track payment completion rates</p>
     </div>
     
     <div class="progress-section">
         <div class="progress-header">
             <h3 class="progress-title">
-                <i class="fas fa-chart-pie"></i>
-                Payment Insights
+                <i class="bi bi-graph-up"></i>
+                Collection Progress
             </h3>
-            <span class="progress-period">This Year</span>
+            <span class="progress-period">Trending</span>
         </div>
         
         <!-- Current Month Progress -->
         <div class="progress-item">
             <div class="progress-info">
                 <span class="progress-label">
-                    <i class="fas fa-calendar-day" style="color: #34c759;"></i>
+                    <i class="bi bi-calendar-month"></i>
                     Current Month
                 </span>
-                <span class="progress-percentage">{{ current_month_payment_percentage|default:0 }}%</span>
+                <span class="progress-percentage">{{ current_month_payment_percentage }}%</span>
             </div>
             <div class="progress-bar-container">
-                <div class="progress-bar success" style="width: {{ current_month_payment_percentage|default:0 }}%;"></div>
+                <div class="progress-bar {% if current_month_payment_percentage >= 75 %}success{% elif current_month_payment_percentage >= 50 %}warning{% else %}danger{% endif %}" 
+                     style="width: {{ current_month_payment_percentage }}%"></div>
             </div>
             <div class="progress-values">
-                <span class="progress-current">Paid: ₹{{ current_month_total_paid|default:0|intcomma }}</span>
-                <span>Total: ₹{{ current_month_total_purchased|default:0|intcomma }}</span>
+                <span class="progress-current">₹{{ current_month_payments_amount|floatformat:0|intcomma }}</span>
+                <span>₹{{ current_month_purchases_amount|floatformat:0|intcomma }}</span>
             </div>
         </div>
         
@@ -638,17 +863,18 @@
         <div class="progress-item">
             <div class="progress-info">
                 <span class="progress-label">
-                    <i class="fas fa-calendar" style="color: #007aff;"></i>
+                    <i class="bi bi-calendar-check"></i>
                     Last Month
                 </span>
-                <span class="progress-percentage">{{ last_month_payment_percentage|default:0 }}%</span>
+                <span class="progress-percentage">{{ last_month_payment_percentage }}%</span>
             </div>
             <div class="progress-bar-container">
-                <div class="progress-bar info" style="width: {{ last_month_payment_percentage|default:0 }}%;"></div>
+                <div class="progress-bar {% if last_month_payment_percentage >= 75 %}success{% elif last_month_payment_percentage >= 50 %}warning{% else %}danger{% endif %}" 
+                     style="width: {{ last_month_payment_percentage }}%"></div>
             </div>
             <div class="progress-values">
-                <span class="progress-current">Paid: ₹{{ last_month_total_paid|default:0|intcomma }}</span>
-                <span>Total: ₹{{ last_month_total_purchased|default:0|intcomma }}</span>
+                <span class="progress-current">₹{{ last_month_payments_amount|floatformat:0|intcomma }}</span>
+                <span>₹{{ last_month_purchases_amount|floatformat:0|intcomma }}</span>
             </div>
         </div>
         
@@ -656,68 +882,138 @@
         <div class="progress-item">
             <div class="progress-info">
                 <span class="progress-label">
-                    <i class="fas fa-chart-line" style="color: #ff9500;"></i>
+                    <i class="bi bi-calendar3"></i>
                     Overall
                 </span>
-                <span class="progress-percentage">{{ overall_payment_percentage|default:0 }}%</span>
+                <span class="progress-percentage">{{ overall_payment_percentage }}%</span>
             </div>
             <div class="progress-bar-container">
-                <div class="progress-bar warning" style="width: {{ overall_payment_percentage|default:0 }}%;"></div>
+                <div class="progress-bar {% if overall_payment_percentage >= 75 %}success{% elif overall_payment_percentage >= 50 %}warning{% else %}danger{% endif %}" 
+                     style="width: {{ overall_payment_percentage }}%"></div>
             </div>
             <div class="progress-values">
-                <span class="progress-current">Paid: ₹{{ total_paid|default:0|floatformat:2|intcomma }}</span>
-                <span>Total: ₹{{ total_purchased|default:0|floatformat:2|intcomma }}</span>
+                <span class="progress-current">₹{{ total_payments|floatformat:0|intcomma }}</span>
+                <span>₹{{ total_purchases|floatformat:0|intcomma }}</span>
             </div>
         </div>
     </div>
     
-    <!-- Customer Balance Section -->
+    <!-- Inventory Alerts -->
     <div class="section-header">
-        <h2 class="section-title">Customer Balance</h2>
-        <p class="section-subtitle">Outstanding amount</p>
+        <h2 class="section-title">Inventory Status</h2>
+        <p class="section-subtitle">Stock monitoring</p>
     </div>
     
-    <div class="progress-section">
-        <div class="progress-header">
-            <h3 class="progress-title">
-                <i class="fas fa-wallet"></i>
-                Balance Overview
-            </h3>
-            <span class="progress-period">All Time</span>
+    <div class="alert-card">
+        <h3 class="summary-title">
+            <i class="bi bi-boxes"></i>
+            Stock Alerts
+        </h3>
+        
+        <div class="alert-item">
+            <div class="alert-icon success">
+                <i class="bi bi-check-circle-fill"></i>
+            </div>
+            <div class="alert-content">
+                <h4 class="alert-title">Total Stock</h4>
+                <p class="alert-description">Available inventory</p>
+            </div>
+            <div class="alert-value">{{ total_stock|intcomma }}</div>
         </div>
         
-        <!-- Balance Progress -->
-        <div class="progress-item">
-            <div class="progress-info">
-                <span class="progress-label">
-                    <i class="fas fa-money-bill-wave" style="color: #ff3b30;"></i>
-                    Total Outstanding
-                </span>
-                <span class="progress-percentage" style="color: #ff3b30;">₹{{ total_balance|default:0|floatformat:2|intcomma }}</span>
+        <div class="alert-item">
+            <div class="alert-icon warning">
+                <i class="bi bi-exclamation-triangle-fill"></i>
             </div>
-            <div class="progress-bar-container">
-                <div class="progress-bar danger" style="width: {{ overall_payment_percentage|default:0 }}%;"></div>
+            <div class="alert-content">
+                <h4 class="alert-title">Low Stock Items</h4>
+                <p class="alert-description">Requires attention</p>
             </div>
-            <div class="progress-values">
-                <span class="progress-current">Paid: ₹{{ total_paid|default:0|floatformat:2|intcomma }}</span>
-                <span>Total: ₹{{ total_purchased|default:0|floatformat:2|intcomma }}</span>
+            <div class="alert-value">{{ low_stock_count|intcomma }}</div>
+        </div>
+        
+        <div class="alert-item">
+            <div class="alert-icon danger">
+                <i class="bi bi-x-circle-fill"></i>
             </div>
+            <div class="alert-content">
+                <h4 class="alert-title">Out of Stock</h4>
+                <p class="alert-description">Needs restock</p>
+            </div>
+            <div class="alert-value">{{ out_of_stock_count|intcomma }}</div>
+        </div>
+        
+        <div class="alert-item">
+            <div class="alert-icon success">
+                <i class="bi bi-tag-fill"></i>
+            </div>
+            <div class="alert-content">
+                <h4 class="alert-title">Discount Products</h4>
+                <p class="alert-description">Active promotions</p>
+            </div>
+            <div class="alert-value">{{ discount_products|intcomma }}</div>
         </div>
     </div>
     
-    <!-- Page Footer -->
-    <div class="page-footer">
-        <div class="footer-info">
-            <i class="fas fa-building"></i>
-            <span class="footer-value">{{ users.business_brand|default:"Not Specified"|upper }}</span>
-        </div>
-        <div class="footer-info">
-            <i class="fas fa-user-tag"></i>
-            <span class="footer-value">{{ customer.customer_userid|default:"N/A"|upper }}</span>
-        </div>
+    <!-- Recent Invoices -->
+    {% if recent_invoices %}
+    <div class="section-header">
+        <h2 class="section-title">Recent Invoices</h2>
+        <p class="section-subtitle">Latest 5 invoices</p>
     </div>
-    {% include "mobile_v1/navbarC.html" %}
+    
+    <div class="activity-list">
+        <h3 class="summary-title">
+            <i class="bi bi-clock-history"></i>
+            Recent Activity
+        </h3>
+        
+        {% for invoice in recent_invoices %}
+        <div class="activity-item">
+            <div class="activity-icon invoice">
+                <i class="bi bi-receipt"></i>
+            </div>
+            <div class="activity-details">
+                <h4 class="activity-title">{{ invoice.invoice_customer.customer_name|default:"Unknown Customer" }}</h4>
+                <p class="activity-subtitle">{{ invoice.invoice_date|date:"M d, Y" }} - Invoice #{{ invoice.invoice_number }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- Recent Expenses -->
+    {% if recent_expenses %}
+    <div class="section-header">
+        <h2 class="section-title">Recent Expenses</h2>
+        <p class="section-subtitle">Latest transactions</p>
+    </div>
+    
+    <div class="activity-list">
+        <h3 class="summary-title">
+            <i class="bi bi-cash-coin"></i>
+            Expense Tracking
+        </h3>
+        
+        {% for expense in recent_expenses %}
+        <div class="activity-item">
+            <div class="activity-icon expense">
+                <i class="bi bi-cash-stack"></i>
+            </div>
+            <div class="activity-details">
+                <h4 class="activity-title">{{ expense.category|default:"Uncategorized" }}</h4>
+                <p class="activity-subtitle">{{ expense.date|date:"M d, Y" }} - {{ expense.user.business_title }}</p>
+            </div>
+            <div class="activity-amount">₹{{ expense.amount|floatformat:0|intcomma }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
 </div>
+
+<!-- EMPLOYEE NAVBAR -->
+{% include "mobile_v1/navbarE.html" %}
 
 {% endblock %}
 
@@ -738,7 +1034,7 @@
         document.getElementById("greeting").innerText = "Hi, " + greeting;
     }
     
-    $(document).ready(function () {
+    document.addEventListener('DOMContentLoaded', function() {
         getGreeting();
     });
 </script>
