@@ -8,6 +8,7 @@ from .views.mobile_v1 import (
 
 urlpatterns = [
     # Authentication URLs
+    path('customers/api', customer.customersapi, name='v1customersapi'),
     path('customers', customer.customers, name='v1customers'),
     path('customer/profile', customer.customer_profile, name='v1customerprofile'),
     path('customer/home', customer.customer_home, name='v1customerhome'),

@@ -378,7 +378,53 @@ def customer_invoice_viewer(request, invoice_id):
 def customers(request):
     context = {}
     users = UserProfile.objects.filter()
-    context['users'] = users
     customers = Customer.objects.filter().order_by('customer_name')
+    users_filter = request.GET.get('users_filter')
+    if users_filter:
+        user_ids = users_filter.split(',')
+        user_ids = [int(id) for id in user_ids]
+        users = users.filter(id__in=user_ids)
+    context['users'] = users
     context['customers'] = customers
     return render(request, 'mobile_v1/customers.html', context)
+
+def customersapi(request):
+    customers = Customer.objects.all().values(
+        business_name=F('customer_name'),
+        name=F('customer_userid'),
+        password=F('customer_password'),
+        gst=F('customer_gst')
+    ).exclude(customer_userid__isnull=True).exclude(customer_userid='') \
+     .exclude(customer_password__isnull=True).exclude(customer_password='')\
+     .exclude(is_mobile_user=False)
+
+    # Collect all links per GST
+    gst_map = {}
+
+    for customer in customers:
+        gst = customer['gst']
+        userid = customer['name']
+        link = f"/mobile/v1/customer/home?cid={userid}"
+
+        if gst not in gst_map:
+            gst_map[gst] = []
+
+        if link not in gst_map[gst]:
+            gst_map[gst].append(link)
+
+    # Build final response
+    customers_dict = {}
+
+    for customer in customers:
+        name = customer['name']
+        gst = customer['gst']
+
+        customers_dict[name] = {
+            'business_name': customer['business_name'],
+            'name': name,
+            'password': customer['password'],
+            'deflink': f"/mobile/v1/customer/home?cid={name}",
+            'linklist': gst_map.get(gst, [])
+        }
+
+    return JsonResponse(customers_dict, safe=False)

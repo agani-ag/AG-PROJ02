@@ -400,6 +400,10 @@
             font-weight: 500;
             position: relative;
         }
+
+        .customer-item-unactive {
+            background: var(--oneui-bg-secondary);
+        }
         
         .customer-item:last-child {
             margin-bottom: 0;
@@ -600,10 +604,12 @@
                         </div>
                     </div>
                     <div class="header-stats">
+                        {% if users|length > 1 %}
                         <div class="stat-item">
                             <span class="stat-number" id="visibleUsersCount">{{ users|length }}</span>
                             <span class="stat-label">Users</span>
                         </div>
+                        {% endif %}
                         <div class="stat-item">
                             <span class="stat-number">{{ customers|length }}</span>
                             <span class="stat-label">Total</span>
@@ -661,13 +667,18 @@
                 <div class="customer-list">
                     {% for c in customers %}
                         {% if c.user.id == i.id %}
-                            <a href="{% url 'v1customerprofile' %}?cid={{ c.customer_userid }}" 
-                               class="customer-item"
+                            <a href="{% url 'v1customerhome' %}?cid={{ c.customer_userid }}&u={{ request.GET.u }}&users_filter={{ request.GET.users_filter }}" 
+                               class="customer-item {% if not c.is_mobile_user %}customer-item-unactive{% endif %}"
                                data-customer-name="{{ c.customer_name|lower }}">
                                 <div class="customer-icon">
                                     <i class="bi bi-person-badge"></i>
                                 </div>
                                 <span class="customer-name">{{ c.customer_name }}</span>
+                                {% if not c.is_mobile_user %}
+                                    <span class="customer-status" title="Inactive User">
+                                        <i class="bi bi-slash-circle" style="color: #ff3b30;"></i>
+                                    </span>
+                                {% endif %}
                                 <i class="bi bi-chevron-right customer-arrow"></i>
                             </a>
                         {% endif %}
