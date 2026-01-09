@@ -328,6 +328,10 @@
                 <div class="header-count">
                     <i class="fas fa-receipt"></i>
                     <span>{{ books_count|default:0 }} Records</span>
+                    <button class="transaction-action" onclick="addPayment();"
+                        style="margin-left: 12px; padding: 4px 8px; font-size: 12px;color: white;">
+                        <i class="fas fa-money-bill-wave"></i> Add
+                    </button>
                 </div>
             </div>
         </div>
@@ -420,5 +424,65 @@
         clearTimeout(typingTimer);
         typingTimer = setTimeout(() => loadBooks(1), delay);
     });
+</script>
+
+<script>
+function addPayment() {
+    Swal.fire({
+        title: 'Add Payment',
+        html: `
+            <input type="number" id="change_amount" class="swal2-input" placeholder="Enter Amount">
+
+            <select id="description" class="swal2-input">
+                <option value="">Select Payment Type</option>
+                <option value="Hand Cash">Hand Cash</option>
+                <option value="GPAY">GPAY</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Others">Others</option>
+            </select>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Submit',
+        preConfirm: () => {
+            const change_amount = document.getElementById('change_amount').value;
+            const description = document.getElementById('description').value;
+
+            if (!change_amount || !description) {
+                Swal.showValidationMessage('Amount and Description are required');
+                return false;
+            }
+
+            return { change_amount, description };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch('api/books/add?cid={{ request.GET.cid }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    change_amount: result.value.change_amount,
+                    description: result.value.description
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    Swal.fire({
+                        title: 'Success',
+                        text: data.message,
+                        icon: 'success'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire('Error', data.message, 'error');
+                }
+            });
+        }
+    });
+}
 </script>
 {% endblock %}

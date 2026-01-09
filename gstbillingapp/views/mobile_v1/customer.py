@@ -14,7 +14,7 @@ from django.db.models import (
 # Models
 from ...models import (
     Customer, UserProfile, Invoice,
-    BookLog, ExpenseTracker, Product,
+    Book, BookLog, ExpenseTracker, Product,
     PurchaseLog, VendorPurchase, Inventory
 )
 
@@ -729,6 +729,43 @@ def customersapi(request):
         }
 
     return JsonResponse(customers_dict, safe=False)
+
+def customers_book_add_api(request):
+    context = {}
+    cid = request.GET.get('cid')
+    if not cid:
+        return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+    cid_data = parse_code_GS(cid)
+    if not cid_data:
+        return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+    customer_id = cid_data.get('C')
+    user_id = cid_data.get('GS')
+    user = get_object_or_404(UserProfile, user__id=user_id)
+    customer = get_object_or_404(Customer, user__id=user_id, id=customer_id)
+    parent_book = parent_book = get_object_or_404(Book, customer=customer, user=user.user)
+    if request.method == 'POST':
+        change_amount = request.POST.get('change_amount')
+        description = request.POST.get('description', '').strip()
+        if description == 'Cheque':
+            change_type = 4  # pending
+        else:
+            change_type = 0  # payment
+        try:
+            book_log = BookLog(
+                parent_book=parent_book,
+                change_type=change_type,
+                change=float(change_amount),
+                description=description,
+                createdby=customer.customer_name + ' via Mobile App',
+                is_active=False,  # default to inactive until verified
+            )
+            book_log.save()
+
+            return JsonResponse({'status': 'success', 'message': 'Payment added successfully.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+
+    return JsonResponse({'status': 'error', 'message': 'Try again later.'})
 
 def expenses_tracker(request):
     """Expense Tracker listing with filtering, search, and pagination"""
