@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<h2 style="margin-bottom: 3px;">Expense Tracker Graph</h2>
+<h5 style="margin-bottom: 5px;">Daily Expense Analysis by Category</h5>
+
+<div style="display: flex; gap: 15px; margin-bottom: 5px;">
+    <!-- Left Side - Category Selection -->
+    <div style="flex: 1;">
+        <div style="margin-bottom: 5px;">
+            <label style="font-size: 13px;"><strong>Categories:</strong></label>
+            <div style="margin-top: 5px; max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 8px; border-radius: 4px; background: #fff;">
+                {% if all_categories %}
+                    {% for category in all_categories %}
+                    <label style="display: block; margin-bottom: 5px; font-size: 13px;">
+                        <input type="checkbox" class="category-check" value="{{ category }}" checked> 
+                        <span>{{ category }}</span>
+                    </label>
+                    {% endfor %}
+                {% else %}
+                    <small style="color: #999;">No categories found</small>
+                {% endif %}
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd;">
+                    <button id="selectAllCategories" class="btn btn-sm btn-outline-primary" style="font-size: 11px; margin-right: 5px;">Select All</button>
+                    <button id="clearAllCategories" class="btn btn-sm btn-outline-secondary" style="font-size: 11px;">Clear All</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side - Stats & Filters -->
+    <div style="flex: 1;">
+        <div style="padding: 10px; background: #f8f9fa; border-radius: 5px;">
+            <!-- Stats at top -->
+            <div style="display: flex; justify-content: space-around; align-items: center; margin-bottom: 10px;">
+                <div style="text-align: center;">
+                    <strong style="color: #667eea; font-size: 12px;">Total Expenses</strong><br>
+                    <span id="totalSales" style="font-size: 20px; color: #667eea;">₹0</span>
+                </div>
+                <div style="text-align: center;">
+                    <strong style="color: #56ab2f; font-size: 11px;">Categories</strong><br>
+                    <span id="avgSales" style="font-size: 16px; color: #56ab2f;">0</span>
+                </div>
+                <div style="text-align: center;">
+                    <strong style="color: #2193b0; font-size: 12px;">Breakdown</strong><br>
+                    <span id="peakSales" style="font-size: 13px; color: #2193b0;">-</span>
+                </div>
+            </div>
+            
+            <!-- Period and Show filters at bottom -->
+            <form method="GET" id="filterForm">
+                <div style="margin-bottom: 5px;">
+                    <label style="font-size: 13px;"><strong>Period:</strong></label>
+                    <select name="filter" id="filterSelect" class="form-control form-control-sm" style="width: 100%; margin-top: 2px; font-size: 13px;">
+                        <option value="today">Today</option>
+                        <option value="this_week">This Week</option>
+                        <option value="this_month" selected>This Month</option>
+                        <option value="this_year">This Year</option>
+                        <option value="all">All Time</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                
+                <div id="customDateRange" style="display: none; margin-bottom: 5px;">
+                    <label style="font-size: 12px;"><strong>From:</strong></label>
+                    <input type="date" id="startDate" name="start_date" class="form-control form-control-sm" style="width: 100%; margin-top: 2px; margin-bottom: 4px; font-size: 12px;" />
+                    <label style="font-size: 12px;"><strong>To:</strong></label>
+                    <input type="date" id="endDate" name="end_date" class="form-control form-control-sm" style="width: 100%; margin-top: 2px; font-size: 12px;" />
+                </div>
+                
+                <div>
+                    <label style="font-size: 13px;"><strong>Show:</strong></label>
+                    <label style="display: inline-block; margin-left: 10px; font-size: 13px;">
+                        <input type="checkbox" id="showDailySales" checked> Daily
+                    </label>
+                    <label style="display: inline-block; margin-left: 10px; font-size: 13px;">
+                        <input type="checkbox" id="showCumulativeSales" checked> Cumulative
+                    </label>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="chart_div"></div>
+
+<div style="margin-top: 15px; padding: 10px; background: #f0f8ff; border-left: 4px solid #1b9e77; border-radius: 3px;">
+    <small style="color: #555;">
+        <strong>💡 Zoom Controls:</strong> 
+        <span style="margin-left: 10px;">Drag to zoom</span>
+        <span style="margin-left: 15px;">Right-click to reset</span>
+        <span style="margin-left: 15px;">Scroll to pan</span>
+    </small>
+</div>
+
+{% endblock %}
+
+{% block includejs %}
+<script src="https://www.gstatic.com/charts/loader.js"></script>
+<script>
+let currentFilter = 'this_month';
+let chartLoaded = false;
+
+google.charts.load('current', {'packages':['corechart']});
+google.charts.setOnLoadCallback(function() {
+    chartLoaded = true;
+});
+
+function loadSalesData(filter = 'this_month', startDate = null, endDate = null) {
+    console.log('Loading expense data:', filter, startDate, endDate);
+    
+    if (!chartLoaded) {
+        console.log('Chart not loaded yet, waiting...');
+        setTimeout(function() { loadSalesData(filter, startDate, endDate); }, 100);
+        return;
+    }
+    
+    // Get selected categories
+    var selectedCategories = [];
+    $('.category-check:checked').each(function() {
+        selectedCategories.push($(this).val());
+    });
+    
+    var categories = selectedCategories.join(',');
+    var url = window.location.pathname + '?filter=' + filter + '&categories=' + categories;
+    if (filter === 'custom' && startDate && endDate) {
+        url += '&start_date=' + startDate + '&end_date=' + endDate;
+    }
+    
+    console.log('AJAX URL:', url);
+    
+    $.ajax({
+        url: url,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            console.log('Response:', response);
+            if (response.success) {
+                if (response.categories && response.categories.length > 0) {
+                    drawChart(response.data, response.categories, response.category_names);
+                    updateStats(response.totals, response.category_names);
+                } else {
+                    document.getElementById('chart_div').innerHTML = '<div style="text-align: center; padding: 50px; color: #999;">Please select at least one category to display the chart.</div>';
+                    $('#totalSales').text('₹0');
+                    $('#avgSales').text('0');
+                    $('#peakSales').text('-');
+                }
+            } else {
+                alert('No data returned');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error loading expense data:', error);
+            console.error('Status:', status);
+            console.error('Response:', xhr.responseText);
+            alert('Error loading expense data: ' + error);
+        }
+    });
+}
+
+function drawChart(data, categories, categoryNames) {
+    if (!data || data.length === 0) {
+        document.getElementById('chart_div').innerHTML = '<div style="text-align: center; padding: 50px; color: #999;">No expense data available for the selected period.</div>';
+        return;
+    }
+    
+    var showDaily = $('#showDailySales').is(':checked');
+    var showCumulative = $('#showCumulativeSales').is(':checked');
+    
+    // Generate colors dynamically for categories
+    var baseColors = ['#d9534f', '#5cb85c', '#f0ad4e', '#5bc0de', '#9b59b6', '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#1abc9c'];
+    var typeColors = {};
+    categories.forEach(function(cat, idx) {
+        typeColors[cat] = baseColors[idx % baseColors.length];
+    });
+    
+    var chartData = new google.visualization.DataTable();
+    chartData.addColumn('date', 'Date');
+    
+    var colors = [];
+    var series = {};
+    var columnIndex = 1;
+    
+    // Add columns for each category
+    categories.forEach(function(category) {
+        var categoryName = categoryNames[category];
+        
+        if (showDaily) {
+            chartData.addColumn('number', categoryName + ' (Daily)');
+            colors.push(typeColors[category]);
+            series[columnIndex - 1] = { lineWidth: 2, pointSize: 3 };
+            columnIndex++;
+        }
+        
+        if (showCumulative) {
+            chartData.addColumn('number', categoryName + ' (Cumulative)');
+            colors.push(typeColors[category]);
+            series[columnIndex - 1] = { lineWidth: 2, pointSize: 3, lineDashStyle: [4, 4] };
+            columnIndex++;
+        }
+    });
+    
+    // Prepare cumulative data
+    var cumulativeData = {};
+    categories.forEach(function(cat) {
+        cumulativeData[cat] = 0;
+    });
+    
+    // Add rows
+    data.forEach(function(item) {
+        var dateParts = item.date.split('-');
+        var date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+        var row = [date];
+        
+        categories.forEach(function(category) {
+            var dailyValue = item['cat_' + category] || 0;
+            cumulativeData[category] += dailyValue;
+            
+            if (showDaily) {
+                row.push(dailyValue);
+            }
+            if (showCumulative) {
+                row.push(cumulativeData[category]);
+            }
+        });
+        
+        chartData.addRow(row);
+    });
+    
+    var formatter = new google.visualization.NumberFormat({
+        prefix: '₹ ',
+        groupingSymbol: ',',
+        fractionDigits: 0
+    });
+    
+    // Format all numeric columns
+    for (var i = 1; i < columnIndex; i++) {
+        formatter.format(chartData, i);
+    }
+    
+    var options = {
+        curveType: 'function',
+        height: 500,
+        colors: colors,
+        series: series,
+        vAxis: { 
+            format: '₹ #,###',
+            textStyle: { fontSize: 11 }
+        },
+        hAxis: { 
+            format: 'MMM dd',
+            textStyle: { fontSize: 11 },
+            slantedText: false
+        },
+        legend: { 
+            position: 'bottom',
+            textStyle: { fontSize: 12 }
+        },
+        chartArea: { top: 10, width: '88%', height: '70%' },
+        pointSize: 3,
+        lineWidth: 2,
+        explorer: {
+            actions: ['dragToZoom', 'rightClickToReset'],
+            axis: 'horizontal',
+            keepInBounds: true,
+            maxZoomIn: 0.01,
+            maxZoomOut: 1
+        },
+        tooltip: {
+            isHtml: false,
+            trigger: 'both'
+        }
+    };
+    
+    var chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+    chart.draw(chartData, options);
+}
+
+function updateStats(totals, categoryNames) {
+    var allTotal = 0;
+    var numCategories = Object.keys(totals).length;
+    
+    for (var cat in totals) {
+        allTotal += totals[cat];
+    }
+    
+    $('#totalSales').text('₹' + allTotal.toLocaleString('en-IN', {maximumFractionDigits: 0}));
+    $('#avgSales').text(numCategories + ' Category');
+    
+    // Show breakdown
+    var breakdown = [];
+    for (var cat in totals) {
+        breakdown.push(categoryNames[cat] + ': ₹' + totals[cat].toLocaleString('en-IN', {maximumFractionDigits: 0}));
+    }
+    $('#peakSales').html(breakdown.join('<br>'));
+}
+
+$(document).ready(function() {
+    // Set today as max date for date inputs
+    var today = new Date().toISOString().split('T')[0];
+    $('#startDate, #endDate').attr('max', today);
+    $('#endDate').val(today);
+    
+    // Load initial data
+    loadSalesData(currentFilter);
+    
+    // Category checkbox change
+    $('.category-check').change(function() {
+        var startDate = currentFilter === 'custom' ? $('#startDate').val() : null;
+        var endDate = currentFilter === 'custom' ? $('#endDate').val() : null;
+        loadSalesData(currentFilter, startDate, endDate);
+    });
+    
+    // Select/Clear all categories
+    $('#selectAllCategories').click(function() {
+        $('.category-check').prop('checked', true);
+        var startDate = currentFilter === 'custom' ? $('#startDate').val() : null;
+        var endDate = currentFilter === 'custom' ? $('#endDate').val() : null;
+        loadSalesData(currentFilter, startDate, endDate);
+    });
+    
+    $('#clearAllCategories').click(function() {
+        $('.category-check').prop('checked', false);
+        document.getElementById('chart_div').innerHTML = '<div style="text-align: center; padding: 50px; color: #999;">Please select at least one category</div>';
+    });
+    
+    // Filter dropdown change
+    $('#filterSelect').change(function() {
+        var filter = $(this).val();
+        console.log('Filter changed to:', filter);
+        
+        if (filter === 'custom') {
+            $('#customDateRange').css('display', 'inline');
+        } else {
+            $('#customDateRange').css('display', 'none');
+            currentFilter = filter;
+            loadSalesData(filter);
+        }
+    });
+    
+    // Date input change for custom range
+    $('#startDate, #endDate').change(function() {
+        var startDate = $('#startDate').val();
+        var endDate = $('#endDate').val();
+        
+        if (startDate && endDate) {
+            if (startDate > endDate) {
+                alert('Start date cannot be after end date');
+                return;
+            }
+            currentFilter = 'custom';
+            loadSalesData('custom', startDate, endDate);
+        }
+    });
+    
+    // Chart line visibility toggles
+    $('#showDailySales, #showCumulativeSales').change(function() {
+        var dailyChecked = $('#showDailySales').is(':checked');
+        var cumulativeChecked = $('#showCumulativeSales').is(':checked');
+        
+        // At least one must be checked
+        if (!dailyChecked && !cumulativeChecked) {
+            alert('At least one chart line must be visible');
+            $(this).prop('checked', true);
+            return;
+        }
+        
+        // Redraw chart with current data
+        var startDate = currentFilter === 'custom' ? $('#startDate').val() : null;
+        var endDate = currentFilter === 'custom' ? $('#endDate').val() : null;
+        loadSalesData(currentFilter, startDate, endDate);
+    });
+});
+</script>
+
+{% endblock %}

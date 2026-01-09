@@ -111,5 +111,7 @@ urlpatterns = [
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
     path('graphs/books', graphs.customer_books_graph, name='customer_books_graph'),
     path('graphs/customer', graphs.customer_graph, name='customer_graph'),
+    path('graphs/purchase-log', graphs.purchase_log_graph, name='purchase_log_graph'),
+    path('graphs/expense-tracker', graphs.expense_tracker_graph, name='expense_tracker_graph'),
     path('graphs/customer-location-map', graphs.customer_location_map, name='customer_location_map'),
 ]
