@@ -69,6 +69,109 @@ def sales_dashboard(request):
 
     return render(request, "graphs/sales_dashboard.html", context)
 
+@login_required
+def customer_books_graph(request):
+    # Handle AJAX request for data
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        from datetime import timedelta
+        
+        # Get transaction types filter (can be multiple)
+        transaction_types_param = request.GET.get('transaction_types', '1')
+        transaction_types = [int(t) for t in transaction_types_param.split(',') if t]
+        
+        # Get date range filter
+        filter_type = request.GET.get('filter', 'this_month')
+        today = datetime.now().date()
+        
+        if filter_type == 'today':
+            start_date = today
+            end_date = today
+        elif filter_type == 'this_week':
+            start_date = today - timedelta(days=today.weekday())
+            end_date = today
+        elif filter_type == 'this_month':
+            start_date = today.replace(day=1)
+            end_date = today
+        elif filter_type == 'this_year':
+            start_date = today.replace(month=1, day=1)
+            end_date = today
+        elif filter_type == 'all':
+            # Get the earliest date from BookLog
+            first_log = BookLog.objects.filter(
+                parent_book__user=request.user,
+                is_active=True
+            ).order_by('date').first()
+            start_date = first_log.date.date() if first_log else today
+            end_date = today
+        else:  # custom date range
+            start_date = datetime.strptime(request.GET.get('start_date', str(today)), '%Y-%m-%d').date()
+            end_date = datetime.strptime(request.GET.get('end_date', str(today)), '%Y-%m-%d').date()
+        
+        # Fetch data for each selected transaction type
+        from collections import defaultdict
+        all_data = {}
+        
+        type_names = {
+            0: 'Paid',
+            1: 'Purchased Items',
+            2: 'Returned Items',
+            3: 'Other'
+        }
+        
+        for trans_type in transaction_types:
+            logs = BookLog.objects.filter(
+                parent_book__user=request.user,
+                change_type=trans_type,
+                is_active=True,
+                date__date__gte=start_date,
+                date__date__lte=end_date
+            ).order_by('date')
+            
+            daily_sales = defaultdict(float)
+            for log in logs:
+                date_str = log.date.strftime('%Y-%m-%d')
+                daily_sales[date_str] += abs(log.change)
+            
+            all_data[trans_type] = {
+                'name': type_names.get(trans_type, 'Unknown'),
+                'daily': daily_sales
+            }
+        
+        # Prepare data for Google Charts
+        chart_data = []
+        current_date = start_date
+        
+        while current_date <= end_date:
+            date_str = current_date.strftime('%Y-%m-%d')
+            row = {'date': date_str}
+            
+            for trans_type in transaction_types:
+                daily_amount = all_data[trans_type]['daily'].get(date_str, 0)
+                row[f'type_{trans_type}'] = round(daily_amount, 2)
+            
+            chart_data.append(row)
+            current_date += timedelta(days=1)
+        
+        # Calculate totals for each type
+        totals = {}
+        for trans_type in transaction_types:
+            total = sum(all_data[trans_type]['daily'].values())
+            totals[trans_type] = round(total, 2)
+        
+        return JsonResponse({
+            'success': True,
+            'data': chart_data,
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'transaction_types': transaction_types,
+            'type_names': {k: v['name'] for k, v in all_data.items()},
+            'totals': totals
+        })
+    
+    # Regular page load
+    context = {}
+    return render(request, "graphs/books_graph.html", context)
+
 # ================= Maps =========================================
 @login_required
 def customer_location_map(request):
