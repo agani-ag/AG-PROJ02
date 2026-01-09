@@ -1037,13 +1037,18 @@
         loadingSpinner.classList.add('active');
         bookList.style.opacity = '0.5';
         
+        admin = '{{ request.GET.admin }}';
+        userFilter = '{{ request.GET.user_filter }}';
+
         const params = new URLSearchParams({
             user_id: userId,
             customer_id: customerId,
             search: searchQuery,
             filter_type: filterType,
             status_filter: statusFilter,
-            page: currentPage
+            page: currentPage,
+            admin: admin,
+            user_filter: userFilter
         });
         
         fetch(`?${params.toString()}`, {

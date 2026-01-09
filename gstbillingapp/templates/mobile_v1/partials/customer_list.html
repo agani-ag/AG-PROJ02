@@ -1,6 +1,6 @@
 {% if page_obj %}
     {% for customer in page_obj %}
-    <a href="{% url 'v1customerhome' %}?cid={{ customer.customer_userid }}&u={{ request.GET.u }}" 
+    <a href="{% url 'v1customerhome' %}?cid={{ customer.customer_userid }}&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" 
        class="customer-item"
        data-customer-id="{{ customer.id }}"
        data-user-id="{{ customer.user.id }}"

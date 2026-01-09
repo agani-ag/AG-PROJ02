@@ -20,7 +20,7 @@
                 <div class="book-top-section">
                     <div class="book-customer-wrapper">
                         <span class="book-customer">
-                            <a href="/mobile/v1/customer/profile?cid={{ book.parent_book.customer.customer_userid }}&u={{ request.GET.u }}" style="color: inherit; text-decoration: none;">
+                            <a href="/mobile/v1/customer/profile?cid={{ book.parent_book.customer.customer_userid }}&u={{ request.GET.u }}&admin={{ request.GET.admin }}&user_filter={{ request.GET.user_filter }}" style="color: inherit; text-decoration: none;">
                                 {{ book.parent_book.customer.customer_name }}
                             </a>
                             {% if not book.is_active %}
@@ -58,13 +58,34 @@
                 </div>
             </div>
             <div class="book-footer">
-                <span class="book-date">
-                    <i class="bi bi-calendar3"></i>
-                    {{ book.date|date:"d M, Y" }} • {{ book.date|date:"h:i A" }}
-                </span>
-                <button class="btn-view-details" onclick="showBookDetails(this.closest('.book-item')); event.stopPropagation();">
-                    <i class="bi bi-info-circle"></i> Details
-                </button>
+                <div class="book-footer-left">
+                    <span class="book-date">
+                        <i class="bi bi-calendar3"></i>
+                        {{ book.date|date:"d M, Y" }}
+                    </span>
+                    <span class="book-time">
+                        <i class="bi bi-clock"></i>
+                        {{ book.date|date:"h:i A" }}
+                    </span>
+                </div>
+                <div class="book-footer-actions">
+                    <button class="btn-view-details" onclick="showBookDetails(this.closest('.book-item')); event.stopPropagation();">
+                        <i class="bi bi-info-circle"></i>
+                        <span>Details</span>
+                    </button>
+                    {% if book.associated_invoice %}
+                    <a href="/mobile/v1/invoice/view?invid={{ book.associated_invoice.invoice_id }}&u={{ request.GET.u }}&admin={{ request.GET.admin }}&user_filter={{ request.GET.user_filter }}" 
+                        class="btn-view-details" onclick="event.stopPropagation();" style="margin-top: 3%;background-color: blueviolet;">
+                        <i class="bi bi-receipt"></i>
+                        <span>Invoice</span>
+                    </a>
+                    {% endif %}
+                    {% if not book.is_active and request.GET.admin == "true" %}
+                    <span class="btn-view-details" onclick="event.stopPropagation();markAsActive({{ book.id }}, {{ book.change }});" style="margin-top: 3%;background-color: rgb(226, 43, 43);">
+                        <i class="bi bi-receipt"></i><span>Active</span>
+                    </span>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -78,3 +99,42 @@
         <p class="empty-state-text">Try adjusting your filters or search criteria</p>
     </div>
 {% endif %}
+<script>
+// Example SweetAlert usage for marking as active
+function markAsActive(booklogId, change) {
+    Swal.fire({
+        title: 'Mark as Active?',
+        text: "This will mark the book log as active. Updates "+ change,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, Update it!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Make AJAX call to mark as active
+            $.ajax({
+                url: '/books/api/active',
+                method: 'GET',
+                data: { booklog: booklogId, change: change },
+                success: function(response) {
+                    Swal.fire(
+                        'Marked!',
+                        response.message,
+                        'success'
+                    ).then(() => {
+                        location.reload();
+                    });
+                },
+                error: function() {
+                    Swal.fire(
+                        'Error!',
+                        'There was an error marking the book log as active.',
+                        'error'
+                    );
+                }
+            });
+        }
+    });
+}
+</script>

@@ -115,6 +115,11 @@
                             <i class="fas fa-trash"></i>
                         </a>
                     {% endif %}
+                    {% if not item.associated_invoice and item.change_type == 1 %}
+                        <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
+                            <i class="fas fa-trash"></i>
+                        </a>
+                    {% endif %}                   
                     {% if not item.is_active %}
                         <span class="btn btn-warning btn-sm btn-curve" onclick="markAsActive({{ item.id }},{{ item.change }})"><i class="fas fa-arrow-up"></i></span>
                     {% endif %}

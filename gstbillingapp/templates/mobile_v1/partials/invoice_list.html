@@ -1,6 +1,6 @@
 {% if page_obj %}
     {% for invoice in page_obj %}
-    <a href="{% url 'v1customerinvoiceviewer' invoice.id %}?cid={{ invoice.invoice_customer.customer_userid }}" 
+    <a href="{% url 'v1customerinvoiceviewer' invoice.id %}?cid={{ invoice.invoice_customer.customer_userid }}&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" 
        class="invoice-item" 
        data-invoice-id="{{ invoice.id }}"
        data-user-id="{{ invoice.user.id }}"
