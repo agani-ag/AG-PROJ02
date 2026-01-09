@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<h2 style="margin-bottom: 3px;">Customer Analytics</h2>
+<h5 style="margin-bottom: 5px;">Top Customers by Transaction Volume & Balance</h5>
+
+<div style="display: flex; gap: 15px; margin-bottom: 5px;">
+    <!-- Left Side - Sort Options -->
+    <div style="flex: 1;">
+        <div style="margin-bottom: 5px;">
+            <label style="font-size: 13px;"><strong>Sort & Filter By:</strong></label>
+            <select id="sortBySelect" class="form-control form-control-sm" style="width: 100%; margin-top: 3px; font-size: 13px;">
+                <optgroup label="Aggregated Views">
+                    <option value="volume" selected>Transaction Volume (All Types)</option>
+                    <option value="balance">Outstanding Balance</option>
+                </optgroup>
+                <optgroup label="By Transaction Type">
+                    <option value="type_0">Paid Only</option>
+                    <option value="type_1">Purchased Items Only</option>
+                    <option value="type_2">Returned Items Only</option>
+                    <option value="type_3">Other Only</option>
+                </optgroup>
+            </select>
+        </div>
+        
+        <div style="margin-top: 8px; margin-bottom: 5px;">
+            <label style="font-size: 13px;"><strong>Chart Type:</strong></label>
+            <select id="chartTypeSelect" class="form-control form-control-sm" style="width: 100%; margin-top: 3px; font-size: 13px;">
+                <option value="bar" selected>Bar Chart (Top N)</option>
+                <option value="treemap">Treemap (All Customers)</option>
+                <option value="pie">Pie Chart (Top N)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Right Side - Stats -->
+    <div style="flex: 1;">
+        <div style="padding: 10px; background: #f8f9fa; border-radius: 5px;">
+            <div style="display: flex; justify-content: space-around; align-items: center;">
+                <div style="text-align: center;">
+                    <strong style="color: #667eea; font-size: 12px;">Total Customers</strong><br>
+                    <span id="totalCustomers" style="font-size: 20px; color: #667eea;">0</span>
+                </div>
+                <div style="text-align: center;">
+                    <strong style="color: #56ab2f; font-size: 12px;">Total Volume</strong><br>
+                    <span id="totalVolume" style="font-size: 16px; color: #56ab2f;">₹0</span>
+                </div>
+                <div style="text-align: center;">
+                    <strong style="color: #2193b0; font-size: 12px;">Total Balance</strong><br>
+                    <span id="totalBalance" style="font-size: 16px; color: #2193b0;">₹0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 10px;">
+            <label style="font-size: 13px;"><strong>Sort Order:</strong></label>
+            <div style="display: flex; gap: 5px; margin-top: 3px;">
+                <button id="sortDesc" class="btn btn-sm btn-primary" style="flex: 1; padding: 4px; font-size: 12px;">DESC (High to Low)</button>
+                <button id="sortAsc" class="btn btn-sm btn-outline-primary" style="flex: 1; padding: 4px; font-size: 12px;">ASC (Low to High)</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="chart_div"></div>
+
+<div id="topNContainer" style="margin-top: 10px; margin-bottom: 10px; text-align: center;">
+    <label style="font-size: 13px;"><strong>Number of Customers:</strong></label>
+    <div style="margin-top: 5px; display: inline-block;">
+        <input type="number" id="topNValue" class="form-control form-control-sm" value="10" min="1" max="100" style="width: 80px; text-align: center; font-weight: bold; font-size: 14px; display: inline-block; margin-right: 10px;">
+    </div>
+    <div style="display: inline-block;">
+        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="5" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">5</button>
+        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="10" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">10</button>
+        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="15" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">15</button>
+        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="20" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">20</button>
+        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="30" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">30</button>
+        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="50" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">50</button>
+        <button type="button" id="allBtn" class="btn btn-sm btn-success" style="padding: 3px 10px; font-size: 11px; font-weight: bold;">All</button>
+    </div>
+    <div style="margin-top: 5px;">
+        <small style="color: #667eea; font-size: 11px;">Showing Top <strong id="displayCount">10</strong> customers</small>
+    </div>
+</div>
+
+<div style="margin-top: 15px; padding: 10px; background: #f0f8ff; border-left: 4px solid #1b9e77; border-radius: 3px;">
+    <small style="color: #555;">
+        <strong>💡 Chart Info:</strong> 
+        <span style="margin-left: 10px;">Hover over bars for details</span>
+    </small>
+</div>
+
+{% endblock %}
+
+{% block includejs %}
+<script src="https://www.gstatic.com/charts/loader.js"></script>
+<script>
+let chartLoaded = false;
+
+google.charts.load('current', {'packages':['corechart', 'treemap']});
+google.charts.setOnLoadCallback(function() {
+    chartLoaded = true;
+});
+
+function loadCustomerData() {
+    console.log('Loading customer data');
+    
+    if (!chartLoaded) {
+        console.log('Chart not loaded yet, waiting...');
+        setTimeout(function() { loadCustomerData(); }, 100);
+        return;
+    }
+    
+    var sortBy = $('#sortBySelect').val();
+    var chartType = $('#chartTypeSelect').val();
+    var topN = chartType === 'treemap' ? 999 : parseInt($('#topNValue').val());
+    var sortOrder = $('#sortDesc').hasClass('btn-primary') ? 'desc' : 'asc';
+    
+    // Show/hide top N selector based on chart type
+    if (chartType === 'treemap') {
+        $('#topNContainer').hide();
+    } else {
+        $('#topNContainer').show();
+    }
+    
+    var url = window.location.pathname + '?sort_by=' + sortBy + '&top_n=' + topN + '&sort_order=' + sortOrder;
+    
+    console.log('AJAX URL:', url);
+    
+    $.ajax({
+        url: url,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        success: function(response) {
+            console.log('Response:', response);
+            if (response.success) {
+                drawChart(response.data, response.sort_by);
+                updateStats(response.data);
+                if (response.total_customers) {
+                    updateSliderMax(response.total_customers);
+                }
+            } else {
+                alert('No data returned');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('Error loading customer data:', error);
+            console.error('Status:', status);
+            console.error('Response:', xhr.responseText);
+            alert('Error loading customer data: ' + error);
+        }
+    });
+}
+
+function drawChart(data, sortBy) {
+    if (!data || data.length === 0) {
+        document.getElementById('chart_div').innerHTML = '<div style="text-align: center; padding: 50px; color: #999;">No customer data available.</div>';
+        return;
+    }
+    
+    var chartType = $('#chartTypeSelect').val();
+    
+    var columnTitle = 'Transaction Volume';
+    if (sortBy === 'balance') columnTitle = 'Outstanding Balance';
+    else if (sortBy === 'type_0') columnTitle = 'Paid Amount';
+    else if (sortBy === 'type_1') columnTitle = 'Purchased Items';
+    else if (sortBy === 'type_2') columnTitle = 'Returned Items';
+    else if (sortBy === 'type_3') columnTitle = 'Other Transactions';
+    
+    if (chartType === 'treemap') {
+        drawTreemap(data, columnTitle, sortBy);
+    } else if (chartType === 'pie') {
+        drawPieChart(data, columnTitle, sortBy);
+    } else {
+        drawBarChart(data, columnTitle, sortBy);
+    }
+}
+
+function getCustomerValue(customer, sortBy) {
+    if (sortBy === 'balance') return customer.balance;
+    else if (sortBy === 'type_0') return customer.type_0 || 0;
+    else if (sortBy === 'type_1') return customer.type_1 || 0;
+    else if (sortBy === 'type_2') return customer.type_2 || 0;
+    else if (sortBy === 'type_3') return customer.type_3 || 0;
+    else return customer.volume;
+}
+
+function drawBarChart(data, columnTitle, sortBy) {
+    var chartData = new google.visualization.DataTable();
+    chartData.addColumn('string', 'Customer');
+    chartData.addColumn('number', columnTitle);
+    chartData.addColumn({type: 'string', role: 'style'});
+    
+    // Add rows with alternating colors
+    var colors = ['#667eea', '#5cb85c', '#f0ad4e', '#d9534f', '#5bc0de'];
+    data.forEach(function(customer, index) {
+        var value = getCustomerValue(customer, sortBy);
+        var color = colors[index % colors.length];
+        chartData.addRow([customer.name, value, color]);
+    });
+    
+    var formatter = new google.visualization.NumberFormat({
+        prefix: '₹ ',
+        groupingSymbol: ',',
+        fractionDigits: 0
+    });
+    formatter.format(chartData, 1);
+    
+    var options = {
+        height: 500,
+        vAxis: { 
+            title: columnTitle,
+            format: '₹ #,###',
+            textStyle: { fontSize: 11 }
+        },
+        hAxis: { 
+            title: 'Customer Name',
+            textStyle: { fontSize: 11 },
+            slantedText: true,
+            slantedTextAngle: 45
+        },
+        legend: { position: 'none' },
+        chartArea: { width: '85%', height: '65%', left: '10%', bottom: '20%' },
+        tooltip: {
+            isHtml: false,
+            trigger: 'both'
+        },
+        bar: { groupWidth: '75%' }
+    };
+    
+    var chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
+    chart.draw(chartData, options);
+}
+
+function drawTreemap(data, columnTitle, sortBy) {
+    var chartData = new google.visualization.DataTable();
+    chartData.addColumn('string', 'ID');
+    chartData.addColumn('string', 'Parent');
+    chartData.addColumn('number', columnTitle);
+    chartData.addColumn('number', 'Color Value');
+    
+    // Add root
+    chartData.addRow(['All Customers', null, 0, 0]);
+    
+    // Store customer data for tooltip with unique keys
+    var customerMap = {};
+    var customerIndex = 0;
+    
+    // Add customer data
+    data.forEach(function(customer) {
+        var value = getCustomerValue(customer, sortBy);
+        if (value > 0) {
+            // Create unique ID by appending index to handle duplicate names
+            var uniqueId = customer.name + '_' + customerIndex;
+            chartData.addRow([uniqueId, 'All Customers', value, value]);
+            customerMap[uniqueId] = customer;
+            customerIndex++;
+        }
+    });
+    
+    // Different color schemes based on filter
+    var colorScheme = {
+        volume: { min: '#e8eaf6', mid: '#7986cb', max: '#3f51b5' },      // Blue-Purple
+        balance: { min: '#ffebee', mid: '#ef5350', max: '#c62828' },     // Red
+        type_0: { min: '#e8f5e9', mid: '#66bb6a', max: '#2e7d32' },      // Green (Paid)
+        type_1: { min: '#fff3e0', mid: '#ff9800', max: '#e65100' },      // Orange (Purchased)
+        type_2: { min: '#fff8e1', mid: '#ffc107', max: '#f57f17' },      // Amber (Returned)
+        type_3: { min: '#e1f5fe', mid: '#29b6f6', max: '#01579b' }       // Light Blue (Other)
+    };
+    
+    var colors = colorScheme[sortBy] || colorScheme.volume;
+    
+    var options = {
+        height: 550,
+        minColor: colors.min,
+        midColor: colors.mid,
+        maxColor: colors.max,
+        headerHeight: 20,
+        fontColor: 'black',
+        fontSize: 11,
+        showScale: true,
+        highlightOnMouseOver: true,
+        maxDepth: 1,
+        maxPostDepth: 0,
+        generateTooltip: function(row, size, value) {
+            if (row === 0) return null; // Skip root
+            var uniqueId = chartData.getValue(row, 0);
+            var customer = customerMap[uniqueId];
+            if (!customer) return null;
+            
+            var name = customer.name;
+            
+            var html = '<div style="padding: 12px; background: #fff; border: 2px solid #667eea; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 200px;">';
+            html += '<div style="font-weight: bold; font-size: 14px; color: #333; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px;">' + name + '</div>';
+            html += '<table style="width: 100%; font-size: 12px; color: #555;">';
+            html += '<tr><td style="padding: 3px 0;"><strong>Transaction Volume:</strong></td><td style="text-align: right; color: #667eea;">₹ ' + customer.volume.toLocaleString('en-IN', {maximumFractionDigits: 0}) + '</td></tr>';
+            html += '<tr><td style="padding: 3px 0;"><strong>Outstanding Balance:</strong></td><td style="text-align: right; color: ' + (customer.balance > 0 ? '#d9534f' : '#5cb85c') + ';">₹ ' + customer.balance.toLocaleString('en-IN', {maximumFractionDigits: 0}) + '</td></tr>';
+            html += '<tr style="border-top: 1px solid #eee;"><td style="padding: 3px 0; padding-top: 6px;"><strong style="color: #5cb85c;">Paid:</strong></td><td style="text-align: right; padding-top: 6px;">₹ ' + (customer.type_0 || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}) + '</td></tr>';
+            html += '<tr><td style="padding: 3px 0;"><strong style="color: #d9534f;">Purchased:</strong></td><td style="text-align: right;">₹ ' + (customer.type_1 || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}) + '</td></tr>';
+            html += '<tr><td style="padding: 3px 0;"><strong style="color: #f0ad4e;">Returned:</strong></td><td style="text-align: right;">₹ ' + (customer.type_2 || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}) + '</td></tr>';
+            html += '<tr><td style="padding: 3px 0;"><strong style="color: #5bc0de;">Other:</strong></td><td style="text-align: right;">₹ ' + (customer.type_3 || 0).toLocaleString('en-IN', {maximumFractionDigits: 0}) + '</td></tr>';
+            html += '</table></div>';
+            return html;
+        }
+    };
+    
+    var chart = new google.visualization.TreeMap(document.getElementById('chart_div'));
+    chart.draw(chartData, options);
+}
+
+function drawPieChart(data, columnTitle, sortBy) {
+    var chartData = new google.visualization.DataTable();
+    chartData.addColumn('string', 'Customer');
+    chartData.addColumn('number', columnTitle);
+    
+    data.forEach(function(customer) {
+        var value = getCustomerValue(customer, sortBy);
+        if (value > 0) {
+            chartData.addRow([customer.name, value]);
+        }
+    });
+    
+    var options = {
+        height: 550,
+        chartArea: { width: '90%', height: '85%' },
+        pieSliceText: 'percentage',
+        pieSliceTextStyle: { fontSize: 10 },
+        legend: { position: 'right', textStyle: { fontSize: 10 }, maxLines: 3 },
+        tooltip: { text: 'both' },
+        sliceVisibilityThreshold: 0.01
+    };
+    
+    var chart = new google.visualization.PieChart(document.getElementById('chart_div'));
+    chart.draw(chartData, options);
+}
+
+function updateStats(data) {
+    var totalVolume = 0;
+    var totalBalance = 0;
+    
+    data.forEach(function(customer) {
+        totalVolume += customer.volume;
+        totalBalance += customer.balance;
+    });
+    
+    $('#totalCustomers').text(data.length);
+    $('#totalVolume').text('₹' + totalVolume.toLocaleString('en-IN', {maximumFractionDigits: 0}));
+    $('#totalBalance').text('₹' + totalBalance.toLocaleString('en-IN', {maximumFractionDigits: 0}));
+}
+
+function updateSliderMax(customerCount) {
+    // Update max for number input
+    $('#topNValue').attr('max', customerCount);
+    
+    // Update the current value if it exceeds the new max
+    var currentVal = parseInt($('#topNValue').val());
+    if (currentVal > customerCount) {
+        $('#topNValue').val(customerCount);
+        $('#displayCount').text(customerCount);
+    }
+}
+
+$(document).ready(function() {
+    console.log('=== Document ready - initializing customer graph ===');
+    console.log('jQuery version:', $.fn.jquery);
+    console.log('Preset buttons found:', $('.preset-btn').length);
+    console.log('All button found:', $('#allBtn').length);
+    
+    // Load initial data
+    loadCustomerData();
+    
+    // Sort option change
+    $('#sortBySelect').change(function() {
+        loadCustomerData();
+    });
+    
+    // Chart type change
+    $('#chartTypeSelect').change(function() {
+        loadCustomerData();
+    });
+    
+    // Sort order toggle
+    $('#sortDesc').on('click', function() {
+        console.log('DESC clicked');
+        $(this).removeClass('btn-outline-primary').addClass('btn-primary');
+        $('#sortAsc').removeClass('btn-primary').addClass('btn-outline-primary');
+        loadCustomerData();
+    });
+    
+    $('#sortAsc').on('click', function() {
+        console.log('ASC clicked');
+        $(this).removeClass('btn-outline-primary').addClass('btn-primary');
+        $('#sortDesc').removeClass('btn-primary').addClass('btn-outline-primary');
+        loadCustomerData();
+    });
+    
+    // Preset buttons - Direct binding with extensive logging
+    $('.preset-btn').each(function(index) {
+        var btn = $(this);
+        console.log('Binding click to button', index, 'value:', btn.attr('data-value'));
+        
+        btn.on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            var value = parseInt($(this).attr('data-value'));
+            console.log('===== PRESET BUTTON CLICKED =====');
+            console.log('Button value:', value);
+            console.log('Button text:', $(this).text());
+            
+            var maxAllowed = parseInt($('#topNValue').attr('max')) || 100;
+            var newVal = Math.min(value, maxAllowed);
+            
+            console.log('Setting topNValue to:', newVal);
+            $('#topNValue').val(newVal);
+            $('#displayCount').text(newVal);
+            
+            console.log('Calling loadCustomerData...');
+            loadCustomerData();
+            
+            return false;
+        });
+    });
+    
+    // All button
+    $('#allBtn').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        console.log('===== ALL BUTTON CLICKED =====');
+        var maxAllowed = parseInt($('#topNValue').attr('max')) || 100;
+        console.log('Max allowed:', maxAllowed);
+        
+        $('#topNValue').val(maxAllowed);
+        $('#displayCount').text(maxAllowed);
+        
+        console.log('Calling loadCustomerData...');
+        loadCustomerData();
+        
+        return false;
+    });
+    
+    // Direct input change
+    $('#topNValue').on('change', function() {
+        var maxAllowed = parseInt($(this).attr('max'));
+        var val = Math.max(1, Math.min(maxAllowed, parseInt($(this).val()) || 10));
+        $(this).val(val);
+        $('#displayCount').text(val);
+        loadCustomerData();
+    });
+});
+</script>
+
+{% endblock %}

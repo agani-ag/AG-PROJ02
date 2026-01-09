@@ -172,6 +172,90 @@ def customer_books_graph(request):
     context = {}
     return render(request, "graphs/books_graph.html", context)
 
+@login_required
+def customer_graph(request):
+    # Handle AJAX request for data
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        from datetime import timedelta
+        from django.db.models import Sum
+        
+        # Get top N customers
+        top_n = int(request.GET.get('top_n', 10))
+        sort_by = request.GET.get('sort_by', 'volume')  # 'volume' or 'balance'
+        sort_order = request.GET.get('sort_order', 'desc')  # 'desc' or 'asc'
+        
+        # Get all customers with their books
+        customers_data = []
+        
+        books = Book.objects.filter(
+            user=request.user,
+            customer__isnull=False
+        ).select_related('customer')
+        
+        for book in books:
+            # Calculate total transaction volume (all transaction types)
+            total_volume = BookLog.objects.filter(
+                parent_book=book,
+                change_type__in=[0, 1, 2, 3],  # Paid, Purchased, Returned, Other
+                is_active=True
+            ).aggregate(total=Sum('change'))['total'] or 0
+            
+            # Calculate individual transaction type amounts
+            type_0 = BookLog.objects.filter(
+                parent_book=book, change_type=0, is_active=True
+            ).aggregate(total=Sum('change'))['total'] or 0
+            
+            type_1 = BookLog.objects.filter(
+                parent_book=book, change_type=1, is_active=True
+            ).aggregate(total=Sum('change'))['total'] or 0
+            
+            type_2 = BookLog.objects.filter(
+                parent_book=book, change_type=2, is_active=True
+            ).aggregate(total=Sum('change'))['total'] or 0
+            
+            type_3 = BookLog.objects.filter(
+                parent_book=book, change_type=3, is_active=True
+            ).aggregate(total=Sum('change'))['total'] or 0
+            
+            customers_data.append({
+                'name': book.customer.customer_name,
+                'volume': abs(total_volume),
+                'balance': abs(book.current_balance),
+                'type_0': abs(type_0),
+                'type_1': abs(type_1),
+                'type_2': abs(type_2),
+                'type_3': abs(type_3)
+            })
+        
+        # Sort and limit
+        reverse_sort = (sort_order == 'desc')
+        
+        if sort_by == 'balance':
+            customers_data.sort(key=lambda x: x['balance'], reverse=reverse_sort)
+        elif sort_by == 'type_0':
+            customers_data.sort(key=lambda x: x['type_0'], reverse=reverse_sort)
+        elif sort_by == 'type_1':
+            customers_data.sort(key=lambda x: x['type_1'], reverse=reverse_sort)
+        elif sort_by == 'type_2':
+            customers_data.sort(key=lambda x: x['type_2'], reverse=reverse_sort)
+        elif sort_by == 'type_3':
+            customers_data.sort(key=lambda x: x['type_3'], reverse=reverse_sort)
+        else:  # volume
+            customers_data.sort(key=lambda x: x['volume'], reverse=reverse_sort)
+        
+        customers_data = customers_data[:top_n]
+        
+        return JsonResponse({
+            'success': True,
+            'data': customers_data,
+            'sort_by': sort_by,
+            'total_customers': len(Book.objects.filter(user=request.user, customer__isnull=False))
+        })
+    
+    # Regular page load
+    context = {}
+    return render(request, "graphs/customer_graph.html", context)
+
 # ================= Maps =========================================
 @login_required
 def customer_location_map(request):
