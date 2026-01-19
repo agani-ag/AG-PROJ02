@@ -744,6 +744,7 @@
     let dateFilter = '{{ current_date_filter|default:"all" }}';
     let gstFilter = '{{ current_gst_filter|default:"all" }}';
     let searchTimeout = null;
+    let usersFilter = '{{ users_filter|default:"" }}';
     let allCustomers = [];
     
     // DOM Elements
@@ -921,7 +922,8 @@
             customer_id: customerId,
             search: searchQuery,
             date_filter: dateFilter,
-            gst_filter: gstFilter
+            gst_filter: gstFilter,
+            users_filter: usersFilter || ''
         });
         
         // Fetch data

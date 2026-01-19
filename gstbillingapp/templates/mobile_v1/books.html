@@ -892,6 +892,7 @@
     let filterType = '{{ current_filter_type|default:"all" }}';
     let statusFilter = '{{ current_status_filter|default:"active" }}';
     let searchTimeout = null;
+    let usersFilter = '{{ users_filter|default:"" }}';
     let allCustomers = [];
     
     // DOM Elements
@@ -1048,7 +1049,8 @@
             status_filter: statusFilter,
             page: currentPage,
             admin: admin,
-            user_filter: userFilter
+            user_filter: userFilter,
+            users_filter: usersFilter
         });
         
         fetch(`?${params.toString()}`, {
