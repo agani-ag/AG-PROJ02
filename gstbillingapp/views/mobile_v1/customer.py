@@ -579,6 +579,7 @@ def invoices(request):
 
 def books(request):
     """Books listing with filtering, search, and pagination"""
+    from datetime import datetime, timedelta
     context = {}
     
     # Get filter parameters
@@ -587,6 +588,9 @@ def books(request):
     search_query = request.GET.get('search', '').strip()
     filter_type = request.GET.get('filter_type', 'all')  # all, payments, purchases, returns, others
     status_filter = request.GET.get('status_filter', 'active')  # active, inactive, all
+    date_filter = request.GET.get('date_filter', 'all')  # all, today, week, month, custom
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
     page_number = request.GET.get('page', 1)
     users_filter = request.GET.get('users_filter', '')
     user_ids = []
@@ -641,6 +645,24 @@ def books(request):
             Q(change__icontains=search_query)
         )
     
+    # Apply date filter
+    today = datetime.now().date()
+    if date_filter == 'today':
+        books_qs = books_qs.filter(date=today)
+    elif date_filter == 'week':
+        week_ago = today - timedelta(days=7)
+        books_qs = books_qs.filter(date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = today - timedelta(days=30)
+        books_qs = books_qs.filter(date__gte=month_ago)
+    elif date_filter == 'custom' and start_date and end_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end = datetime.strptime(end_date, '%Y-%m-%d').date()
+            books_qs = books_qs.filter(date__gte=start, date__lte=end)
+        except ValueError:
+            pass  # Invalid date format, ignore
+    
     # Order by date
     books_qs = books_qs.order_by('-date')
     
@@ -675,6 +697,22 @@ def books(request):
             Q(description__icontains=search_query) |
             Q(change__icontains=search_query)
         )
+    # Apply date filter to totals
+    if date_filter == 'today':
+        totals_qs = totals_qs.filter(date=today)
+    elif date_filter == 'week':
+        week_ago = today - timedelta(days=7)
+        totals_qs = totals_qs.filter(date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = today - timedelta(days=30)
+        totals_qs = totals_qs.filter(date__gte=month_ago)
+    elif date_filter == 'custom' and start_date and end_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end = datetime.strptime(end_date, '%Y-%m-%d').date()
+            totals_qs = totals_qs.filter(date__gte=start, date__lte=end)
+        except ValueError:
+            pass
     
     # Calculate totals for current filter (only active)
     totals = totals_qs.aggregate(
@@ -702,6 +740,9 @@ def books(request):
         'current_search': search_query,
         'current_filter_type': filter_type,
         'current_status_filter': status_filter,
+        'current_date_filter': date_filter,
+        'current_start_date': start_date,
+        'current_end_date': end_date,
         'total_purchased': total_purchased,
         'total_paid': total_paid,
         'total_returned': total_returned,
