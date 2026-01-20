@@ -1407,6 +1407,10 @@ def home(request):
         # Recent activity
         'recent_invoices': recent_invoices,
         'recent_expenses': recent_expenses,
+
+        # Brands
+        'users': users,
+        'users_filter': users_filter,
     })
     
     return render(request, 'mobile_v1/home.html', context)

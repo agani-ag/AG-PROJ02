@@ -773,9 +773,9 @@
                 <i class="bi bi-cart-dash"></i>
                 Customer Purchases
             </span>
-            <span class="summary-value">
+            <span class="summary-value text-danger">
                 ₹{{ total_purchases|floatformat:0|intcomma }}
-                <span class="summary-badge badge-danger">DR</span>
+                <!-- <span class="summary-badge badge-danger">DR</span> -->
             </span>
         </div>
         
@@ -784,9 +784,9 @@
                 <i class="bi bi-currency-rupee"></i>
                 Payments Received
             </span>
-            <span class="summary-value">
+            <span class="summary-value text-success">
                 ₹{{ total_payments|floatformat:0|intcomma }}
-                <span class="summary-badge badge-success">CR</span>
+                <!-- <span class="summary-badge badge-success">CR</span> -->
             </span>
         </div>
         
@@ -795,8 +795,18 @@
                 <i class="bi bi-arrow-return-left"></i>
                 Returns
             </span>
-            <span class="summary-value">
+            <span class="summary-value" style="color: darkorange;">
                 ₹{{ total_returns|floatformat:0|intcomma }}
+            </span>
+        </div>
+
+        <div class="summary-item">
+            <span class="summary-label">
+                <i class="bi bi-recycle"></i>
+                Others
+            </span>
+            <span class="summary-value" style="color: darkviolet;">
+                ₹{{ total_others|floatformat:0|intcomma }}
             </span>
         </div>
         
@@ -806,10 +816,10 @@
                 Outstanding Balance
             </span>
             <span class="summary-value">
-                ₹{{ total_balance|floatformat:0|intcomma }}
                 <span class="summary-badge {% if total_balance > 0 %}badge-danger{% else %}badge-success{% endif %}">
                     {% if total_balance > 0 %}Receivable{% else %}Paid{% endif %}
-                </span>
+                </span><br>
+                ₹{{ total_balance|floatformat:0|intcomma }}
             </span>
         </div>
         
@@ -855,7 +865,7 @@
             </div>
             <div class="progress-values">
                 <span class="progress-current">₹{{ current_month_payments_amount|floatformat:0|intcomma }}</span>
-                <span>₹{{ current_month_purchases_amount|floatformat:0|intcomma }}</span>
+                <span class="text-danger">₹{{ current_month_purchases_amount|floatformat:0|intcomma }}</span>
             </div>
         </div>
         
@@ -874,7 +884,7 @@
             </div>
             <div class="progress-values">
                 <span class="progress-current">₹{{ last_month_payments_amount|floatformat:0|intcomma }}</span>
-                <span>₹{{ last_month_purchases_amount|floatformat:0|intcomma }}</span>
+                <span class="text-danger">₹{{ last_month_purchases_amount|floatformat:0|intcomma }}</span>
             </div>
         </div>
         
@@ -893,7 +903,7 @@
             </div>
             <div class="progress-values">
                 <span class="progress-current">₹{{ total_payments|floatformat:0|intcomma }}</span>
-                <span>₹{{ total_purchases|floatformat:0|intcomma }}</span>
+                <span class="text-danger">₹{{ total_purchases|floatformat:0|intcomma }}</span>
             </div>
         </div>
     </div>
@@ -1010,6 +1020,30 @@
     </div>
     {% endif %}
     
+    <!-- Brands -->
+    <div class="section-header">
+        <h2 class="section-title">Brands</h2>
+        <p class="section-subtitle">Accessible brands or associated companies</p>
+    </div>
+
+    <div class="activity-list">
+        <h3 class="summary-title">
+            <i class="bi bi-tags"></i>
+            Brand Tracking
+        </h3>
+        
+        {% for user in users %}
+        <div class="activity-item">
+            <div class="alert-icon success">
+                <i class="bi bi-clipboard-data"></i>
+            </div>
+            <div class="activity-details">
+                <h4 class="activity-title">{{ user.business_brand|default:"Unknown Brand" }}</h4>
+                <p class="activity-subtitle">{{ user.business_title|default:"Unknown Brand" }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
 </div>
 
 <!-- EMPLOYEE NAVBAR -->
