@@ -1151,6 +1151,8 @@
             document.getElementById('totalPurchased').textContent = `₹${Math.round(data.total_purchased).toLocaleString('en-IN')}`;
             document.getElementById('totalPaid').textContent = `₹${Math.round(data.total_paid).toLocaleString('en-IN')}`;
             document.getElementById('totalBalance').textContent = `₹${Math.round(data.total_balance).toLocaleString('en-IN')}`;
+            document.getElementById('totalReturned').textContent = `₹${Math.round(data.total_returned).toLocaleString('en-IN')}`;
+            document.getElementById('totalOthers').textContent = `₹${Math.round(data.total_others).toLocaleString('en-IN')}`;
             
             updatePagination(data);
         })
