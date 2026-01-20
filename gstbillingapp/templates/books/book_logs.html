@@ -93,13 +93,14 @@
                     {% if item.associated_invoice %}
                         <a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="btn btn-primary btn-sm btn-curve">
                             <i class="fas fa-file-invoice"></i>
-                        </a>    
-                    {% else %}
+                        </a> 
+                    {% endif %}
+                    {% if item.change_type != 1 and item.change_type != 2 %}
                         <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
                             <i class="fas fa-trash"></i>
                         </a>
-                    {% endif %}    
-                    {% if item.change_type != 1 and item.change_type != 2%}
+                    {% endif %}
+                    {% if not item.associated_invoice and item.change_type == 1 %}
                         <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
                             <i class="fas fa-trash"></i>
                         </a>

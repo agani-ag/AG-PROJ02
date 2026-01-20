@@ -892,6 +892,7 @@
     let filterType = '{{ current_filter_type|default:"all" }}';
     let statusFilter = '{{ current_status_filter|default:"active" }}';
     let searchTimeout = null;
+    let usersFilter = '{{ users_filter|default:"" }}';
     let allCustomers = [];
     
     // DOM Elements
@@ -1037,13 +1038,19 @@
         loadingSpinner.classList.add('active');
         bookList.style.opacity = '0.5';
         
+        admin = '{{ request.GET.admin }}';
+        userFilter = '{{ request.GET.user_filter }}';
+
         const params = new URLSearchParams({
             user_id: userId,
             customer_id: customerId,
             search: searchQuery,
             filter_type: filterType,
             status_filter: statusFilter,
-            page: currentPage
+            page: currentPage,
+            admin: admin,
+            user_filter: userFilter,
+            users_filter: usersFilter
         });
         
         fetch(`?${params.toString()}`, {

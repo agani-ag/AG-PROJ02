@@ -14,7 +14,7 @@ from django.db.models import (
 # Models
 from ...models import (
     Customer, UserProfile, Invoice,
-    BookLog, ExpenseTracker, Product,
+    Book, BookLog, ExpenseTracker, Product,
     PurchaseLog, VendorPurchase, Inventory
 )
 
@@ -396,15 +396,22 @@ def customers(request):
     user_id = request.GET.get('user_id', '')
     search_query = request.GET.get('search', '').strip()
     page_number = request.GET.get('page', 1)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
     
     # Base querysets
     users = UserProfile.objects.all().order_by('business_title')
     customers_qs = Customer.objects.select_related('user').order_by('customer_name')
     
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        customers_qs = customers_qs.filter(user__id__in=user_ids)
+
     # Apply user filter
     if user_id and user_id.isdigit():
         customers_qs = customers_qs.filter(user__id=int(user_id))
-    
     # Apply search filter
     if search_query:
         customers_qs = customers_qs.filter(
@@ -470,12 +477,21 @@ def invoices(request):
     date_filter = request.GET.get('date_filter', 'all')
     gst_filter = request.GET.get('gst_filter', 'all')
     page_number = request.GET.get('page', 1)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
     
     # Base querysets
     users = UserProfile.objects.all().order_by('business_title')
     customers = Customer.objects.all().order_by('customer_name')
     invoices_qs = Invoice.objects.select_related('user', 'invoice_customer').order_by('-invoice_date', '-invoice_number')
     
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        invoices_qs = invoices_qs.filter(user__id__in=user_ids)
+        customers = customers.filter(user__id__in=user_ids)
+
     # Apply user filter
     if user_id and user_id.isdigit():
         invoices_qs = invoices_qs.filter(user__id=int(user_id))
@@ -539,6 +555,7 @@ def invoices(request):
         'current_search': search_query,
         'current_date_filter': date_filter,
         'current_gst_filter': gst_filter,
+        'users_filter': users_filter,
     })
     
     # AJAX request - return JSON with HTML
@@ -552,6 +569,7 @@ def invoices(request):
             'has_previous': page_obj.has_previous(),
             'current_page': page_obj.number,
             'total_pages': paginator.num_pages,
+            'users_filter': users_filter,
         })
     
     return render(request, 'mobile_v1/invoices.html', context)
@@ -568,6 +586,8 @@ def books(request):
     filter_type = request.GET.get('filter_type', 'all')  # all, payments, purchases, returns, others
     status_filter = request.GET.get('status_filter', 'active')  # active, inactive, all
     page_number = request.GET.get('page', 1)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
     
     # Get all users for dropdown
     users = UserProfile.objects.all().select_related('user')
@@ -577,6 +597,12 @@ def books(request):
         'parent_book__customer',
         'parent_book__user'
     )
+    
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        books_qs = books_qs.filter(parent_book__user__id__in=user_ids)
     
     # Apply status filter
     if status_filter == 'active':
@@ -632,6 +658,10 @@ def books(request):
         'parent_book__user'
     ).filter(is_active=True)
     
+    # Apply users filter
+    if users_filter:
+        totals_qs = totals_qs.filter(parent_book__user__id__in=user_ids)
+
     # Apply same filters for totals calculation
     if user_id:
         totals_qs = totals_qs.filter(parent_book__user__id=user_id)
@@ -670,6 +700,7 @@ def books(request):
         'total_purchased': total_purchased,
         'total_paid': total_paid,
         'total_balance': total_balance,
+        'users_filter': users_filter,
     })
     
     # AJAX request
@@ -685,6 +716,7 @@ def books(request):
             'total_purchased': total_purchased,
             'total_paid': total_paid,
             'total_balance': total_balance,
+            'users_filter': users_filter,
         })
     
     return render(request, 'mobile_v1/books.html', context)
@@ -730,6 +762,43 @@ def customersapi(request):
 
     return JsonResponse(customers_dict, safe=False)
 
+def customers_book_add_api(request):
+    context = {}
+    cid = request.GET.get('cid')
+    if not cid:
+        return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+    cid_data = parse_code_GS(cid)
+    if not cid_data:
+        return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+    customer_id = cid_data.get('C')
+    user_id = cid_data.get('GS')
+    user = get_object_or_404(UserProfile, user__id=user_id)
+    customer = get_object_or_404(Customer, user__id=user_id, id=customer_id)
+    parent_book = parent_book = get_object_or_404(Book, customer=customer, user=user.user)
+    if request.method == 'POST':
+        change_amount = request.POST.get('change_amount')
+        description = request.POST.get('description', '').strip()
+        if description == 'Cheque':
+            change_type = 4  # pending
+        else:
+            change_type = 0  # payment
+        try:
+            book_log = BookLog(
+                parent_book=parent_book,
+                change_type=change_type,
+                change=float(change_amount),
+                description=description,
+                createdby=customer.customer_name + ' via Mobile App',
+                is_active=False,  # default to inactive until verified
+            )
+            book_log.save()
+
+            return JsonResponse({'status': 'success', 'message': 'Payment added successfully.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+
+    return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+
 def expenses_tracker(request):
     """Expense Tracker listing with filtering, search, and pagination"""
     from django.core.paginator import Paginator
@@ -746,6 +815,8 @@ def expenses_tracker(request):
     category_filter = request.GET.get('category', 'all')
     date_filter = request.GET.get('date_filter', 'all')
     page_number = request.GET.get('page', 1)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
     
     # Get all users for dropdown
     users = UserProfile.objects.all().select_related('user').order_by('business_title')
@@ -753,6 +824,12 @@ def expenses_tracker(request):
     # Base queryset
     expenses_qs = ExpenseTracker.objects.select_related('user').order_by('-date')
     
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        expenses_qs = expenses_qs.filter(user__id__in=user_ids)
+
     # Apply user filter
     if user_id:
         expenses_qs = expenses_qs.filter(user__id=user_id)
@@ -772,7 +849,10 @@ def expenses_tracker(request):
     if user_id:
         categories = ExpenseTracker.objects.filter(user__id=user_id).values_list('category', flat=True).distinct().order_by('category')
     else:
-        categories = ExpenseTracker.objects.values_list('category', flat=True).distinct().order_by('category')
+        if users_filter:
+            categories = ExpenseTracker.objects.filter(user__id__in=user_ids).values_list('category', flat=True).distinct().order_by('category')
+        else:
+            categories = ExpenseTracker.objects.values_list('category', flat=True).distinct().order_by('category')
     
     # Apply category filter
     if category_filter != 'all':
@@ -809,6 +889,7 @@ def expenses_tracker(request):
         'current_search': search_query,
         'current_category': category_filter,
         'current_date_filter': date_filter,
+        'users_filter': users_filter,
     })
     
     # AJAX request
@@ -822,6 +903,7 @@ def expenses_tracker(request):
             'has_previous': page_obj.has_previous(),
             'current_page': page_obj.number,
             'total_pages': paginator.num_pages,
+            'users_filter': users_filter,
         })
     
     return render(request, 'mobile_v1/expenses_tracker.html', context)
@@ -845,6 +927,8 @@ def purchase_logs(request):
     type_filter = request.GET.get('type_filter', 'all')  # all, purchase, paid, others
     date_filter = request.GET.get('date_filter', 'all')
     page_number = request.GET.get('page', 1)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
     
     # Get all users for dropdown
     users = UserProfile.objects.all().select_related('user').order_by('business_title')
@@ -852,6 +936,12 @@ def purchase_logs(request):
     # Base queryset
     purchases_qs = PurchaseLog.objects.select_related('user', 'vendor').order_by('-date')
     
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        purchases_qs = purchases_qs.filter(user__id__in=user_ids)
+
     # Apply user filter
     if user_id:
         purchases_qs = purchases_qs.filter(user__id=user_id)
@@ -884,8 +974,12 @@ def purchase_logs(request):
         categories = PurchaseLog.objects.filter(user__id=user_id).values_list('category', flat=True).distinct().order_by('category')
         vendors = VendorPurchase.objects.filter(user__id=user_id).order_by('vendor_name')
     else:
-        categories = PurchaseLog.objects.values_list('category', flat=True).distinct().order_by('category')
-        vendors = VendorPurchase.objects.all().order_by('vendor_name')
+        if users_filter:
+            categories = PurchaseLog.objects.filter(user__id__in=user_ids).values_list('category', flat=True).distinct().order_by('category')
+            vendors = VendorPurchase.objects.filter(user__id__in=user_ids).order_by('vendor_name')
+        else:
+            categories = PurchaseLog.objects.values_list('category', flat=True).distinct().order_by('category')
+            vendors = VendorPurchase.objects.all().order_by('vendor_name')
     
     # Apply category filter
     if category_filter != 'all':
@@ -931,6 +1025,7 @@ def purchase_logs(request):
         'current_category': category_filter,
         'current_type_filter': type_filter,
         'current_date_filter': date_filter,
+        'users_filter': users_filter,
     })
     
     # AJAX request
@@ -946,6 +1041,7 @@ def purchase_logs(request):
             'has_previous': page_obj.has_previous(),
             'current_page': page_obj.number,
             'total_pages': paginator.num_pages,
+            'users_filter': users_filter,
         })
     
     return render(request, 'mobile_v1/purchase_log.html', context)
@@ -957,6 +1053,8 @@ def products(request):
     discount_filter = request.GET.get('discount_filter', 'all')  # all, with_discount, no_discount
     hsn_filter = request.GET.get('hsn_filter', '')
     page_number = request.GET.get('page', 1)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = list(map(int, users_filter.split(','))) if users_filter else []
     
     # Get all users for dropdown
     users = UserProfile.objects.all().select_related('user')
@@ -967,9 +1065,17 @@ def products(request):
     # Filter products
     products_qs = Product.objects.all().select_related('user')
     
+    # Apply users filter
+    if users_filter:
+        users = users.filter(user__id__in=user_ids)
+        products_qs = products_qs.filter(user__id__in=user_ids)
+
     if user_id:
         products_qs = products_qs.filter(user__id=user_id)
     
+    if user_ids:
+        products_qs = products_qs.filter(user__id__in=user_ids)
+
     if search_query:
         products_qs = products_qs.filter(
             Q(model_no__icontains=search_query) |
@@ -1053,6 +1159,7 @@ def products(request):
         'current_stock_filter': stock_filter,
         'current_discount_filter': discount_filter,
         'current_hsn_filter': hsn_filter,
+        'users_filter': users_filter,
     }
     
     # AJAX request
@@ -1072,6 +1179,7 @@ def products(request):
             'has_next': products_page.has_next(),
             'current_page': products_page.number,
             'total_pages': paginator.num_pages,
+            'users_filter': users_filter,
         })
     
     return render(request, 'mobile_v1/products.html', context)
@@ -1088,9 +1196,17 @@ def home(request):
     current_month_start = today.replace(day=1)
     last_month_end = current_month_start - timedelta(days=1)
     last_month_start = last_month_end.replace(day=1)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
     
     # Get all users
     users = UserProfile.objects.all().select_related('user')
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+    
+    # Total users
     total_users = users.count()
     
     # === CURRENT MONTH STATS ===
@@ -1099,6 +1215,12 @@ def home(request):
     current_month_expenses = ExpenseTracker.objects.filter(date__date__gte=current_month_start)
     current_month_purchases = PurchaseLog.objects.filter(date__date__gte=current_month_start)
     
+    if users_filter:
+        current_month_invoices = current_month_invoices.filter(user__id__in=user_ids)
+        current_month_books = current_month_books.filter(parent_book__user__id__in=user_ids)
+        current_month_expenses = current_month_expenses.filter(user__id__in=user_ids)
+        current_month_purchases = current_month_purchases.filter(user__id__in=user_ids)
+
     # Current month invoice count
     current_month_invoice_count = current_month_invoices.count()
     
@@ -1128,6 +1250,12 @@ def home(request):
     last_month_expenses = ExpenseTracker.objects.filter(date__date__gte=last_month_start, date__date__lt=current_month_start)
     last_month_purchases = PurchaseLog.objects.filter(date__date__gte=last_month_start, date__date__lt=current_month_start)
     
+    if users_filter:
+        last_month_invoices = last_month_invoices.filter(user__id__in=user_ids)
+        last_month_books = last_month_books.filter(parent_book__user__id__in=user_ids)
+        last_month_expenses = last_month_expenses.filter(user__id__in=user_ids)
+        last_month_purchases = last_month_purchases.filter(user__id__in=user_ids)
+
     # Last month invoice count
     last_month_invoice_count = last_month_invoices.count()
     
@@ -1147,6 +1275,11 @@ def home(request):
     total_customers = Customer.objects.count()
     total_products = Product.objects.count()
     total_invoices = Invoice.objects.count()
+
+    if users_filter:
+        total_customers = Customer.objects.filter(user__id__in=user_ids).count()
+        total_products = Product.objects.filter(user__id__in=user_ids).count()
+        total_invoices = Invoice.objects.filter(user__id__in=user_ids).count()
     
     # Total book logs
     all_book_stats = BookLog.objects.aggregate(
@@ -1155,6 +1288,15 @@ def home(request):
         returns=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
         others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
     )
+
+    if users_filter:
+        all_book_stats = BookLog.objects.filter(parent_book__user__id__in=user_ids).aggregate(
+            purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+            payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+            returns=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+            others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+        )
+
     total_purchases = abs(all_book_stats['purchases'] or 0)
     total_payments = abs(all_book_stats['payments'] or 0)
     total_returns = abs(all_book_stats['returns'] or 0)
@@ -1164,6 +1306,10 @@ def home(request):
     # Total expenses
     total_expenses = ExpenseTracker.objects.aggregate(total=Sum('amount'))['total'] or 0
     total_expense_count = ExpenseTracker.objects.count()
+
+    if users_filter:
+        total_expenses = ExpenseTracker.objects.filter(user__id__in=user_ids).aggregate(total=Sum('amount'))['total'] or 0
+        total_expense_count = ExpenseTracker.objects.filter(user__id__in=user_ids).count()
     
     # Inventory stats
     inventory_stats = Inventory.objects.aggregate(
@@ -1171,12 +1317,20 @@ def home(request):
         low_stock_count=Count(Case(When(current_stock__gt=0, current_stock__lte=F('alert_level'), then=1))),
         out_of_stock_count=Count(Case(When(current_stock=0, then=1)))
     )
+    if users_filter:
+        inventory_stats = Inventory.objects.filter(product__user__id__in=user_ids).aggregate(
+            total_stock=Sum('current_stock'),
+            low_stock_count=Count(Case(When(current_stock__gt=0, current_stock__lte=F('alert_level'), then=1))),
+            out_of_stock_count=Count(Case(When(current_stock=0, then=1)))
+        )
     total_stock = inventory_stats['total_stock'] or 0
     low_stock_count = inventory_stats['low_stock_count'] or 0
     out_of_stock_count = inventory_stats['out_of_stock_count'] or 0
     
     # Products with discount
     discount_products = Product.objects.filter(product_discount__gt=0).count()
+    if users_filter:
+        discount_products = Product.objects.filter(user__id__in=user_ids, product_discount__gt=0).count()
     
     # Calculate payment progress percentages
     current_month_payment_percentage = 0
@@ -1193,17 +1347,19 @@ def home(request):
     
     # Recent activity - last 5 invoices
     recent_invoices = Invoice.objects.select_related('invoice_customer', 'user').order_by('-invoice_date')[:5]
-    
+    if users_filter:
+        recent_invoices = Invoice.objects.select_related('invoice_customer', 'user').filter(user__id__in=user_ids).order_by('-invoice_date')[:5]
     # Recent expenses - last 5
     recent_expenses = ExpenseTracker.objects.select_related('user').order_by('-date')[:5]
-    
+    if users_filter:
+        recent_expenses = ExpenseTracker.objects.select_related('user').filter(user__id__in=user_ids).order_by('-date')[:5]
     context.update({
         'current_month_name': current_month_start.strftime('%B %Y'),
         'last_month_name': last_month_start.strftime('%B %Y'),
         'total_users': total_users,
         'total_customers': total_customers,
         'total_products': total_products,
-        
+        'total_invoices': total_invoices,
         # Current month
         'current_month_invoice_count': current_month_invoice_count,
         'current_month_purchases_amount': current_month_purchases_amount,

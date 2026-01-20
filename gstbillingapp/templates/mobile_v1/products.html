@@ -742,6 +742,7 @@
     let stockFilter = '{{ current_stock_filter }}';
     let discountFilter = '{{ current_discount_filter }}';
     let hsnFilter = '{{ current_hsn_filter }}';
+    let usersFilter = '{{ users_filter }}';
     let searchTimeout = null;
     
     // DOM Elements
@@ -826,7 +827,8 @@
             search: searchQuery,
             stock_filter: stockFilter,
             discount_filter: discountFilter,
-            hsn_filter: hsnFilter
+            hsn_filter: hsnFilter,
+            users_filter: usersFilter
         });
         
         // AJAX request

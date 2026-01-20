@@ -578,6 +578,7 @@
     let searchQuery = '{{ current_search }}';
     let dateFilter = '{{ current_date_filter }}';
     let categoryFilter = '{{ current_category }}';
+    let usersFilter = '{{ users_filter }}';
 
     function showLoading() {
         const container = document.getElementById('expenseContainer');
@@ -601,6 +602,7 @@
         if (userId) params.append('user_id', userId);
         if (searchQuery) params.append('search', searchQuery);
         if (dateFilter) params.append('date_filter', dateFilter);
+        if (usersFilter) params.append('users_filter', usersFilter);
         if (categoryFilter && categoryFilter !== 'all') params.append('category', categoryFilter);
         params.append('page', page);
 
