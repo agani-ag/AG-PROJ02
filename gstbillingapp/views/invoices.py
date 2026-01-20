@@ -34,6 +34,7 @@ def invoice_create(request):
     # if business info is blank redirect to update it
     user_profile = get_object_or_404(UserProfile, user=request.user)
     if not user_profile.business_title:
+        messages.warning(request, "Please update your business name before creating invoices.")
         return redirect('user_profile_edit')
     if not user_profile.business_gst:
         messages.warning(request, "Please update your business GST number before creating invoices.")
