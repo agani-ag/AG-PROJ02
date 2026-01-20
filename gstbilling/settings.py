@@ -50,6 +50,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'gstbillingapp.middleware.Custom404Middleware',  # Custom 404 handler for DEBUG = True
 ]
 
 ROOT_URLCONF = 'gstbilling.urls'
