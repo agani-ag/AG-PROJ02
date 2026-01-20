@@ -815,6 +815,8 @@ def expenses_tracker(request):
     category_filter = request.GET.get('category', 'all')
     date_filter = request.GET.get('date_filter', 'all')
     page_number = request.GET.get('page', 1)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
     
     # Get all users for dropdown
     users = UserProfile.objects.all().select_related('user').order_by('business_title')
@@ -822,6 +824,12 @@ def expenses_tracker(request):
     # Base queryset
     expenses_qs = ExpenseTracker.objects.select_related('user').order_by('-date')
     
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        expenses_qs = expenses_qs.filter(user__id__in=user_ids)
+
     # Apply user filter
     if user_id:
         expenses_qs = expenses_qs.filter(user__id=user_id)
@@ -841,7 +849,10 @@ def expenses_tracker(request):
     if user_id:
         categories = ExpenseTracker.objects.filter(user__id=user_id).values_list('category', flat=True).distinct().order_by('category')
     else:
-        categories = ExpenseTracker.objects.values_list('category', flat=True).distinct().order_by('category')
+        if users_filter:
+            categories = ExpenseTracker.objects.filter(user__id__in=user_ids).values_list('category', flat=True).distinct().order_by('category')
+        else:
+            categories = ExpenseTracker.objects.values_list('category', flat=True).distinct().order_by('category')
     
     # Apply category filter
     if category_filter != 'all':
@@ -878,6 +889,7 @@ def expenses_tracker(request):
         'current_search': search_query,
         'current_category': category_filter,
         'current_date_filter': date_filter,
+        'users_filter': users_filter,
     })
     
     # AJAX request
@@ -891,6 +903,7 @@ def expenses_tracker(request):
             'has_previous': page_obj.has_previous(),
             'current_page': page_obj.number,
             'total_pages': paginator.num_pages,
+            'users_filter': users_filter,
         })
     
     return render(request, 'mobile_v1/expenses_tracker.html', context)
@@ -914,6 +927,8 @@ def purchase_logs(request):
     type_filter = request.GET.get('type_filter', 'all')  # all, purchase, paid, others
     date_filter = request.GET.get('date_filter', 'all')
     page_number = request.GET.get('page', 1)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
     
     # Get all users for dropdown
     users = UserProfile.objects.all().select_related('user').order_by('business_title')
@@ -921,6 +936,12 @@ def purchase_logs(request):
     # Base queryset
     purchases_qs = PurchaseLog.objects.select_related('user', 'vendor').order_by('-date')
     
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        purchases_qs = purchases_qs.filter(user__id__in=user_ids)
+
     # Apply user filter
     if user_id:
         purchases_qs = purchases_qs.filter(user__id=user_id)
@@ -953,8 +974,12 @@ def purchase_logs(request):
         categories = PurchaseLog.objects.filter(user__id=user_id).values_list('category', flat=True).distinct().order_by('category')
         vendors = VendorPurchase.objects.filter(user__id=user_id).order_by('vendor_name')
     else:
-        categories = PurchaseLog.objects.values_list('category', flat=True).distinct().order_by('category')
-        vendors = VendorPurchase.objects.all().order_by('vendor_name')
+        if users_filter:
+            categories = PurchaseLog.objects.filter(user__id__in=user_ids).values_list('category', flat=True).distinct().order_by('category')
+            vendors = VendorPurchase.objects.filter(user__id__in=user_ids).order_by('vendor_name')
+        else:
+            categories = PurchaseLog.objects.values_list('category', flat=True).distinct().order_by('category')
+            vendors = VendorPurchase.objects.all().order_by('vendor_name')
     
     # Apply category filter
     if category_filter != 'all':
@@ -1000,6 +1025,7 @@ def purchase_logs(request):
         'current_category': category_filter,
         'current_type_filter': type_filter,
         'current_date_filter': date_filter,
+        'users_filter': users_filter,
     })
     
     # AJAX request
@@ -1015,6 +1041,7 @@ def purchase_logs(request):
             'has_previous': page_obj.has_previous(),
             'current_page': page_obj.number,
             'total_pages': paginator.num_pages,
+            'users_filter': users_filter,
         })
     
     return render(request, 'mobile_v1/purchase_log.html', context)

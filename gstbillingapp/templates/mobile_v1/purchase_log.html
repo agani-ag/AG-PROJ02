@@ -653,6 +653,7 @@
     let dateFilter = '{{ current_date_filter }}';
     let categoryFilter = '{{ current_category }}';
     let typeFilter = '{{ current_type_filter }}';
+    let usersFilter = '{{ users_filter }}';
 
     function showLoading() {
         const container = document.getElementById('purchaseContainer');
@@ -679,6 +680,7 @@
         if (dateFilter) params.append('date_filter', dateFilter);
         if (categoryFilter && categoryFilter !== 'all') params.append('category', categoryFilter);
         if (typeFilter && typeFilter !== 'all') params.append('type_filter', typeFilter);
+        if (usersFilter) params.append('users_filter', usersFilter);
         params.append('page', page);
 
         fetch(`?${params.toString()}`, {
