@@ -444,6 +444,7 @@ def customers(request):
         'total_count': total_count,
         'current_user_id': user_id,
         'current_search': search_query,
+        'users_filter': users_filter,
     })
     
     # AJAX request - return JSON with HTML
@@ -456,6 +457,7 @@ def customers(request):
             'has_previous': page_obj.has_previous(),
             'current_page': page_obj.number,
             'total_pages': paginator.num_pages,
+            'users_filter': users_filter,
         })
     
     return render(request, 'mobile_v1/customers.html', context)
@@ -685,7 +687,10 @@ def books(request):
     # Calculate balance
     total_purchased = abs(totals['total_purchased'] or 0)
     total_paid = abs(totals['total_paid'] or 0)
-    total_balance = total_purchased - total_paid
+    total_returned = abs(totals['total_returned'] or 0)
+    total_others = abs(totals['total_others'] or 0)
+    # total_balance = total_purchased - total_paid
+    total_balance = total_purchased - (total_paid + total_returned + total_others)
     
     context.update({
         'users': users,
@@ -699,6 +704,8 @@ def books(request):
         'current_status_filter': status_filter,
         'total_purchased': total_purchased,
         'total_paid': total_paid,
+        'total_returned': total_returned,
+        'total_others': total_others,
         'total_balance': total_balance,
         'users_filter': users_filter,
     })
@@ -715,6 +722,8 @@ def books(request):
             'total_pages': paginator.num_pages,
             'total_purchased': total_purchased,
             'total_paid': total_paid,
+            'total_returned': total_returned,
+            'total_others': total_others,
             'total_balance': total_balance,
             'users_filter': users_filter,
         })

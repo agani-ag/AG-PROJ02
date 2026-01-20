@@ -125,6 +125,14 @@
         color: #007aff;
     }
     
+    .stat-number.returned-color {
+        color: #ff9500;
+    }
+
+    .stat-number.others-color {
+        color: #764ba2;
+    }
+    
     .stat-label {
         display: block;
         font-size: 0.75rem;
@@ -768,6 +776,14 @@
         <div class="stat-item">
             <span class="stat-number balance-color" id="totalBalance">₹{{ total_balance|floatformat:0|intcomma }}</span>
             <span class="stat-label">Balance</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number returned-color" id="totalReturned">₹{{ total_returned|floatformat:0|intcomma }}</span>
+            <span class="stat-label">Returned</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number others-color" id="totalOthers">₹{{ total_others|floatformat:0|intcomma }}</span>
+            <span class="stat-label">Others</span>
         </div>
     </div>
 </div>
