@@ -9,78 +9,90 @@
 		<h2>Invoices</h2>
 	{% endif %}
 
-		<table class="table table-bordered" id="invoice-table">
+	<!-- Filter Options Row -->
+	<div class="row mb-3 align-items-end">
+		<div class="col-md-2">
+			<label for="invoiceTypeFilter" class="mb-1"><small><strong>Type:</strong></small></label>
+			<select id="invoiceTypeFilter" class="form-control form-control-sm">
+				<option value="all">All Types</option>
+				<option value="gst" {% if not non_gst_mode %}selected{% endif %}>GST</option>
+				<option value="non_gst" {% if non_gst_mode %}selected{% endif %}>Non-GST</option>
+			</select>
+		</div>
+		<div class="col-md-2">
+			<label for="dateFilter" class="mb-1"><small><strong>Date:</strong></small></label>
+			<select id="dateFilter" class="form-control form-control-sm">
+				<option value="all">All Time</option>
+				<option value="today">Today</option>
+				<option value="week">This Week</option>
+				<option value="month">This Month</option>
+				<option value="custom">Custom</option>
+			</select>
+		</div>
+		<div class="col-md-3" id="startDateWrapper" style="display:none;">
+			<label for="startDate" class="mb-1"><small><strong>From:</strong></small></label>
+			<input type="date" id="startDate" class="form-control form-control-sm">
+		</div>
+		<div class="col-md-3" id="endDateWrapper" style="display:none;">
+			<label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
+			<input type="date" id="endDate" class="form-control form-control-sm">
+		</div>
+		<div class="col-md-2">
+			<button id="clearFilters" class="btn btn-secondary btn-sm btn-block">
+				<i class="fas fa-times"></i> Clear
+			</button>
+		</div>
+	<div class="col-md-3 text-right">
+		<div id="total-invoice-amount" class="font-weight-bold text-primary" style="font-size: 1.1rem;">
+			<!-- Total will be populated by JavaScript -->
+		</div>
+	</div>
+</div>
+
+<hr>
+
+	<table class="table table-bordered" id="invoice-table">
 		<thead class="thead-dark">
 			<tr>
-				<!-- <th>Incoice ID</th> -->
 				<th>Invoice Number</th>
 				<th>Date</th>
 				<th>Customer</th>
+				<th>Invoice Amount</th>
 				<th>Actions</th>
 			</tr>
 		</thead>
-		<tbody class="two-col-form">
-			{% for invoice in invoices %}
-			<tr>
- 				<!-- <td>{{invoice.id}}</td> -->
- 				<td>
-					{% if invoice.is_gst %}
-						{{invoice.invoice_number}}
-					{% else %}
-						<span class="text-danger font-weight-bold">NG{{invoice.invoice_number}}</span>
-					{% endif %}
-				</td>
- 				<td>{{invoice.invoice_date}}</td>
- 				<td>
-					{% if invoice.invoice_customer %}
-						<a href="{% url 'book_logs' invoice.invoice_customer.id %}" style="text-decoration: none;color: black;">
-							{{invoice.invoice_customer}}</a>
-					{% else %}
-						<span class="text-danger">N/A</span>
-					{% endif %}
-				</td>
-				<td>
-					<div class="btn-group" role="group" aria-label="Basic example">
-						<button type="button" onclick="popup_invoice({{ invoice.id }})" class="btn btn-primary btn-sm btn-curve"><i class="fa fa-eye"></i></button>
-						<a href="{% url 'invoice_viewer' invoice.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fa fa-external-link-square"></i></a>
-						{% if invoice.invoice_customer %}
-							<a href="{% url 'customer_edit' invoice.invoice_customer.id %}" class="btn btn-orange btn-sm btn-curve"><i class="fa fa-user"></i></a>
-						{% endif %}
-						<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{{invoice.id}}" data-invoice-number="{{invoice.invoice_number}}, for {{invoice.invoice_customer}}"><i class="fa fa-trash"></i></button>
-					</div>
-				</td>
-			</tr>
-			{% endfor %}
+		<tbody>
+			<!-- Data loaded via AJAX -->
 		</tbody>
-		</table>
+	</table>
 
-		<div class="modal fade" id="invoiceDeleteModal" tabindex="-1" role="dialog" aria-labelledby="invoiceDeleteModalLabel" aria-hidden="true">
-			<div class="modal-dialog" role="document">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="invoiceDeleteModalLabel">Are you sure?</h5>
-						<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-							<span aria-hidden="true">&times;</span>
-						</button>
-					</div>
-					<form method="POST" action="{% url 'invoice_delete' %}">
-					{% csrf_token %}
-					<div class="modal-body">
-						Are you sure you want to delete <b><span class="invoice-number"></span></b>?
-							<div class="form-group">
-								<input hidden="true" type="text" class="form-control" name="invoice_id">
-								<input type="checkbox" id="book-del" name="book-del" value="book-del" checked> <b>Remove Book Deductions Also</b><br>
-								<input type="checkbox" id="inventory-del" name="inventory-del" value="inventory-del" checked> <b>Remove Inventory Deductions Also</b>
-							</div>
-					</div>
-					<div class="modal-footer">
-						<button type="submit" class="btn btn-danger btn-sm btn-curve" >Yes</button>
-						<button type="button" class="btn btn-primary btn-sm btn-curve" data-dismiss="modal">No</button>
-					</div>
-					</form>
-				</div>
+<div class="modal fade" id="invoiceDeleteModal" tabindex="-1" role="dialog" aria-labelledby="invoiceDeleteModalLabel" aria-hidden="true">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="invoiceDeleteModalLabel">Are you sure?</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
 			</div>
+			<form method="POST" action="{% url 'invoice_delete' %}">
+			{% csrf_token %}
+			<div class="modal-body">
+				Are you sure you want to delete <b><span class="invoice-number"></span></b>?
+					<div class="form-group">
+						<input hidden="true" type="text" class="form-control" name="invoice_id">
+						<input type="checkbox" id="book-del" name="book-del" value="book-del" checked> <b>Remove Book Deductions Also</b><br>
+						<input type="checkbox" id="inventory-del" name="inventory-del" value="inventory-del" checked> <b>Remove Inventory Deductions Also</b>
+					</div>
+			</div>
+			<div class="modal-footer">
+				<button type="submit" class="btn btn-danger btn-sm btn-curve" >Yes</button>
+				<button type="button" class="btn btn-primary btn-sm btn-curve" data-dismiss="modal">No</button>
+			</div>
+			</form>
 		</div>
+	</div>
+</div>
 {% endblock %}
 
 
@@ -101,14 +113,98 @@
 
 
 	$(document).ready( function () {
-		$('#invoice-table').DataTable({
-			"order": [],
-			"columnDefs": [ {
-				"targets": 3,
-				"sortable": false,
-				"searchable": false
-			} ],
-			"paging": true
+		// Set default filter based on page mode
+		{% if non_gst_mode %}
+			$('#invoiceTypeFilter').val('non_gst');
+		{% else %}
+			$('#invoiceTypeFilter').val('gst');
+		{% endif %}
+
+		var table = $('#invoice-table').DataTable({
+			"processing": true,
+			"serverSide": true,
+			"ajax": {
+				"url": "/invoices/ajax",
+				"type": "GET",
+				"data": function(d) {
+					d.invoice_type = $('#invoiceTypeFilter').val() || 'all';
+					d.date_filter = $('#dateFilter').val() || 'all';
+					d.start_date = $('#startDate').val() || '';
+					d.end_date = $('#endDate').val() || '';
+					console.log('Sending request data:', d);
+				},
+				"error": function(xhr, error, code) {
+					console.error('AJAX Error:', {
+						status: xhr.status,
+						statusText: xhr.statusText,
+						responseText: xhr.responseText,
+						error: error,
+						code: code
+					});
+					alert('Error loading data. Check console for details.');
+				},
+				"dataSrc": function(json) {
+					console.log('Received data:', json);
+					if (json.error) {
+						alert('Server error: ' + json.error);
+						return [];
+					}
+					return json.data;
+				}
+			},
+			"columns": [
+				{ "data": "invoice_number", "orderable": true },
+				{ "data": "invoice_date", "orderable": true },
+				{ "data": "customer", "orderable": true },
+				{ "data": "invoice_amount", "orderable": false },
+				{ "data": "actions", "orderable": false }
+			],
+			"order": [[1, "desc"]],
+			"pageLength": 15,
+			"lengthMenu": [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]],
+			"searching": true,
+			"info": true
+		});
+
+	// Show total invoice amount at top right
+	table.on('xhr', function(e, settings, json) {
+		if (json && typeof json.total_invoice_amount !== 'undefined') {
+			$('#total-invoice-amount').html('<strong>Total: ₹ ' + json.total_invoice_amount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>');
+		}
+	});
+		// Show/hide custom date range inputs
+		$('#dateFilter').on('change', function() {
+			if ($(this).val() === 'custom') {
+				$('#startDateWrapper').show();
+				$('#endDateWrapper').show();
+			} else {
+				$('#startDateWrapper').hide();
+				$('#endDateWrapper').hide();
+				table.ajax.reload();
+			}
+		});
+
+		// Auto-reload when custom date inputs change
+		$('#startDate, #endDate').on('change', function() {
+			if ($('#dateFilter').val() === 'custom' && $('#startDate').val() && $('#endDate').val()) {
+				table.ajax.reload();
+			}
+		});
+
+		// Clear filters button
+		$('#clearFilters').on('click', function() {
+			$('#invoiceTypeFilter').val('all');
+			$('#dateFilter').val('all');
+			$('#startDate').val('');
+			$('#endDate').val('');
+			$('#startDateWrapper').hide();
+			$('#endDateWrapper').hide();
+			table.ajax.reload();
+		});
+
+		// Auto-reload on change for invoice type filter
+		$('#invoiceTypeFilter').on('change', function() {
+			table.ajax.reload();
 		});
 	});
 

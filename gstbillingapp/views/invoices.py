@@ -60,7 +60,6 @@ def invoice_create(request):
     context['default_invoice_date'] = datetime.datetime.strftime(datetime.datetime.now(), '%Y-%m-%d')
 
     if request.method == 'POST':
-        print("POST received - Invoice Data")
 
         invoice_data = request.POST
         non_gst_mode = 'nongstcheck' in invoice_data
@@ -73,28 +72,20 @@ def invoice_create(request):
             context["error_message"] = validation_error
             return render(request, 'invoices/invoice_create.html', context)
 
-        # valid invoice data
-        print("Valid Invoice Data")
-
         invoice_data_processed = invoice_data_processor(invoice_data)
         # save customer
         customer = None
 
         try:
             customer = Customer.objects.get(user=request.user,
-                                            customer_name=invoice_data['customer-name'],
-                                            customer_address=invoice_data['customer-address'],
-                                            customer_phone=invoice_data['customer-phone'],
-                                            customer_gst=invoice_data['customer-gst'])
+                        customer_name=invoice_data['customer-name'],
+                        customer_address=invoice_data['customer-address'],
+                        customer_phone=invoice_data['customer-phone'],
+                        customer_gst=invoice_data['customer-gst'])
         except:
-            print("===============> customer not found")
-            print(invoice_data['customer-name'])
-            print(invoice_data['customer-address'])
-            print(invoice_data['customer-phone'])
-            print(invoice_data['customer-gst'])
+            pass
 
         if not customer:
-            print("CREATING CUSTOMER===============>")
             customer = Customer(user=request.user,
                 customer_name=invoice_data['customer-name'],
                 customer_address=invoice_data['customer-address'],
@@ -115,15 +106,9 @@ def invoice_create(request):
             invoice_date=datetime.datetime.strptime(invoice_data['invoice-date'], '%Y-%m-%d'),
             invoice_customer=customer, invoice_json=invoice_data_processed_json, is_gst= is_gst)
         new_invoice.save()
-        print("INVOICE SAVED")
 
         update_inventory(new_invoice, request)
-        print("INVENTORY UPDATED")
-
         auto_deduct_book_from_invoice(new_invoice)
-        print("CUSTOMER BOOK UPDATED")
-
-
         return redirect('invoice_viewer', invoice_id=new_invoice.id)
 
     return render(request, 'invoices/invoice_create.html', context)
@@ -132,15 +117,146 @@ def invoice_create(request):
 @login_required
 def invoices(request):
     context = {}
-    context['invoices'] = Invoice.objects.filter(user=request.user,is_gst=True).order_by('-id')
     return render(request, 'invoices/invoices.html', context)
 
 @login_required
 def non_gst_invoices(request):
     context = {}
-    context['invoices'] = Invoice.objects.filter(user=request.user,is_gst=False).order_by('-id')
     context['non_gst_mode'] = True
     return render(request, 'invoices/invoices.html', context)
+
+@login_required
+def invoices_ajax(request):
+    """AJAX endpoint for server-side DataTables processing"""
+    from datetime import timedelta
+    from django.utils import timezone
+    
+    try:
+        draw = int(request.GET.get('draw', 1))
+        start = int(request.GET.get('start', 0))
+        length = int(request.GET.get('length', 15))
+        search_value = request.GET.get('search[value]', '')
+        order_column_index = int(request.GET.get('order[0][column]', 0))
+        order_direction = request.GET.get('order[0][dir]', 'desc')
+        
+        # Filter parameters
+        invoice_type = request.GET.get('invoice_type', 'all')  # all, gst, non_gst
+        date_filter = request.GET.get('date_filter', 'all')
+        start_date = request.GET.get('start_date', '')
+        end_date = request.GET.get('end_date', '')
+        
+        # Base queryset
+        queryset = Invoice.objects.filter(user=request.user).select_related('invoice_customer')
+        
+        # Apply invoice type filter
+        if invoice_type == 'gst':
+            queryset = queryset.filter(is_gst=True)
+        elif invoice_type == 'non_gst':
+            queryset = queryset.filter(is_gst=False)
+        
+        # Apply date filters
+        if date_filter and date_filter != 'all':
+            if date_filter == 'today':
+                today = timezone.now().date()
+                queryset = queryset.filter(invoice_date=today)
+            elif date_filter == 'week':
+                week_start = timezone.now().date() - timedelta(days=timezone.now().weekday())
+                queryset = queryset.filter(invoice_date__gte=week_start)
+            elif date_filter == 'month':
+                month_start = timezone.now().date().replace(day=1)
+                queryset = queryset.filter(invoice_date__gte=month_start)
+            elif date_filter == 'custom' and start_date and end_date:
+                try:
+                    queryset = queryset.filter(invoice_date__gte=start_date, invoice_date__lte=end_date)
+                except:
+                    pass
+        
+        # Apply search filter
+        if search_value:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(invoice_number__icontains=search_value) |
+                Q(invoice_customer__customer_name__icontains=search_value)
+            )
+        
+        # Total records
+        total_records = Invoice.objects.filter(user=request.user).count()
+        
+        # Filtered records count
+        filtered_records = queryset.count()
+        
+        # Ordering
+        order_columns = ['invoice_number', 'invoice_date', 'invoice_customer__customer_name']
+        if 0 <= order_column_index < len(order_columns):
+            order_by = order_columns[order_column_index]
+            if order_direction == 'desc':
+                order_by = '-' + order_by
+            queryset = queryset.order_by(order_by)
+        else:
+            queryset = queryset.order_by('-id')
+        
+        # Pagination
+        queryset = queryset[start:start + length]
+        
+        # Prepare data and calculate total invoice amount
+        data = []
+        total_invoice_amount = 0.0
+        for invoice in queryset:
+            # Invoice number
+            if invoice.is_gst:
+                invoice_num = str(invoice.invoice_number)
+            else:
+                invoice_num = f'<span class="text-danger font-weight-bold">NG{invoice.invoice_number}</span>'
+
+            # Customer
+            if invoice.invoice_customer:
+                customer_html = f'<a href="/books/{invoice.invoice_customer.id}" style="text-decoration: none;color: black;">{invoice.invoice_customer.customer_name}</a>'
+            else:
+                customer_html = '<span class="text-danger">N/A</span>'
+
+            # Invoice Amount (from invoice_json)
+            try:
+                invoice_json = json.loads(invoice.invoice_json)
+                invoice_amount = float(invoice_json.get('invoice_total_amt_with_gst', 0))
+            except Exception:
+                invoice_amount = 0.0
+
+            total_invoice_amount += invoice_amount
+
+            # Actions
+            actions_html = '<div class="btn-group" role="group">'
+            actions_html += f'<button type="button" onclick="popup_invoice({invoice.id})" class="btn btn-primary btn-sm btn-curve"><i class="fa fa-eye"></i></button>'
+            actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve"><i class="fa fa-external-link-square"></i></a>'
+            if invoice.invoice_customer:
+                actions_html += f'<a href="/customer/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve"><i class="fa fa-user"></i></a>'
+
+            customer_info = invoice.invoice_customer.customer_name if invoice.invoice_customer else "N/A"
+            actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{invoice.id}" data-invoice-number="{invoice.invoice_number}, for {customer_info}"><i class="fa fa-trash"></i></button>'
+            actions_html += '</div>'
+
+            data.append({
+                'invoice_number': invoice_num,
+                'invoice_date': invoice.invoice_date.strftime('%b %d, %Y'),
+                'customer': customer_html,
+                'invoice_amount': f"₹ {invoice_amount:,.2f}",
+                'actions': actions_html
+            })
+
+        return JsonResponse({
+            'draw': draw,
+            'recordsTotal': total_records,
+            'recordsFiltered': filtered_records,
+            'data': data,
+            'total_invoice_amount': total_invoice_amount
+        })
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in invoices_ajax: {error_details}")
+        return JsonResponse({
+            'error': str(e),
+            'details': error_details
+        }, status=500)
 
 @login_required
 def invoice_viewer(request, invoice_id):

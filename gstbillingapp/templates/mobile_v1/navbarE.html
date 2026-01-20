@@ -2,52 +2,54 @@
     <div class="nav-scroll">
 
         <!-- Home -->
-        <a href="{% url 'v1home' %}?u={{ request.GET.u }}" class="nav-item" data-page="home">
+        <a href="{% url 'v1home' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="home">
             <i class="fas fa-home"></i>
             <span>Home</span>
         </a>
 
         <!-- Invoices -->
-        <a href="{% url 'v1invoices' %}?u={{ request.GET.u }}" class="nav-item" data-page="invoices">
+        <a href="{% url 'v1invoices' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="invoices">
             <i class="fas fa-file-invoice"></i>
             <span>Invoices</span>
         </a>
         
         <!-- Books -->
-        <a href="{% url 'v1books' %}?u={{ request.GET.u }}" class="nav-item" data-page="books">
+        <a href="{% url 'v1books' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="books">
             <i class="fas fa-book-open"></i>
             <span>Books</span>
         </a>
 
         <!-- Customers -->
-        <a href="{% url 'v1customers' %}?u={{ request.GET.u }}" class="nav-item" data-page="customers">
+        <a href="{% url 'v1customers' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="customers">
             <i class="fas fa-users"></i>
             <span>Customers</span>
         </a>
 
         <!-- Products -->
-        <a href="{% url 'v1products' %}?u={{ request.GET.u }}" class="nav-item" data-page="products">
+        <a href="{% url 'v1products' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="products">
             <i class="fas fa-box"></i>
             <span>Products</span>
         </a>
         
+        {% if request.GET.admin == "true" %}
         <!-- Expenses Tracker -->
-        <a href="{% url 'v1expensestracker' %}?u={{ request.GET.u }}" class="nav-item" data-page="expensestracker">
+        <a href="{% url 'v1expensestracker' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="expensestracker">
             <i class="fas fa-wallet"></i>
             <span>Expenses</span>
         </a>
 
         <!-- Purchase Logs -->
-        <a href="{% url 'v1purchaselogs' %}?u={{ request.GET.u }}" class="nav-item" data-page="purchaselogs">
+        <a href="{% url 'v1purchaselogs' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="purchaselogs">
             <i class="fas fa-shopping-cart"></i>
             <span>Purchase Logs</span>
         </a>
+        {% endif %}
         
-        <!-- Profile -->
+        <!-- Profile
         <a href="{% url 'v1customerprofile' %}?u={{ request.GET.u }}" class="nav-item" data-page="profile">
             <i class="fas fa-user-circle"></i>
             <span>Profile</span>
-        </a>
+        </a> -->
     </div>
 </nav>
 

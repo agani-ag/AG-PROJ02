@@ -601,7 +601,7 @@
     <!-- Welcome Header -->
     <div class="welcome-header">
         <p class="greeting-text" id="greeting">Hi, Good Evening</p>
-        <h1 class="dashboard-title">Dashboard</h1>
+        <h1 class="dashboard-title" id="dashboard-title">Dashboard</h1>
         <p class="dashboard-subtitle">Business Overview & Analytics</p>
     </div>
     
@@ -1037,5 +1037,15 @@
     document.addEventListener('DOMContentLoaded', function() {
         getGreeting();
     });
+
+    // Update dashboard title with greeting
+    const urlTitle = '{{ request.GET.title|default:""|upper }}';
+    if (urlTitle) {
+        localStorage.setItem('dashboard_title', urlTitle);
+    } else if (!localStorage.getItem('dashboard_title')) {
+        localStorage.setItem('dashboard_title', 'Dashboard');
+    }
+    document.getElementById('dashboard-title').innerText = localStorage.getItem('dashboard_title');
+
 </script>
 {% endblock %}

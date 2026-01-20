@@ -25,6 +25,7 @@ urlpatterns = [
 
     # Invoice URLs
     path('invoices', invoices.invoices, name='invoices'),
+    path('invoices/ajax', invoices.invoices_ajax, name='invoices_ajax'),
     path('invoices/nongst', invoices.non_gst_invoices, name='non_gst_invoices'),
     path('invoices/new', invoices.invoice_create, name='invoice_create'),
     path('invoice/<int:invoice_id>', invoices.invoice_viewer, name='invoice_viewer'),
@@ -49,6 +50,7 @@ urlpatterns = [
     path('book/del/<int:booklog_id>', books.book_logs_del, name='book_logs_del'),
     # Full Book Logs View
     path('books/full', books.book_logs_full, name='book_logs_full'),
+    path('books/full/ajax', books.book_logs_full_ajax, name='book_logs_full_ajax'),
     path('books/fulladdupdate', books.book_logs_full_add, name='book_logs_full_add'),
     # API Endpoints
     path('books/api/add', books.book_logs_api_add, name='book_logs_api_add'),
@@ -109,5 +111,9 @@ urlpatterns = [
 
     # Graphs and Analytics URLs
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
+    path('graphs/books', graphs.customer_books_graph, name='customer_books_graph'),
+    path('graphs/customer', graphs.customer_graph, name='customer_graph'),
+    path('graphs/purchase-log', graphs.purchase_log_graph, name='purchase_log_graph'),
+    path('graphs/expense-tracker', graphs.expense_tracker_graph, name='expense_tracker_graph'),
     path('graphs/customer-location-map', graphs.customer_location_map, name='customer_location_map'),
 ]

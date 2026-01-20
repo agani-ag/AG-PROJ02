@@ -44,8 +44,8 @@
 </div>
 
 <!-- Action Buttons Row -->
-<div class="row mb-2] align-items-center justify-content-between">
-    <div class="col">
+<div class="row mb-3 align-items-end">
+    <div class="col-md-3">
         <strong>Total Balance :
             {% if total_balance > 0 %}
                 <span class="text-danger">₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</span>
@@ -53,12 +53,49 @@
                 <span class="text-success">₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</span>
             {% endif %}
         </strong><br>
-        <span class="font-weight-bold">{{ total_balance_word }}</span>
+        <span class="font-weight-bold" id="balanceWord">{{ total_balance_word }}</span>
     </div>
-    <div class="col text-right">
-        <a href="{% url 'book_logs_full_add' %}" class="btn btn-primary btn-sm btn-curve">
-            <i class="fas fa-plus"></i>
-        </a>
+    <div class="col-md-9">
+        <div class="row align-items-end">
+            <div class="col-md-2">
+                <label for="changeTypeFilter" class="mb-1"><small><strong>Type:</strong></small></label>
+                <select id="changeTypeFilter" class="form-control form-control-sm">
+                    <option value="all">All Types</option>
+                    <option value="0">Paid</option>
+                    <option value="1">Sales</option>
+                    <option value="2">Returned</option>
+                    <option value="3">Others</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="dateFilter" class="mb-1"><small><strong>Date:</strong></small></label>
+                <select id="dateFilter" class="form-control form-control-sm">
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div class="col-md-3" id="startDateWrapper" style="display:none;">
+                <label for="startDate" class="mb-1"><small><strong>From:</strong></small></label>
+                <input type="date" id="startDate" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3" id="endDateWrapper" style="display:none;">
+                <label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
+                <input type="date" id="endDate" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <button id="clearFilters" class="btn btn-secondary btn-sm btn-block">
+                    <i class="fas fa-times"></i> Clear
+                </button>
+            </div>
+            <div class="col-md-1 text-right">
+                <a href="{% url 'book_logs_full_add' %}" class="btn btn-primary btn-sm btn-curve btn-block">
+                    <i class="fas fa-plus"></i>
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -77,55 +114,7 @@
         </tr>
     </thead>
     <tbody>
-        {% for item in book_logs %}
-            <!-- <tr class="{% if item.change < 0 %}table-danger{% else %}table-success{% endif %}"> -->
-            {% if item.is_active and item.change_type == 0 %}
-                <tr class="table-success">
-            {% elif item.is_active and item.change_type == 1 %}
-                <tr class="table-danger">
-            {% elif item.is_active and item.change_type == 2 %}
-                <tr class="table-warning">
-            {% elif item.is_active and item.change_type == 3 %}
-                <tr class="table-primary">
-            {% else %}
-                <tr class="table-secondary">
-            {% endif %}
-            <td>
-                {{ item.date|localtime|date:"M d, Y h:i A" }}
-                <br>
-                <small class="text-muted">{{ item.date|naturaltime }}</small>
-            </td>
-            <td>{{ item.get_change_type_display }}</td>
-            <td class="text-center font-weight-bold">{{ item.change }}</td>
-            <td>{{ item.description }}</td>
-            <td class="customer-name">
-                <a href="{% url 'book_logs' item.parent_book.id %}" class="text-decoration-none text-dark">
-                    {{ item.parent_book.customer.customer_name }}
-                </a>
-            </td>
-            <td class="text-center">
-                <div class="btn-group" role="group" aria-label="Basic example">
-                    {% if item.associated_invoice %}
-                        <a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="btn btn-primary btn-sm btn-curve">
-                            <i class="fas fa-file-invoice"></i>
-                        </a>    
-                    {% endif %}
-                    {% if item.change_type != 1 and item.change_type != 2 %}
-                        <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
-                            <i class="fas fa-trash"></i>
-                        </a>
-                    {% endif %}
-                    {% if not item.is_active %}
-                        <span class="btn btn-warning btn-sm btn-curve" onclick="markAsActive({{ item.id }},{{ item.change }})"><i class="fas fa-arrow-up"></i></span>
-                    {% endif %}
-                </div>
-            </td>
-        </tr>
-        {% empty %}
-        <tr>
-            <td colspan="5" class="text-center text-muted">No book logs found.</td>
-        </tr>
-        {% endfor %}
+        <!-- Data loaded via AJAX -->
     </tbody>
 </table>
 
@@ -147,30 +136,94 @@
 {% block includejs %}
 <script type="text/javascript">
 $(document).ready(function() {
-    $('#inventory-logs-table').DataTable({
-        "order": [],
-        "columnDefs": [
-            { "targets": 3, "visible": false }, // Hide Description by default
-            // { "targets": 4, "sortable": false, "searchable": false }
+    var table = $('#inventory-logs-table').DataTable({
+        "processing": true,
+        "serverSide": true,
+        "ajax": {
+            "url": "{% url 'book_logs_full_ajax' %}",
+            "type": "GET",
+            "data": function(d) {
+                d.change_type = $('#changeTypeFilter').val() || 'all';
+                d.date_filter = $('#dateFilter').val() || 'all';
+                d.start_date = $('#startDate').val() || '';
+                d.end_date = $('#endDate').val() || '';
+                console.log('Sending data:', d);
+            },
+            "error": function(xhr, error, code) {
+                console.error('AJAX Error Details:', {
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    responseText: xhr.responseText,
+                    error: error,
+                    code: code
+                });
+                var errorMsg = 'Error loading data: ';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg += xhr.responseJSON.error;
+                } else if (xhr.responseText) {
+                    errorMsg += xhr.responseText;
+                } else {
+                    errorMsg += xhr.status + ' ' + xhr.statusText;
+                }
+                alert(errorMsg + '\n\nCheck browser console for more details.');
+            },
+            "dataSrc": function(json) {
+                console.log('Received data:', json);
+                if (json.error) {
+                    alert('Server error: ' + json.error);
+                    return [];
+                }
+                // Update summary cards if totals are provided
+                if (json.totals) {
+                    updateSummaryCards(json.totals);
+                }
+                return json.data;
+            }
+        },
+        "columns": [
+            { "data": "date", "orderable": true },
+            { "data": "type", "orderable": true },
+            { "data": "change", "orderable": true, "className": "text-center font-weight-bold" },
+            { "data": "description", "orderable": true, "visible": false },
+            { "data": "customer", "orderable": true, "className": "customer-name" },
+            { "data": "actions", "orderable": false, "className": "text-center" }
         ],
-        "paging": true,
-        dom: 'Bfrtip',
+        "order": [[0, "desc"]],
+        "pageLength": 15,
+        "lengthMenu": [[10, 15, 25, 50, 100, 200], [10, 15, 25, 50, 100, 200]],
+        "searching": true,
+        "info": true,
+        "createdRow": function(row, data, dataIndex) {
+            if (data.DT_RowClass) {
+                $(row).addClass(data.DT_RowClass);
+            }
+        },
+        dom: 'Blfrtip',
         buttons: [
             {
                 extend: 'excelHtml5',
                 text: '<i class="fas fa-file-excel"></i> Excel',
-                className: 'btn btn-success btn-sm btn-curve'
+                className: 'btn btn-success btn-sm btn-curve',
+                exportOptions: {
+                    columns: [0, 1, 2, 3, 4]
+                }
             },
             {
                 extend: 'pdfHtml5',
                 text: '<i class="fas fa-file-pdf"></i> PDF',
-                className: 'btn btn-danger btn-sm btn-curve'
+                className: 'btn btn-danger btn-sm btn-curve',
+                exportOptions: {
+                    columns: [0, 1, 2, 3, 4]
+                }
             },
             {
                 extend: 'print',
                 text: '<i class="fas fa-print"></i> Print',
                 className: 'btn btn-warning btn-sm btn-curve',
                 title: '',
+                exportOptions: {
+                    columns: [0, 1, 2, 3, 4]
+                },
                 customize: function(win) {
                     $(win.document.body).prepend(`
                         <div id="customHeader" style="text-align:center; margin-bottom:20px;">
@@ -202,13 +255,72 @@ $(document).ready(function() {
                 text: 'Description',
                 className: 'btn btn-info btn-sm btn-curve',
                 action: function(e, dt, node, config) {
-                    // Column index 3 = Description column
                     let col = dt.column(3);
                     col.visible(!col.visible());
                 }
             }
         ]
     });
+
+    // Show/hide custom date range inputs
+    $('#dateFilter').on('change', function() {
+        if ($(this).val() === 'custom') {
+            $('#startDateWrapper').show();
+            $('#endDateWrapper').show();
+        } else {
+            $('#startDateWrapper').hide();
+            $('#endDateWrapper').hide();
+            table.ajax.reload();
+        }
+    });
+
+    // Auto-reload when custom date inputs change
+    $('#startDate, #endDate').on('change', function() {
+        if ($('#dateFilter').val() === 'custom' && $('#startDate').val() && $('#endDate').val()) {
+            table.ajax.reload();
+        }
+    });
+
+    // Clear filters button
+    $('#clearFilters').on('click', function() {
+        $('#changeTypeFilter').val('all');
+        $('#dateFilter').val('all');
+        $('#startDate').val('');
+        $('#endDate').val('');
+        $('#startDateWrapper').hide();
+        $('#endDateWrapper').hide();
+        table.ajax.reload();
+    });
+
+    // Auto-reload on change for type filter
+    $('#changeTypeFilter').on('change', function() {
+        table.ajax.reload();
+    });
+    
+    // Function to update summary cards
+    function updateSummaryCards(totals) {
+        // Format numbers with commas
+        const formatNumber = (num) => {
+            return new Intl.NumberFormat('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(num);
+        };
+        
+        // Update card values
+        $('.card.bg-danger h3').text('₹ ' + formatNumber(totals.total_purchased));
+        $('.card.bg-success h3').text('₹ ' + formatNumber(totals.total_paid));
+        $('.card.bg-orange h3').text('₹ ' + formatNumber(totals.total_returned));
+        $('.card.bg-violet h3').text('₹ ' + formatNumber(totals.total_others));
+        
+        // Update total balance
+        const balanceSpan = totals.total_balance > 0 ? 
+            '<span class="text-danger">₹ ' + formatNumber(totals.total_balance) + '</span>' :
+            '<span class="text-success">₹ ' + formatNumber(totals.total_balance) + '</span>';
+        
+        $('.col-md-3 strong').html('Total Balance : ' + balanceSpan);
+        $('#balanceWord').text(totals.total_balance_word);
+    }
 });
 
 // Example SweetAlert usage for marking as active
@@ -223,7 +335,6 @@ function markAsActive(booklogId, change) {
         confirmButtonText: 'Yes, Update it!'
     }).then((result) => {
         if (result.isConfirmed) {
-            // Make AJAX call to mark as active
             $.ajax({
                 url: '/books/api/active',
                 method: 'GET',

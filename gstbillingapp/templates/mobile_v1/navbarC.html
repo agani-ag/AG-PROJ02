@@ -42,6 +42,7 @@
         url.searchParams.set('users_filter', '{{ request.GET.users_filter }}');
         url.searchParams.set('u', '{{ request.GET.u }}');
         url.searchParams.set('cid', '{{ request.GET.cid }}');
+        url.searchParams.set('admin', '{{ request.GET.admin }}');
         item.href = url.toString();
     });
     // Highlight active nav item based on current URL
