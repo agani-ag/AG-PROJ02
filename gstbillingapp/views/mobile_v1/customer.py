@@ -1038,6 +1038,11 @@ def products(request):
     # Filter products
     products_qs = Product.objects.all().select_related('user')
     
+    # Apply users filter
+    if users_filter:
+        users = users.filter(user__id__in=user_ids)
+        products_qs = products_qs.filter(user__id__in=user_ids)
+
     if user_id:
         products_qs = products_qs.filter(user__id=user_id)
     
