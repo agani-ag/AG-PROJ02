@@ -282,8 +282,8 @@ def customer_home(request):
     total_paid = totals['total_paid'] or 0
     total_returned = totals['total_returned'] or 0
     total_others = totals['total_others'] or 0
-    total_balance = abs(total_purchased) - abs(total_paid)
-    # total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
+    # total_balance = abs(total_purchased) - abs(total_paid)
+    total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
     # Counts
     context['purchased_count'] = totals['purchased_count'] or 0
     context['paid_count'] = totals['paid_count'] or 0
@@ -1226,8 +1226,8 @@ def home(request):
     
     # Current month book log totals
     current_book_stats = current_month_books.aggregate(
-        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        purchases=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
     )
     current_month_purchases_amount = abs(current_book_stats['purchases'] or 0)
     current_month_payments_amount = abs(current_book_stats['payments'] or 0)
@@ -1261,8 +1261,8 @@ def home(request):
     
     # Last month book log totals
     last_book_stats = last_month_books.aggregate(
-        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        purchases=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
     )
     last_month_purchases_amount = abs(last_book_stats['purchases'] or 0)
     last_month_payments_amount = abs(last_book_stats['payments'] or 0)
@@ -1283,16 +1283,16 @@ def home(request):
     
     # Total book logs
     all_book_stats = BookLog.objects.aggregate(
-        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        purchases=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
         returns=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
         others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
     )
 
     if users_filter:
         all_book_stats = BookLog.objects.filter(parent_book__user__id__in=user_ids).aggregate(
-            purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-            payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+            purchases=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+            payments=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
             returns=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
             others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
         )
@@ -1301,7 +1301,7 @@ def home(request):
     total_payments = abs(all_book_stats['payments'] or 0)
     total_returns = abs(all_book_stats['returns'] or 0)
     total_others = abs(all_book_stats['others'] or 0)
-    total_balance = total_purchases - total_payments
+    total_balance = total_purchases - (total_payments + total_returns + total_others)
     
     # Total expenses
     total_expenses = ExpenseTracker.objects.aggregate(total=Sum('amount'))['total'] or 0
