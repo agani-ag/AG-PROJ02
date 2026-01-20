@@ -787,13 +787,18 @@ def customersapi(request):
     for customer in customers:
         gst = customer['gst']
         userid = customer['name']
-        link = f"/mobile/v1/customer/home?cid={userid}"
+        business_name = customer['business_name']
+
+        link_obj = {
+            "name": business_name,
+            "link": f"/mobile/v1/customer/home?cid={userid}"
+        }
 
         if gst not in gst_map:
             gst_map[gst] = []
 
-        if link not in gst_map[gst]:
-            gst_map[gst].append(link)
+        if link_obj not in gst_map[gst]:
+            gst_map[gst].append(link_obj)
 
     # Build final response
     customers_dict = {}
