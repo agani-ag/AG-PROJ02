@@ -6,33 +6,15 @@
     font-size: 16px;
 }
 
-/* Password input wrapper for mobile */
-.password-wrapper-reset-password {
-    position: relative;
-    width: 100%;
-    margin-top: 10px;
-}
-
-/* Password input box full width with padding */
+/* Input box full width, aligned and mobile-friendly */
 .input-reset-password {
     width: 100%;
     font-size: 16px !important;
-    padding: 14px 50px 14px 14px !important; /* leave space for eye */
+    padding: 14px !important;
     border-radius: 8px;
     border: 1px solid #ccc;
     box-sizing: border-box;
-}
-
-/* Eye icon inside input */
-.toggle-password-reset-password {
-    position: absolute;
-    right: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    cursor: pointer;
-    font-size: 20px;
-    user-select: none;
-    padding: 8px; /* larger tap area for mobile */
+    margin-top: 10px;
 }
 
 /* Timer bar */

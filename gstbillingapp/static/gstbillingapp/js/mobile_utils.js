@@ -1,5 +1,5 @@
 // ===================================================
-// Password Reset – One Time + 1 Minute Expiry
+// Password Reset – One Time + 45 Seconds Expiry
 // ===================================================
 
 const RESET_EXPIRY_SECONDS = 45;
@@ -33,20 +33,17 @@ function showPasswordResetSwal(cid) {
     Swal.fire({
         title: "🔐 Reset Password",
         html: `
-            <div class="password-wrapper-reset-password">
-                <input type="password"
-                    id="swal-password"
-                    class="swal2-input input-reset-password"
-                    placeholder="Enter new password">
-                <span class="toggle-password-reset-password" id="toggle-password">👁️</span>
-            </div>
+            <input type="password"
+                id="swal-password"
+                class="swal2-input input-reset-password"
+                placeholder="Enter new password">
 
             <div class="timer-wrapper-reset-password">
                 <div class="timer-bar-reset-password" id="timer-bar"></div>
             </div>
 
             <p class="timer-text-reset-password">
-                ⏳ Time left: <span id="reset-timer">01:00</span>
+                ⏳ Time left: <span id="reset-timer">00:45</span>
             </p>
         `,
         confirmButtonText: "Reset Password",
@@ -58,7 +55,6 @@ function showPasswordResetSwal(cid) {
         },
         didOpen: () => {
             startCountdownTimer();
-            initPasswordToggle();
         },
         preConfirm: () => {
             const password = document.getElementById("swal-password").value;
@@ -120,22 +116,6 @@ function startCountdownTimer() {
             timerBar.style.background = "#dc2626";
         }
     }, 1000);
-}
-
-
-// ===================================================
-// Show / Hide Password
-// ===================================================
-
-function initPasswordToggle() {
-    const input = document.getElementById("swal-password");
-    const toggle = document.getElementById("toggle-password");
-
-    toggle.addEventListener("click", function () {
-        const isHidden = input.type === "password";
-        input.type = isHidden ? "text" : "password";
-        toggle.textContent = isHidden ? "🙈" : "👁️";
-    });
 }
 
 
