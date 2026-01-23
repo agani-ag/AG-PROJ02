@@ -1,6 +1,10 @@
 // ===================================================
-// One-time Password Reset via URL (Advanced)
+// Password Reset – One Time + 1 Minute Expiry
 // ===================================================
+
+const RESET_EXPIRY_MINUTES = 1;
+let resetExpiryTime = null;
+let countdownInterval = null;
 
 document.addEventListener("DOMContentLoaded", function () {
 
@@ -8,33 +12,13 @@ document.addEventListener("DOMContentLoaded", function () {
     const passReset = url.searchParams.get("pass-reset");
     const cid = url.searchParams.get("cid");
 
-    const RESET_EXPIRY_MINUTES = 10; // link valid for 10 minutes
-    const now = Date.now();
+    if (passReset === "true" && cid && !localStorage.getItem("passResetDone")) {
 
-    const resetData = JSON.parse(localStorage.getItem("passResetData"));
-
-    // Check if already used OR expired
-    if (resetData) {
-        const expiryTime = resetData.time + RESET_EXPIRY_MINUTES * 60 * 1000;
-        if (now > expiryTime) {
-            localStorage.removeItem("passResetData");
-        }
-    }
-
-    if (
-        passReset === "true" &&
-        cid &&
-        !localStorage.getItem("passResetDone")
-    ) {
-
-        localStorage.setItem(
-            "passResetData",
-            JSON.stringify({ time: now })
-        );
+        resetExpiryTime = Date.now() + RESET_EXPIRY_MINUTES * 60 * 1000;
 
         showPasswordResetSwal(cid);
 
-        // Clean URL
+        // Remove param from URL
         url.searchParams.delete("pass-reset");
         window.history.replaceState({}, document.title, url.toString());
     }
@@ -42,40 +26,123 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
 // ===================================================
-// SweetAlert Password Reset Modal
+// SweetAlert UI
 // ===================================================
 
 function showPasswordResetSwal(cid) {
     Swal.fire({
         title: "🔐 Reset Password",
-        input: "password",
-        inputPlaceholder: "Enter new password",
-        inputAttributes: {
-            autocapitalize: "off",
-            autocorrect: "off"
-        },
+        html: `
+            <div class="password-wrapper-reset-password">
+                <input type="password"
+                       id="swal-password"
+                       class="swal2-input input-reset-password"
+                       placeholder="Enter new password">
+
+                <span class="toggle-password-reset-password"
+                      id="toggle-password">👁️</span>
+            </div>
+
+            <div class="timer-wrapper-reset-password">
+                <div class="timer-bar-reset-password" id="timer-bar"></div>
+            </div>
+
+            <p class="timer-text-reset-password">
+                ⏳ Time left: <span id="reset-timer">01:00</span>
+            </p>
+        `,
         confirmButtonText: "Reset Password",
-        confirmButtonColor: "#3085d6",
+        confirmButtonColor: "#2563eb",
         allowOutsideClick: false,
         allowEscapeKey: false,
-        showLoaderOnConfirm: true,
         customClass: {
-            popup: "swal-mobile"
+            popup: "swal-popup-reset-password"
         },
-        preConfirm: (password) => {
-            const validationError = validatePassword(password);
-            if (validationError) {
-                Swal.showValidationMessage(validationError);
+        didOpen: () => {
+            startCountdownTimer();
+            initPasswordToggle();
+        },
+        preConfirm: () => {
+            const password = document.getElementById("swal-password").value;
+
+            const error = validatePassword(password);
+            if (error) {
+                Swal.showValidationMessage(error);
                 return false;
             }
+
+            if (Date.now() > resetExpiryTime) {
+                Swal.showValidationMessage("Reset time expired");
+                return false;
+            }
+
             return resetPasswordApi(cid, password);
+        },
+        willClose: () => {
+            clearInterval(countdownInterval);
         }
     });
 }
 
 
 // ===================================================
-// Password Strength Validation
+// Countdown Timer + Progress Bar
+// ===================================================
+
+function startCountdownTimer() {
+    const timerText = document.getElementById("reset-timer");
+    const timerBar = document.getElementById("timer-bar");
+
+    const totalTime = RESET_EXPIRY_MINUTES * 60 * 1000;
+
+    countdownInterval = setInterval(() => {
+        const remaining = resetExpiryTime - Date.now();
+
+        if (remaining <= 0) {
+            clearInterval(countdownInterval);
+
+            Swal.fire({
+                icon: "error",
+                title: "Time Expired",
+                text: "Password reset time has expired. Please request again."
+            });
+            return;
+        }
+
+        const seconds = Math.floor(remaining / 1000);
+        const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+        const ss = String(seconds % 60).padStart(2, "0");
+
+        timerText.textContent = `${mm}:${ss}`;
+
+        const percent = (remaining / totalTime) * 100;
+        timerBar.style.width = percent + "%";
+
+        if (percent < 30) {
+            timerBar.style.background = "#dc2626";
+        }
+    }, 1000);
+}
+
+
+// ===================================================
+// Show / Hide Password
+// ===================================================
+
+function initPasswordToggle() {
+    const input = document.getElementById("swal-password");
+    const toggle = document.getElementById("toggle-password");
+
+    toggle.addEventListener("click", function () {
+        const isHidden = input.type === "password";
+        input.type = isHidden ? "text" : "password";
+        toggle.textContent = isHidden ? "🙈" : "👁️";
+    });
+}
+
+
+// ===================================================
+// Password Validation
 // ===================================================
 
 function validatePassword(password) {
@@ -89,7 +156,7 @@ function validatePassword(password) {
 
 
 // ===================================================
-// API Call (Retry enabled)
+// API Call
 // ===================================================
 
 function resetPasswordApi(cid, newPassword) {
@@ -104,20 +171,18 @@ function resetPasswordApi(cid, newPassword) {
             new_password: newPassword
         })
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
         if (data.status === "success") {
 
             localStorage.setItem("passResetDone", "true");
-            localStorage.removeItem("passResetData");
 
             Swal.fire({
                 icon: "success",
                 title: "Password Reset",
-                text: data.message,
-                confirmButtonText: "Continue"
+                text: data.message
             }).then(() => {
-                window.location.href = "/login/"; // 🔄 Redirect
+                window.location.href = "/login/";
             });
 
         } else {
@@ -125,9 +190,7 @@ function resetPasswordApi(cid, newPassword) {
         }
     })
     .catch(() => {
-        Swal.showValidationMessage(
-            "Network error. Please try again."
-        );
+        Swal.showValidationMessage("Network error. Try again.");
     });
 }
 
@@ -139,14 +202,12 @@ function resetPasswordApi(cid, newPassword) {
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== "") {
-        const cookies = document.cookie.split(";");
-        for (let cookie of cookies) {
+        document.cookie.split(";").forEach(cookie => {
             cookie = cookie.trim();
             if (cookie.startsWith(name + "=")) {
                 cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
             }
-        }
+        });
     }
     return cookieValue;
 }
