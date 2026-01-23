@@ -1,31 +1,38 @@
 /* SweetAlert Password Reset UI */
-
 .swal-popup-reset-password {
-    width: 92% !important;
-    max-width: 420px;
-    padding: 20px;
+    width: 90% !important;
+    max-width: 400px;
+    padding: 20px 15px;
+    font-size: 16px;
 }
 
-/* Password input */
-.input-reset-password {
-    font-size: 16px !important;
-    padding: 12px !important;
-}
-
-/* Password toggle */
+/* Password input wrapper for mobile */
 .password-wrapper-reset-password {
     position: relative;
     width: 100%;
+    margin-top: 10px;
 }
 
+/* Password input box full width with padding */
+.input-reset-password {
+    width: 100%;
+    font-size: 16px !important;
+    padding: 14px 50px 14px 14px !important; /* leave space for eye */
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+/* Eye icon inside input */
 .toggle-password-reset-password {
     position: absolute;
     right: 14px;
     top: 50%;
     transform: translateY(-50%);
     cursor: pointer;
-    font-size: 18px;
+    font-size: 20px;
     user-select: none;
+    padding: 8px; /* larger tap area for mobile */
 }
 
 /* Timer bar */
@@ -34,7 +41,7 @@
     height: 6px;
     background: #e5e7eb;
     border-radius: 6px;
-    margin-top: 15px;
+    margin-top: 20px;
     overflow: hidden;
 }
 
@@ -51,10 +58,12 @@
     font-weight: 600;
     color: #dc2626;
     text-align: center;
+    font-size: 14px;
 }
 
 /* Mobile-friendly confirm button */
 .swal2-confirm {
     font-size: 16px !important;
-    padding: 12px !important;
+    padding: 14px !important;
+    margin-top: 15px !important;
 }

@@ -2,7 +2,7 @@
 // Password Reset – One Time + 1 Minute Expiry
 // ===================================================
 
-const RESET_EXPIRY_MINUTES = 1;
+const RESET_EXPIRY_SECONDS = 45;
 let resetExpiryTime = null;
 let countdownInterval = null;
 
@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (passReset === "true" && cid && !localStorage.getItem("passResetDone")) {
 
-        resetExpiryTime = Date.now() + RESET_EXPIRY_MINUTES * 60 * 1000;
+        resetExpiryTime = Date.now() + RESET_EXPIRY_SECONDS * 1000;
 
         showPasswordResetSwal(cid);
 
@@ -35,12 +35,10 @@ function showPasswordResetSwal(cid) {
         html: `
             <div class="password-wrapper-reset-password">
                 <input type="password"
-                       id="swal-password"
-                       class="swal2-input input-reset-password"
-                       placeholder="Enter new password">
-
-                <span class="toggle-password-reset-password"
-                      id="toggle-password">👁️</span>
+                    id="swal-password"
+                    class="swal2-input input-reset-password"
+                    placeholder="Enter new password">
+                <span class="toggle-password-reset-password" id="toggle-password">👁️</span>
             </div>
 
             <div class="timer-wrapper-reset-password">
@@ -93,7 +91,7 @@ function startCountdownTimer() {
     const timerText = document.getElementById("reset-timer");
     const timerBar = document.getElementById("timer-bar");
 
-    const totalTime = RESET_EXPIRY_MINUTES * 60 * 1000;
+    const totalTime = RESET_EXPIRY_SECONDS * 1000;
 
     countdownInterval = setInterval(() => {
         const remaining = resetExpiryTime - Date.now();
