@@ -7,7 +7,6 @@ let resetExpiryTime = null;
 let countdownInterval = null;
 
 document.addEventListener("DOMContentLoaded", function () {
-
     const url = new URL(window.location.href);
     const passReset = url.searchParams.get("pass-reset");
     const cid = url.searchParams.get("cid");
@@ -18,58 +17,37 @@ document.addEventListener("DOMContentLoaded", function () {
 
         showPasswordResetSwal(cid);
 
-        // Remove param from URL
+        // Remove param from URL after first use
         url.searchParams.delete("pass-reset");
         window.history.replaceState({}, document.title, url.toString());
     }
 });
 
-
 // ===================================================
-// SweetAlert UI
+// SweetAlert2 UI – Simple password input, no validation
 // ===================================================
 
 function showPasswordResetSwal(cid) {
     Swal.fire({
         title: "🔐 Reset Password",
-        html: `
-            <input type="password"
-                id="swal-password"
-                class="swal2-input input-reset-password"
-                placeholder="Enter new password">
-
-            <div class="timer-wrapper-reset-password">
-                <div class="timer-bar-reset-password" id="timer-bar"></div>
-            </div>
-
-            <p class="timer-text-reset-password">
-                ⏳ Time left: <span id="reset-timer">00:45</span>
-            </p>
-        `,
+        input: "password",
+        inputPlaceholder: "Enter new password",
+        inputAttributes: {
+            autocapitalize: "off",
+            autocorrect: "off"
+        },
         confirmButtonText: "Reset Password",
-        confirmButtonColor: "#2563eb",
+        confirmButtonColor: "#3085d6",
         allowOutsideClick: false,
         allowEscapeKey: false,
+        showLoaderOnConfirm: true,
         customClass: {
-            popup: "swal-popup-reset-password"
+            popup: "swal-mobile"
         },
         didOpen: () => {
             startCountdownTimer();
         },
-        preConfirm: () => {
-            const password = document.getElementById("swal-password").value;
-
-            const error = validatePassword(password);
-            if (error) {
-                Swal.showValidationMessage(error);
-                return false;
-            }
-
-            if (Date.now() > resetExpiryTime) {
-                Swal.showValidationMessage("Reset time expired");
-                return false;
-            }
-
+        preConfirm: (password) => {
             return resetPasswordApi(cid, password);
         },
         willClose: () => {
@@ -78,14 +56,32 @@ function showPasswordResetSwal(cid) {
     });
 }
 
-
 // ===================================================
 // Countdown Timer + Progress Bar
 // ===================================================
 
 function startCountdownTimer() {
-    const timerText = document.getElementById("reset-timer");
-    const timerBar = document.getElementById("timer-bar");
+    const swalPopup = document.querySelector(".swal2-popup");
+    if (!swalPopup) return;
+
+    let timerBar = document.createElement("div");
+    timerBar.id = "timer-bar";
+    timerBar.style.height = "6px";
+    timerBar.style.width = "100%";
+    timerBar.style.background = "#22c55e";
+    timerBar.style.borderRadius = "6px";
+    timerBar.style.marginTop = "15px";
+    timerBar.style.transition = "width 1s linear";
+    swalPopup.appendChild(timerBar);
+
+    let timerText = document.createElement("p");
+    timerText.id = "reset-timer";
+    timerText.style.marginTop = "8px";
+    timerText.style.fontWeight = "600";
+    timerText.style.color = "#dc2626";
+    timerText.style.textAlign = "center";
+    timerText.textContent = formatTime(RESET_EXPIRY_SECONDS);
+    swalPopup.appendChild(timerText);
 
     const totalTime = RESET_EXPIRY_SECONDS * 1000;
 
@@ -94,7 +90,6 @@ function startCountdownTimer() {
 
         if (remaining <= 0) {
             clearInterval(countdownInterval);
-
             Swal.fire({
                 icon: "error",
                 title: "Time Expired",
@@ -104,10 +99,7 @@ function startCountdownTimer() {
         }
 
         const seconds = Math.floor(remaining / 1000);
-        const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
-        const ss = String(seconds % 60).padStart(2, "0");
-
-        timerText.textContent = `${mm}:${ss}`;
+        timerText.textContent = formatTime(seconds);
 
         const percent = (remaining / totalTime) * 100;
         timerBar.style.width = percent + "%";
@@ -118,28 +110,18 @@ function startCountdownTimer() {
     }, 1000);
 }
 
-
-// ===================================================
-// Password Validation
-// ===================================================
-
-function validatePassword(password) {
-    if (!password) return "Password cannot be empty";
-    if (password.length < 8) return "Minimum 8 characters required";
-    if (!/[A-Z]/.test(password)) return "Add at least one uppercase letter";
-    if (!/[a-z]/.test(password)) return "Add at least one lowercase letter";
-    if (!/[0-9]/.test(password)) return "Add at least one number";
-    return null;
+function formatTime(seconds) {
+    const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const ss = String(seconds % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
 }
-
 
 // ===================================================
 // API Call
 // ===================================================
 
 function resetPasswordApi(cid, newPassword) {
-
-    return fetch(`/customers-reset-password-api/?cid=${cid}`, {
+    return fetch(`/customer/api/reset-password?cid=${cid}`, {
         method: "POST",
         headers: {
             "X-CSRFToken": getCookie("csrftoken"),
@@ -152,9 +134,7 @@ function resetPasswordApi(cid, newPassword) {
     .then(res => res.json())
     .then(data => {
         if (data.status === "success") {
-
             localStorage.setItem("passResetDone", "true");
-
             Swal.fire({
                 icon: "success",
                 title: "Password Reset",
@@ -162,7 +142,6 @@ function resetPasswordApi(cid, newPassword) {
             }).then(() => {
                 window.location.href = "/login/";
             });
-
         } else {
             Swal.showValidationMessage(data.message);
         }
@@ -171,7 +150,6 @@ function resetPasswordApi(cid, newPassword) {
         Swal.showValidationMessage("Network error. Try again.");
     });
 }
-
 
 // ===================================================
 // CSRF Helper

@@ -1,42 +1,35 @@
-/* SweetAlert Password Reset UI */
-.swal-popup-reset-password {
+/* SweetAlert2 default mobile popup */
+.swal-mobile {
     width: 90% !important;
     max-width: 400px;
     padding: 20px 15px;
     font-size: 16px;
 }
 
-/* Input box full width, aligned and mobile-friendly */
-.input-reset-password {
+/* SweetAlert2 input styling (mobile friendly) */
+.swal2-input {
     width: 100%;
     font-size: 16px !important;
-    padding: 14px !important;
+    padding: 12px !important;
     border-radius: 8px;
     border: 1px solid #ccc;
     box-sizing: border-box;
     margin-top: 10px;
 }
 
-/* Timer bar */
-.timer-wrapper-reset-password {
-    width: 100%;
+/* Timer bar container */
+#timer-bar {
     height: 6px;
-    background: #e5e7eb;
-    border-radius: 6px;
-    margin-top: 20px;
-    overflow: hidden;
-}
-
-.timer-bar-reset-password {
-    height: 100%;
     width: 100%;
     background: #22c55e;
+    border-radius: 6px;
+    margin-top: 15px;
     transition: width 1s linear;
 }
 
 /* Timer text */
-.timer-text-reset-password {
-    margin-top: 10px;
+#reset-timer {
+    margin-top: 8px;
     font-weight: 600;
     color: #dc2626;
     text-align: center;
