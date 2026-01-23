@@ -773,7 +773,7 @@ def books(request):
 
 def customersapi(request):
     customers = Customer.objects.all().values(
-        business_name=F('user__business_brand'),
+        business_name=F('user__userprofile__business_brand'),
         name=F('customer_userid'),
         password=F('customer_password'),
         gst=F('customer_gst')
