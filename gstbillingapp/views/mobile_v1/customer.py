@@ -856,6 +856,30 @@ def customers_book_add_api(request):
 
     return JsonResponse({'status': 'error', 'message': 'Try again later.'})
 
+def customers_reset_password_api(request):
+    cid = request.GET.get('cid')
+    if not cid:
+        return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+    customer = get_object_or_404(Customer, customer_userid=cid)
+    customers = Customer.objects.filter(
+        customer_gst=customer.customer_gst,
+        is_mobile_user=True
+    )
+    if request.method == 'POST':
+        new_password = request.POST.get('new_password', '').strip()
+        if not new_password:
+            return JsonResponse({'status': 'error', 'message': 'Password cannot be empty.'})
+        try:
+            for customer in customers:
+                customer.customer_password = new_password
+                customer.is_mobile_user = True
+                customer.save()
+            return JsonResponse({'status': 'success', 'message': 'Password reset successfully.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+
+    return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+
 def expenses_tracker(request):
     """Expense Tracker listing with filtering, search, and pagination"""
     from django.core.paginator import Paginator

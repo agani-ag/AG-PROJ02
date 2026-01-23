@@ -26,4 +26,5 @@ urlpatterns = [
     # API URLs
     path('customers/api', customer.customersapi, name='v1customersapi'),
     path('customer/api/books/add', customer.customers_book_add_api, name='v1customersbookaddapi'),
+    path('customer/api/reset-password', customer.customers_reset_password_api, name='v1customersresetpasswordapi'),
 ]
