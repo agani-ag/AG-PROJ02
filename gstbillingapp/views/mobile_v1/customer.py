@@ -773,7 +773,8 @@ def books(request):
 
 def customersapi(request):
     customers = Customer.objects.all().values(
-        business_name=F('user__userprofile__business_brand'),
+        business_name=F('customer_name'),
+        brand_name=F('user__userprofile__business_brand'),
         name=F('customer_userid'),
         password=F('customer_password'),
         gst=F('customer_gst')
@@ -787,10 +788,10 @@ def customersapi(request):
     for customer in customers:
         gst = customer['gst']
         userid = customer['name']
-        business_name = customer['business_name']
+        brand_name = customer['brand_name']
 
         link_obj = {
-            "name": business_name,
+            "name": brand_name,
             "link": f"/mobile/v1/customer/home?cid={userid}"
         }
 
