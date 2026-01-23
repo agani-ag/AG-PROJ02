@@ -773,7 +773,7 @@ def books(request):
 
 def customersapi(request):
     customers = Customer.objects.all().values(
-        business_name=F('customer_name'),
+        business_name=F('user__business_brand'),
         name=F('customer_userid'),
         password=F('customer_password'),
         gst=F('customer_gst')
@@ -806,13 +806,14 @@ def customersapi(request):
     for customer in customers:
         name = customer['name']
         gst = customer['gst']
+        links = gst_map.get(gst, [])
 
         customers_dict[name] = {
             'business_name': customer['business_name'],
             'name': name,
             'password': customer['password'],
             'deflink': f"/mobile/v1/customer/home?cid={name}",
-            'linklist': gst_map.get(gst, [])
+            'linklist': links if len(links) > 1 else []
         }
 
     return JsonResponse(customers_dict, safe=False)
