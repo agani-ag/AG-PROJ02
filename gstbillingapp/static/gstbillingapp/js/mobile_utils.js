@@ -2,7 +2,7 @@
 // Password Reset – One Time + 45 Seconds Expiry
 // ===================================================
 
-const RESET_EXPIRY_SECONDS = 45;
+var RESET_EXPIRY_SECONDS = 45;
 let resetExpiryTime = null;
 let countdownInterval = null;
 
@@ -10,6 +10,10 @@ document.addEventListener("DOMContentLoaded", function () {
     const url = new URL(window.location.href);
     const passReset = url.searchParams.get("pass-reset");
     const cid = url.searchParams.get("cid");
+    const expiry_seconds = url.searchParams.get("expiry_seconds");
+    if (expiry_seconds) {
+        RESET_EXPIRY_SECONDS = parseInt(expiry_seconds);
+    }
 
     if (passReset === "true" && cid && !localStorage.getItem("passResetDone")) {
 
@@ -121,7 +125,7 @@ function formatTime(seconds) {
 // ===================================================
 
 function resetPasswordApi(cid, newPassword) {
-    return fetch(`/customer/api/reset-password?cid=${cid}`, {
+    return fetch(`{% url 'v1customersresetpasswordapi' %}?cid=${cid}`, {
         method: "POST",
         headers: {
             "X-CSRFToken": getCookie("csrftoken"),
@@ -140,7 +144,7 @@ function resetPasswordApi(cid, newPassword) {
                 title: "Password Reset",
                 text: data.message
             }).then(() => {
-                window.location.href = "/login/";
+                window.location.reload();
             });
         } else {
             Swal.showValidationMessage(data.message);
