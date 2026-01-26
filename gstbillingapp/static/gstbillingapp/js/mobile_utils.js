@@ -1,8 +1,7 @@
 // ===================================================
-// Password Reset – One Time + 45 Seconds Expiry
+// Password Reset – One Time + 30 Seconds Expiry
 // ===================================================
-
-var RESET_EXPIRY_SECONDS = 45;
+var RESET_EXPIRY_SECONDS = 30;
 let resetExpiryTime = null;
 let countdownInterval = null;
 
@@ -10,9 +9,11 @@ document.addEventListener("DOMContentLoaded", function () {
     const url = new URL(window.location.href);
     const passReset = url.searchParams.get("pass-reset");
     const cid = url.searchParams.get("cid");
-    const resetTimer = url.searchParams.get("reset-timer");
-    if (resetTimer) {
-        RESET_EXPIRY_SECONDS = parseInt(resetTimer, 10);
+    const resetTimerParam = url.searchParams.get("reset_timer");
+
+    // Override default expiry time if provided in URL
+    if (resetTimerParam) {
+        RESET_EXPIRY_SECONDS = parseInt(resetTimerParam, 10) || RESET_EXPIRY_SECONDS;
     }
 
     if (passReset === "true" && cid && !localStorage.getItem("passResetDone")) {
@@ -125,7 +126,7 @@ function formatTime(seconds) {
 // ===================================================
 
 function resetPasswordApi(cid, newPassword) {
-    return fetch(`{% url 'v1customersresetpasswordapi' %}?cid=${cid}`, {
+    return fetch(`/mobile/v1/customer/api/reset-password?cid=${cid}`, {
         method: "POST",
         headers: {
             "X-CSRFToken": getCookie("csrftoken"),

@@ -363,26 +363,23 @@ def customer_home(request):
     only_purchases = only_purchases = book_logs.filter(change_type=1).annotate(amount_positive=Abs('change')).order_by('date')
     remaining_amount = abs(total_paid) + abs(total_returned) + abs(total_others)
     filtered_logs = []
+    payment_failed = False
     for log in only_purchases:
         # overdue days
-        if log.date:
-            log.overdue_days = (now - log.date).days
-        else:
-            log.overdue_days = 0
-
+        log.overdue_days = (now - log.date).days if log.date else 0
         invoice_amount = log.amount_positive
 
-        if remaining_amount >= invoice_amount:
-            # payment can cover this invoice
+        if not payment_failed and remaining_amount >= invoice_amount:
+            # covered
             remaining_amount -= invoice_amount
-            log.remaining_amount = remaining_amount
-            log.payment_pending = False
-        else:
-            # payment cannot cover this invoice
-            log.remaining_amount = remaining_amount
-            log.balance_after = abs(log.remaining_amount - log.amount_positive)
-            log.payment_pending = True
-            filtered_logs.append(log)
+            continue
+
+        # once failed, everything is overdue
+        payment_failed = True
+        log.remaining_amount = remaining_amount
+        log.balance_after = abs(remaining_amount - invoice_amount)
+        log.payment_pending = True
+        filtered_logs.append(log)
     context['overdue_logs'] = filtered_logs
     return render(request, 'mobile_v1/customer/home.html', context)
 
