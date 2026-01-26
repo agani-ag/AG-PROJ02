@@ -305,12 +305,15 @@ def invoice_delete(request):
     if request.method == "POST":
         invoice_id = request.POST["invoice_id"]
         invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
-        is_non_gst = not invoice_obj.is_gst
         if len(request.POST.getlist('inventory-del')):
             remove_inventory_entries_for_invoice(invoice_obj, request.user)
         if len(request.POST.getlist('book-del')):
-            booklog_obj = get_object_or_404(BookLog,associated_invoice=invoice_obj)
-            book = get_object_or_404(Book,user=request.user,id=booklog_obj.parent_book.id)
+            try:
+                booklog_obj = get_object_or_404(BookLog,associated_invoice=invoice_obj)
+                book = get_object_or_404(Book,user=request.user,id=booklog_obj.parent_book.id)
+            except:
+                messages.success(request, f'Error Invoice #{invoice_obj.invoice_number} deletion from books')
+                return redirect('invoices')
             booklog_obj.delete()
             new_total = BookLog.objects.filter(parent_book=book).aggregate(Sum('change'))['change__sum']
             new_last_log = BookLog.objects.filter(parent_book=book).last()
@@ -321,8 +324,6 @@ def invoice_delete(request):
             book.save()
         invoice_obj.delete()
         messages.success(request, f'Invoice #{invoice_obj.invoice_number} deleted successfully')
-        if is_non_gst:
-            return redirect('non_gst_invoices')
     return redirect('invoices')
 
 
