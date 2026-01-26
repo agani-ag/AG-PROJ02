@@ -683,7 +683,7 @@
                 <i class="fas fa-wallet"></i>
                 Balance Overview
             </h3>
-            <span class="progress-period">All Time</span>
+            <span class="progress-period text-dark font-weight-bold">{{ overall_payment_percentage|default:0 }}%</span>
         </div>
         
         <!-- Balance Progress -->
@@ -703,6 +703,38 @@
                 <span>Total: ₹{{ total_purchased|default:0|floatformat:2|intcomma }}</span>
             </div>
         </div>
+        <hr>
+        <div class="progress-header">
+            <h3 class="progress-title">
+                <i class="bi bi-clock-history"></i>
+                Overdue Bills
+            </h3>
+            <span class="progress-period text-dark font-weight-bold">{{ overdue_logs|length }}</span>
+        </div>
+        {% load humanize %}
+        {% for log in overdue_logs %}
+            {% if log.associated_invoice %}
+            <a href="{% url 'v1customerinvoiceviewer' log.associated_invoice.id %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&user_filter={{ request.GET.user_filter }}&cid={{ request.GET.cid }}"
+                class="summary-item" style="text-decoration: none;">
+            {% else %}
+            <span class="summary-item" style="text-decoration: none;">
+            {% endif %}
+                <span class="summary-label">
+                    <i class="fas fa-receipt" style="color: #ff3b30;"></i>
+                    <span>
+                        {{ log.date|date:"d/m/Y" }} <span class="badge badge-danger">{{ log.overdue_days }} Days</span>
+                        <br><small class="text-muted">{{ log.date|naturaltime }}</small>
+                    </span>
+                </span>
+                <span class="summary-value">₹{{ log.amount_positive|default:0|floatformat:2|intcomma }}
+                    {% if forloop.first %}
+                        <br><span class="badge badge-warning">₹{{ log.remaining_amount|default:0|floatformat:2|intcomma }}</span>
+                    {% endif %}
+                </span>
+            {% if log.associated_invoice %}</a>{% else %}</span>{% endif %}
+        {% empty %}
+            <p style="padding: 12px 0; color: var(--oneui-text-secondary); text-align: center;">No overdue bills.</p>    
+        {% endfor %}
     </div>
     
     <!-- Page Footer -->

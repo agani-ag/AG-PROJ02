@@ -2,15 +2,16 @@
 from django.forms import FloatField
 from django.utils import timezone
 from django.http import JsonResponse
-from django.db.models.functions import Cast
 from django.core.paginator import Paginator
 from django.template.loader import render_to_string
 from django.shortcuts import get_object_or_404, render
 from django.db.models import (
     Sum, Case, When, FloatField, IntegerField,
-    F,Q, CharField, Min, Max, Count
+    F,Q, CharField, Min, Max, Count, ExpressionWrapper
 )
-
+from django.db.models.functions import (
+    Abs, Cast
+)
 # Models
 from ...models import (
     Customer, UserProfile, Invoice,
@@ -23,7 +24,9 @@ import json
 import num2words
 
 # Utility functions
-from ...utils import parse_code_GS
+from ...utils import (
+    parse_code_GS
+)
 
 # ================= Customer =============================
 def customer_profile(request):
@@ -356,6 +359,30 @@ def customer_home(request):
     context['last_month_total_paid'] = abs(int(last_month_total_paid))
     context['last_month_paid_count'] = abs(int(last_month_paid_count))
     context['last_month_purchased_count'] = abs(int(last_month_purchased_count))
+    # Overdue
+    only_purchases = only_purchases = book_logs.filter(change_type=1).annotate(amount_positive=Abs('change')).order_by('date')
+    remaining_amount = abs(total_paid) + abs(total_returned) + abs(total_others)
+    filtered_logs = []
+    for log in only_purchases:
+        # overdue days
+        if log.date:
+            log.overdue_days = (now - log.date).days
+        else:
+            log.overdue_days = 0
+
+        invoice_amount = log.amount_positive
+
+        if remaining_amount >= invoice_amount:
+            # payment can cover this invoice
+            remaining_amount -= invoice_amount
+            log.remaining_amount = remaining_amount
+            log.payment_pending = False
+        else:
+            # payment cannot cover this invoice
+            log.remaining_amount = remaining_amount
+            log.payment_pending = True
+            filtered_logs.append(log)
+    context['overdue_logs'] = filtered_logs
     return render(request, 'mobile_v1/customer/home.html', context)
 
 def customer_invoice_viewer(request, invoice_id):

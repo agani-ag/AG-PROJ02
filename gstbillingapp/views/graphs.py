@@ -486,8 +486,10 @@ def customer_location_map(request):
         business_latitude__isnull=False,
         business_longitude__isnull=False
         )
+    all_customers = Customer.objects.filter(user=request.user)
     context = {
         'customers': customers,
+        'all_customers': all_customers,
         'user': user_profile,
         'user_profile': user_profile
     }
