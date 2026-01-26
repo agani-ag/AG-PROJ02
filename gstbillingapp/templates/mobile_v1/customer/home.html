@@ -728,7 +728,7 @@
                 </span>
                 <span class="summary-value">₹{{ log.amount_positive|default:0|floatformat:2|intcomma }}
                     {% if forloop.first %}
-                        <br><span class="badge badge-warning">₹{{ log.remaining_amount|default:0|floatformat:2|intcomma }}</span>
+                        <br><span class="badge badge-warning">₹{{ log.balance_after|default:0|floatformat:2|intcomma }}</span>
                     {% endif %}
                 </span>
             {% if log.associated_invoice %}</a>{% else %}</span>{% endif %}

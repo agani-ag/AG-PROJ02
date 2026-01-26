@@ -380,6 +380,7 @@ def customer_home(request):
         else:
             # payment cannot cover this invoice
             log.remaining_amount = remaining_amount
+            log.balance_after = abs(log.remaining_amount - log.amount_positive)
             log.payment_pending = True
             filtered_logs.append(log)
     context['overdue_logs'] = filtered_logs
