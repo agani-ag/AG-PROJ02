@@ -22,6 +22,7 @@ from ...models import (
 # Python imports
 import json
 import num2words
+from urllib.parse import urlencode
 
 # Utility functions
 from ...utils import (
@@ -362,6 +363,7 @@ def customer_home(request):
     # Overdue
     only_purchases = only_purchases = book_logs.filter(change_type=1).annotate(amount_positive=Abs('change')).order_by('date')
     remaining_amount = abs(total_paid) + abs(total_returned) + abs(total_others)
+    show_90_only = request.GET.get('overdue') == '90'
     filtered_logs = []
     payment_failed = False
     for log in only_purchases:
@@ -379,7 +381,18 @@ def customer_home(request):
         log.remaining_amount = remaining_amount
         log.balance_after = abs(remaining_amount - invoice_amount)
         log.payment_pending = True
+        if show_90_only and log.overdue_days < 90:
+            continue
         filtered_logs.append(log)
+
+    params = request.GET.copy()
+    params_overdue_90 = params.copy()
+    params_overdue_90['overdue'] = '90'
+    params_show_all = params.copy()
+    params_show_all.pop('overdue', None)
+    context['url_overdue_90'] = f"?{urlencode(params_overdue_90)}"
+    context['url_show_all'] = f"?{urlencode(params_show_all)}"
+    context['show_90_only'] = show_90_only
     context['overdue_logs'] = filtered_logs
     return render(request, 'mobile_v1/customer/home.html', context)
 
