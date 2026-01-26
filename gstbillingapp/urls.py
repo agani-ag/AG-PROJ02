@@ -26,10 +26,10 @@ urlpatterns = [
     # Invoice URLs
     path('invoices', invoices.invoices, name='invoices'),
     path('invoices/ajax', invoices.invoices_ajax, name='invoices_ajax'),
-    path('invoices/nongst', invoices.non_gst_invoices, name='non_gst_invoices'),
     path('invoices/new', invoices.invoice_create, name='invoice_create'),
     path('invoice/<int:invoice_id>', invoices.invoice_viewer, name='invoice_viewer'),
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),
+    path('invoices/push-to-books/<int:invoice_id>', invoices.invoice_push_to_books, name='invoice_push_to_books'),
     path('api/customer-invoice-filter/', invoices.customerInvoiceFilter, name='customer_invoice_filter'),
 
     # Customer URLs

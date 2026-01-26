@@ -10,9 +10,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const url = new URL(window.location.href);
     const passReset = url.searchParams.get("pass-reset");
     const cid = url.searchParams.get("cid");
-    const expiry_seconds = url.searchParams.get("expiry_seconds");
-    if (expiry_seconds) {
-        RESET_EXPIRY_SECONDS = parseInt(expiry_seconds);
+    const resetTimer = url.searchParams.get("reset-timer");
+    if (resetTimer) {
+        RESET_EXPIRY_SECONDS = parseInt(resetTimer, 10);
     }
 
     if (passReset === "true" && cid && !localStorage.getItem("passResetDone")) {

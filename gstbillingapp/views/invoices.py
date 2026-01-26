@@ -118,12 +118,9 @@ def invoice_create(request):
 @login_required
 def invoices(request):
     context = {}
-    return render(request, 'invoices/invoices.html', context)
-
-@login_required
-def non_gst_invoices(request):
-    context = {}
-    context['non_gst_mode'] = True
+    # Get all customers for dropdown filter
+    customers = Customer.objects.filter(user=request.user).order_by('customer_name')
+    context['customers'] = customers
     return render(request, 'invoices/invoices.html', context)
 
 @login_required
@@ -141,19 +138,34 @@ def invoices_ajax(request):
         order_direction = request.GET.get('order[0][dir]', 'desc')
         
         # Filter parameters
-        invoice_type = request.GET.get('invoice_type', 'all')  # all, gst, non_gst
+        invoice_type = request.GET.get('invoice_type', 'all')  # all, gst, non_gst, not_pushed, missing_in_books
         date_filter = request.GET.get('date_filter', 'all')
         start_date = request.GET.get('start_date', '')
         end_date = request.GET.get('end_date', '')
+        customer_id = request.GET.get('customer_id', '')  # customer filter
         
         # Base queryset
         queryset = Invoice.objects.filter(user=request.user).select_related('invoice_customer')
+        
+        # Apply customer filter
+        if customer_id and customer_id.isdigit():
+            queryset = queryset.filter(invoice_customer__id=int(customer_id))
         
         # Apply invoice type filter
         if invoice_type == 'gst':
             queryset = queryset.filter(is_gst=True)
         elif invoice_type == 'non_gst':
             queryset = queryset.filter(is_gst=False)
+        elif invoice_type == 'not_pushed':
+            queryset = queryset.filter(books_reflected=False)
+        elif invoice_type == 'missing_in_books':
+            # Find invoices marked as reflected but with no BookLog entry
+            # Only execute this expensive query when this filter is active
+            existing_invoice_ids = set(BookLog.objects.filter(
+                parent_book__user=request.user,
+                associated_invoice__isnull=False
+            ).values_list('associated_invoice_id', flat=True))
+            queryset = queryset.filter(books_reflected=True).exclude(id__in=existing_invoice_ids)
         
         # Apply date filters
         if date_filter and date_filter != 'all':
@@ -196,12 +208,23 @@ def invoices_ajax(request):
         else:
             queryset = queryset.order_by('-id')
         
-        # Pagination
+        # Calculate total invoice amount - optimized query
+        # Use values_list to only fetch invoice_json field, not all related data
+        total_invoice_amount = 0.0
+        invoice_jsons = queryset.values_list('invoice_json', flat=True)
+        for invoice_json_str in invoice_jsons:
+            try:
+                invoice_json = json.loads(invoice_json_str)
+                invoice_amount = float(invoice_json.get('invoice_total_amt_with_gst', 0))
+                total_invoice_amount += invoice_amount
+            except Exception:
+                pass
+        
+        # Pagination - apply after total calculation
         queryset = queryset[start:start + length]
         
-        # Prepare data and calculate total invoice amount
+        # Prepare data for current page
         data = []
-        total_invoice_amount = 0.0
         for invoice in queryset:
             # Invoice number
             if invoice.is_gst:
@@ -222,14 +245,17 @@ def invoices_ajax(request):
             except Exception:
                 invoice_amount = 0.0
 
-            total_invoice_amount += invoice_amount
-
             # Actions
             actions_html = '<div class="btn-group" role="group">'
             actions_html += f'<button type="button" onclick="popup_invoice({invoice.id})" class="btn btn-primary btn-sm btn-curve"><i class="fa fa-eye"></i></button>'
             actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve"><i class="fa fa-external-link-square"></i></a>'
             if invoice.invoice_customer:
                 actions_html += f'<a href="/customer/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve"><i class="fa fa-user"></i></a>'
+            
+            # Add push/fix button for not_pushed or missing_in_books filters
+            if invoice_type in ['not_pushed', 'missing_in_books']:
+                button_title = 'Push to Books' if invoice_type == 'not_pushed' else 'Fix & Push to Books'
+                actions_html += f'<button type="button" onclick="pushToBooks({invoice.id})" class="btn btn-success btn-sm btn-curve" title="{button_title}"><i class="fa fa-book"></i></button>'
 
             customer_info = invoice.invoice_customer.customer_name if invoice.invoice_customer else "N/A"
             actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{invoice.id}" data-invoice-number="{invoice.invoice_number}, for {customer_info}"><i class="fa fa-trash"></i></button>'
@@ -294,9 +320,53 @@ def invoice_delete(request):
             book.last_log = new_last_log
             book.save()
         invoice_obj.delete()
+        messages.success(request, f'Invoice #{invoice_obj.invoice_number} deleted successfully')
         if is_non_gst:
             return redirect('non_gst_invoices')
     return redirect('invoices')
+
+
+@login_required
+def invoice_push_to_books(request, invoice_id):
+    """Manually push an invoice to books if it wasn't reflected"""
+    if request.method == 'POST':
+        try:
+            invoice = get_object_or_404(Invoice, id=invoice_id, user=request.user)
+            
+            # Check if there's already a BookLog entry for this invoice
+            existing_booklog = BookLog.objects.filter(associated_invoice=invoice).first()
+            
+            if existing_booklog:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Invoice already has a book entry'
+                }, status=400)
+            
+            # If books_reflected is True but no BookLog exists, this is a data inconsistency
+            # Reset the flag to allow proper pushing
+            if invoice.books_reflected:
+                invoice.books_reflected = False
+                invoice.save()
+            
+            # Push to books
+            auto_deduct_book_from_invoice(invoice)
+            
+            # Update the flag
+            invoice.books_reflected = True
+            invoice.save()
+            
+            messages.success(request, f'Invoice #{invoice.invoice_number} successfully pushed to books')
+            return JsonResponse({
+                'success': True,
+                'message': f'Invoice #{invoice.invoice_number} pushed to books successfully'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request'}, status=405)
 
 # ================= Invoice API Views ===========================
 @login_required
