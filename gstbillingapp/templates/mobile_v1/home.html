@@ -823,6 +823,7 @@
             </span>
         </div>
         
+        {% if request.GET.admin == "true" %}
         <div class="summary-item">
             <span class="summary-label">
                 <i class="bi bi-cash-stack"></i>
@@ -833,6 +834,7 @@
                 <span class="summary-badge badge-danger">{{ total_expense_count|intcomma }}</span>
             </span>
         </div>
+        {% endif %}
     </div>
     
     <!-- Payment Progress -->
@@ -993,6 +995,7 @@
     {% endif %}
     
     <!-- Recent Expenses -->
+    {% if request.GET.admin == "true" %}
     {% if recent_expenses %}
     <div class="section-header">
         <h2 class="section-title">Recent Expenses</h2>
@@ -1018,6 +1021,7 @@
         </div>
         {% endfor %}
     </div>
+    {% endif %}
     {% endif %}
     
     <!-- Brands -->
