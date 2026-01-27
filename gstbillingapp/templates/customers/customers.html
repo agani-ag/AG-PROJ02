@@ -21,7 +21,7 @@
 			<th>Address</th>
 			<th>Phone</th>
 			<th>GST NO</th>
-			<th>Mobile</th>
+			<th>M ID</th>
 			<th>Actions</th>
 		</tr>
 	</thead>
@@ -33,10 +33,10 @@
 			<td>{% if customer.customer_phone %}{{customer.customer_phone}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 			<td>{% if customer.customer_gst %}{{customer.customer_gst}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 			<td>
-				{% if customer.is_mobile_user %}
-					<a href="#" class="btn btn-orange-on btn-sm btn-curve"><i class="fas fa-toggle-on"></i></a>
+				{% if customer.customer_userid %}
+					<a href="#" class="font-weight-bold text-{% if customer.is_mobile_user %}success{% else %}danger{% endif %}" onclick="IsMobileUser_Status('{{ customer.customer_userid }}')">{{customer.customer_userid | upper}}</a>
 				{% else %}
-					<a href="#" class="btn btn-orange-off btn-sm btn-curve"><i class="fas fa-toggle-off"></i></a>
+					<span class="text-muted">N/A</span>
 				{% endif %}
 			</td>
 			<td>
@@ -208,5 +208,43 @@ function popup_Customer_maps(latitude, longitude, name) {
         }
     });
 }
+
+function IsMobileUser_Status(customerUserId) {
+	Swal.fire({
+		title: 'Customer Mobile User Status',
+		text: "This will update the Mobile Login of the customer!",
+		icon: 'warning',
+		showCancelButton: true,
+		confirmButtonColor: '#3085d6',
+		cancelButtonColor: '#d33',
+		confirmButtonText: 'Yes, Update status!'
+	}).then((result) => {
+		if (result.isConfirmed) {
+			$.ajax({
+				type: "POST",
+				url: "/customers/api/is_mobile_user",
+				data: {
+					'customer_userid': customerUserId,
+				},
+				success: function(response) {
+					Swal.fire(
+						'Success!',
+						response.message,
+						'success'
+					).then(() => {
+						location.reload();
+					});
+				},
+				error: function(xhr, status, error) {
+					Swal.fire(
+						'Error!',
+						'An error occurred while updating Mobile User status.',
+						'error'
+					);
+				}
+			});
+		}
+	});
+};
 </script>
 {% endblock %}

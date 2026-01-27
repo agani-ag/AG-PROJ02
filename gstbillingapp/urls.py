@@ -42,6 +42,7 @@ urlpatterns = [
     path('customers/api/add', customers.customer_api_add, name='customer_api_add'),
     path('customers/api/default_password', customers.customer_default_password, name='customer_default_password'),
     path('customers/api/all_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
+    path('customers/api/is_mobile_user', customers.customer_is_mobile_user, name='customer_is_mobile_user'),
 
     # Book URLs
     path('books', books.books, name='books'),
