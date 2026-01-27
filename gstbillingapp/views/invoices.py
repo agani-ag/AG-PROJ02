@@ -205,15 +205,20 @@ def invoices_ajax(request):
         # Filtered records count
         filtered_records = queryset.count()
         
+        # Default ordering: by invoice_date desc, then id desc
+        default_ordering = ['-invoice_date', '-id']
+
         # Ordering
         order_columns = ['invoice_number', 'invoice_date', 'invoice_customer__customer_name']
         if 0 <= order_column_index < len(order_columns):
             order_by = order_columns[order_column_index]
             if order_direction == 'desc':
                 order_by = '-' + order_by
-            queryset = queryset.order_by(order_by)
+            # Apply user-specified order first, then fallback to date & id desc
+            queryset = queryset.order_by(order_by, '-invoice_date', '-id')
         else:
-            queryset = queryset.order_by('-id')
+            # Default ordering
+            queryset = queryset.order_by(*default_ordering)
         
         # Calculate total invoice amount - optimized query
         # Use values_list to only fetch invoice_json field, not all related data
