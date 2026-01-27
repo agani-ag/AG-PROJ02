@@ -185,5 +185,9 @@
 			invoiceNumberInput.value = "{{default_invoice_number}}";
 		}
 	});
+
+	$("#invoice-form-addrow").one("click", function () {
+		$(this).fadeOut();
+	});
 	</script>
 {% endblock %}

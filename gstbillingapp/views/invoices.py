@@ -70,7 +70,7 @@ def invoice_create(request):
             is_gst = True
         
         if is_gst and invoice_data['customer-gst'].strip() == '':
-            messages.error(request, "GST Invoice requires Customer GST Number.")
+            messages.warning(request, "GST Invoice requires Customer GST Number.")
             return render(request, 'invoices/invoice_create.html', context)
 
         validation_error = invoice_data_validator(invoice_data)
@@ -100,7 +100,7 @@ def invoice_create(request):
             # # create customer book
             # customer.save()
             # add_customer_book(customer)
-            messages.error(request, "Customer does not exist. Please add the customer first.")
+            messages.warning(request, "Customer does not exist. Please add the customer first.")
             return redirect('customer_add')
 
         # save product
@@ -319,7 +319,7 @@ def invoice_delete(request):
                 booklog_obj = get_object_or_404(BookLog,associated_invoice=invoice_obj)
                 book = get_object_or_404(Book,user=request.user,id=booklog_obj.parent_book.id)
             except:
-                messages.error(request, f'Error Invoice #{invoice_obj.invoice_number} deletion from books')
+                messages.warning(request, f'Error Invoice #{invoice_obj.invoice_number} deletion from books')
                 return redirect('invoices')
             booklog_obj.delete()
             new_total = BookLog.objects.filter(parent_book=book).aggregate(Sum('change'))['change__sum']
