@@ -237,7 +237,7 @@ def invoices_ajax(request):
             if invoice.is_gst:
                 invoice_num = str(invoice.invoice_number)
             else:
-                invoice_num = f'<span class="text-danger font-weight-bold">NG{invoice.invoice_number}</span>'
+                invoice_num = f'<span class="text-danger font-weight-bold">INV-{invoice.invoice_number}</span>'
 
             # Customer
             if invoice.invoice_customer:
