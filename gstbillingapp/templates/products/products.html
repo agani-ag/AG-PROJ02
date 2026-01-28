@@ -10,10 +10,10 @@
 				<h2>Products</h2>
 			</div>
 			<div class="col text-right" style="padding-top: 0.5%;">
-				<a href="{% url 'product_add' %}" class="btn btn-primary btn-sm btn-curve">
+				<a href="{% url 'product_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Product">
 					<i class="fas fa-plus"></i>
 				</a>
-				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" style="text-decoration: none;">
+				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" style="text-decoration: none;" title="Upload Excel">
 					<i class="fas fa-file-excel"></i>
 				</a>
 			</div>
@@ -40,9 +40,9 @@
 	 				<td>{{product.product_gst_percentage}}%</td>
 	 				<td>
 						<div class="btn-group" role="group" aria-label="Basic example">
-							<a href="{% url 'product_edit' product.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
-							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.model_no}}"><i class="fas fa-trash"></i></button>
-							<a href="{% url 'inventory_logs' product.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-lines"></i></a>
+							<a href="{% url 'product_edit' product.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Product"><i class="fas fa-pen-to-square"></i></a>
+							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.model_no}}" title="Delete Product"><i class="fas fa-trash"></i></button>
+							<a href="{% url 'inventory_logs' product.id %}" class="btn btn-warning btn-sm btn-curve" title="View Inventory Logs"><i class="fas fa-file-lines"></i></a>
 						</div>
 					</td>
 				</tr>

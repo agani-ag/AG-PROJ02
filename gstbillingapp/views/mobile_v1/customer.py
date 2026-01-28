@@ -16,7 +16,8 @@ from django.db.models.functions import (
 from ...models import (
     Customer, UserProfile, Invoice,
     Book, BookLog, ExpenseTracker, Product,
-    PurchaseLog, VendorPurchase, Inventory
+    PurchaseLog, VendorPurchase, Inventory,
+    InventoryLog
 )
 
 # Python imports
@@ -1524,3 +1525,37 @@ def home(request):
     })
     
     return render(request, 'mobile_v1/home.html', context)
+
+def product_inventory_stock_add(request):
+    brand = request.GET.get('brand')
+    model_no = request.GET.get('model_no')
+    if not brand or not model_no:
+        return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+    inventory = get_object_or_404(Inventory, product__model_no=model_no, user__id=brand)
+    if request.method == 'POST':
+        added_stock = request.POST.get('added_stock', '0').strip()
+        stock_alert = request.POST.get('stock_alert', '0').strip()
+        try:
+            added_stock = int(added_stock)
+            if added_stock <= 0:
+                return JsonResponse({'status': 'error', 'message': 'Invalid stock quantity.'})
+            inventory.current_stock += added_stock
+            if stock_alert.isdigit():
+                inventory.alert_level = int(stock_alert)
+            inventory.save()
+
+            # Log the inventory addition
+            log_entry = InventoryLog(
+                user = inventory.user,
+                product = inventory.product,
+                change = added_stock,
+                description = request.user.username + ' via MS App'
+            )
+            log_entry.save()
+
+            return JsonResponse({'status': 'success', 'message': 'Stock added successfully.'})
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid stock quantity.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+    

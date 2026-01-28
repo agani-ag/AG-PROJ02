@@ -8,9 +8,9 @@
 	</div>
 	<div class="col text-right" style="padding-top: 0.5%;">
 		
-		<a href="{% url 'customer_add' %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-plus"></i></a>
-		<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve"><i class="fas fa-file-excel"></i></a>
-		<button class="btn btn-warning btn-sm btn-curve" id="set-allcustomer-userid"><i class="fas fa-refresh"></i></button>
+		<a href="{% url 'customer_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Customer"><i class="fas fa-plus"></i></a>
+		<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" title="Upload Features"><i class="fas fa-file-excel"></i></a>
+		<button class="btn btn-warning btn-sm btn-curve" id="set-allcustomer-userid" title="Reset Customer User IDs"><i class="fas fa-refresh"></i></button>
 	</div>
 </div>
 
@@ -34,18 +34,18 @@
 			<td>{% if customer.customer_gst %}{{customer.customer_gst}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 			<td>
 				{% if customer.customer_userid %}
-					<a href="#" class="font-weight-bold text-{% if customer.is_mobile_user %}success{% else %}danger{% endif %}" onclick="IsMobileUser_Status('{{ customer.customer_userid }}')">{{customer.customer_userid | upper}}</a>
+					<a href="#" class="font-weight-bold text-{% if customer.is_mobile_user %}success{% else %}danger{% endif %}" onclick="IsMobileUser_Status('{{ customer.customer_userid }}')" title="Enable / Disable Mobile User">{{customer.customer_userid | upper}}</a>
 				{% else %}
 					<span class="text-muted">N/A</span>
 				{% endif %}
 			</td>
 			<td>
 				<div class="btn-group" role="group" aria-label="Basic example">
-					<a href="{% url 'customer_edit' customer.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
-					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#customerDeleteModal" data-customer-id="{{customer.id}}" data-customer-name="{{customer.customer_name}}"><i class="fas fa-trash"></i></button>
-					<a href="{% url 'book_logs' customer.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-lines"></i></a>
+					<a href="{% url 'customer_edit' customer.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Customer"><i class="fas fa-pen-to-square"></i></a>
+					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#customerDeleteModal" data-customer-id="{{customer.id}}" data-customer-name="{{customer.customer_name}}" title="Delete Customer"><i class="fas fa-trash"></i></button>
+					<a href="{% url 'book_logs' customer.id %}" class="btn btn-warning btn-sm btn-curve" title="View Book Logs"><i class="fas fa-file-lines"></i></a>
 					{% if customer.customer_latitude and customer.customer_longitude %}
-					<a href="#" class="btn btn-success btn-sm btn-curve" onclick="popup_Customer_maps('{{ customer.customer_latitude }}', '{{ customer.customer_longitude }}', '{{ customer.customer_name }}')">
+					<a href="#" class="btn btn-success btn-sm btn-curve" onclick="popup_Customer_maps('{{ customer.customer_latitude }}', '{{ customer.customer_longitude }}', '{{ customer.customer_name }}')" title="View on Map">
 						<i class="fas fa-location-dot"></i></a>
 					{% endif %}
 				</div>

@@ -28,7 +28,7 @@
                 
                 <div class="product-meta-badges">
                     {% if product.current_stock is not None %}
-                    <span class="product-badge stock-badge {% if product.current_stock == 0 %}out-of-stock{% elif product.is_low_stock %}low-stock{% else %}in-stock{% endif %}">
+                    <span class="product-badge stock-badge {% if product.current_stock == 0 %}out-of-stock{% elif product.is_low_stock %}low-stock{% else %}in-stock{% endif %}" onclick="addInventoryStock('{{ product.user.id }}', '{{ product.model_no }}', '{{ product.alert_level }}', '{{ product.current_stock }}')">
                         <i class="bi bi-box"></i> Stock: {{ product.current_stock|intcomma }}
                         {% if product.alert_level %}
                         / Alert: {{ product.alert_level|intcomma }}
@@ -83,3 +83,61 @@
         <p class="empty-state-text">Try adjusting your search or filters</p>
     </div>
 {% endif %}
+
+<script>
+function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
+    Swal.fire({
+        title: "Add Stock",
+        html: `
+        <input type="number" id="added_stock" class="swal2-input" placeholder="Enter stock quantity (${current_stock})"
+        style="height:38px;font-size:14px;width:85%;margin:6px auto;" min="1">
+        <p style="font-size:14px;color:#555;">Enter Stock for Model No: <strong>${modelNo}</strong></p>
+        <input type="number" id="stock_alert" class="swal2-input" placeholder="Stock alert level (optional)" 
+        style="height:38px;font-size:14px;width:85%;margin:6px auto;" value="${stock_alert}" min="1">
+        <p style="font-size:14px;color:#555;">Enter Stock Alert Level</strong></p>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: "Add Stock",
+        cancelButtonText: "Cancel",
+        confirmButtonColor: "#3085d6",
+        preConfirm: () => {
+            const addedStock = document.getElementById("added_stock").value;
+            const stockAlert = document.getElementById("stock_alert").value;
+
+            if (!addedStock || addedStock <= 0) {
+                Swal.showValidationMessage("Please enter a valid stock quantity");
+                return false;
+            }
+
+            return {
+                added_stock: addedStock,
+                stock_alert: stockAlert
+            };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`{% url 'v1productinventorystockaddapi' %}?brand=${brand}&model_no=${modelNo}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": getCookie("csrftoken")
+                },
+                body: `added_stock=${result.value.added_stock}&stock_alert=${result.value.stock_alert}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    Swal.fire("Success!", data.message, "success")
+                        .then(() => location.reload());
+                } else {
+                    Swal.fire("Error", data.message, "error");
+                }
+            })
+            .catch(() => {
+                Swal.fire("Error", "Something went wrong!", "error");
+            });
+        }
+    });
+}
+</script>

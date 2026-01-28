@@ -246,7 +246,7 @@ def invoices_ajax(request):
 
             # Customer
             if invoice.invoice_customer:
-                customer_html = f'<a href="/books/{invoice.invoice_customer.id}" style="text-decoration: none;color: black;">{invoice.invoice_customer.customer_name}</a>'
+                customer_html = f'<a href="/books/{invoice.invoice_customer.id}" style="text-decoration: none;color: black;" title="View Books">{invoice.invoice_customer.customer_name}</a>'
             else:
                 customer_html = '<span class="text-danger">N/A</span>'
 
@@ -259,10 +259,10 @@ def invoices_ajax(request):
 
             # Actions
             actions_html = '<div class="btn-group" role="group">'
-            actions_html += f'<button type="button" onclick="popup_invoice({invoice.id})" class="btn btn-primary btn-sm btn-curve"><i class="fa fa-eye"></i></button>'
-            actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve"><i class="fa fa-external-link-square"></i></a>'
+            actions_html += f'<button type="button" onclick="popup_invoice({invoice.id})" class="btn btn-primary btn-sm btn-curve" title="Preview Invoice"><i class="fa fa-eye"></i></button>'
+            actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve" title="View Invoice"><i class="fa fa-external-link-square"></i></a>'
             if invoice.invoice_customer:
-                actions_html += f'<a href="/customer/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve"><i class="fa fa-user"></i></a>'
+                actions_html += f'<a href="/customer/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve" title="Edit Customer"><i class="fa fa-user"></i></a>'
             
             # Add push/fix button for not_pushed or missing_in_books filters
             if invoice_type in ['not_pushed', 'missing_in_books']:
@@ -270,7 +270,7 @@ def invoices_ajax(request):
                 actions_html += f'<button type="button" onclick="pushToBooks({invoice.id})" class="btn btn-success btn-sm btn-curve" title="{button_title}"><i class="fa fa-book"></i></button>'
 
             customer_info = invoice.invoice_customer.customer_name if invoice.invoice_customer else "N/A"
-            actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{invoice.id}" data-invoice-number="{invoice.invoice_number}, for {customer_info}"><i class="fa fa-trash"></i></button>'
+            actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{invoice.id}" data-invoice-number="{invoice.invoice_number}, for {customer_info}" title="Delete Invoice"><i class="fa fa-trash"></i></button>'
             actions_html += '</div>'
 
             data.append({

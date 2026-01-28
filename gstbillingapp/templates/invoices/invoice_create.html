@@ -140,11 +140,11 @@
 	{% csrf_token %}
 	<div class="d-flex justify-content-between">
 		<div>
-			<button class="btn btn-primary btn-sm" id="invoice-form-addrow"><i class="fas fa-plus"></i></button>
+			<button class="btn btn-primary btn-sm" id="invoice-form-addrow" title="Add Rows"><i class="fas fa-plus"></i></button>
 		</div>
 		<div>
-			<button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-check"></i></button>
-			<a href="#" class="btn btn-danger btn-sm" onclick="cancel_invoice()"><i class="fas fa-cancel"></i></a>
+			<button type="submit" class="btn btn-primary btn-sm" id="invoice-save" title="Save Invoice"><i class="fas fa-check"></i></button>
+			<a href="#" class="btn btn-danger btn-sm" onclick="cancel_invoice()" title="Cancel Invoice"><i class="fas fa-cancel"></i></a>
 		</div>
 	</div>
 
@@ -186,7 +186,7 @@
 		}
 	});
 
-	$("#invoice-form-addrow").one("click", function () {
+	$("#invoice-save").one("click", function () {
 		$(this).fadeOut();
 	});
 	</script>
