@@ -1536,10 +1536,12 @@ def product_inventory_stock_add(request):
         added_stock = request.POST.get('added_stock', '0').strip()
         stock_alert = request.POST.get('stock_alert', '0').strip()
         title = request.POST.get('title', '').strip()
+        only_alert = request.POST.get('only_alert')
+        only_alert = True if only_alert == 'true' else False
         reduce_stock = request.POST.get('reduce_stock')
         reduce_stock = True if reduce_stock == 'true' else False
         description = title.upper() if title else 'Admin'
-        description += ' added stock via Mobile App'
+        description += ' via Mobile App'
         try:
             added_stock = int(added_stock)
             if reduce_stock:
@@ -1550,7 +1552,8 @@ def product_inventory_stock_add(request):
             if stock_alert.isdigit():
                 inventory.alert_level = int(stock_alert)
             inventory.save()
-
+            if only_alert:
+                return JsonResponse({'status': 'success', 'message': 'Alert level updated successfully.'})
             # Log the inventory addition
             log_entry = InventoryLog(
                 user = inventory.user,

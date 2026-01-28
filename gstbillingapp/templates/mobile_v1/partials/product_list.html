@@ -97,6 +97,8 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
         <p style="font-size:14px;color:#555;">Enter Stock Alert Level</strong></p>
         <label style="font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;">
             <input type="checkbox" id="reduce_stock">Reduce stock</label>
+        <label style="font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;">
+            <input type="checkbox" id="only_alert">Only Alert</label>
         `,
         focusConfirm: false,
         showCancelButton: true,
@@ -107,6 +109,7 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
             const addedStock = document.getElementById("added_stock").value;
             const stockAlert = document.getElementById("stock_alert").value;
             const reduce_stock = document.getElementById("reduce_stock").checked;
+            const only_alert = document.getElementById("only_alert").checked;
             const title = new URLSearchParams(window.location.search).get("title") || "";
 
             if (!addedStock || addedStock <= 0) {
@@ -118,6 +121,7 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
                 added_stock: addedStock,
                 stock_alert: stockAlert,
                 reduce_stock: reduce_stock,
+                only_alert: only_alert,
                 title: title
             };
         }
@@ -129,7 +133,7 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
                     "Content-Type": "application/x-www-form-urlencoded",
                     "X-CSRFToken": getCookie("csrftoken")
                 },
-                body: `added_stock=${result.value.added_stock}&stock_alert=${result.value.stock_alert}&reduce_stock=${result.value.reduce_stock}&title=${result.value.title}`
+                body: `added_stock=${result.value.added_stock}&stock_alert=${result.value.stock_alert}&reduce_stock=${result.value.reduce_stock}&only_alert=${result.value.only_alert}&title=${result.value.title}`
             })
             .then(response => response.json())
             .then(data => {
