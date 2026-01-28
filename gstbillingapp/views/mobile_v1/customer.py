@@ -1535,9 +1535,16 @@ def product_inventory_stock_add(request):
     if request.method == 'POST':
         added_stock = request.POST.get('added_stock', '0').strip()
         stock_alert = request.POST.get('stock_alert', '0').strip()
+        title = request.POST.get('title', '').strip()
+        reduce_stock = request.POST.get('reduce_stock')
+        reduce_stock = True if reduce_stock == 'true' else False
+        description = title.upper() if title else 'Admin'
+        description += ' added stock via Mobile App'
         try:
             added_stock = int(added_stock)
-            if added_stock <= 0:
+            if reduce_stock:
+                added_stock = -added_stock
+            if added_stock == 0:
                 return JsonResponse({'status': 'error', 'message': 'Invalid stock quantity.'})
             inventory.current_stock += added_stock
             if stock_alert.isdigit():
@@ -1549,7 +1556,7 @@ def product_inventory_stock_add(request):
                 user = inventory.user,
                 product = inventory.product,
                 change = added_stock,
-                description = request.user.username + ' via MS App'
+                description = description
             )
             log_entry.save()
 

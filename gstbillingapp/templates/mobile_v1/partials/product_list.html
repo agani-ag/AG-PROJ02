@@ -90,11 +90,13 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
         title: "Add Stock",
         html: `
         <input type="number" id="added_stock" class="swal2-input" placeholder="Enter stock quantity (${current_stock})"
-        style="height:38px;font-size:14px;width:85%;margin:6px auto;" min="1">
+            style="height:38px;font-size:14px;width:85%;margin:6px auto;" min="1">
         <p style="font-size:14px;color:#555;">Enter Stock for Model No: <strong>${modelNo}</strong></p>
         <input type="number" id="stock_alert" class="swal2-input" placeholder="Stock alert level (optional)" 
-        style="height:38px;font-size:14px;width:85%;margin:6px auto;" value="${stock_alert}" min="1">
+            style="height:38px;font-size:14px;width:85%;margin:6px auto;" value="${stock_alert}" min="1">
         <p style="font-size:14px;color:#555;">Enter Stock Alert Level</strong></p>
+        <label style="font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;">
+            <input type="checkbox" id="reduce_stock">Reduce stock</label>
         `,
         focusConfirm: false,
         showCancelButton: true,
@@ -104,6 +106,8 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
         preConfirm: () => {
             const addedStock = document.getElementById("added_stock").value;
             const stockAlert = document.getElementById("stock_alert").value;
+            const reduce_stock = document.getElementById("reduce_stock").checked;
+            const title = new URLSearchParams(window.location.search).get("title") || "";
 
             if (!addedStock || addedStock <= 0) {
                 Swal.showValidationMessage("Please enter a valid stock quantity");
@@ -112,7 +116,9 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
 
             return {
                 added_stock: addedStock,
-                stock_alert: stockAlert
+                stock_alert: stockAlert,
+                reduce_stock: reduce_stock,
+                title: title
             };
         }
     }).then((result) => {
@@ -123,7 +129,7 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
                     "Content-Type": "application/x-www-form-urlencoded",
                     "X-CSRFToken": getCookie("csrftoken")
                 },
-                body: `added_stock=${result.value.added_stock}&stock_alert=${result.value.stock_alert}`
+                body: `added_stock=${result.value.added_stock}&stock_alert=${result.value.stock_alert}&reduce_stock=${result.value.reduce_stock}&title=${result.value.title}`
             })
             .then(response => response.json())
             .then(data => {
