@@ -28,7 +28,8 @@
                 
                 <div class="product-meta-badges">
                     {% if product.current_stock is not None %}
-                    <span class="product-badge stock-badge {% if product.current_stock == 0 %}out-of-stock{% elif product.is_low_stock %}low-stock{% else %}in-stock{% endif %}" onclick="addInventoryStock('{{ product.user.id }}', '{{ product.model_no }}', '{{ product.alert_level }}', '{{ product.current_stock }}')">
+                    <span class="product-badge stock-badge {% if product.current_stock == 0 %}out-of-stock{% elif product.is_low_stock %}low-stock{% else %}in-stock{% endif %}" 
+                        onclick="addInventoryStock('{{ product.user.id }}', '{{ product.id }}', '{{ product.alert_level }}', '{{ product.current_stock }}', '{{ product.model_no }}')">
                         <i class="bi bi-box"></i> Stock: {{ product.current_stock|intcomma }}
                         {% if product.alert_level %}
                         / Alert: {{ product.alert_level|intcomma }}
@@ -85,16 +86,16 @@
 {% endif %}
 
 <script>
-function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
+function addInventoryStock(brand, productId, stock_alert, current_stock, modelNo) {
     Swal.fire({
         title: "Add Stock",
         html: `
         <input type="number" id="added_stock" class="swal2-input" placeholder="Enter stock quantity (${current_stock})"
             style="height:38px;font-size:14px;width:85%;margin:6px auto;" min="1">
-        <p style="font-size:14px;color:#555;">Enter Stock for Model No: <strong>${modelNo}</strong></p>
+        <p style="font-size:14px;color:#555;">Enter Stock</p>
         <input type="number" id="stock_alert" class="swal2-input" placeholder="Stock alert level (optional)" 
             style="height:38px;font-size:14px;width:85%;margin:6px auto;" value="${stock_alert}" min="1">
-        <p style="font-size:14px;color:#555;">Enter Stock Alert Level</strong></p>
+        <p style="font-size:14px;color:#555;">Enter Stock Alert Level</p>
         <label style="font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;">
             <input type="checkbox" id="reduce_stock">Reduce stock</label>
         <label style="font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;">
@@ -110,7 +111,7 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
             const stockAlert = document.getElementById("stock_alert").value;
             const reduce_stock = document.getElementById("reduce_stock").checked;
             const only_alert = document.getElementById("only_alert").checked;
-            const title = new URLSearchParams(window.location.search).get("title") || "";
+            const title = '{{ request.GET.title|default:""|upper }}';
 
             if (!addedStock || addedStock <= 0) {
                 Swal.showValidationMessage("Please enter a valid stock quantity");
@@ -127,7 +128,7 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
         }
     }).then((result) => {
         if (result.isConfirmed) {
-            fetch(`{% url 'v1productinventorystockaddapi' %}?brand=${brand}&model_no=${modelNo}`, {
+            fetch(`{% url 'v1productinventorystockaddapi' %}?brand=${brand}&product_id=${productId}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
@@ -139,7 +140,15 @@ function addInventoryStock(brand, modelNo, stock_alert, current_stock) {
             .then(data => {
                 if (data.status === "success") {
                     Swal.fire("Success!", data.message, "success")
-                        .then(() => location.reload());
+                        .then(() => {
+                            const url = new URL(window.location.href);
+                            if (modelNo) {
+                                url.searchParams.set("search", modelNo);
+                            } else {
+                                url.searchParams.delete("search");
+                            }
+                            window.location.href = url;
+                        });
                 } else {
                     Swal.fire("Error", data.message, "error");
                 }

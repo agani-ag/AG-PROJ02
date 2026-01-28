@@ -1528,10 +1528,15 @@ def home(request):
 
 def product_inventory_stock_add(request):
     brand = request.GET.get('brand')
-    model_no = request.GET.get('model_no')
-    if not brand or not model_no:
+    product_id = request.GET.get('product_id')
+    if not brand or not product_id:
         return JsonResponse({'status': 'error', 'message': 'Try again later.'})
-    inventory = get_object_or_404(Inventory, product__model_no=model_no, user__id=brand)
+    try:
+        inventory = get_object_or_404(Inventory, product__id=product_id, user__id=brand)
+    except Inventory.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Inventory not found.'})
+    except Inventory.MultipleObjectsReturned:
+        return JsonResponse({'status': 'error', 'message': 'Multiple inventory records found. Please contact support.'})
     if request.method == 'POST':
         added_stock = request.POST.get('added_stock', '0').strip()
         stock_alert = request.POST.get('stock_alert', '0').strip()
@@ -1540,20 +1545,21 @@ def product_inventory_stock_add(request):
         only_alert = True if only_alert == 'true' else False
         reduce_stock = request.POST.get('reduce_stock')
         reduce_stock = True if reduce_stock == 'true' else False
-        description = title.upper() if title else 'Admin'
+        description = title if title else 'Admin'
         description += ' via Mobile App'
         try:
+            if stock_alert.isdigit():
+                inventory.alert_level = int(stock_alert)
+            if only_alert:
+                inventory.save()
+                return JsonResponse({'status': 'success', 'message': 'Alert level updated successfully.'})
             added_stock = int(added_stock)
             if reduce_stock:
                 added_stock = -added_stock
             if added_stock == 0:
                 return JsonResponse({'status': 'error', 'message': 'Invalid stock quantity.'})
             inventory.current_stock += added_stock
-            if stock_alert.isdigit():
-                inventory.alert_level = int(stock_alert)
             inventory.save()
-            if only_alert:
-                return JsonResponse({'status': 'success', 'message': 'Alert level updated successfully.'})
             # Log the inventory addition
             log_entry = InventoryLog(
                 user = inventory.user,
