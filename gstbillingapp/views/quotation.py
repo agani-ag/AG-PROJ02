@@ -415,10 +415,10 @@ def quotation_delete(request, quotation_id):
     if request.method == 'POST':
         quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
         
-        if not quotation.can_be_edited():
+        if not quotation.can_be_deleted():
             return JsonResponse({
                 'success': False,
-                'message': 'Cannot delete a converted quotation'
+                'message': 'Cannot delete a quotation with an active invoice'
             }, status=400)
         
         quotation_num = quotation.quotation_number
@@ -523,6 +523,110 @@ def quotation_convert_to_invoice(request, quotation_id):
         import traceback
         error_details = traceback.format_exc()
         print(f"Error in quotation_convert_to_invoice: {error_details}")
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+
+@login_required
+@transaction.atomic
+def quotation_reconvert_to_invoice(request, quotation_id):
+    """Reconvert a quotation to invoice (when previous invoice was deleted)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+    
+    try:
+        quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
+        
+        # Validate reconversion - must be CONVERTED status but invoice deleted
+        if quotation.status != 'CONVERTED':
+            return JsonResponse({
+                'success': False,
+                'message': 'Only converted quotations can be reconverted'
+            }, status=400)
+        
+        if quotation.converted_invoice is not None:
+            return JsonResponse({
+                'success': False,
+                'message': 'Invoice still exists. Cannot reconvert.'
+            }, status=400)
+        
+        # Parse quotation data
+        quotation_data = json.loads(quotation.quotation_json)
+        
+        # Get next invoice number
+        user_profile = get_object_or_404(UserProfile, user=request.user)
+        
+        if quotation.is_gst:
+            # Get max invoice number across same GST
+            max_invoice_number = []
+            user_profiles = UserProfile.objects.filter(business_gst=user_profile.business_gst)
+            for profile in user_profiles:
+                max_num = Invoice.objects.filter(
+                    user=profile.user, is_gst=True
+                ).aggregate(Max('invoice_number'))['invoice_number__max']
+                max_invoice_number.append(max_num)
+            max_invoice_number = [num for num in max_invoice_number if num is not None]
+            
+            if max_invoice_number:
+                next_invoice_number = max(max_invoice_number) + 1
+            else:
+                next_invoice_number = 1
+        else:
+            # Non-GST invoice
+            next_invoice_number = Invoice.objects.filter(
+                user=request.user, is_gst=False
+            ).aggregate(Max('invoice_number'))['invoice_number__max']
+            if not next_invoice_number:
+                next_invoice_number = 1
+            else:
+                next_invoice_number += 1
+        
+        # Create invoice
+        new_invoice = Invoice(
+            user=request.user,
+            invoice_number=next_invoice_number,
+            invoice_date=datetime.date.today(),
+            invoice_customer=quotation.quotation_customer,
+            invoice_json=quotation.quotation_json,  # Reuse quotation JSON
+            is_gst=quotation.is_gst,
+            inventory_reflected=False,
+            books_reflected=False
+        )
+        new_invoice.save()
+        
+        # Update inventory
+        update_inventory(new_invoice, request)
+        new_invoice.inventory_reflected = True
+        
+        # Update books
+        auto_deduct_book_from_invoice(new_invoice)
+        new_invoice.books_reflected = True
+        
+        new_invoice.save()
+        
+        # Update quotation with new invoice
+        quotation.converted_invoice = new_invoice
+        quotation.converted_at = timezone.now()
+        quotation.converted_by = request.user
+        quotation.save()
+        
+        messages.success(
+            request, 
+            f'Quotation #{quotation.quotation_number} reconverted to Invoice #{new_invoice.invoice_number}'
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Reconverted to Invoice #{new_invoice.invoice_number}',
+            'invoice_id': new_invoice.id
+        })
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in quotation_reconvert_to_invoice: {error_details}")
         return JsonResponse({
             'success': False,
             'message': str(e)

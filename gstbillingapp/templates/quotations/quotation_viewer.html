@@ -270,12 +270,18 @@
 			</div>
 			{% endif %}
 
-			{% if quotation.status == 'CONVERTED' and quotation.converted_invoice %}
-			<div class="row mt-3">
-				<div class="col-sm-12">
+{% if quotation.status == 'CONVERTED' %}
+		<div class="row mt-3">
+			<div class="col-sm-12">
+				{% if quotation.converted_invoice %}
 					<div class="alert alert-success">
 						<strong>Status:</strong> This quotation has been converted to Invoice #{{ quotation.converted_invoice.invoice_number }} on {{ quotation.converted_at|date:"d M Y" }}
 					</div>
+				{% else %}
+					<div class="alert alert-warning">
+						<strong>Status:</strong> This quotation was converted to an invoice on {{ quotation.converted_at|date:"d M Y" }}, but the invoice has been deleted.
+					</div>
+				{% endif %}
 				</div>
 			</div>
 			{% endif %}
@@ -300,10 +306,28 @@
 			<a href="#" onclick="convertQuotation({{ quotation.id }}); return false;" class="btn btn-info d-print-none" title="Convert to Invoice">
 				<i class="fas fa-exchange-alt"></i> Convert to Invoice
 			</a>
-		{% else %}
-			<a href="{% url 'invoice_viewer' quotation.converted_invoice.id %}" class="btn btn-info d-print-none" title="View Invoice">
-				<i class="fas fa-file-invoice"></i> View Invoice
+			<a href="#" onclick="deleteQuotation({{ quotation.id }}); return false;" class="btn btn-danger d-print-none" title="Delete Quotation">
+				<i class="fas fa-trash"></i> Delete
 			</a>
+		{% else %}
+			{% if quotation.converted_invoice %}
+				<a href="{% url 'invoice_viewer' quotation.converted_invoice.id %}" class="btn btn-info d-print-none" title="View Invoice">
+					<i class="fas fa-file-invoice"></i> View Invoice
+				</a>
+			{% else %}
+				<button class="btn btn-secondary d-print-none" disabled title="Invoice has been deleted">
+					<i class="fas fa-file-invoice"></i> Invoice Deleted
+				</button>
+				<a href="{% url 'quotation_edit' quotation.id %}" class="btn btn-warning d-print-none" title="Edit Quotation">
+					<i class="fas fa-edit"></i> Edit
+				</a>
+				<a href="#" onclick="reconvertQuotation({{ quotation.id }}); return false;" class="btn btn-info d-print-none" title="Reconvert to Invoice">
+					<i class="fas fa-redo"></i> Reconvert to Invoice
+				</a>
+				<a href="#" onclick="deleteQuotation({{ quotation.id }}); return false;" class="btn btn-danger d-print-none" title="Delete Quotation">
+					<i class="fas fa-trash"></i> Delete
+				</a>
+			{% endif %}
 		{% endif %}
 		<a href="{% url 'quotations' %}" class="btn btn-danger d-print-none" title="Back to Quotations"><i class="fas fa-arrow-left"></i> Back</a>
 	</div>
@@ -359,6 +383,84 @@
 				})
 				.catch(error => {
 					Swal.fire('Error!', 'Failed to convert quotation.', 'error');
+				});
+			}
+		});
+	}
+
+	function deleteQuotation(quotationId) {
+		Swal.fire({
+			title: 'Delete Quotation?',
+			text: "This action cannot be undone!",
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonColor: '#d33',
+			cancelButtonColor: '#3085d6',
+			confirmButtonText: 'Yes, delete it!'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				fetch(`/quotation/delete/${quotationId}`, {
+					method: 'POST',
+					headers: {
+						'X-CSRFToken': '{{ csrf_token }}',
+						'Content-Type': 'application/json'
+					}
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.success) {
+						Swal.fire({
+							title: 'Deleted!',
+							text: 'Quotation has been deleted.',
+							icon: 'success'
+						}).then(() => {
+							window.location.href = '/quotations';
+						});
+					} else {
+						Swal.fire('Error!', data.message, 'error');
+					}
+				})
+				.catch(error => {
+					Swal.fire('Error!', 'Failed to delete quotation.', 'error');
+				});
+			}
+		});
+	}
+
+	function reconvertQuotation(quotationId) {
+		Swal.fire({
+			title: 'Reconvert to Invoice?',
+			text: "This will create a new invoice and update inventory & books. The previous invoice was deleted.",
+			icon: 'question',
+			showCancelButton: true,
+			confirmButtonColor: '#17a2b8',
+			cancelButtonColor: '#6c757d',
+			confirmButtonText: 'Yes, reconvert it!'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				fetch(`/quotation/reconvert/${quotationId}`, {
+					method: 'POST',
+					headers: {
+						'X-CSRFToken': '{{ csrf_token }}',
+						'Content-Type': 'application/json'
+					}
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.success) {
+						Swal.fire({
+							title: 'Reconverted!',
+							text: data.message,
+							icon: 'success'
+						}).then(() => {
+							window.location.href = `/invoice/${data.invoice_id}`;
+						});
+					} else {
+						Swal.fire('Error!', data.message, 'error');
+					}
+				})
+				.catch(error => {
+					Swal.fire('Error!', 'Failed to reconvert quotation.', 'error');
 				});
 			}
 		});

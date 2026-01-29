@@ -174,11 +174,21 @@ class Quotation(models.Model):
     
     def can_be_edited(self):
         """Check if quotation can be edited"""
+        # Can edit if not converted, or if converted but invoice was deleted
+        if self.status == 'CONVERTED' and self.converted_invoice is None:
+            return True  # Invoice was deleted, allow editing
         return self.status != 'CONVERTED'
     
     def can_be_converted(self):
         """Check if quotation can be converted to invoice"""
         return self.status in ['DRAFT', 'APPROVED'] and self.converted_invoice is None
+    
+    def can_be_deleted(self):
+        """Check if quotation can be deleted"""
+        # Can delete if not converted, or if converted but invoice was deleted
+        if self.status == 'CONVERTED' and self.converted_invoice is None:
+            return True  # Invoice was deleted, allow deletion
+        return self.status != 'CONVERTED'
 
 
 class Product(models.Model):
