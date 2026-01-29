@@ -1,5 +1,6 @@
 Django
 num2words
 social-auth-app-django
+daphne
 channels
 channels-redis
