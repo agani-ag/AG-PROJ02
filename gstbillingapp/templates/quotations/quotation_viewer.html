@@ -1,0 +1,367 @@
+{% extends "invoices/print_base.html" %}
+
+
+{% block content %}
+
+	<div class="card">
+		<div class="card-header">
+			<div class="row">
+			<div class="col-sm-12 text-center"><h4><strong>QUOTATION</strong></h4></div>
+			<div class="col-sm-6 col-6">&nbsp;</div>
+			<div class="col-sm-6 text-right">
+				<strong>
+					{% if quotation.status == 'DRAFT' %}
+						<span class="badge badge-warning">DRAFT</span>
+					{% elif quotation.status == 'APPROVED' %}
+						<span class="badge badge-success">APPROVED</span>
+					{% elif quotation.status == 'CONVERTED' %}
+						<span class="badge badge-info">CONVERTED TO INVOICE</span>
+					{% endif %}
+				</strong>
+			</div> 
+			<div class="col-sm-6 col-6">&nbsp;</div>
+			<div class="col-sm-6 col-6">&nbsp;</div>
+			<div class="col-sm-6 col-6"><strong>Quotation Date: {{quotation.quotation_date}}</strong></div>
+			<div class="col-sm-6 text-right"><strong>Valid Until: {{quotation.valid_until}}</strong></div> 
+			<div class="col-sm-6 col-6"><strong>Quotation No:
+				{% if quotation.is_gst %}
+					{{quotation.quotation_number}}
+				{% else %}
+					QUO-{{quotation.quotation_number}}
+				{% endif %}
+			</strong></div>
+			</div>
+		</div>
+
+		<div class="card-body">
+			<div class="row">
+
+				<div class="col-sm-6 col-md-6 col-lg-6 col-6">
+					<div>
+						<strong>{{user_profile.business_title}}</strong>
+					</div>
+						<div id="invoice_profile_data">{{user_profile.business_address}}</div>
+					{% if user_profile.business_email %}
+						<div>EMAIL: {{user_profile.business_email}}</div>
+					{% endif %}
+					{% if user_profile.business_phone %}
+						<div>Phone: {{user_profile.business_phone}}</div>
+					{% endif %}
+					{% if user_profile.business_gst %}
+						{% if quotation.is_gst %}
+							<div>GST No: {{user_profile.business_gst}}</div>
+						{% endif %}
+					{% endif %}
+				</div>
+
+				<div class="col-sm-6 col-md-6 col-lg-6 col-6">
+					<h6 class="mb-3">Quotation For:</h6>
+					<div>
+						<strong>{{ quotation_data.customer_name }}</strong>
+					</div>
+					<div>{{ quotation_data.customer_address }}</div>
+					<div>Phone: {{ quotation_data.customer_phone }}</div>
+					{% if quotation.is_gst %}
+						<div>GST No: {{ quotation_data.customer_gst }}</div>
+					{% endif %}
+					{% if quotation_data.vehicle_number %}
+						<div><strong>Vehicle No:</strong> {{ quotation_data.vehicle_number }}</div>
+					{% endif %}
+				</div>
+
+
+
+			</div>
+
+			<div class="table-responsive-sm">
+				<table class="table table-striped table-invoice">
+					<thead>
+						<tr>
+							<th class="text-center">#</th>
+							<th class="text-left">Model No</th>
+							<th class="text-center">Item</th>
+							<th class="text-center">HSN / SAC</th>
+
+
+							<th class="text-center">Rate</th>
+							<th class="text-center">Discount</th>
+
+							<th class="text-right">Qty</th>
+							<th class="text-right">Discounted Rate ({{ currency }})</th>
+							<th class="text-right">Taxable Amount ({{ currency }})</th>
+							<th class="text-right">GST (%)</th>
+							{% if quotation_data.igstcheck %}
+								<th class="text-right">IGST ({{ currency }})</th>
+							{% else %}
+								<th class="text-right">CGST ({{ currency }})</th>
+								<th class="text-right">SGST ({{ currency }})</th>
+							{% endif %}
+							<th class="text-right">Total Amount ({{ currency }})</th>
+
+						</tr>
+					</thead>
+					<tbody>
+						{% for item in quotation_data.items %}
+						<tr>
+							<td class="text-center">{{ forloop.counter }}</td>
+							<td class="text-left strong">{{ item.invoice_model_no }}</td>
+							<td class="text-center">{{ item.invoice_product }}</td>
+							<td class="text-center">{{ item.invoice_hsn }}</td>
+
+							<td class="text-center">{{ item.invoice_rate_with_gst }}</td>
+							<td class="text-center">{{ item.invoice_discount }}%</td>
+
+							<td class="text-right">{{ item.invoice_qty }}</td>
+							<td class="text-right">{{ item.invoice_rate_without_gst|floatformat:2 }}</td>
+							<td class="text-right">{{ item.invoice_amt_without_gst|floatformat:2 }}</td>
+							<td class="text-right">{{ item.invoice_gst_percentage }} %</td>
+							{% if quotation_data.igstcheck %}
+								<td class="text-right">{{ item.invoice_amt_igst|floatformat:2 }}</td>
+							{% else %}
+								<td class="text-right">{{ item.invoice_amt_cgst|floatformat:2 }}</td>
+								<td class="text-right">{{ item.invoice_amt_sgst|floatformat:2 }}</td>
+							{% endif %}
+							<td class="text-right">{{ item.invoice_amt_with_gst|floatformat:2 }}</td>
+						</tr>
+						{% endfor %}
+
+						<tr id="table-invoice-total-row">
+							{% if quotation_data.igstcheck %}
+								<td class="text-right" colspan="8">Total: </td>
+								<td class="text-right">{{ currency }} {{ quotation_data.invoice_total_amt_without_gst|floatformat:2 }}</td>
+								<td class="text-right"></td>
+								<td class="text-right">{{ currency }} {{quotation_data.invoice_total_amt_igst|floatformat:2 }}</td>
+							{% else %}
+								<td class="text-right" colspan="8">Total: </td>
+								<td class="text-right">{{ currency }} {{ quotation_data.invoice_total_amt_without_gst|floatformat:2 }}</td>
+								<td class="text-right"></td>
+								<td class="text-right">{{ currency }} {{quotation_data.invoice_total_amt_cgst|floatformat:2 }}</td>
+								<td class="text-right">{{ currency }} {{quotation_data.invoice_total_amt_sgst|floatformat:2 }}</td>
+							{% endif %}
+							<td class="text-right"><strong>{{ currency }} {{ quotation_data.invoice_total_amt_with_gst|floatformat:2 }}</strong></td>
+						</tr>
+
+					</tbody>
+				</table>
+			</div>
+
+			<div class="row">
+
+
+				<div class="col-sm-6 col-lg-6 col-md-6">
+					{% if user_profile.bankdetails %}
+						<table class="table table-bordered font-weight-bold">
+							<tr><th colspan="2" class="text-center">Bank Details</th></tr>
+							<tr>
+								<td>Account Name</td>
+								<td>
+									{% if user_profile.bankdetails.account_name %}
+										{{ user_profile.bankdetails.account_name }}
+									{% else %}
+										-
+									{% endif %}	
+								</td>
+							</tr>
+							<tr>
+								<td>Account Number</td>
+								<td>
+									{% if user_profile.bankdetails.account_number %}
+										{{ user_profile.bankdetails.account_number }}
+									{% else %}
+										-
+									{% endif %}
+								</td>	
+							</tr>
+							<tr>
+								<td>Bank Name</td>
+								<td>
+									{% if user_profile.bankdetails.bank_name %}
+										{{ user_profile.bankdetails.bank_name }}
+									{% else %}
+										-
+									{% endif %}
+								</td>
+							</tr>
+							<tr>
+								<td>IFSC Code</td>
+								<td>
+									{% if user_profile.bankdetails.ifsc_code %}
+										{{ user_profile.bankdetails.ifsc_code }}
+									{% else %}
+										-
+									{% endif %}
+								</td>
+							</tr>
+							<tr>
+								<td>Branch</td>
+								<td>
+									{% if user_profile.bankdetails.branch_name %}
+										{{ user_profile.bankdetails.branch_name }}
+									{% else %}
+										-
+									{% endif %}
+								</td>
+							</tr>
+							{% if user_profile.bankdetails.upi_id %}
+								<tr>
+									<td colspan="2" class="text-center">
+                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am={{quotation_data.invoice_total_amt_with_gst|floatformat:2 }}"></div>
+									</td>
+								</tr>
+                            {% endif %}
+						</table>
+					{% endif %}
+				</div>
+				<div class="col-sm-6 col-lg-6 col-md-6">
+					<table class="table text-right" id="invoice-grand-total-table">
+						<tr>
+							<td>Total Taxable Amount: </td>
+							<td>{{ currency }} {{ quotation_data.invoice_total_amt_without_gst|floatformat:2 }}</td>
+						</tr>
+						{% if quotation_data.igstcheck %}
+							<tr>
+								<td>IGST: </td>
+								<td>{{ currency }} {{ quotation_data.invoice_total_amt_igst|floatformat:2 }}</td>
+							</tr>
+						{% else %}
+							<tr>
+								<td>CGST: </td>
+								<td>{{ currency }} {{ quotation_data.invoice_total_amt_cgst|floatformat:2 }}</td>
+							</tr>
+							<tr>
+								<td>SGST: </td>
+								<td>{{ currency }} {{ quotation_data.invoice_total_amt_sgst|floatformat:2 }}</td>
+							</tr>
+						{% endif %}
+						
+						 <tr>
+							<td>Quotation Total: </td>
+							<td>{{ currency }} {{quotation_data.invoice_total_amt_with_gst|floatformat:2 }}</td>
+						</tr>
+
+
+						<tr> 
+							<td colspan="2" class="text-middle">
+								Quotation Total In Words: {{ total_in_words }} only.
+							</td>
+						</tr>
+						<tr id="invoice-signature-row">
+							<td colspan="2" style="padding-top:150px;"></td>
+						</tr>
+						<tr id="invoice-signature-text-row">
+							<td colspan="2">Authorized Signatory<br> {{user_profile.business_title}} </td>
+						</tr>
+					</table>
+
+
+				</div>
+
+
+
+			</div>
+
+			{% if quotation.notes %}
+			<div class="row mt-3">
+				<div class="col-sm-12">
+					<div class="alert alert-info">
+						<strong>Notes:</strong> {{ quotation.notes }}
+					</div>
+				</div>
+			</div>
+			{% endif %}
+
+			{% if quotation.status == 'CONVERTED' and quotation.converted_invoice %}
+			<div class="row mt-3">
+				<div class="col-sm-12">
+					<div class="alert alert-success">
+						<strong>Status:</strong> This quotation has been converted to Invoice #{{ quotation.converted_invoice.invoice_number }} on {{ quotation.converted_at|date:"d M Y" }}
+					</div>
+				</div>
+			</div>
+			{% endif %}
+
+
+		</div>
+	</div>
+	<div class="text-right" style="margin-right: 5px;">
+		<button onclick="window.print();" title="Print Quotation"
+			class="btn btn-primary btn-curve d-print-none">
+			<i class="fas fa-print"></i>
+		</button>
+		{% if quotation.status != 'CONVERTED' %}
+			{% if quotation.status == 'DRAFT' %}
+				<a href="{% url 'quotation_approve' quotation.id %}" class="btn btn-success d-print-none" title="Approve Quotation" onclick="return confirm('Are you sure you want to approve this quotation?');">
+					<i class="fas fa-check-circle"></i> Approve
+				</a>
+			{% endif %}
+			<a href="{% url 'quotation_edit' quotation.id %}" class="btn btn-warning d-print-none" title="Edit Quotation">
+				<i class="fas fa-edit"></i> Edit
+			</a>
+			<a href="#" onclick="convertQuotation({{ quotation.id }}); return false;" class="btn btn-info d-print-none" title="Convert to Invoice">
+				<i class="fas fa-exchange-alt"></i> Convert to Invoice
+			</a>
+		{% else %}
+			<a href="{% url 'invoice_viewer' quotation.converted_invoice.id %}" class="btn btn-info d-print-none" title="View Invoice">
+				<i class="fas fa-file-invoice"></i> View Invoice
+			</a>
+		{% endif %}
+		<a href="{% url 'quotations' %}" class="btn btn-danger d-print-none" title="Back to Quotations"><i class="fas fa-arrow-left"></i> Back</a>
+	</div>
+
+{% endblock %}
+{% block includejs %}
+<script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+	{% if user_profile.bankdetails.upi_id %}
+    const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
+    const qr = new QRCodeStyling({
+        width: 100,
+        height: 100,
+        data: upiQR,
+        dotsOptions: { color: "#000", type: "rounded" }
+    });
+
+    qr.append(document.getElementById("upi_qr"));
+	{% endif %}
+
+	function convertQuotation(quotationId) {
+		Swal.fire({
+			title: 'Convert to Invoice?',
+			text: "This will create an invoice and update inventory. This action cannot be undone!",
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonColor: '#3085d6',
+			cancelButtonColor: '#d33',
+			confirmButtonText: 'Yes, convert it!'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				fetch(`/quotation/convert/${quotationId}`, {
+					method: 'POST',
+					headers: {
+						'X-CSRFToken': '{{ csrf_token }}',
+						'Content-Type': 'application/json'
+					}
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.success) {
+						Swal.fire({
+							title: 'Converted!',
+							text: data.message,
+							icon: 'success'
+						}).then(() => {
+							window.location.href = `/invoice/${data.invoice_id}`;
+						});
+					} else {
+						Swal.fire('Error!', data.message, 'error');
+					}
+				})
+				.catch(error => {
+					Swal.fire('Error!', 'Failed to convert quotation.', 'error');
+				});
+			}
+		});
+	}
+</script>
+{% endblock %}

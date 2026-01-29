@@ -113,6 +113,74 @@ class Invoice(models.Model):
         return str(self.invoice_number) + " | " + str(self.invoice_date)
 
 
+class Quotation(models.Model):
+    """
+    Quotation Model - Draft invoice that doesn't affect inventory or books.
+    Can be converted to Invoice when approved.
+    """
+    STATUS_CHOICES = [
+        ('DRAFT', 'Draft'),
+        ('APPROVED', 'Approved'),
+        ('CONVERTED', 'Converted to Invoice'),
+    ]
+    
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    quotation_number = models.IntegerField()
+    quotation_date = models.DateField()
+    valid_until = models.DateField(null=True, blank=True)
+    quotation_customer = models.ForeignKey(
+        'Customer',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='quotations'
+    )
+    quotation_json = models.TextField()
+    is_gst = models.BooleanField(default=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
+    
+    # Conversion tracking
+    converted_invoice = models.ForeignKey(
+        'Invoice',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='source_quotation'
+    )
+    converted_at = models.DateTimeField(null=True, blank=True)
+    converted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='converted_quotations'
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by_customer = models.BooleanField(default=False)  # For customer self-orders
+    notes = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        ordering = ['-quotation_date', '-id']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['quotation_customer', 'status']),
+            models.Index(fields=['status', 'quotation_date']),
+        ]
+    
+    def __str__(self):
+        return f"QT-{self.quotation_number} | {self.quotation_date} | {self.status}"
+    
+    def can_be_edited(self):
+        """Check if quotation can be edited"""
+        return self.status != 'CONVERTED'
+    
+    def can_be_converted(self):
+        """Check if quotation can be converted to invoice"""
+        return self.status in ['DRAFT', 'APPROVED'] and self.converted_invoice is None
+
+
 class Product(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     model_no = models.CharField(max_length=200)

@@ -6,7 +6,7 @@ from .views import (
     auth, profile, invoices, customers,
     books, products, inventory, purchases,
     vendor_purchase, features, views,
-    expense_tracker, bank_details, graphs
+    expense_tracker, bank_details, graphs, quotation
 )
 
 urlpatterns = [
@@ -31,6 +31,16 @@ urlpatterns = [
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),
     path('invoices/push-to-books/<int:invoice_id>', invoices.invoice_push_to_books, name='invoice_push_to_books'),
     path('api/customer-invoice-filter/', invoices.customerInvoiceFilter, name='customer_invoice_filter'),
+
+    # Quotation URLs
+    path('quotations', quotation.quotations, name='quotations'),
+    path('quotations/ajax', quotation.quotations_ajax, name='quotations_ajax'),
+    path('quotations/new', quotation.quotation_create, name='quotation_create'),
+    path('quotation/<int:quotation_id>', quotation.quotation_viewer, name='quotation_viewer'),
+    path('quotation/edit/<int:quotation_id>', quotation.quotation_edit, name='quotation_edit'),
+    path('quotation/delete/<int:quotation_id>', quotation.quotation_delete, name='quotation_delete'),
+    path('quotation/convert/<int:quotation_id>', quotation.quotation_convert_to_invoice, name='quotation_convert_to_invoice'),
+    path('quotation/approve/<int:quotation_id>', quotation.quotation_approve, name='quotation_approve'),
 
     # Customer URLs
     path('customers', customers.customers, name='customers'),
