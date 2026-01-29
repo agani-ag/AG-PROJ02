@@ -112,6 +112,16 @@
           </div>
         </li>
 
+        <!-- Notifications -->
+        <li class="nav-item">
+          <a class="nav-link position-relative" href="{% url 'notifications_page' %}" id="notificationsLink">
+            <i class="bi bi-bell-fill"></i> Notifications
+            <span class="badge badge-danger badge-pill position-absolute" 
+                  id="notification-count-badge" 
+                  style="top: 5px; right: -5px; display: none; font-size: 0.65rem;">0</span>
+          </a>
+        </li>
+
         <!-- Profile Dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" id="profileDropdown" role="button" data-toggle="dropdown"
@@ -128,3 +138,137 @@
     </ul>
   </div>
 </nav>
+
+<script>
+  // WebSocket for real-time notifications
+  let notificationSocket = null;
+  let reconnectInterval = null;
+  
+  function connectNotificationWebSocket() {
+    // Close existing connection if any
+    if (notificationSocket) {
+      notificationSocket.close();
+    }
+    
+    // Determine WebSocket protocol
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/notifications/`;
+    
+    try {
+      notificationSocket = new WebSocket(wsUrl);
+      
+      notificationSocket.onopen = function(e) {
+        console.log('Notification WebSocket connected');
+        // Clear reconnect interval if connected
+        if (reconnectInterval) {
+          clearInterval(reconnectInterval);
+          reconnectInterval = null;
+        }
+      };
+      
+      notificationSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        
+        if (data.type === 'unread_count') {
+          // Update badge with new count
+          updateNotificationBadge(data.count);
+        } else if (data.type === 'notification') {
+          // New notification received
+          updateNotificationBadge(null); // Will fetch current count
+          // Optional: Show toast notification
+          showToastNotification(data.notification);
+        }
+      };
+      
+      notificationSocket.onclose = function(e) {
+        console.log('Notification WebSocket disconnected');
+        // Attempt to reconnect after 5 seconds
+        if (!reconnectInterval) {
+          reconnectInterval = setInterval(function() {
+            console.log('Attempting to reconnect WebSocket...');
+            connectNotificationWebSocket();
+          }, 5000);
+        }
+      };
+      
+      notificationSocket.onerror = function(e) {
+        console.error('Notification WebSocket error:', e);
+      };
+      
+    } catch (error) {
+      console.error('Failed to create WebSocket:', error);
+      // Fallback to polling if WebSocket fails
+      startPollingFallback();
+    }
+  }
+  
+  function updateNotificationBadge(count) {
+    const badge = document.getElementById('notification-count-badge');
+    if (badge) {
+      if (count === null) {
+        // Fetch current count
+        fetch('/notifications/api/count/')
+          .then(response => response.json())
+          .then(data => {
+            if (data.success && data.unread_count > 0) {
+              badge.textContent = data.unread_count;
+              badge.style.display = 'inline-block';
+            } else {
+              badge.style.display = 'none';
+            }
+          })
+          .catch(error => console.error('Error fetching notification count:', error));
+      } else if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  }
+  
+  function showToastNotification(notification) {
+    // Optional: Show browser notification or toast
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(notification.title, {
+        body: notification.message,
+        icon: '/static/gstbillingapp/images/logo.png'
+      });
+    }
+  }
+  
+  function startPollingFallback() {
+    // Fallback to polling if WebSocket fails
+    console.log('Using polling fallback for notifications');
+    setInterval(function() {
+      fetch('/notifications/api/count/')
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.unread_count > 0) {
+            updateNotificationBadge(data.unread_count);
+          }
+        })
+        .catch(error => console.error('Error in polling fallback:', error));
+    }, 30000); // Poll every 30 seconds as fallback
+  }
+
+  // Connect WebSocket when page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    connectNotificationWebSocket();
+    
+    // Request notification permission (optional)
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  });
+  
+  // Close WebSocket when page unloads
+  window.addEventListener('beforeunload', function() {
+    if (notificationSocket) {
+      notificationSocket.close();
+    }
+    if (reconnectInterval) {
+      clearInterval(reconnectInterval);
+    }
+  });
+</script>

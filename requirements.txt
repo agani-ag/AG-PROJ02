@@ -1,3 +1,5 @@
 Django
 num2words
 social-auth-app-django
+channels
+channels-redis

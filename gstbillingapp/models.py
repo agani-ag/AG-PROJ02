@@ -389,3 +389,96 @@ class BankDetails(models.Model):
     
     def __str__(self):
         return self.account_number + " - " + self.account_name
+
+
+# ======================= Notification System =================================
+
+class Notification(models.Model):
+    """
+    Notification Model - Stores user notifications with navigation links
+    """
+    NOTIFICATION_TYPES = [
+        ('INFO', 'Information'),
+        ('SUCCESS', 'Success'),
+        ('WARNING', 'Warning'),
+        ('ERROR', 'Error'),
+        ('INVOICE', 'Invoice'),
+        ('QUOTATION', 'Quotation'),
+        ('CUSTOMER', 'Customer'),
+        ('PRODUCT', 'Product'),
+        ('PAYMENT', 'Payment'),
+        ('SYSTEM', 'System'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES, default='INFO')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    
+    # Navigation
+    link_url = models.CharField(max_length=500, blank=True, null=True, help_text="URL to navigate when clicked")
+    link_text = models.CharField(max_length=100, blank=True, null=True, help_text="Text for the link button")
+    
+    # Status
+    is_read = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)  # Soft delete
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    
+    # Optional: Link to specific objects
+    related_object_type = models.CharField(max_length=50, blank=True, null=True, 
+                                          help_text="Model name: Invoice, Quotation, Customer, etc.")
+    related_object_id = models.IntegerField(blank=True, null=True, 
+                                           help_text="ID of the related object")
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read', 'is_deleted']),
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['notification_type', 'is_read']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.title} ({self.notification_type})"
+    
+    def mark_as_read(self):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = datetime.now()
+            self.save()
+    
+    def get_icon_class(self):
+        """Return Bootstrap icon class based on notification type"""
+        icon_map = {
+            'INFO': 'bi-info-circle-fill text-info',
+            'SUCCESS': 'bi-check-circle-fill text-success',
+            'WARNING': 'bi-exclamation-triangle-fill text-warning',
+            'ERROR': 'bi-x-circle-fill text-danger',
+            'INVOICE': 'bi-receipt text-primary',
+            'QUOTATION': 'bi-file-text text-secondary',
+            'CUSTOMER': 'bi-person-fill text-info',
+            'PRODUCT': 'bi-box-seam text-warning',
+            'PAYMENT': 'bi-currency-rupee text-success',
+            'SYSTEM': 'bi-gear-fill text-secondary',
+        }
+        return icon_map.get(self.notification_type, 'bi-bell-fill text-info')
+    
+    def get_badge_class(self):
+        """Return Bootstrap badge class based on notification type"""
+        badge_map = {
+            'INFO': 'badge-info',
+            'SUCCESS': 'badge-success',
+            'WARNING': 'badge-warning',
+            'ERROR': 'badge-danger',
+            'INVOICE': 'badge-primary',
+            'QUOTATION': 'badge-secondary',
+            'CUSTOMER': 'badge-info',
+            'PRODUCT': 'badge-warning',
+            'PAYMENT': 'badge-success',
+            'SYSTEM': 'badge-dark',
+        }
+        return badge_map.get(self.notification_type, 'badge-info')
