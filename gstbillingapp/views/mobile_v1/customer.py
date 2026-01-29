@@ -17,7 +17,7 @@ from ...models import (
     Customer, UserProfile, Invoice,
     Book, BookLog, ExpenseTracker, Product,
     PurchaseLog, VendorPurchase, Inventory,
-    InventoryLog
+    InventoryLog, Notification
 )
 
 # Python imports
@@ -1574,4 +1574,144 @@ def product_inventory_stock_add(request):
             return JsonResponse({'status': 'error', 'message': 'Invalid stock quantity.'})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
+
+# ================= Notifications =============================
+def notifications(request):
+    """Mobile notifications page for employees"""
+    notification_type = request.GET.get('type', '')
+    context = {
+        'notification_type': notification_type,
+    }
+    
+    u = request.GET.get('u')
+    users_filter = request.GET.get('users_filter', '')
+    page_number = request.GET.get('page')
+    
+    if not u:
+        return render(request, 'mobile_v1/notifications.html', context)
+    
+    try:
+        user = get_object_or_404(UserProfile, user__id=u)
+        context['users'] = user
+        
+        # Get notifications for this user
+        notifications_qs = Notification.objects.filter(
+            user=user.user,
+            is_deleted=False
+        )
+        
+        # Filter by type if specified
+        if notification_type:
+            notifications_qs = notifications_qs.filter(notification_type=notification_type)
+        
+        notifications_qs = notifications_qs.order_by('-created_at')
+        
+        paginator = Paginator(notifications_qs, 10)
+        notifications = paginator.get_page(page_number)
+        
+        context.update({
+            'notifications': notifications,
+            'notifications_count': paginator.count,
+            'notification_type': notification_type,
+        })
+        
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            html = render_to_string(
+                'mobile_v1/partials/notification_list.html',
+                context,
+                request=request
+            )
+            return JsonResponse({'html': html})
+        
+        return render(request, 'mobile_v1/notifications.html', context)
+    except:
+        context['notification_type'] = notification_type
+        return render(request, 'mobile_v1/notifications.html', context)
+
+def customer_notifications(request):
+    """Mobile notifications page for customers"""
+    notification_type = request.GET.get('type', '')
+    context = {
+        'notification_type': notification_type,
+    }
+    
+    cid = request.GET.get('cid')
+    page_number = request.GET.get('page')
+    
+    if not cid:
+        return render(request, 'mobile_v1/customer/notifications.html', context)
+    
+    cid_data = parse_code_GS(cid)
+    if not cid_data:
+        return render(request, 'mobile_v1/customer/notifications.html', context)
+    
+    customer_id = cid_data.get('C')
+    user_id = cid_data.get('GS')
+    
+    try:
+        user = get_object_or_404(UserProfile, user__id=user_id)
+        customer = get_object_or_404(Customer, user__id=user_id, id=customer_id)
+        
+        # Get notifications for this user
+        notifications_qs = Notification.objects.filter(
+            user=user.user,
+            is_deleted=False
+        )
+        
+        # Filter by type if specified
+        if notification_type:
+            notifications_qs = notifications_qs.filter(notification_type=notification_type)
+        
+        notifications_qs = notifications_qs.order_by('-created_at')
+        
+        paginator = Paginator(notifications_qs, 10)
+        notifications = paginator.get_page(page_number)
+        
+        context.update({
+            'users': user,
+            'customer': customer,
+            'notifications': notifications,
+            'notifications_count': paginator.count,
+            'notification_type': notification_type,
+        })
+        
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            html = render_to_string(
+                'mobile_v1/customer/partials/notification_list.html',
+                context,
+                request=request
+            )
+            return JsonResponse({'html': html})
+        
+        return render(request, 'mobile_v1/customer/notifications.html', context)
+    except:
+        context['notification_type'] = notification_type
+        return render(request, 'mobile_v1/customer/notifications.html', context)
+
+def notifications_count_api(request):
+    """API to get unread notification count"""
+    try:
+        user_id = request.GET.get('user_id')
+        if user_id:
+            count = Notification.objects.filter(
+                user__id=user_id,
+                is_read=False,
+                is_deleted=False
+            ).count()
+            return JsonResponse({'count': count})
+        return JsonResponse({'count': 0})
+    except:
+        return JsonResponse({'count': 0})
+
+def notification_mark_read_api(request):
+    """API to mark notification as read"""
+    try:
+        notification_id = request.POST.get('notification_id')
+        if notification_id:
+            notification = Notification.objects.get(id=notification_id)
+            notification.mark_as_read()
+            return JsonResponse({'status': 'success'})
+        return JsonResponse({'status': 'error', 'message': 'No notification ID provided'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
     

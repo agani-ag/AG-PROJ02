@@ -13,6 +13,7 @@ urlpatterns = [
     path('customer/profile', customer.customer_profile, name='v1customerprofile'),
     path('customer/invoices', customer.customer_invoices, name='v1customerinvoices'),
     path('customer/invoice_viewer/<int:invoice_id>', customer.customer_invoice_viewer, name='v1customerinvoiceviewer'),
+    path('customer/notifications', customer.customer_notifications, name='v1customernotifications'),
     
     # Employee URLs
     path('home', customer.home, name='v1home'),
@@ -22,10 +23,13 @@ urlpatterns = [
     path('customers', customer.customers, name='v1customers'),
     path('purchaselogs', customer.purchase_logs, name='v1purchaselogs'),
     path('expensestracker', customer.expenses_tracker, name='v1expensestracker'),
+    path('notifications', customer.notifications, name='v1notifications'),
 
     # API URLs
     path('customers/api', customer.customersapi, name='v1customersapi'),
     path('customer/api/books/add', customer.customers_book_add_api, name='v1customersbookaddapi'),
     path('customer/api/reset-password', customer.customers_reset_password_api, name='v1customersresetpasswordapi'),
     path('product/api/add-stock', customer.product_inventory_stock_add, name='v1productinventorystockaddapi'),
+    path('api/notifications/count', customer.notifications_count_api, name='v1notificationscountapi'),
+    path('api/notifications/mark-read', customer.notification_mark_read_api, name='v1notificationsmarkreadapi'),
 ]
