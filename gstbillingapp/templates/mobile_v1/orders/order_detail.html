@@ -1,0 +1,157 @@
+{% extends "mobile_v1/base.html" %}
+{% load static %}
+
+{% block title %}Order #{{ quotation.quotation_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">
+            <i class="fas fa-file-invoice"></i> 
+            Order #{{ quotation.quotation_number }}
+        </h5>
+        
+        {% if quotation.status == 'DRAFT' %}
+            <span class="badge badge-warning">Pending</span>
+        {% elif quotation.status == 'APPROVED' %}
+            <span class="badge badge-success">Approved</span>
+        {% elif quotation.status == 'CONVERTED' %}
+            <span class="badge badge-info">Completed</span>
+        {% endif %}
+    </div>
+
+    <!-- Order Info Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-2 text-muted">Order Information</h6>
+            <table class="table table-sm table-borderless mb-0">
+                <tr>
+                    <td><i class="far fa-calendar"></i> Date:</td>
+                    <td class="text-right">{{ quotation.quotation_date|date:"d M Y" }}</td>
+                </tr>
+                {% if quotation.valid_until %}
+                <tr>
+                    <td><i class="far fa-clock"></i> Valid Until:</td>
+                    <td class="text-right">{{ quotation.valid_until|date:"d M Y" }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td><i class="fas fa-clock"></i> Created:</td>
+                    <td class="text-right">{{ quotation.created_at|date:"d M Y, h:i A" }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Business Details Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-2 text-muted">Business Details</h6>
+            <p class="mb-1"><strong>{{ user_profile.business_title }}</strong></p>
+            <p class="mb-1 text-muted small">{{ user_profile.business_address }}</p>
+            {% if user_profile.business_gst %}
+            <p class="mb-0 text-muted small">GSTIN: {{ user_profile.business_gst }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Items Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-3 text-muted">Order Items</h6>
+            
+            {% for item in quotation_data.items %}
+            <div class="item-row mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                <div class="d-flex justify-content-between mb-1">
+                    <strong>{{ item.invoice_product }}</strong>
+                    <span class="text-primary font-weight-bold">
+                        {{ currency }}{{ item.invoice_amt|floatformat:2 }}
+                    </span>
+                </div>
+                
+                <div class="text-muted small mb-1">
+                    Model: {{ item.invoice_model_no }}
+                </div>
+                
+                <div class="d-flex justify-content-between text-muted small">
+                    <span>{{ item.invoice_qty }} × {{ currency }}{{ item.invoice_rate_with_gst|floatformat:2 }}</span>
+                    <span>GST: {{ item.invoice_gst_percentage }}%</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Totals Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-3 text-muted">Summary</h6>
+            
+            <table class="table table-sm table-borderless mb-0">
+                <tr>
+                    <td>Subtotal (without GST):</td>
+                    <td class="text-right">
+                        {{ currency }}{{ quotation_data.invoice_total_amt_without_gst|floatformat:2 }}
+                    </td>
+                </tr>
+                
+                {% if quotation_data.invoice_total_amt_cgst > 0 %}
+                <tr class="text-muted">
+                    <td>CGST:</td>
+                    <td class="text-right">
+                        {{ currency }}{{ quotation_data.invoice_total_amt_cgst|floatformat:2 }}
+                    </td>
+                </tr>
+                <tr class="text-muted">
+                    <td>SGST:</td>
+                    <td class="text-right">
+                        {{ currency }}{{ quotation_data.invoice_total_amt_sgst|floatformat:2 }}
+                    </td>
+                </tr>
+                {% endif %}
+                
+                {% if quotation_data.invoice_total_amt_igst > 0 %}
+                <tr class="text-muted">
+                    <td>IGST:</td>
+                    <td class="text-right">
+                        {{ currency }}{{ quotation_data.invoice_total_amt_igst|floatformat:2 }}
+                    </td>
+                </tr>
+                {% endif %}
+                
+                <tr class="border-top">
+                    <td><strong>Total Amount:</strong></td>
+                    <td class="text-right">
+                        <strong class="text-primary h5 mb-0">
+                            {{ currency }}{{ quotation_data.invoice_total_amt_with_gst|floatformat:2 }}
+                        </strong>
+                    </td>
+                </tr>
+            </table>
+            
+            <p class="text-muted small mb-0 mt-2">
+                <strong>Amount in words:</strong><br>
+                {{ total_in_words }} Rupees Only
+            </p>
+        </div>
+    </div>
+
+    {% if quotation.notes %}
+    <!-- Notes Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-2 text-muted">Notes</h6>
+            <p class="mb-0 small">{{ quotation.notes }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="mb-3">
+        <a href="{% url 'v1customerorders' %}?cid={{ cid }}" class="btn btn-outline-secondary btn-block">
+            <i class="fas fa-arrow-left"></i> Back to Orders
+        </a>
+    </div>
+</div>
+{% endblock %}

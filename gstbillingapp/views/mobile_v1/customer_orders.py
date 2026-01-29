@@ -1,0 +1,345 @@
+# Django imports
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.http import JsonResponse
+from django.db.models import Max, Q
+from django.db import transaction
+from django.utils import timezone
+from django.contrib.auth.models import User
+
+# Models
+from ...models import (
+    Customer, Quotation, Product, UserProfile, Notification
+)
+
+# Python imports
+import json
+import datetime
+import num2words
+
+# Utility functions
+from ...utils import parse_code_GS
+
+
+# ================= Customer Ordering System =============================
+
+def customer_products_catalog(request):
+    """Display products available for ordering"""
+    context = {}
+    cid = request.GET.get('cid', None)
+    
+    if not cid:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': 'Invalid customer link'
+        })
+    
+    # Parse customer ID from encoded string
+    cid_data = parse_code_GS(cid)
+    if not cid_data:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': 'Invalid customer code'
+        })
+    
+    customer_id = cid_data.get('C', None)
+    user_id = cid_data.get('GS', None)
+    
+    try:
+        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
+        business_user = customer.user
+        user_profile = get_object_or_404(UserProfile, user=business_user)
+        
+        # Get active products from business owner
+        products = Product.objects.filter(user=business_user).order_by('product_name')
+        
+        context['customer'] = customer
+        context['products'] = products
+        context['business_profile'] = user_profile
+        context['cid'] = cid
+        
+        return render(request, 'mobile_v1/orders/product_catalog.html', context)
+    
+    except Exception as e:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': f'Error loading products: {str(e)}'
+        })
+
+
+def customer_create_order(request):
+    """Customer creates a quotation (order request)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+    
+    try:
+        cid = request.POST.get('cid')
+        cid_data = parse_code_GS(cid)
+        
+        if not cid_data:
+            return JsonResponse({'success': False, 'message': 'Invalid customer code'}, status=400)
+        
+        customer_id = cid_data.get('C', None)
+        user_id = cid_data.get('GS', None)
+        
+        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
+        business_user = customer.user
+        user_profile = get_object_or_404(UserProfile, user=business_user)
+        
+        # Parse order items
+        order_items_json = request.POST.get('order_items', '[]')
+        order_items = json.loads(order_items_json)
+        
+        if not order_items:
+            return JsonResponse({'success': False, 'message': 'No items in order'}, status=400)
+        
+        # Determine if GST quotation
+        is_gst = customer.customer_gst is not None and customer.customer_gst.strip() != ''
+        
+        # Get next quotation number
+        max_quotation_number = Quotation.objects.filter(
+            user=business_user, 
+            is_gst=is_gst
+        ).aggregate(Max('quotation_number'))['quotation_number__max']
+        
+        next_quotation_number = (max_quotation_number or 0) + 1
+        
+        # Build quotation JSON
+        quotation_data = {
+            'customer_name': customer.customer_name,
+            'customer_address': customer.customer_address or '',
+            'customer_phone': customer.customer_phone or '',
+            'customer_gst': customer.customer_gst or '',
+            'vehicle_number': '',
+            'items': [],
+            'igstcheck': False
+        }
+        
+        total_amount_with_gst = 0
+        total_amount_without_gst = 0
+        total_sgst = 0
+        total_cgst = 0
+        total_igst = 0
+        
+        # Process each item
+        for item in order_items:
+            try:
+                product = Product.objects.get(id=item['product_id'], user=business_user)
+                quantity = int(item['quantity'])
+                
+                # Calculate amounts
+                rate_with_gst = float(product.product_rate_with_gst)
+                gst_percentage = float(product.product_gst_percentage)
+                discount = float(product.product_discount or 0)
+                
+                # Calculate rate without GST
+                rate_without_gst = rate_with_gst / (1 + (gst_percentage / 100))
+                
+                # Item total with GST
+                item_total_with_gst = rate_with_gst * quantity
+                item_total_without_gst = rate_without_gst * quantity
+                
+                # GST amounts
+                gst_amount = item_total_with_gst - item_total_without_gst
+                sgst_amount = gst_amount / 2
+                cgst_amount = gst_amount / 2
+                
+                total_amount_with_gst += item_total_with_gst
+                total_amount_without_gst += item_total_without_gst
+                total_sgst += sgst_amount
+                total_cgst += cgst_amount
+                
+                quotation_data['items'].append({
+                    'invoice_model_no': product.model_no or '',
+                    'invoice_product': product.product_name or '',
+                    'invoice_hsn': product.product_hsn or '',
+                    'invoice_qty': quantity,
+                    'invoice_rate_with_gst': rate_with_gst,
+                    'invoice_gst_percentage': gst_percentage,
+                    'invoice_discount': discount,
+                    'invoice_amt': item_total_with_gst
+                })
+            except Product.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'Product not found'
+                }, status=400)
+        
+        # Set totals
+        quotation_data['invoice_total_amt_with_gst'] = round(total_amount_with_gst, 2)
+        quotation_data['invoice_total_amt_without_gst'] = round(total_amount_without_gst, 2)
+        quotation_data['invoice_total_amt_sgst'] = round(total_sgst, 2)
+        quotation_data['invoice_total_amt_cgst'] = round(total_cgst, 2)
+        quotation_data['invoice_total_amt_igst'] = round(total_igst, 2)
+        
+        # Create quotation
+        valid_until = datetime.date.today() + datetime.timedelta(days=30)
+        
+        with transaction.atomic():
+            new_quotation = Quotation(
+                user=business_user,
+                quotation_number=next_quotation_number,
+                quotation_date=datetime.date.today(),
+                valid_until=valid_until,
+                quotation_customer=customer,
+                quotation_json=json.dumps(quotation_data),
+                is_gst=is_gst,
+                status='DRAFT',
+                created_by_customer=True,
+                notes=f'Customer order via mobile app by {customer.customer_name}'
+            )
+            new_quotation.save()
+            
+            # Create notification for business owner
+            notification = Notification(
+                user=business_user,
+                notification_type='ORDER',
+                title=f'New Order from {customer.customer_name}',
+                message=f'Order #{new_quotation.quotation_number} placed for ₹{total_amount_with_gst:.2f}',
+                link_url=f'/quotation/{new_quotation.id}/',
+                link_text='View Order'
+            )
+            notification.save()
+            
+            # Send WebSocket notification
+            try:
+                from asgiref.sync import async_to_sync
+                from channels.layers import get_channel_layer
+                
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        f"notifications_user_{business_user.id}",
+                        {
+                            'type': 'new_notification',
+                            'notification': {
+                                'id': notification.id,
+                                'type': notification.notification_type,
+                                'title': notification.title,
+                                'message': notification.message,
+                                'link_url': notification.link_url,
+                                'link_text': notification.link_text,
+                                'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                            }
+                        }
+                    )
+            except Exception as e:
+                print(f"WebSocket notification failed: {e}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Order #{new_quotation.quotation_number} placed successfully!',
+            'quotation_id': new_quotation.id,
+            'quotation_number': new_quotation.quotation_number
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error creating order: {str(e)}'
+        }, status=500)
+
+
+def customer_orders_list(request):
+    """List customer's own orders (quotations)"""
+    context = {}
+    cid = request.GET.get('cid', None)
+    
+    if not cid:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': 'Invalid customer link'
+        })
+    
+    cid_data = parse_code_GS(cid)
+    if not cid_data:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': 'Invalid customer code'
+        })
+    
+    customer_id = cid_data.get('C', None)
+    user_id = cid_data.get('GS', None)
+    
+    try:
+        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
+        
+        # Get all quotations for this customer (customer-initiated)
+        quotations = Quotation.objects.filter(
+            quotation_customer=customer,
+            created_by_customer=True
+        ).order_by('-created_at')
+        
+        # Parse quotation data for display
+        quotations_list = []
+        for quotation in quotations:
+            try:
+                quotation_data = json.loads(quotation.quotation_json)
+                quotations_list.append({
+                    'quotation': quotation,
+                    'total_amount': quotation_data.get('invoice_total_amt_with_gst', 0),
+                    'item_count': len(quotation_data.get('items', []))
+                })
+            except:
+                quotations_list.append({
+                    'quotation': quotation,
+                    'total_amount': 0,
+                    'item_count': 0
+                })
+        
+        context['customer'] = customer
+        context['quotations_list'] = quotations_list
+        context['cid'] = cid
+        
+        return render(request, 'mobile_v1/orders/orders_list.html', context)
+    
+    except Exception as e:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': f'Error loading orders: {str(e)}'
+        })
+
+
+def customer_order_detail(request, quotation_id):
+    """View customer order details"""
+    context = {}
+    cid = request.GET.get('cid', None)
+    
+    if not cid:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': 'Invalid customer link'
+        })
+    
+    cid_data = parse_code_GS(cid)
+    if not cid_data:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': 'Invalid customer code'
+        })
+    
+    customer_id = cid_data.get('C', None)
+    user_id = cid_data.get('GS', None)
+    
+    try:
+        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
+        
+        quotation = get_object_or_404(
+            Quotation, 
+            id=quotation_id,
+            quotation_customer=customer
+        )
+        
+        quotation_data = json.loads(quotation.quotation_json)
+        user_profile = get_object_or_404(UserProfile, user=quotation.user)
+        
+        # Calculate total in words
+        total_amount = quotation_data.get('invoice_total_amt_with_gst', 0)
+        total_in_words = num2words.num2words(int(total_amount), lang='en_IN').title()
+        
+        context['customer'] = customer
+        context['quotation'] = quotation
+        context['quotation_data'] = quotation_data
+        context['user_profile'] = user_profile
+        context['total_in_words'] = total_in_words
+        context['currency'] = "₹"
+        context['cid'] = cid
+        
+        return render(request, 'mobile_v1/orders/order_detail.html', context)
+    
+    except Exception as e:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': f'Error loading order: {str(e)}'
+        })

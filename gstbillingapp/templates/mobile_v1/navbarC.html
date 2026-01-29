@@ -13,6 +13,12 @@
             <span>Invoices</span>
         </a>
         
+        <!-- Orders -->
+        <a href="{% url 'v1customerorders' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="orders">
+            <i class="fas fa-shopping-cart"></i>
+            <span>Orders</span>
+        </a>
+        
         <!-- Books -->
         <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="books">
             <i class="fas fa-book-open"></i>
@@ -88,6 +94,8 @@
             if (page === 'home' && currentPath.includes('customer/home')) {
                 item.classList.add('active');
             } else if (page === 'invoices' && currentPath.includes('customer/invoices')) {
+                item.classList.add('active');
+            } else if (page === 'orders' && (currentPath.includes('customer/orders') || currentPath.includes('customer/products') || currentPath.includes('customer/order/'))) {
                 item.classList.add('active');
             } else if (page === 'books' && currentPath.includes('customer/books')) {
                 item.classList.add('active');

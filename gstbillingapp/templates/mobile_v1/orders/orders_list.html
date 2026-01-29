@@ -1,0 +1,78 @@
+{% extends "mobile_v1/base.html" %}
+{% load static %}
+
+{% block title %}My Orders{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">My Orders</h4>
+        <a href="{% url 'v1customerproducts' %}?cid={{ cid }}" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus"></i> New Order
+        </a>
+    </div>
+    
+    {% if quotations_list %}
+        {% for item in quotations_list %}
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h6 class="mb-1">
+                            <i class="fas fa-file-invoice"></i> 
+                            Order #{{ item.quotation.quotation_number }}
+                        </h6>
+                        <small class="text-muted">
+                            <i class="far fa-calendar"></i> 
+                            {{ item.quotation.quotation_date|date:"d M Y" }}
+                        </small>
+                    </div>
+                    
+                    {% if item.quotation.status == 'DRAFT' %}
+                        <span class="badge badge-warning">Pending</span>
+                    {% elif item.quotation.status == 'APPROVED' %}
+                        <span class="badge badge-success">Approved</span>
+                    {% elif item.quotation.status == 'CONVERTED' %}
+                        <span class="badge badge-info">Completed</span>
+                    {% endif %}
+                </div>
+                
+                <hr class="my-2">
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted">
+                        <i class="fas fa-box"></i> {{ item.item_count }} item{{ item.item_count|pluralize }}
+                    </small>
+                    <span class="text-primary font-weight-bold">
+                        ₹{{ item.total_amount|floatformat:2 }}
+                    </span>
+                </div>
+                
+                {% if item.quotation.valid_until %}
+                <small class="text-muted d-block mb-2">
+                    <i class="far fa-clock"></i> 
+                    Valid until: {{ item.quotation.valid_until|date:"d M Y" }}
+                </small>
+                {% endif %}
+                
+                <div class="d-flex justify-content-end">
+                    <a href="{% url 'v1customerorderdetail' item.quotation.id %}?cid={{ cid }}" 
+                       class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye"></i> View Details
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-shopping-cart fa-4x text-muted mb-3"></i>
+            <h5 class="text-muted mb-3">No orders yet</h5>
+            <p class="text-muted">Start ordering by browsing our products</p>
+            <a href="{% url 'v1customerproducts' %}?cid={{ cid }}" class="btn btn-primary">
+                <i class="fas fa-shopping-bag"></i> Browse Products
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

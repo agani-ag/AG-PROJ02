@@ -3,7 +3,8 @@ from django.urls import path
 
 # Local imports
 from .views.mobile_v1 import (
-    customer
+    customer,
+    customer_orders
 )
 
 urlpatterns = [
@@ -14,6 +15,12 @@ urlpatterns = [
     path('customer/invoices', customer.customer_invoices, name='v1customerinvoices'),
     path('customer/invoice_viewer/<int:invoice_id>', customer.customer_invoice_viewer, name='v1customerinvoiceviewer'),
     path('customer/notifications', customer.customer_notifications, name='v1customernotifications'),
+    
+    # Customer Ordering URLs
+    path('customer/products', customer_orders.customer_products_catalog, name='v1customerproducts'),
+    path('customer/order/create', customer_orders.customer_create_order, name='v1customerordercreate'),
+    path('customer/orders', customer_orders.customer_orders_list, name='v1customerorders'),
+    path('customer/order/<int:quotation_id>', customer_orders.customer_order_detail, name='v1customerorderdetail'),
     
     # Employee URLs
     path('home', customer.home, name='v1home'),
