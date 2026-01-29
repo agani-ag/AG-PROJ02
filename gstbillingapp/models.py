@@ -137,6 +137,7 @@ class Quotation(models.Model):
     quotation_json = models.TextField()
     is_gst = models.BooleanField(default=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
+    customer_details_modified = models.BooleanField(default=False)  # Track if JSON customer differs from FK customer
     
     # Conversion tracking
     converted_invoice = models.ForeignKey(

@@ -12,6 +12,7 @@ from ..models import Invoice
 from ..models import UserProfile
 from ..models import Book
 from ..models import BookLog
+from ..models import Quotation
 
 # Utility functions
 from ..utils import invoice_data_validator
@@ -317,6 +318,83 @@ def invoice_delete(request):
     if request.method == "POST":
         invoice_id = request.POST["invoice_id"]
         invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
+        
+        # Check if this invoice was converted from a quotation
+        source_quotation = None
+        try:
+            source_quotation = Quotation.objects.filter(converted_invoice=invoice_obj).first()
+        except:
+            pass
+        
+        # Check if user wants to move invoice to quotation before deleting
+        if len(request.POST.getlist('move-to-quotation')):
+            if source_quotation:
+                # Invoice came from a quotation - just reset the original quotation instead of creating duplicate
+                source_quotation.converted_invoice = None
+                source_quotation.converted_at = None
+                source_quotation.converted_by = None
+                source_quotation.status = 'DRAFT'  # Reset to DRAFT so it can be edited/reconverted
+                source_quotation.notes = (source_quotation.notes or '') + f'\nInvoice #{invoice_obj.invoice_number} was deleted and quotation restored.'
+                source_quotation.save()
+                messages.success(request, f'Invoice #{invoice_obj.invoice_number} deleted. Original Quotation #{source_quotation.quotation_number} has been restored as DRAFT.')
+            else:
+                # Invoice was not from a quotation - create new quotation
+                try:
+                    # Get next quotation number
+                    user_profile = get_object_or_404(UserProfile, user=request.user)
+                    
+                    if invoice_obj.is_gst:
+                        # GST quotation numbers (shared across same GST)
+                        max_quotation_number = []
+                        user_profiles = UserProfile.objects.filter(business_gst=user_profile.business_gst)
+                        for profile in user_profiles:
+                            max_num = Quotation.objects.filter(
+                                user=profile.user, is_gst=True
+                            ).aggregate(Max('quotation_number'))['quotation_number__max']
+                            max_quotation_number.append(max_num)
+                        max_quotation_number = [num for num in max_quotation_number if num is not None]
+                        
+                        if max_quotation_number:
+                            next_quotation_number = max(max_quotation_number) + 1
+                        else:
+                            next_quotation_number = 1
+                    else:
+                        # Non-GST quotation
+                        next_quotation_number = Quotation.objects.filter(
+                            user=request.user, is_gst=False
+                        ).aggregate(Max('quotation_number'))['quotation_number__max']
+                        if not next_quotation_number:
+                            next_quotation_number = 1
+                        else:
+                            next_quotation_number += 1
+                    
+                    # Create quotation with invoice data
+                    new_quotation = Quotation(
+                        user=request.user,
+                        quotation_number=next_quotation_number,
+                        quotation_date=invoice_obj.invoice_date,
+                        valid_until=(invoice_obj.invoice_date + datetime.timedelta(days=30)),
+                        quotation_customer=invoice_obj.invoice_customer,
+                        quotation_json=invoice_obj.invoice_json,  # Copy invoice JSON
+                        is_gst=invoice_obj.is_gst,
+                        status='DRAFT',
+                        notes=f'Created from deleted Invoice #{invoice_obj.invoice_number}'
+                    )
+                    new_quotation.save()
+                    
+                    messages.success(request, f'Invoice #{invoice_obj.invoice_number} moved to Quotation #{new_quotation.quotation_number}')
+                except Exception as e:
+                    messages.error(request, f'Error moving to quotation: {str(e)}')
+        elif source_quotation:
+            # User didn't check "Move to Quotation" but invoice came from quotation
+            # Just reset the source quotation without moving
+            source_quotation.converted_invoice = None
+            source_quotation.converted_at = None
+            source_quotation.converted_by = None
+            source_quotation.save()
+            messages.info(request, f'Invoice deleted. Source Quotation #{source_quotation.quotation_number} has been reset.')
+        
+        # Proceed with normal deletion process
         if len(request.POST.getlist('inventory-del')):
             remove_inventory_entries_for_invoice(invoice_obj, request.user)
         if len(request.POST.getlist('book-del')):
@@ -335,7 +413,9 @@ def invoice_delete(request):
             book.last_log = new_last_log
             book.save()
         invoice_obj.delete()
-        messages.success(request, f'Invoice #{invoice_obj.invoice_number} deleted successfully')
+        
+        if not len(request.POST.getlist('move-to-quotation')):
+            messages.success(request, f'Invoice #{invoice_obj.invoice_number} deleted successfully')
     return redirect('invoices')
 
 

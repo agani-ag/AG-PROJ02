@@ -82,6 +82,10 @@ def quotation_create(request):
         non_gst_mode = 'nongstcheck' in quotation_data
         is_gst = not non_gst_mode
         
+        if is_gst and quotation_data['customer-gst'].strip() == '':
+            messages.warning(request, "GST Quotation requires Customer GST Number.")
+            return render(request, 'quotations/quotation_create.html', context)
+        
         # Validate data (reuse invoice validator)
         validation_error = invoice_data_validator(quotation_data)
         if validation_error:
@@ -91,23 +95,50 @@ def quotation_create(request):
         # Process data (reuse invoice processor)
         quotation_data_processed = invoice_data_processor(quotation_data)
         
+        # Check if modify customer details is enabled
+        is_modified_customer = len(request.POST.getlist('modify-customer-details')) > 0
+        
         # Get or create customer
         customer = None
-        try:
-            customer = Customer.objects.get(
-                user=request.user,
-                customer_name=quotation_data['customer-name'],
-                customer_address=quotation_data['customer-address'],
-                customer_phone=quotation_data['customer-phone'],
-                customer_gst=quotation_data['customer-gst']
-            )
-        except Customer.DoesNotExist:
-            pass
+        
+        if is_modified_customer:
+            # When modifying details, still need to find/create a base customer
+            # Try to find existing customer by name only
+            try:
+                customer = Customer.objects.filter(
+                    user=request.user,
+                    customer_name=quotation_data['customer-name']
+                ).first()
+            except:
+                pass
+            
+            if not customer:
+                # Create a base customer record with the provided details
+                customer = Customer.objects.create(
+                    user=request.user,
+                    customer_name=quotation_data['customer-name'],
+                    customer_address=quotation_data['customer-address'],
+                    customer_phone=quotation_data['customer-phone'],
+                    customer_gst=quotation_data['customer-gst']
+                )
+                messages.info(request, f"New customer '{customer.customer_name}' created.")
+        else:
+            # Normal flow - exact match required
+            try:
+                customer = Customer.objects.get(
+                    user=request.user,
+                    customer_name=quotation_data['customer-name'],
+                    customer_address=quotation_data['customer-address'],
+                    customer_phone=quotation_data['customer-phone'],
+                    customer_gst=quotation_data['customer-gst']
+                )
+            except Customer.DoesNotExist:
+                pass
 
-        if not customer:
-            # Redirect to customer add page
-            messages.warning(request, "Please add the customer first before creating a quotation.")
-            return redirect('customer_add')
+            if not customer:
+                # Redirect to customer add page
+                messages.warning(request, "Please add the customer first before creating a quotation.")
+                return redirect('customer_add')
 
         # Update products (optional for quotations, but keeps catalog current)
         update_products_from_invoice(quotation_data_processed, request)
@@ -131,7 +162,8 @@ def quotation_create(request):
             quotation_json=quotation_data_processed_json,
             is_gst=is_gst,
             status='DRAFT',
-            created_by_customer=False
+            created_by_customer=False,
+            customer_details_modified=is_modified_customer
         )
         new_quotation.save()
 
@@ -375,27 +407,38 @@ def quotation_edit(request, quotation_id):
         # Process data
         quotation_data_processed = invoice_data_processor(quotation_data)
         
-        # Get customer
+        # Check if modify customer details is enabled
+        is_modified_customer = len(request.POST.getlist('modify-customer-details')) > 0
+        
+        # Get customer - Use the ORIGINAL FK customer if details were modified
         customer = None
-        try:
-            customer = Customer.objects.get(
-                user=request.user,
-                customer_name=quotation_data['customer-name'],
-                customer_address=quotation_data['customer-address'],
-                customer_phone=quotation_data['customer-phone'],
-                customer_gst=quotation_data['customer-gst']
-            )
-        except Customer.DoesNotExist:
-            pass
+        
+        if is_modified_customer:
+            # Keep the original FK customer when modifying details
+            customer = quotation.quotation_customer
+            messages.info(request, "Customer details modified. Using original customer mapping.")
+        else:
+            # Normal flow - validate customer from form (must match existing)
+            try:
+                customer = Customer.objects.get(
+                    user=request.user,
+                    customer_name=quotation_data['customer-name'],
+                    customer_address=quotation_data['customer-address'],
+                    customer_phone=quotation_data['customer-phone'],
+                    customer_gst=quotation_data['customer-gst']
+                )
+            except Customer.DoesNotExist:
+                pass
 
-        if not customer:
-            messages.warning(request, "Customer not found. Please add the customer first.")
-            return redirect('customer_add')
+            if not customer:
+                messages.warning(request, "Customer not found. Please add the customer first or enable 'Modify Details'.")
+                return redirect('customer_add')
         
         # Update quotation
         quotation.quotation_json = json.dumps(quotation_data_processed)
         quotation.quotation_customer = customer
         quotation.quotation_date = datetime.datetime.strptime(quotation_data['invoice-date'], '%Y-%m-%d')
+        quotation.customer_details_modified = is_modified_customer
         
         valid_until = quotation_data.get('valid-until', '')
         if valid_until:
@@ -637,7 +680,10 @@ def quotation_reconvert_to_invoice(request, quotation_id):
 def quotation_approve(request, quotation_id):
     """Approve a quotation (change status to APPROVED)"""
     if request.method != 'POST':
-        return JsonResponse({'success': False}, status=405)
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid request method'
+        }, status=405)
     
     quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
     
@@ -651,4 +697,56 @@ def quotation_approve(request, quotation_id):
     quotation.save()
     
     messages.success(request, f'Quotation #{quotation.quotation_number} approved')
-    return JsonResponse({'success': True})
+    return JsonResponse({
+        'success': True,
+        'message': f'Quotation #{quotation.quotation_number} approved successfully'
+    })
+
+
+@login_required
+def quotation_update_customer(request, quotation_id):
+    """Update customer details in quotation JSON only"""
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid request method'
+        }, status=405)
+    
+    quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
+    
+    try:
+        # Parse request data
+        data = json.loads(request.body)
+        
+        # Get current quotation JSON
+        quotation_data = json.loads(quotation.quotation_json)
+        
+        # Update customer details in JSON
+        quotation_data['customer_name'] = data.get('customer_name', '')
+        quotation_data['customer_address'] = data.get('customer_address', '')
+        quotation_data['customer_phone'] = data.get('customer_phone', '')
+        
+        if quotation.is_gst:
+            quotation_data['customer_gst'] = data.get('customer_gst', '')
+        
+        if data.get('vehicle_number'):
+            quotation_data['vehicle_number'] = data.get('vehicle_number')
+        elif 'vehicle_number' in quotation_data:
+            quotation_data['vehicle_number'] = data.get('vehicle_number', '')
+        
+        # Save updated JSON and mark as modified
+        quotation.quotation_json = json.dumps(quotation_data)
+        quotation.customer_details_modified = True
+        quotation.save()
+        
+        messages.success(request, 'Customer details updated successfully in quotation')
+        return JsonResponse({
+            'success': True,
+            'message': 'Customer details updated successfully (marked as modified)'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)

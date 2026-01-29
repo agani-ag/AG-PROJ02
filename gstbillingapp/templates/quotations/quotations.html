@@ -101,7 +101,7 @@
 			"processing": true,
 			"serverSide": true,
 			"ajax": {
-				"url": "/quotations/ajax",
+				"url": "/quotations/ajax/",
 				"type": "GET",
 				"data": function(d) {
 					d.quotation_type = $('#quotationTypeFilter').val() || 'all';
@@ -233,7 +233,7 @@
 							cancelButtonText: 'Stay Here'
 						}).then((result) => {
 							if (result.isConfirmed) {
-								window.location.href = `/invoice/${data.invoice_id}`;
+							window.location.href = `/invoice/${data.invoice_id}/`;
 							} else {
 								$('#quotation-table').DataTable().ajax.reload();
 							}

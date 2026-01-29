@@ -27,21 +27,22 @@ urlpatterns = [
     path('invoices', invoices.invoices, name='invoices'),
     path('invoices/ajax', invoices.invoices_ajax, name='invoices_ajax'),
     path('invoices/new', invoices.invoice_create, name='invoice_create'),
-    path('invoice/<int:invoice_id>', invoices.invoice_viewer, name='invoice_viewer'),
+    path('invoice/<int:invoice_id>/', invoices.invoice_viewer, name='invoice_viewer'),
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),
     path('invoices/push-to-books/<int:invoice_id>', invoices.invoice_push_to_books, name='invoice_push_to_books'),
     path('api/customer-invoice-filter/', invoices.customerInvoiceFilter, name='customer_invoice_filter'),
 
     # Quotation URLs
-    path('quotations', quotation.quotations, name='quotations'),
-    path('quotations/ajax', quotation.quotations_ajax, name='quotations_ajax'),
-    path('quotations/new', quotation.quotation_create, name='quotation_create'),
-    path('quotation/<int:quotation_id>', quotation.quotation_viewer, name='quotation_viewer'),
+    path('quotations/', quotation.quotations, name='quotations'),
+    path('quotations/ajax/', quotation.quotations_ajax, name='quotations_ajax'),
+    path('quotations/new/', quotation.quotation_create, name='quotation_create'),
+    path('quotation/<int:quotation_id>/', quotation.quotation_viewer, name='quotation_viewer'),
     path('quotation/edit/<int:quotation_id>', quotation.quotation_edit, name='quotation_edit'),
     path('quotation/delete/<int:quotation_id>', quotation.quotation_delete, name='quotation_delete'),
     path('quotation/convert/<int:quotation_id>', quotation.quotation_convert_to_invoice, name='quotation_convert_to_invoice'),
     path('quotation/reconvert/<int:quotation_id>', quotation.quotation_reconvert_to_invoice, name='quotation_reconvert_to_invoice'),
     path('quotation/approve/<int:quotation_id>', quotation.quotation_approve, name='quotation_approve'),
+    path('quotation/update-customer/<int:quotation_id>', quotation.quotation_update_customer, name='quotation_update_customer'),
 
     # Customer URLs
     path('customers', customers.customers, name='customers'),

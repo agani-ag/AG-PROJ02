@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 
-
 {% load static %}
-<!doctype html>
 
 {% block content %}
 
@@ -34,23 +32,31 @@
 	<table class="table table-bordered">
 		<thead>
 			<tr>
-				<th class="table-active" scope="col" colspan="4">Customer Details</th>
+				<th class="table-active" scope="col" colspan="3">Customer Details</th>
+				<th class="table-active" scope="col" colspan="1">
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox" id="modify-customer-details" name="modify-customer-details" {% if quotation.customer_details_modified %}checked{% endif %}>
+						<label class="form-check-label" for="modify-customer-details">
+							<strong>Modify Details</strong>
+						</label>
+					</div>
+				</th>
 			</tr>
 		</thead>
 
 		<tbody class="two-col-form">
 			<tr>
 				<th scope="row">Customer Name</th>
-				<td class="form-input-td customer_search_area"><input autocomplete="off" name="customer-name" type="text" class="form-control customer_search_input" id="customer-name-input" placeholder="Customer Name" value="{{quotation_data.customer_name}}" required>
+				<td class="form-input-td customer_search_area"><input autocomplete="off" name="customer-name" type="text" class="form-control customer_search_input" id="customer-name-input" placeholder="Customer Name" value="{{quotation_data.customer_name}}" required {% if quotation.customer_details_modified %}style="background-color: #fff3cd;"{% endif %}>
 				</td>
 				<th scope="row">Customer Address</th>
-				<td class="form-input-td"><input autocomplete="off" name="customer-address" type="text" class="form-control" id="customer-address-input" placeholder="Customer Address" value="{{quotation_data.customer_address}}" required readonly></td>
+				<td class="form-input-td"><input autocomplete="off" name="customer-address" type="text" class="form-control" id="customer-address-input" placeholder="Customer Address" value="{{quotation_data.customer_address}}" required {% if not quotation.customer_details_modified %}readonly{% endif %} {% if quotation.customer_details_modified %}style="background-color: #fff3cd;"{% endif %}></td>
 			</tr>
 			<tr>
 				<th scope="row">Customer Mobile Number</th>
-				<td class="form-input-td"><input autocomplete="off" name="customer-phone" type="tel" class="form-control" id="customer-phone-input" placeholder="Customer Mobile Number" value="{{quotation_data.customer_phone}}" readonly></td>
+				<td class="form-input-td"><input autocomplete="off" name="customer-phone" type="tel" class="form-control" id="customer-phone-input" placeholder="Customer Mobile Number" value="{{quotation_data.customer_phone}}" {% if not quotation.customer_details_modified %}readonly{% endif %} {% if quotation.customer_details_modified %}style="background-color: #fff3cd;"{% endif %}></td>
 				<th scope="row">Customer GST</th>
-				<td class="form-input-td"><input autocomplete="off" name="customer-gst" type="text" class="form-control" id="customer-gst-input" placeholder="Customer GST" maxlength="15" pattern="([A-Za-z0-9]{15})|(^$)" value="{{quotation_data.customer_gst}}" readonly></td>
+				<td class="form-input-td"><input autocomplete="off" name="customer-gst" type="text" class="form-control" id="customer-gst-input" placeholder="Customer GST" maxlength="15" pattern="([A-Za-z0-9]{15})|(^$)" value="{{quotation_data.customer_gst}}" {% if not quotation.customer_details_modified %}readonly{% endif %} {% if quotation.customer_details_modified %}style="background-color: #fff3cd;"{% endif %}></td>
 			</tr>
 
 		</tbody>
@@ -184,8 +190,126 @@
 		});
 	}
 
-	$("#invoice-save").one("click", function () {
-		$(this).fadeOut();
-	});
-	</script>
+// Handle Modify Customer Details checkbox
+const modifyCheckbox = document.getElementById("modify-customer-details");
+const customerNameInput = document.getElementById("customer-name-input");
+const customerAddressInput = document.getElementById("customer-address-input");
+const customerPhoneInput = document.getElementById("customer-phone-input");
+const customerGstInput = document.getElementById("customer-gst-input");
+
+// Store original customer data
+const originalCustomerData = {
+	name: "{{quotation.quotation_customer.customer_name}}",
+	address: "{{quotation.quotation_customer.customer_address}}",
+	phone: "{{quotation.quotation_customer.customer_phone}}",
+	gst: "{{quotation.quotation_customer.customer_gst}}"
+};
+
+// Initialize state on load
+if (modifyCheckbox.checked) {
+	customerNameInput.classList.remove('customer_search_input');
+}
+
+// Track newly selected customer data during edit
+let newlySelectedCustomerData = null;
+
+// Listen for customer selection (when user selects a different customer)
+const originalOnCustomerSelect = window.onCustomerSelect;
+window.onCustomerSelect = function(customer) {
+	if (originalOnCustomerSelect) {
+		originalOnCustomerSelect(customer);
+	}
+	// Store newly selected customer data
+	newlySelectedCustomerData = {
+		name: customerNameInput.value,
+		address: customerAddressInput.value,
+		phone: customerPhoneInput.value,
+		gst: customerGstInput.value
+	};
+	// Auto-uncheck modify mode when selecting a different customer
+	if (modifyCheckbox.checked) {
+		modifyCheckbox.checked = false;
+		// Remove visual feedback
+		customerNameInput.style.backgroundColor = '';
+		customerAddressInput.style.backgroundColor = '';
+		customerPhoneInput.style.backgroundColor = '';
+		customerGstInput.style.backgroundColor = '';
+	}
+};
+
+modifyCheckbox.addEventListener("change", function() {
+	const isModifyEnabled = this.checked;
+	
+	if (isModifyEnabled) {
+		// Enable editing of all customer fields
+		customerNameInput.removeAttribute('readonly');
+		customerAddressInput.removeAttribute('readonly');
+		customerPhoneInput.removeAttribute('readonly');
+		customerGstInput.removeAttribute('readonly');
+		
+		// Remove customer search functionality when modifying
+		customerNameInput.classList.remove('customer_search_input');
+		
+		// Visual feedback
+		customerNameInput.style.backgroundColor = '#fff3cd';
+		customerAddressInput.style.backgroundColor = '#fff3cd';
+		customerPhoneInput.style.backgroundColor = '#fff3cd';
+		customerGstInput.style.backgroundColor = '#fff3cd';
+		
+		// Show info message
+		Swal.fire({
+			title: 'Modify Mode Enabled',
+			text: 'You can now edit customer details. These changes will only apply to this quotation.',
+			icon: 'info',
+			timer: 3000
+		});
+	} else {
+		// Restore readonly state for mapped customer
+		customerAddressInput.setAttribute('readonly', 'readonly');
+		customerPhoneInput.setAttribute('readonly', 'readonly');
+		customerGstInput.setAttribute('readonly', 'readonly');
+		
+		// Re-enable customer search (user can change to different customer)
+		customerNameInput.classList.add('customer_search_input');
+		
+		// Remove visual feedback
+		customerNameInput.style.backgroundColor = '';
+		customerAddressInput.style.backgroundColor = '';
+		customerPhoneInput.style.backgroundColor = '';
+		customerGstInput.style.backgroundColor = '';
+		
+		// Restore to newly selected customer if changed, otherwise original
+		if (newlySelectedCustomerData) {
+			customerNameInput.value = newlySelectedCustomerData.name;
+			customerAddressInput.value = newlySelectedCustomerData.address;
+			customerPhoneInput.value = newlySelectedCustomerData.phone;
+			customerGstInput.value = newlySelectedCustomerData.gst;
+			
+			Swal.fire({
+				title: 'Customer Changed',
+				text: 'Customer details have been updated to the newly selected customer.',
+				icon: 'success',
+				timer: 2000
+			});
+		} else {
+			// Restore original customer data
+			customerNameInput.value = originalCustomerData.name;
+			customerAddressInput.value = originalCustomerData.address;
+			customerPhoneInput.value = originalCustomerData.phone;
+			customerGstInput.value = originalCustomerData.gst;
+			
+			Swal.fire({
+				title: 'Restored Original Customer',
+				text: 'Customer details have been restored to the mapped customer record.',
+				icon: 'success',
+				timer: 2000
+			});
+		}
+	}
+});
+
+$("#invoice-save").one("click", function () {
+	$(this).fadeOut();
+});
+</script>
 {% endblock %}
