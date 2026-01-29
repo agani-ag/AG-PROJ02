@@ -21,6 +21,8 @@ urlpatterns = [
     path('customer/order/create', customer_orders.customer_create_order, name='v1customerordercreate'),
     path('customer/orders', customer_orders.customer_orders_list, name='v1customerorders'),
     path('customer/order/<int:quotation_id>', customer_orders.customer_order_detail, name='v1customerorderdetail'),
+    path('customer/order/<int:quotation_id>/edit', customer_orders.customer_edit_order, name='v1customerorderedit'),
+    path('customer/order/<int:quotation_id>/update', customer_orders.customer_update_order, name='v1customerorderupdate'),
     
     # Employee URLs
     path('home', customer.home, name='v1home'),

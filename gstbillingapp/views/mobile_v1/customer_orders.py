@@ -51,8 +51,30 @@ def customer_products_catalog(request):
         # Get active products from business owner
         products = Product.objects.filter(user=business_user).order_by('product_name')
         
+        # Calculate discounted prices for products
+        products_with_discount = []
+        for product in products:
+            product_dict = {
+                'id': product.id,
+                'product_name': product.product_name,
+                'model_no': product.model_no,
+                'product_rate_with_gst': float(product.product_rate_with_gst),
+                'product_gst_percentage': float(product.product_gst_percentage),
+                'product_discount': float(product.product_discount or 0),
+                'product_hsn': product.product_hsn,
+            }
+            
+            # Calculate discounted price
+            if product.product_discount and product.product_discount > 0:
+                discount_multiplier = 1 - (float(product.product_discount) / 100)
+                product_dict['discounted_price'] = round(float(product.product_rate_with_gst) * discount_multiplier, 2)
+            else:
+                product_dict['discounted_price'] = float(product.product_rate_with_gst)
+            
+            products_with_discount.append(product_dict)
+        
         context['customer'] = customer
-        context['products'] = products
+        context['products'] = products_with_discount
         context['business_profile'] = user_profile
         context['cid'] = cid
         
@@ -329,6 +351,9 @@ def customer_order_detail(request, quotation_id):
         total_amount = quotation_data.get('invoice_total_amt_with_gst', 0)
         total_in_words = num2words.num2words(int(total_amount), lang='en_IN').title()
         
+        # Check if order can be edited (only DRAFT status and customer-created)
+        can_edit = quotation.status == 'DRAFT' and quotation.created_by_customer
+        
         context['customer'] = customer
         context['quotation'] = quotation
         context['quotation_data'] = quotation_data
@@ -336,6 +361,7 @@ def customer_order_detail(request, quotation_id):
         context['total_in_words'] = total_in_words
         context['currency'] = "₹"
         context['cid'] = cid
+        context['can_edit'] = can_edit
         
         return render(request, 'mobile_v1/orders/order_detail.html', context)
     
@@ -343,3 +369,286 @@ def customer_order_detail(request, quotation_id):
         return render(request, 'mobile_v1/orders/error.html', {
             'error': f'Error loading order: {str(e)}'
         })
+
+
+def customer_edit_order(request, quotation_id):
+    """Edit existing order - add/remove products (DRAFT only)"""
+    context = {}
+    cid = request.GET.get('cid', None)
+    
+    if not cid:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': 'Invalid customer link'
+        })
+    
+    cid_data = parse_code_GS(cid)
+    if not cid_data:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': 'Invalid customer code'
+        })
+    
+    customer_id = cid_data.get('C', None)
+    user_id = cid_data.get('GS', None)
+    
+    try:
+        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
+        
+        quotation = get_object_or_404(
+            Quotation, 
+            id=quotation_id,
+            quotation_customer=customer,
+            created_by_customer=True
+        )
+        
+        # Check if order can be edited
+        if quotation.status != 'DRAFT':
+            return render(request, 'mobile_v1/orders/error.html', {
+                'error': 'Order cannot be edited. Only DRAFT orders can be modified.'
+            })
+        
+        business_user = customer.user
+        user_profile = get_object_or_404(UserProfile, user=business_user)
+        
+        # Get all products
+        all_products = Product.objects.filter(user=business_user).order_by('product_name')
+        
+        # Parse existing order data
+        quotation_data = json.loads(quotation.quotation_json)
+        existing_items = quotation_data.get('items', [])
+        
+        # Create a map of existing products with quantities
+        existing_products = {}
+        existing_product_ids = []
+        
+        for item in existing_items:
+            # Find product by model number and product name for better matching
+            try:
+                # Try to match by both model_no and product_name for uniqueness
+                product = Product.objects.filter(
+                    model_no=item['invoice_model_no'],
+                    product_name=item['invoice_product'],
+                    user=business_user
+                ).first()
+                
+                # If no match with both, try just model_no
+                if not product:
+                    product = Product.objects.filter(
+                        model_no=item['invoice_model_no'],
+                        user=business_user
+                    ).first()
+                
+                if product:
+                    existing_products[product.id] = item['invoice_qty']
+                    existing_product_ids.append(product.id)
+            except Exception:
+                continue
+        
+        # Separate products: existing first, then others
+        products_in_order_qs = all_products.filter(id__in=existing_product_ids)
+        products_not_in_order_qs = all_products.exclude(id__in=existing_product_ids)
+        
+        # Add discounted prices to products
+        def add_discount_info(products_qs):
+            products_list = []
+            for product in products_qs:
+                product_dict = {
+                    'id': product.id,
+                    'product_name': product.product_name,
+                    'model_no': product.model_no,
+                    'product_rate_with_gst': float(product.product_rate_with_gst),
+                    'product_gst_percentage': float(product.product_gst_percentage),
+                    'product_discount': float(product.product_discount or 0),
+                    'product_hsn': product.product_hsn,
+                }
+                
+                # Calculate discounted price
+                if product.product_discount and product.product_discount > 0:
+                    discount_multiplier = 1 - (float(product.product_discount) / 100)
+                    product_dict['discounted_price'] = round(float(product.product_rate_with_gst) * discount_multiplier, 2)
+                else:
+                    product_dict['discounted_price'] = float(product.product_rate_with_gst)
+                
+                products_list.append(product_dict)
+            return products_list
+        
+        products_in_order = add_discount_info(products_in_order_qs)
+        products_not_in_order = add_discount_info(products_not_in_order_qs)
+        
+        context['customer'] = customer
+        context['quotation'] = quotation
+        context['products_in_order'] = products_in_order
+        context['products_not_in_order'] = products_not_in_order
+        context['business_profile'] = user_profile
+        context['existing_products'] = existing_products
+        context['cid'] = cid
+        
+        return render(request, 'mobile_v1/orders/order_edit.html', context)
+    
+    except Exception as e:
+        return render(request, 'mobile_v1/orders/error.html', {
+            'error': f'Error loading order for editing: {str(e)}'
+        })
+
+
+def customer_update_order(request, quotation_id):
+    """Update existing order with new items (DRAFT only)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+    
+    try:
+        cid = request.POST.get('cid')
+        cid_data = parse_code_GS(cid)
+        
+        if not cid_data:
+            return JsonResponse({'success': False, 'message': 'Invalid customer code'}, status=400)
+        
+        customer_id = cid_data.get('C', None)
+        user_id = cid_data.get('GS', None)
+        
+        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
+        
+        quotation = get_object_or_404(
+            Quotation, 
+            id=quotation_id,
+            quotation_customer=customer,
+            created_by_customer=True
+        )
+        
+        # Check if order can be edited
+        if quotation.status != 'DRAFT':
+            return JsonResponse({
+                'success': False, 
+                'message': 'Order cannot be edited. Only DRAFT orders can be modified.'
+            }, status=400)
+        
+        business_user = customer.user
+        
+        # Parse order items
+        order_items_json = request.POST.get('order_items', '[]')
+        order_items = json.loads(order_items_json)
+        
+        if not order_items:
+            return JsonResponse({'success': False, 'message': 'No items in order'}, status=400)
+        
+        # Build updated quotation JSON
+        quotation_data = {
+            'customer_name': customer.customer_name,
+            'customer_address': customer.customer_address or '',
+            'customer_phone': customer.customer_phone or '',
+            'customer_gst': customer.customer_gst or '',
+            'vehicle_number': '',
+            'items': [],
+            'igstcheck': False
+        }
+        
+        total_amount_with_gst = 0
+        total_amount_without_gst = 0
+        total_sgst = 0
+        total_cgst = 0
+        total_igst = 0
+        
+        # Process each item
+        for item in order_items:
+            try:
+                product = Product.objects.get(id=item['product_id'], user=business_user)
+                quantity = int(item['quantity'])
+                
+                # Calculate amounts
+                rate_with_gst = float(product.product_rate_with_gst)
+                gst_percentage = float(product.product_gst_percentage)
+                discount = float(product.product_discount or 0)
+                
+                # Calculate rate without GST
+                rate_without_gst = rate_with_gst / (1 + (gst_percentage / 100))
+                
+                # Item total with GST
+                item_total_with_gst = rate_with_gst * quantity
+                item_total_without_gst = rate_without_gst * quantity
+                
+                # GST amounts
+                gst_amount = item_total_with_gst - item_total_without_gst
+                sgst_amount = gst_amount / 2
+                cgst_amount = gst_amount / 2
+                
+                total_amount_with_gst += item_total_with_gst
+                total_amount_without_gst += item_total_without_gst
+                total_sgst += sgst_amount
+                total_cgst += cgst_amount
+                
+                quotation_data['items'].append({
+                    'invoice_model_no': product.model_no or '',
+                    'invoice_product': product.product_name or '',
+                    'invoice_hsn': product.product_hsn or '',
+                    'invoice_qty': quantity,
+                    'invoice_rate_with_gst': rate_with_gst,
+                    'invoice_gst_percentage': gst_percentage,
+                    'invoice_discount': discount,
+                    'invoice_amt': item_total_with_gst
+                })
+            except Product.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'Product not found'
+                }, status=400)
+        
+        # Set totals
+        quotation_data['invoice_total_amt_with_gst'] = round(total_amount_with_gst, 2)
+        quotation_data['invoice_total_amt_without_gst'] = round(total_amount_without_gst, 2)
+        quotation_data['invoice_total_amt_sgst'] = round(total_sgst, 2)
+        quotation_data['invoice_total_amt_cgst'] = round(total_cgst, 2)
+        quotation_data['invoice_total_amt_igst'] = round(total_igst, 2)
+        
+        # Update quotation
+        with transaction.atomic():
+            quotation.quotation_json = json.dumps(quotation_data)
+            quotation.updated_at = timezone.now()
+            quotation.save()
+            
+            # Create notification for business owner
+            notification = Notification(
+                user=business_user,
+                notification_type='ORDER',
+                title=f'Order Updated by {customer.customer_name}',
+                message=f'Order #{quotation.quotation_number} updated to ₹{total_amount_with_gst:.2f}',
+                link_url=f'/quotation/{quotation.id}/',
+                link_text='View Order'
+            )
+            notification.save()
+            
+            # Send WebSocket notification
+            try:
+                from asgiref.sync import async_to_sync
+                from channels.layers import get_channel_layer
+                
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        f"notifications_user_{business_user.id}",
+                        {
+                            'type': 'new_notification',
+                            'notification': {
+                                'id': notification.id,
+                                'type': notification.notification_type,
+                                'title': notification.title,
+                                'message': notification.message,
+                                'link_url': notification.link_url,
+                                'link_text': notification.link_text,
+                                'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                            }
+                        }
+                    )
+            except Exception as e:
+                print(f"WebSocket notification failed: {e}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Order #{quotation.quotation_number} updated successfully!',
+            'quotation_id': quotation.id,
+            'quotation_number': quotation.quotation_number
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error updating order: {str(e)}'
+        }, status=500)

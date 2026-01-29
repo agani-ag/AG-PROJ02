@@ -56,6 +56,13 @@
                 {% endif %}
                 
                 <div class="d-flex justify-content-end">
+                    {% if item.quotation.status == 'DRAFT' %}
+                    <a href="{% url 'v1customerorderedit' item.quotation.id %}?cid={{ cid }}" 
+                       class="btn btn-sm btn-warning mr-2">
+                        <i class="fas fa-edit"></i> Edit
+                    </a>
+                    {% endif %}
+                    
                     <a href="{% url 'v1customerorderdetail' item.quotation.id %}?cid={{ cid }}" 
                        class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-eye"></i> View Details

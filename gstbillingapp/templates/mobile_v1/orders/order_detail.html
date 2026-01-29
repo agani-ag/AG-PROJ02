@@ -149,6 +149,13 @@
 
     <!-- Actions -->
     <div class="mb-3">
+        {% if can_edit %}
+        <a href="{% url 'v1customerorderedit' quotation.id %}?cid={{ cid }}" 
+           class="btn btn-primary btn-block mb-2">
+            <i class="fas fa-edit"></i> Edit Order
+        </a>
+        {% endif %}
+        
         <a href="{% url 'v1customerorders' %}?cid={{ cid }}" class="btn btn-outline-secondary btn-block">
             <i class="fas fa-arrow-left"></i> Back to Orders
         </a>

@@ -35,7 +35,16 @@
                         {{ product.product_name }}
                     </h6>
                     <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
-                    <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst }}</h5>
+                    
+                    {% if product.product_discount > 0 %}
+                    <div class="mb-1">
+                        <small class="text-muted text-decoration-line-through">₹{{ product.product_rate_with_gst|floatformat:2 }}</small>
+                        <span class="badge badge-danger ml-1" style="font-size: 9px;">-{{ product.product_discount|floatformat:0 }}%</span>
+                    </div>
+                    <h5 class="text-success mb-2">₹{{ product.discounted_price|floatformat:2 }}</h5>
+                    {% else %}
+                    <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
+                    {% endif %}
                     
                     <div class="mb-2">
                         <small class="text-muted">
@@ -114,9 +123,9 @@ function updateCart() {
         cart[{{ product.id }}] = {
             product_id: {{ product.id }},
             quantity: qty{{ product.id }},
-            rate: {{ product.product_rate_with_gst }}
+            rate: {{ product.discounted_price }}
         };
-        totalAmount += qty{{ product.id }} * {{ product.product_rate_with_gst }};
+        totalAmount += qty{{ product.id }} * {{ product.discounted_price }};
         totalItems += qty{{ product.id }};
     }
     {% endfor %}

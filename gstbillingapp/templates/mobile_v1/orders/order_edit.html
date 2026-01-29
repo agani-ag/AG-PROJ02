@@ -1,0 +1,337 @@
+{% extends "mobile_v1/base.html" %}
+{% load static %}
+
+{% block title %}Edit Order #{{ quotation.quotation_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3 pb-5 mb-5">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">
+            <i class="fas fa-edit"></i> 
+            Edit Order #{{ quotation.quotation_number }}
+        </h5>
+        <span class="badge badge-warning">DRAFT</span>
+    </div>
+
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="fas fa-info-circle"></i>
+        <strong>Tip:</strong> Add or remove products and quantities. Changes are saved when you click "Update Order".
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    </div>
+
+    <!-- Search Box -->
+    <div class="form-group mb-3">
+        <div class="input-group">
+            <div class="input-group-prepend">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+            </div>
+            <input type="text" class="form-control" id="search-input" placeholder="Search products...">
+        </div>
+    </div>
+
+    <!-- Product Grid -->
+    <div class="row" id="product-list">
+        <!-- Existing Products Section -->
+        {% if products_in_order %}
+        <div class="col-12 mb-2">
+            <div class="alert alert-success mb-2 py-2">
+                <i class="fas fa-shopping-basket"></i>
+                <strong>Current Order Items</strong>
+            </div>
+        </div>
+        
+        {% for product in products_in_order %}
+        <div class="col-6 col-md-4 col-lg-3 mb-3 product-item product-in-order" 
+             data-name="{{ product.product_name|lower }}" 
+             data-model="{{ product.model_no|lower }}">
+            <div class="card h-100 shadow border-success" style="border-width: 2px !important;">
+                <div class="card-header bg-success text-white py-1 px-2">
+                    <small><i class="fas fa-check-circle"></i> In Order</small>
+                </div>
+                <div class="card-body p-2">
+                    <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
+                        {{ product.product_name }}
+                    </h6>
+                    <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
+                    
+                    {% if product.product_discount > 0 %}
+                    <div class="mb-1">
+                        <small class="text-muted text-decoration-line-through">₹{{ product.product_rate_with_gst|floatformat:2 }}</small>
+                        <span class="badge badge-danger ml-1" style="font-size: 9px;">-{{ product.product_discount|floatformat:0 }}%</span>
+                    </div>
+                    <h5 class="text-success mb-2">₹{{ product.discounted_price|floatformat:2 }}</h5>
+                    {% else %}
+                    <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
+                    {% endif %}
+                    
+                    <div class="mb-2">
+                        <small class="text-muted">
+                            GST: {{ product.product_gst_percentage }}%
+                        </small>
+                    </div>
+                    
+                    <div class="input-group input-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <input type="number" class="form-control text-center font-weight-bold" 
+                               id="qty-{{ product.id }}" 
+                               value="0"
+                               min="0" readonly>
+                        <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- Divider -->
+        <div class="col-12 mb-2 mt-2">
+            <div class="alert alert-light mb-2 py-2">
+                <i class="fas fa-plus-circle"></i>
+                <strong>Add More Products</strong>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Other Products Section -->
+        {% for product in products_not_in_order %}
+        <div class="col-6 col-md-4 col-lg-3 mb-3 product-item" 
+             data-name="{{ product.product_name|lower }}" 
+             data-model="{{ product.model_no|lower }}">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body p-2">
+                    <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
+                        {{ product.product_name }}
+                    </h6>
+                    <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
+                    
+                    {% if product.product_discount > 0 %}
+                    <div class="mb-1">
+                        <small class="text-muted text-decoration-line-through">₹{{ product.product_rate_with_gst|floatformat:2 }}</small>
+                        <span class="badge badge-danger ml-1" style="font-size: 9px;">-{{ product.product_discount|floatformat:0 }}%</span>
+                    </div>
+                    <h5 class="text-success mb-2">₹{{ product.discounted_price|floatformat:2 }}</h5>
+                    {% else %}
+                    <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
+                    {% endif %}
+                    
+                    <div class="mb-2">
+                        <small class="text-muted">
+                            GST: {{ product.product_gst_percentage }}%
+                        </small>
+                    </div>
+                    
+                    <div class="input-group input-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <input type="number" class="form-control text-center" 
+                               id="qty-{{ product.id }}" 
+                               value="0"
+                               min="0" readonly>
+                        <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        {% if not products_in_order %}
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+            <p class="text-muted">No products available</p>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Cart Summary (Fixed Bottom) -->
+    <div class="fixed-bottom bg-white border-top p-3 shadow-lg" style="z-index: 1000;">
+        <div class="container-fluid">
+            <div class="row align-items-center mb-2">
+                <div class="col-6">
+                    <small class="text-muted">Items:</small>
+                    <strong id="total-items" class="ml-1">0</strong>
+                </div>
+                <div class="col-6 text-right">
+                    <small class="text-muted">Total:</small>
+                    <strong id="total-amount" class="text-primary ml-1">₹0.00</strong>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <a href="{% url 'v1customerorderdetail' quotation.id %}?cid={{ cid }}" 
+                       class="btn btn-secondary btn-block">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+                <div class="col-6">
+                    <button class="btn btn-success btn-block" onclick="updateOrder()" id="update-order-btn">
+                        <i class="fas fa-save"></i> Update Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let cart = {};
+let totalAmount = 0;
+
+// Pre-populate existing products
+const existingProducts = {{ existing_products|safe }};
+
+// Initialize quantities from existing order
+document.addEventListener('DOMContentLoaded', function() {
+    for (let productId in existingProducts) {
+        const input = document.getElementById(`qty-${productId}`);
+        if (input) {
+            input.value = existingProducts[productId];
+        }
+    }
+    updateCart();
+});
+
+function incrementQty(productId) {
+    const input = document.getElementById(`qty-${productId}`);
+    input.value = parseInt(input.value) + 1;
+    updateCart();
+}
+
+function decrementQty(productId) {
+    const input = document.getElementById(`qty-${productId}`);
+    if (parseInt(input.value) > 0) {
+        input.value = parseInt(input.value) - 1;
+        updateCart();
+    }
+}
+
+function updateCart() {
+    cart = {};
+    totalAmount = 0;
+    let totalItems = 0;
+    
+    {% for product in products_in_order %}
+    const qty{{ product.id }} = parseInt(document.getElementById('qty-{{ product.id }}').value);
+    if (qty{{ product.id }} > 0) {
+        cart[{{ product.id }}] = {
+            product_id: {{ product.id }},
+            quantity: qty{{ product.id }},
+            rate: {{ product.discounted_price }}
+        };
+        totalAmount += qty{{ product.id }} * {{ product.discounted_price }};
+        totalItems += qty{{ product.id }};
+    }
+    {% endfor %}
+    
+    {% for product in products_not_in_order %}
+    const qty{{ product.id }} = parseInt(document.getElementById('qty-{{ product.id }}').value);
+    if (qty{{ product.id }} > 0) {
+        cart[{{ product.id }}] = {
+            product_id: {{ product.id }},
+            quantity: qty{{ product.id }},
+            rate: {{ product.discounted_price }}
+        };
+        totalAmount += qty{{ product.id }} * {{ product.discounted_price }};
+        totalItems += qty{{ product.id }};
+    }
+    {% endfor %}
+    
+    document.getElementById('total-items').textContent = totalItems;
+    document.getElementById('total-amount').textContent = '₹' + totalAmount.toFixed(2);
+    
+    // Enable/disable update button
+    const updateBtn = document.getElementById('update-order-btn');
+    if (totalItems > 0) {
+        updateBtn.disabled = false;
+        updateBtn.classList.remove('btn-secondary');
+        updateBtn.classList.add('btn-success');
+    } else {
+        updateBtn.disabled = true;
+        updateBtn.classList.remove('btn-success');
+        updateBtn.classList.add('btn-secondary');
+    }
+}
+
+function updateOrder() {
+    const orderItems = Object.values(cart);
+    
+    if (orderItems.length === 0) {
+        alert('Please add at least one item to the order');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to update this order?')) {
+        return;
+    }
+    
+    // Disable button and show loading
+    const updateBtn = document.getElementById('update-order-btn');
+    const originalText = updateBtn.innerHTML;
+    updateBtn.disabled = true;
+    updateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch('{% url "v1customerorderupdate" quotation.id %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken
+        },
+        body: new URLSearchParams({
+            'cid': '{{ cid }}',
+            'order_items': JSON.stringify(orderItems)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.href = '{% url "v1customerorderdetail" quotation.id %}?cid={{ cid }}';
+        } else {
+            alert('Error: ' + data.message);
+            updateBtn.disabled = false;
+            updateBtn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        alert('Error updating order. Please try again.');
+        console.error(error);
+        updateBtn.disabled = false;
+        updateBtn.innerHTML = originalText;
+    });
+}
+
+// Search functionality
+document.getElementById('search-input').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const productItems = document.querySelectorAll('.product-item');
+    
+    productItems.forEach(item => {
+        const name = item.getAttribute('data-name');
+        const model = item.getAttribute('data-model');
+        
+        if (name.includes(searchTerm) || model.includes(searchTerm)) {
+            item.style.display = '';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+});
+
+// Initialize
+updateCart();
+</script>
+
+{% csrf_token %}
+{% endblock %}
