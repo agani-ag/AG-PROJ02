@@ -32,6 +32,51 @@
         </div>
     </div>
 
+    <!-- Multi-Level Category Filter -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">
+                <i class="fas fa-filter"></i> Filter by Category
+                <button class="btn btn-sm btn-link float-right p-0" onclick="clearFilters()">
+                    <i class="fas fa-times"></i> Clear
+                </button>
+            </h6>
+        </div>
+        <div class="card-body p-2">
+            <!-- Parent Category Filter -->
+            <div class="mb-2">
+                <label class="small font-weight-bold mb-1">Parent Category:</label>
+                <div class="btn-group-toggle d-flex flex-wrap" data-toggle="buttons">
+                    <label class="btn btn-sm btn-outline-primary m-1 parent-category-filter active" data-parent="">
+                        <input type="radio" name="parent-filter" value="" checked> All
+                    </label>
+                    {% for parent_name, child_categories in products_in_order_by_category.items %}
+                    <label class="btn btn-sm btn-outline-primary m-1 parent-category-filter" data-parent="{{ parent_name }}">
+                        <input type="radio" name="parent-filter" value="{{ parent_name }}"> {{ parent_name }}
+                    </label>
+                    {% endfor %}
+                    {% for parent_name, child_categories in products_not_in_order_by_category.items %}
+                    {% if parent_name not in products_in_order_by_category %}
+                    <label class="btn btn-sm btn-outline-primary m-1 parent-category-filter" data-parent="{{ parent_name }}">
+                        <input type="radio" name="parent-filter" value="{{ parent_name }}"> {{ parent_name }}
+                    </label>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Child Category Filter -->
+            <div class="mb-0">
+                <label class="small font-weight-bold mb-1">Child Category:</label>
+                <div class="btn-group-toggle d-flex flex-wrap" data-toggle="buttons" id="child-category-filters">
+                    <label class="btn btn-sm btn-outline-info m-1 child-category-filter active" data-child="">
+                        <input type="radio" name="child-filter" value="" checked> All
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Product Grid -->
     <div id="product-list">
         <!-- Existing Products Section -->
@@ -44,23 +89,52 @@
         </div>
         
         <!-- Products Grouped by Category (In Order) -->
-        {% for category_name, products in products_in_order_by_category.items %}
-        <div class="mb-4">
-            <div class="d-flex align-items-center mb-3">
-                <div class="flex-grow-1">
-                    <h6 class="mb-0 text-success">
-                        <i class="fas fa-folder"></i> {{ category_name }}
+        {% for parent_name, child_categories in products_in_order_by_category.items %}
+        <!-- Parent Category Header (Collapsible) -->
+        <div class="mb-4 parent-category-section" data-parent-category="{{ parent_name }}">
+            <div class="alert alert-success py-2 mb-3 cursor-pointer" 
+                 data-toggle="collapse" 
+                 data-target="#inorder-parent-{{ parent_name|slugify }}" 
+                 aria-expanded="false"
+                 style="cursor: pointer;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-folder"></i> {{ parent_name }}
+                        <small class="badge badge-light ml-2">{{ child_categories|length }} categories</small>
                     </h6>
+                    <i class="fas fa-chevron-down"></i>
                 </div>
-                <span class="badge badge-success">{{ products|length }}</span>
             </div>
             
-            <div class="row">
+            <!-- Collapsible Parent Content -->
+            <div class="collapse" id="inorder-parent-{{ parent_name|slugify }}">
+                <!-- Child Categories under this Parent -->
+                {% for child_name, products in child_categories.items %}
+                <div class="mb-4 ml-3 child-category-section" 
+                     data-parent-category="{{ parent_name }}"
+                     data-child-category="{{ child_name }}">
+                    <div class="d-flex align-items-center mb-2 p-2 bg-light rounded cursor-pointer" 
+                         data-toggle="collapse" 
+                         data-target="#inorder-child-{{ parent_name|slugify }}-{{ child_name|slugify }}"
+                         aria-expanded="false"
+                         style="cursor: pointer;">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0 text-success">
+                                <i class="fas fa-folder"></i> {{ child_name }}
+                            </h6>
+                            <small class="text-muted">{{ parent_name }} > {{ child_name }}</small>
+                        </div>
+                        <span class="badge badge-success mr-2">{{ products|length }}</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+            
+            <div class="row collapse" id="inorder-child-{{ parent_name|slugify }}-{{ child_name|slugify }}">
                 {% for product in products %}
                 <div class="col-6 col-md-4 col-lg-3 mb-3 product-item product-in-order" 
                      data-name="{{ product.product_name|lower }}" 
                      data-model="{{ product.model_no|lower }}"
-                     data-category="{{ category_name|lower }}">
+                     data-category="{{ child_name|lower }}"
+                     data-parent-category="{{ parent_name|lower }}">
                     <div class="card h-100 shadow border-success" style="border-width: 2px !important;">
                         <div class="card-header bg-success text-white py-1 px-2">
                             <small><i class="fas fa-check-circle"></i> In Order</small>
@@ -73,7 +147,10 @@
                                 {{ product.product_name }}
                             </h6>
                             <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
-                            <small class="badge badge-info mb-1" style="font-size: 9px;">{{ category_name }}</small>
+                            <div class="mb-1">
+                                <small class="badge badge-secondary" style="font-size: 8px;">{{ parent_name }}</small>
+                                <small class="badge badge-info ml-1" style="font-size: 8px;">{{ child_name }}</small>
+                            </div>
                             
                             {% if product.product_discount > 0 %}
                             <div class="mb-1">
@@ -85,7 +162,7 @@
                             <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
                             {% endif %}
                             
-                            <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
+                            <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ parent_name|escapejs }}', '{{ child_name|escapejs }}')">
                                 <i class="fas fa-info-circle"></i> Details
                             </button>
                             
@@ -105,6 +182,9 @@
                     </div>
                 </div>
                 {% endfor %}
+            </div>
+            </div>
+            {% endfor %}
             </div>
         </div>
         {% endfor %}
@@ -183,23 +263,52 @@
         {% endif %}
         
         <!-- Other Products Section (Grouped by Category) -->
-        {% for category_name, products in products_not_in_order_by_category.items %}
-        <div class="mb-4">
-            <div class="d-flex align-items-center mb-3">
-                <div class="flex-grow-1">
-                    <h6 class="mb-0 text-primary">
-                        <i class="fas fa-folder"></i> {{ category_name }}
+        {% for parent_name, child_categories in products_not_in_order_by_category.items %}
+        <!-- Parent Category Header (Collapsible) -->
+        <div class="mb-4 parent-category-section" data-parent-category="{{ parent_name }}">
+            <div class="alert alert-info py-2 mb-3 cursor-pointer" 
+                 data-toggle="collapse" 
+                 data-target="#notinorder-parent-{{ parent_name|slugify }}" 
+                 aria-expanded="false"
+                 style="cursor: pointer;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-folder"></i> {{ parent_name }}
+                        <small class="badge badge-light ml-2">{{ child_categories|length }} categories</small>
                     </h6>
+                    <i class="fas fa-chevron-down"></i>
                 </div>
-                <span class="badge badge-primary">{{ products|length }}</span>
             </div>
             
-            <div class="row">
+            <!-- Collapsible Parent Content -->
+            <div class="collapse" id="notinorder-parent-{{ parent_name|slugify }}">
+                <!-- Child Categories under this Parent -->
+                {% for child_name, products in child_categories.items %}
+                <div class="mb-4 ml-3 child-category-section" 
+                     data-parent-category="{{ parent_name }}"
+                     data-child-category="{{ child_name }}">
+                    <div class="d-flex align-items-center mb-2 p-2 bg-light rounded cursor-pointer" 
+                         data-toggle="collapse" 
+                         data-target="#notinorder-child-{{ parent_name|slugify }}-{{ child_name|slugify }}"
+                         aria-expanded="false"
+                         style="cursor: pointer;">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-0 text-primary">
+                                <i class="fas fa-folder"></i> {{ child_name }}
+                            </h6>
+                            <small class="text-muted">{{ parent_name }} > {{ child_name }}</small>
+                        </div>
+                        <span class="badge badge-primary mr-2">{{ products|length }}</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+            
+            <div class="row collapse" id="notinorder-child-{{ parent_name|slugify }}-{{ child_name|slugify }}">
                 {% for product in products %}
                 <div class="col-6 col-md-4 col-lg-3 mb-3 product-item" 
                      data-name="{{ product.product_name|lower }}" 
                      data-model="{{ product.model_no|lower }}"
-                     data-category="{{ category_name|lower }}">
+                     data-category="{{ child_name|lower }}"
+                     data-parent-category="{{ parent_name|lower }}">
                     <div class="card h-100 shadow-sm">
                         <div class="bg-light d-flex align-items-center justify-content-center" style="height: 80px;">
                             <i class="fas fa-box fa-2x text-muted"></i>
@@ -209,7 +318,10 @@
                                 {{ product.product_name }}
                             </h6>
                             <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
-                            <small class="badge badge-info mb-1" style="font-size: 9px;">{{ category_name }}</small>
+                            <div class="mb-1">
+                                <small class="badge badge-secondary" style="font-size: 8px;">{{ parent_name }}</small>
+                                <small class="badge badge-info ml-1" style="font-size: 8px;">{{ child_name }}</small>
+                            </div>
                             
                             {% if product.product_discount > 0 %}
                             <div class="mb-1">
@@ -221,7 +333,7 @@
                             <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
                             {% endif %}
                             
-                            <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
+                            <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ parent_name|escapejs }}', '{{ child_name|escapejs }}')">
                                 <i class="fas fa-info-circle"></i> Details
                             </button>
                             
@@ -241,6 +353,9 @@
                     </div>
                 </div>
                 {% endfor %}
+            </div>
+            </div>
+            {% endfor %}
             </div>
         </div>
         {% endfor %}
@@ -362,17 +477,20 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCart();
 });
 
-function showProductDetails(id, name, modelNo, hsn, originalPrice, gst, discount, discountedPrice, imageUrl, category) {
+function showProductDetails(id, name, modelNo, hsn, originalPrice, gst, discount, discountedPrice, imageUrl, parentCategory, childCategory) {
     // Set product name
     document.getElementById('modalProductName').textContent = name;
     document.getElementById('modalModelNo').textContent = modelNo;
     document.getElementById('modalHsn').textContent = hsn || 'N/A';
     document.getElementById('modalGst').textContent = gst + '%';
     
-    // Set category
+    // Set category with hierarchical path
     const categoryElement = document.getElementById('modalCategory');
-    if (category) {
-        categoryElement.textContent = category;
+    if (parentCategory && childCategory) {
+        categoryElement.innerHTML = `<span class="badge badge-secondary" style="font-size: 10px;">${parentCategory}</span> <i class="fas fa-angle-right"></i> <span class="badge badge-info" style="font-size: 10px;">${childCategory}</span>`;
+        categoryElement.parentElement.parentElement.style.display = '';
+    } else if (childCategory) {
+        categoryElement.textContent = childCategory;
         categoryElement.classList.remove('badge-secondary');
         categoryElement.classList.add('badge-info');
         categoryElement.parentElement.parentElement.style.display = '';
@@ -579,6 +697,224 @@ document.getElementById('search-input').addEventListener('input', function(e) {
             item.style.display = 'none';
         }
     });
+    
+    // Update visibility of category sections based on visible products
+    updateCategorySectionVisibility();
+});
+
+// Multi-level category filter functionality
+let selectedParentCategory = '';
+let selectedChildCategory = '';
+
+// Store all child categories for each parent
+const categoryHierarchy = {
+    {% for parent_name, child_categories in products_in_order_by_category.items %}
+    "{{ parent_name }}": [
+        {% for child_name, products in child_categories.items %}
+        "{{ child_name }}"{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]{% if not forloop.last %},{% endif %}
+    {% endfor %}
+    {% if products_in_order_by_category and products_not_in_order_by_category %},{% endif %}
+    {% for parent_name, child_categories in products_not_in_order_by_category.items %}
+    {% if parent_name not in products_in_order_by_category %}
+    "{{ parent_name }}": [
+        {% for child_name, products in child_categories.items %}
+        "{{ child_name }}"{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]{% if not forloop.last %},{% endif %}
+    {% endif %}
+    {% endfor %}
+};
+
+// Parent category filter click handler
+document.querySelectorAll('.parent-category-filter').forEach(btn => {
+    btn.addEventListener('click', function() {
+        selectedParentCategory = this.getAttribute('data-parent');
+        
+        // Update child category filter options
+        updateChildCategoryFilters();
+        
+        // Apply filter
+        applyMultiLevelFilter();
+    });
+});
+
+// Update child category filter based on selected parent
+function updateChildCategoryFilters() {
+    const childFilterContainer = document.getElementById('child-category-filters');
+    childFilterContainer.innerHTML = '';
+    
+    // Always add "All" option
+    const allLabel = document.createElement('label');
+    allLabel.className = 'btn btn-sm btn-outline-info m-1 child-category-filter active';
+    allLabel.setAttribute('data-child', '');
+    allLabel.innerHTML = '<input type="radio" name="child-filter" value="" checked> All';
+    childFilterContainer.appendChild(allLabel);
+    
+    // Add child categories based on selected parent
+    if (selectedParentCategory) {
+        // Show only child categories for selected parent
+        const childCategories = categoryHierarchy[selectedParentCategory] || [];
+        childCategories.forEach(childName => {
+            const label = document.createElement('label');
+            label.className = 'btn btn-sm btn-outline-info m-1 child-category-filter';
+            label.setAttribute('data-child', childName);
+            label.innerHTML = `<input type="radio" name="child-filter" value="${childName}"> ${childName}`;
+            childFilterContainer.appendChild(label);
+        });
+    } else {
+        // When "All" is selected, show ALL child categories from ALL parents
+        Object.keys(categoryHierarchy).forEach(parentName => {
+            const childCategories = categoryHierarchy[parentName] || [];
+            childCategories.forEach(childName => {
+                // Check if already added (avoid duplicates)
+                const existing = childFilterContainer.querySelector(`[data-child="${childName}"]`);
+                if (!existing) {
+                    const label = document.createElement('label');
+                    label.className = 'btn btn-sm btn-outline-info m-1 child-category-filter';
+                    label.setAttribute('data-child', childName);
+                    label.innerHTML = `<input type="radio" name="child-filter" value="${childName}"> ${childName}`;
+                    childFilterContainer.appendChild(label);
+                }
+            });
+        });
+    }
+    
+    // Reset child category selection
+    selectedChildCategory = '';
+    
+    // Add click handlers to new buttons
+    document.querySelectorAll('.child-category-filter').forEach(btn => {
+        btn.addEventListener('click', function() {
+            selectedChildCategory = this.getAttribute('data-child');
+            applyMultiLevelFilter();
+        });
+    });
+}
+
+// Apply multi-level category filter
+function applyMultiLevelFilter() {
+    const parentSections = document.querySelectorAll('.parent-category-section');
+    const childSections = document.querySelectorAll('.child-category-section');
+    
+    // Show/hide parent sections
+    parentSections.forEach(section => {
+        const parentName = section.getAttribute('data-parent-category');
+        
+        if (!selectedParentCategory || selectedParentCategory === parentName) {
+            section.style.display = '';
+        } else {
+            section.style.display = 'none';
+        }
+    });
+    
+    // Show/hide child sections
+    childSections.forEach(section => {
+        const parentName = section.getAttribute('data-parent-category');
+        const childName = section.getAttribute('data-child-category');
+        
+        let showSection = true;
+        
+        // Check parent filter
+        if (selectedParentCategory && selectedParentCategory !== parentName) {
+            showSection = false;
+        }
+        
+        // Check child filter
+        if (selectedChildCategory && selectedChildCategory !== childName) {
+            showSection = false;
+        }
+        
+        section.style.display = showSection ? '' : 'none';
+    });
+    
+    // Update category section visibility
+    updateCategorySectionVisibility();
+}
+
+// Update visibility of empty category sections
+function updateCategorySectionVisibility() {
+    const parentSections = document.querySelectorAll('.parent-category-section');
+    
+    parentSections.forEach(parentSection => {
+        if (parentSection.style.display === 'none') return;
+        
+        const childSections = parentSection.querySelectorAll('.child-category-section');
+        let hasVisibleChild = false;
+        
+        childSections.forEach(childSection => {
+            if (childSection.style.display === 'none') return;
+            
+            const products = childSection.querySelectorAll('.product-item');
+            let hasVisibleProduct = false;
+            
+            products.forEach(product => {
+                if (product.style.display !== 'none') {
+                    hasVisibleProduct = true;
+                }
+            });
+            
+            // Hide child section if no visible products
+            if (!hasVisibleProduct) {
+                childSection.style.display = 'none';
+            } else {
+                hasVisibleChild = true;
+            }
+        });
+        
+        // Hide parent section if no visible children
+        if (!hasVisibleChild) {
+            parentSection.style.display = 'none';
+        }
+    });
+}
+
+// Clear all filters
+function clearFilters() {
+    // Reset parent filter
+    document.querySelector('.parent-category-filter[data-parent=""]').click();
+    
+    // Clear search
+    document.getElementById('search-input').value = '';
+    
+    // Reset selections
+    selectedParentCategory = '';
+    selectedChildCategory = '';
+    
+    // Show all sections
+    document.querySelectorAll('.parent-category-section').forEach(s => s.style.display = '');
+    document.querySelectorAll('.child-category-section').forEach(s => s.style.display = '');
+    document.querySelectorAll('.product-item').forEach(p => p.style.display = '');
+}
+
+// Toggle collapse icons
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle parent and child category collapse icons
+    document.querySelectorAll('[data-toggle="collapse"]').forEach(trigger => {
+        const target = document.querySelector(trigger.getAttribute('data-target'));
+        
+        if (target) {
+            target.addEventListener('shown.bs.collapse', function() {
+                const icon = trigger.querySelector('.fa-chevron-down, .fa-chevron-up');
+                if (icon) {
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-up');
+                }
+            });
+            
+            target.addEventListener('hidden.bs.collapse', function() {
+                const icon = trigger.querySelector('.fa-chevron-down, .fa-chevron-up');
+                if (icon) {
+                    icon.classList.remove('fa-chevron-up');
+                    icon.classList.add('fa-chevron-down');
+                }
+            });
+        }
+    });
+    
+    // Initialize child category filters on page load
+    updateChildCategoryFilters();
 });
 
 // Initialize

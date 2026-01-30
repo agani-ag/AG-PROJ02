@@ -51,8 +51,12 @@ def customer_products_catalog(request):
         # Get category filter
         category_id = request.GET.get('category', '').strip()
         
-        # Get all categories for filter dropdown
-        categories = ProductCategory.objects.filter(user=business_user).order_by('category_name')
+        # Get all categories for filter dropdown (only child categories)
+        categories = ProductCategory.objects.filter(
+            user=business_user, parent_category__isnull=False
+        ).select_related('parent_category').order_by(
+            'parent_category__category_name', 'category_name'
+        )
         
         # Get active products from business owner
         products = Product.objects.filter(user=business_user)
@@ -61,10 +65,16 @@ def customer_products_catalog(request):
         if category_id and category_id.isdigit():
             products = products.filter(product_category_id=int(category_id))
         
-        products = products.select_related('product_category').order_by('product_name')
+        products = products.select_related(
+            'product_category', 'product_category__parent_category'
+        ).order_by(
+            'product_category__parent_category__category_name',
+            'product_category__category_name',
+            'product_name'
+        )
         
-        # Group products by category
-        products_by_category = {}
+        # Group products by parent category, then by child category
+        products_by_parent_category = {}
         uncategorized_products = []
         
         for product in products:
@@ -79,6 +89,7 @@ def customer_products_catalog(request):
                 'product_image_url': product.product_image_url or '',
                 'product_category': product.product_category.category_name if product.product_category else '',
                 'product_category_id': product.product_category.id if product.product_category else None,
+                'parent_category': product.product_category.parent_category.category_name if product.product_category and product.product_category.parent_category else '',
             }
             
             # Calculate discounted price
@@ -88,17 +99,27 @@ def customer_products_catalog(request):
             else:
                 product_dict['discounted_price'] = float(product.product_rate_with_gst)
             
-            # Group by category
+            # Group by parent category -> child category
             if product.product_category:
-                category_name = product.product_category.category_name
-                if category_name not in products_by_category:
-                    products_by_category[category_name] = []
-                products_by_category[category_name].append(product_dict)
+                if product.product_category.parent_category:
+                    parent_name = product.product_category.parent_category.category_name
+                    child_name = product.product_category.category_name
+                    
+                    if parent_name not in products_by_parent_category:
+                        products_by_parent_category[parent_name] = {}
+                    
+                    if child_name not in products_by_parent_category[parent_name]:
+                        products_by_parent_category[parent_name][child_name] = []
+                    
+                    products_by_parent_category[parent_name][child_name].append(product_dict)
+                else:
+                    # Category without parent - treat as uncategorized
+                    uncategorized_products.append(product_dict)
             else:
                 uncategorized_products.append(product_dict)
         
         context['customer'] = customer
-        context['products_by_category'] = products_by_category
+        context['products_by_parent_category'] = products_by_parent_category
         context['uncategorized_products'] = uncategorized_products
         context['business_profile'] = user_profile
         context['cid'] = cid
@@ -469,8 +490,14 @@ def customer_edit_order(request, quotation_id):
         business_user = customer.user
         user_profile = get_object_or_404(UserProfile, user=business_user)
         
-        # Get all products with category relationship
-        all_products = Product.objects.filter(user=business_user).select_related('product_category').order_by('product_name')
+        # Get all products with category relationship including parent
+        all_products = Product.objects.filter(user=business_user).select_related(
+            'product_category', 'product_category__parent_category'
+        ).order_by(
+            'product_category__parent_category__category_name',
+            'product_category__category_name',
+            'product_name'
+        )
         
         # Parse existing order data
         quotation_data = json.loads(quotation.quotation_json)
@@ -521,6 +548,8 @@ def customer_edit_order(request, quotation_id):
                     'product_hsn': product.product_hsn,
                     'product_image_url': product.product_image_url or '',
                     'product_category': product.product_category.category_name if product.product_category else '',
+                    'parent_category': product.product_category.parent_category.category_name if product.product_category and product.product_category.parent_category else '',
+                    'full_category_path': product.product_category.get_full_path() if product.product_category else '',
                 }
                 
                 # Calculate discounted price
@@ -534,20 +563,28 @@ def customer_edit_order(request, quotation_id):
             return products_list
         
         def group_by_category(products_list):
-            """Group products by category"""
-            by_category = {}
+            """Group products by parent category -> child category hierarchy"""
+            by_parent_category = {}
             uncategorized = []
             
             for product in products_list:
+                parent_category = product.get('parent_category', '')
                 category_name = product.get('product_category', '')
-                if category_name:
-                    if category_name not in by_category:
-                        by_category[category_name] = []
-                    by_category[category_name].append(product)
+                
+                if parent_category and category_name:
+                    # Has parent category - use hierarchical structure
+                    if parent_category not in by_parent_category:
+                        by_parent_category[parent_category] = {}
+                    
+                    if category_name not in by_parent_category[parent_category]:
+                        by_parent_category[parent_category][category_name] = []
+                    
+                    by_parent_category[parent_category][category_name].append(product)
                 else:
+                    # No parent or no category at all
                     uncategorized.append(product)
             
-            return by_category, uncategorized
+            return by_parent_category, uncategorized
         
         products_in_order = add_discount_info(products_in_order_qs)
         products_not_in_order = add_discount_info(products_not_in_order_qs)

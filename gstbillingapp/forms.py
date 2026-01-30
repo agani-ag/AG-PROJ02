@@ -3,7 +3,7 @@ from .models import (
     Customer, Product, UserProfile,
     InventoryLog, Book, BookLog,
     ExpenseTracker, BankDetails, VendorPurchase,
-    PurchaseLog
+    PurchaseLog, ProductCategory
 )
 
 
@@ -22,6 +22,16 @@ class ProductForm(ModelForm):
         model = Product
         fields = ['model_no', 'product_name', 'product_hsn', 'product_gst_percentage',
                     'product_rate_with_gst', 'product_discount', 'product_image_url', 'product_category']
+     
+     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super(ProductForm, self).__init__(*args, **kwargs)
+        if user:
+            # Show only child categories (categories with parent) for product assignment
+            self.fields['product_category'].queryset = ProductCategory.objects.filter(
+                user=user, parent_category__isnull=False
+            ).select_related('parent_category').order_by('parent_category__category_name', 'category_name')
+            self.fields['product_category'].label_from_instance = lambda obj: obj.get_full_path()
 
 
 class UserProfileForm(ModelForm):

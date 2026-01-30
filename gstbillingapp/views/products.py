@@ -23,7 +23,9 @@ import json
 @login_required
 def products(request):
     context = {}
-    context['products'] = Product.objects.filter(user=request.user).order_by('-id')
+    context['products'] = Product.objects.filter(user=request.user).select_related(
+        'product_category', 'product_category__parent_category'
+    ).order_by('-id')
     return render(request, 'products/products.html', context)
 
 
@@ -31,13 +33,15 @@ def products(request):
 def product_edit(request, product_id):
     product_obj = get_object_or_404(Product, user=request.user, id=product_id)
     if request.method == "POST":
-        product_form = ProductForm(request.POST, instance=product_obj)
+        product_form = ProductForm(request.POST, instance=product_obj, user=request.user)
         if product_form.is_valid():
             new_product = product_form.save()
             return redirect('products')
     context = {}
-    context['product_category_list'] = ProductCategory.objects.filter(user=request.user).values('id', 'category_name')
-    context['product_form'] = ProductForm(instance=product_obj)
+    context['product_category_list'] = ProductCategory.objects.filter(
+        user=request.user, parent_category__isnull=False
+    ).select_related('parent_category').values('id', 'category_name', 'parent_category__category_name')
+    context['product_form'] = ProductForm(instance=product_obj, user=request.user)
     context['id'] = product_obj.id
     return render(request, 'products/product_edit.html', context)
 
@@ -45,7 +49,7 @@ def product_edit(request, product_id):
 @login_required
 def product_add(request):
     if request.method == "POST":
-        product_form = ProductForm(request.POST)
+        product_form = ProductForm(request.POST, user=request.user)
         if product_form.is_valid():
             new_product = product_form.save(commit=False)
             new_product.user = request.user
@@ -53,8 +57,10 @@ def product_add(request):
             create_inventory(new_product)
             return redirect('products')
     context = {}
-    context['product_form'] = ProductForm()
-    context['product_category_list'] = ProductCategory.objects.filter(user=request.user).values('id', 'category_name')
+    context['product_form'] = ProductForm(user=request.user)
+    context['product_category_list'] = ProductCategory.objects.filter(
+        user=request.user, parent_category__isnull=False
+    ).select_related('parent_category').values('id', 'category_name', 'parent_category__category_name')
     return render(request, 'products/product_edit.html', context)
 
 
@@ -115,11 +121,37 @@ def product_api_add(request):
 @login_required
 def product_category_list(request):
     from django.db.models import Count
-    categories = ProductCategory.objects.filter(user=request.user).annotate(
+    # Get all categories with parent info and product count
+    categories = ProductCategory.objects.filter(user=request.user).select_related(
+        'parent_category'
+    ).annotate(
         product_count=Count('product')
-    ).values('id', 'category_name', 'product_count')
-    # Convert QuerySet to list for json_script
-    return render(request, 'products/product_category.html', {'categories': list(categories)})
+    )
+    
+    # Separate parent and child categories
+    parent_categories = []
+    child_categories = []
+    
+    for cat in categories:
+        cat_data = {
+            'id': cat.id,
+            'category_name': cat.category_name,
+            'parent_category_id': cat.parent_category.id if cat.parent_category else None,
+            'parent_category_name': cat.parent_category.category_name if cat.parent_category else None,
+            'product_count': cat.product_count,
+            'full_path': cat.get_full_path(),
+            'is_parent': cat.is_parent()
+        }
+        if cat.is_parent():
+            parent_categories.append(cat_data)
+        else:
+            child_categories.append(cat_data)
+    
+    return render(request, 'products/product_category.html', {
+        'categories': parent_categories + child_categories,
+        'parent_categories': parent_categories,
+        'child_categories': child_categories
+    })
 
 
 @login_required
@@ -132,15 +164,25 @@ def product_category_save(request):
             if isinstance(data, list):
                 saved_count = 0
                 for item in data:
+                    parent_id = item.get('parent_category_id')
+                    parent_category = None
+                    if parent_id:
+                        try:
+                            parent_category = ProductCategory.objects.get(id=parent_id, user=request.user)
+                        except ProductCategory.DoesNotExist:
+                            pass
+                    
                     if 'id' in item and item['id']:
                         # Update existing
                         category = ProductCategory.objects.get(id=item['id'], user=request.user)
                         category.category_name = item.get('category_name', '')
+                        category.parent_category = parent_category
                         category.save()
                     else:
                         # Create new
                         category = ProductCategory.objects.create(
                             category_name=item.get('category_name', ''),
+                            parent_category=parent_category,
                             user=request.user
                         )
                         item['id'] = category.id
@@ -149,18 +191,28 @@ def product_category_save(request):
             
             # Handle single save
             else:
+                parent_id = data.get('parent_category_id')
+                parent_category = None
+                if parent_id:
+                    try:
+                        parent_category = ProductCategory.objects.get(id=parent_id, user=request.user)
+                    except ProductCategory.DoesNotExist:
+                        pass
+                
                 if 'id' in data and data['id']:
                     # Update existing
                     category = ProductCategory.objects.get(id=data['id'], user=request.user)
                     category.category_name = data.get('category_name', '')
+                    category.parent_category = parent_category
                     category.save()
                 else:
                     # Create new
                     category = ProductCategory.objects.create(
                         category_name=data.get('category_name', ''),
+                        parent_category=parent_category,
                         user=request.user
                     )
-                return JsonResponse({'success': True, 'id': category.id})
+                return JsonResponse({'success': True, 'id': category.id, 'full_path': category.get_full_path()})
         except ProductCategory.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Category not found'})
         except Exception as e:

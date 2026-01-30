@@ -4,6 +4,7 @@
 <div class="row mb-2">
     <div class="col">
         <h2>Product Categories <span class="badge badge-secondary" id="categoryCount">0</span></h2>
+        <small class="text-muted">Create parent categories (e.g., ORGANIC, NON-ORGANIC) and child categories (e.g., FRUITS, VEGETABLES)</small>
     </div>
     <div class="col text-right" style="padding-top: 0.5%;">
         <button class="btn btn-success btn-sm btn-curve" id="saveBtn" onclick="saveAllChanges()" style="display: none; margin-right: 10px;" title="Save Changes">
@@ -19,6 +20,7 @@
 
 <!-- Pass categories as JSON -->
 {{ categories|json_script:"categories_data" }}
+{{ parent_categories|json_script:"parent_categories_data" }}
 {% endblock %}
 
 {% block includejs %}
@@ -40,15 +42,66 @@ function getCookie(name) {
 
 const csrfToken = getCookie('csrftoken');
 const rowData = JSON.parse(document.getElementById('categories_data').textContent);
+const parentCategories = JSON.parse(document.getElementById('parent_categories_data').textContent);
 let editedRows = new Set();
 
 // Update category count
 document.getElementById('categoryCount').textContent = rowData.length;
 
+// Create parent category options for dropdown
+const parentOptions = {};
+parentOptions[''] = '(None - Parent Category)';
+parentCategories.forEach(cat => {
+    parentOptions[cat.id] = cat.category_name;
+});
+
 // Columns
 const columnDefs = [
     { field: "id", hide: true },
-    { field: "category_name", headerName: "Category Name", editable: true, flex: 2 },
+    { field: "parent_category_id", hide: true },
+    { 
+        field: "category_name", 
+        headerName: "Category Name", 
+        editable: true, 
+        flex: 2,
+        cellRenderer: params => {
+            if (params.data.is_parent) {
+                return `<strong style="color: #007bff;">${params.value}</strong>`;
+            }
+            return params.value;
+        }
+    },
+    { 
+        field: "parent_category_name", 
+        headerName: "Parent Category", 
+        editable: true,
+        flex: 2,
+        cellEditor: 'agSelectCellEditor',
+        cellEditorParams: {
+            values: Object.keys(parentOptions).map(k => parentOptions[k])
+        },
+        valueGetter: params => {
+            return params.data.parent_category_name || '(None - Parent Category)';
+        },
+        valueSetter: params => {
+            const selectedValue = params.newValue;
+            if (selectedValue === '(None - Parent Category)') {
+                params.data.parent_category_id = null;
+                params.data.parent_category_name = null;
+            } else {
+                const parentId = Object.keys(parentOptions).find(key => parentOptions[key] === selectedValue);
+                params.data.parent_category_id = parentId;
+                params.data.parent_category_name = selectedValue;
+            }
+            return true;
+        },
+        cellRenderer: params => {
+            if (params.data.is_parent) {
+                return '<span class="badge badge-primary">Parent Category</span>';
+            }
+            return params.value || '<span class="text-muted">-</span>';
+        }
+    },
     { 
         field: "product_count", 
         headerName: "Products", 
@@ -110,7 +163,13 @@ function updateSaveButton() {
 
 // Add new row
 function addRow() {
-    const newItem = { category_name: "", product_count: 0 };
+    const newItem = { 
+        category_name: "", 
+        parent_category_id: null,
+        parent_category_name: null,
+        product_count: 0,
+        is_parent: false
+    };
     gridOptions.api.applyTransaction({ add: [newItem], addIndex: 0 });
 
     // Get the newly added node and mark as edited
@@ -132,7 +191,11 @@ function addRow() {
 function saveAllChanges() {
     const dataToSave = [];
     editedRows.forEach(node => {
-        dataToSave.push(node.data);
+        dataToSave.push({
+            id: node.data.id,
+            category_name: node.data.category_name,
+            parent_category_id: node.data.parent_category_id
+        });
     });
 
     if (dataToSave.length === 0) {
@@ -150,29 +213,15 @@ function saveAllChanges() {
     .then(res => res.json())
     .then(res => {
         if (res.success) {
-            // Update IDs for newly created rows
-            if (res.data) {
-                res.data.forEach((item, index) => {
-                    if (item.id) {
-                        dataToSave[index].id = item.id;
-                    }
-                });
-            }
-            
-            gridOptions.api.refreshCells();
-            editedRows.clear();
-            updateSaveButton();
-            
             Swal.fire({
                 icon: 'success',
                 title: 'Saved!',
                 text: `${res.saved_count} categor${res.saved_count === 1 ? 'y' : 'ies'} saved successfully.`,
                 timer: 2000,
                 showConfirmButton: false
+            }).then(() => {
+                location.reload();
             });
-            
-            // Update category count
-            document.getElementById('categoryCount').textContent = gridOptions.api.getDisplayedRowCount();
         } else {
             Swal.fire('Error', res.error || "Failed to save categories", 'error');
         }

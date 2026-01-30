@@ -24,6 +24,7 @@
 				<tr>
 					<th>Model No</th>
 					<th>Product Name</th>
+					<th>Category</th>
 					<th>MRP</th>
 					<th>Discount%</th>
 					<th>GST%</th>
@@ -35,6 +36,18 @@
 				<tr>
 	 				<td>{{product.model_no}}</td>
 	 				<td>{% if product.product_name %}{{product.product_name}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+	 				<td>
+						{% if product.product_category %}
+							{% if product.product_category.parent_category %}
+								<span class="badge badge-secondary">{{product.product_category.parent_category.category_name}}</span>
+								<span class="badge badge-primary">{{product.product_category.category_name}}</span>
+							{% else %}
+								<span class="badge badge-primary">{{product.product_category.category_name}}</span>
+							{% endif %}
+						{% else %}
+							<span class="text-muted">-</span>
+						{% endif %}
+					</td>
 	 				<td>{{product.product_rate_with_gst}}</td>
 	 				<td>{{product.product_discount}}%</td>
 	 				<td>{{product.product_gst_percentage}}%</td>
@@ -99,7 +112,7 @@ $(document).ready( function () {
 	$('#product-table').DataTable({
 		"order": [],
 		"columnDefs": [ {
-			"targets": 5,
+			"targets": 6,
 			"sortable": false,
 			"searchable": false
 		}],

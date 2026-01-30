@@ -199,15 +199,30 @@ class Quotation(models.Model):
 class ProductCategory(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     category_name = models.CharField(max_length=100)
+    parent_category = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='subcategories')
+
+    class Meta:
+        verbose_name_plural = "Product Categories"
+        ordering = ['parent_category__category_name', 'category_name']
 
     def save(self, *args, **kwargs):
         if self.category_name:
             self.category_name = self.category_name.upper()
         
         super().save(*args, **kwargs)
+    
+    def is_parent(self):
+        """Check if this is a parent category (has no parent)"""
+        return self.parent_category is None
+    
+    def get_full_path(self):
+        """Return full category path (e.g., 'ORGANIC > FRUITS')"""
+        if self.parent_category:
+            return f"{self.parent_category.category_name} > {self.category_name}"
+        return self.category_name
 
     def __str__(self):
-        return str(self.category_name)
+        return self.get_full_path()
 
 class Product(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
