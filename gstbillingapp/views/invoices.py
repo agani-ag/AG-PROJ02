@@ -105,7 +105,7 @@ def invoice_create(request):
             return redirect('customer_add')
 
         # save product
-        update_products_from_invoice(invoice_data_processed, request)
+        # update_products_from_invoice(invoice_data_processed, request)
 
 
         # save invoice

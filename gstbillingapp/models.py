@@ -215,6 +215,12 @@ class Product(models.Model):
     product_image_url = models.TextField(max_length=600, blank=True, null=True)
     product_category = models.ForeignKey(ProductCategory, null=True, blank=True, on_delete=models.SET_NULL)
 
+    class Meta:
+        unique_together = [['user', 'model_no']]
+        indexes = [
+            models.Index(fields=['user', 'model_no']),
+        ]
+
     def save(self, *args, **kwargs):
         if self.model_no:
             self.model_no = self.model_no.upper()

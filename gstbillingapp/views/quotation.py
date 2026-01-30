@@ -141,7 +141,7 @@ def quotation_create(request):
                 return redirect('customer_add')
 
         # Update products (optional for quotations, but keeps catalog current)
-        update_products_from_invoice(quotation_data_processed, request)
+        # update_products_from_invoice(quotation_data_processed, request)
 
         # Save quotation
         quotation_data_processed_json = json.dumps(quotation_data_processed)
