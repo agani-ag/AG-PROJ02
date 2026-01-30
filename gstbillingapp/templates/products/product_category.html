@@ -3,9 +3,12 @@
 {% block content %}
 <div class="row mb-2">
     <div class="col">
-        <h2>Product Categories</h2>
+        <h2>Product Categories <span class="badge badge-secondary" id="categoryCount">0</span></h2>
     </div>
     <div class="col text-right" style="padding-top: 0.5%;">
+        <button class="btn btn-success btn-sm btn-curve" id="saveBtn" onclick="saveAllChanges()" style="display: none; margin-right: 10px;" title="Save Changes">
+            <i class="fas fa-save"></i> Save Changes <span id="changeCount" class="badge badge-light">0</span>
+        </button>
         <button class="btn btn-primary btn-sm btn-curve" onclick="addRow()" title="Add Category">
             <i class="fas fa-plus"></i> Add Category
         </button>
@@ -37,13 +40,28 @@ function getCookie(name) {
 
 const csrfToken = getCookie('csrftoken');
 const rowData = JSON.parse(document.getElementById('categories_data').textContent);
+let editedRows = new Set();
+
+// Update category count
+document.getElementById('categoryCount').textContent = rowData.length;
 
 // Columns
 const columnDefs = [
     { field: "id", hide: true },
-    { field: "category_name", headerName: "Category Name", editable: true },
+    { field: "category_name", headerName: "Category Name", editable: true, flex: 2 },
+    { 
+        field: "product_count", 
+        headerName: "Products", 
+        editable: false, 
+        flex: 1,
+        cellRenderer: params => {
+            const count = params.value || 0;
+            return `<span class="badge badge-info">${count}</span>`;
+        }
+    },
     {
         headerName: "Actions",
+        flex: 1,
         cellRenderer: params => {
             const btn = document.createElement('button');
             btn.className = "btn btn-danger btn-sm btn-curve";
@@ -58,8 +76,18 @@ const columnDefs = [
 const gridOptions = {
     columnDefs: columnDefs,
     rowData: rowData,
-    onCellValueChanged: params => saveRow(params.data),
-    defaultColDef: { flex: 1, minWidth: 150, editable: true },
+    onCellValueChanged: params => {
+        // Mark row as edited
+        editedRows.add(params.node);
+        updateSaveButton();
+    },
+    defaultColDef: { 
+        flex: 1, 
+        minWidth: 100, 
+        editable: true,
+        sortable: true,
+        filter: true
+    },
     suppressNoRowsOverlay: false,
     overlayNoRowsTemplate: '<span class="text-muted">No categories yet. Click "Add Category" to create one.</span>'
 };
@@ -67,10 +95,32 @@ const gridOptions = {
 // Initialize grid
 new agGrid.Grid(document.querySelector('#myGrid'), gridOptions);
 
+// Update save button visibility
+function updateSaveButton() {
+    const saveBtn = document.getElementById('saveBtn');
+    const changeCount = document.getElementById('changeCount');
+    
+    if (editedRows.size > 0) {
+        saveBtn.style.display = 'inline-block';
+        changeCount.textContent = editedRows.size;
+    } else {
+        saveBtn.style.display = 'none';
+    }
+}
+
 // Add new row
 function addRow() {
-    const newItem = { category_name: "" };
+    const newItem = { category_name: "", product_count: 0 };
     gridOptions.api.applyTransaction({ add: [newItem], addIndex: 0 });
+
+    // Get the newly added node and mark as edited
+    gridOptions.api.forEachNode((node, index) => {
+        if (index === 0) {
+            editedRows.add(node);
+        }
+    });
+    
+    updateSaveButton();
 
     // Start editing immediately
     setTimeout(() => {
@@ -78,24 +128,57 @@ function addRow() {
     }, 50);
 }
 
-// Save row (create or update)
-function saveRow(data) {
+// Save all changes
+function saveAllChanges() {
+    const dataToSave = [];
+    editedRows.forEach(node => {
+        dataToSave.push(node.data);
+    });
+
+    if (dataToSave.length === 0) {
+        return;
+    }
+
     fetch("{% url 'product_category_save' %}", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "X-CSRFToken": csrfToken
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify(dataToSave)
     })
     .then(res => res.json())
     .then(res => {
         if (res.success) {
-            data.id = res.id;
+            // Update IDs for newly created rows
+            if (res.data) {
+                res.data.forEach((item, index) => {
+                    if (item.id) {
+                        dataToSave[index].id = item.id;
+                    }
+                });
+            }
+            
             gridOptions.api.refreshCells();
+            editedRows.clear();
+            updateSaveButton();
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'Saved!',
+                text: `${res.saved_count} categor${res.saved_count === 1 ? 'y' : 'ies'} saved successfully.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+            
+            // Update category count
+            document.getElementById('categoryCount').textContent = gridOptions.api.getDisplayedRowCount();
         } else {
-            Swal.fire('Error', res.error || "Failed to save category", 'error');
+            Swal.fire('Error', res.error || "Failed to save categories", 'error');
         }
+    })
+    .catch(error => {
+        Swal.fire('Error', 'Failed to save changes: ' + error.message, 'error');
     });
 }
 
@@ -104,6 +187,9 @@ function deleteRow(id, rowNode) {
     if (!id) {
         // Unsaved row, just remove from grid
         gridOptions.api.applyTransaction({ remove: [rowNode.data] });
+        editedRows.delete(rowNode);
+        updateSaveButton();
+        document.getElementById('categoryCount').textContent = gridOptions.api.getDisplayedRowCount();
         return;
     }
 
@@ -124,6 +210,9 @@ function deleteRow(id, rowNode) {
             .then(res => {
                 if (res.success) {
                     gridOptions.api.applyTransaction({ remove: [rowNode.data] });
+                    editedRows.delete(rowNode);
+                    updateSaveButton();
+                    document.getElementById('categoryCount').textContent = gridOptions.api.getDisplayedRowCount();
                     Swal.fire('Deleted!', 'Category has been deleted.', 'success');
                 } else {
                     Swal.fire('Error', res.error || "Failed to delete category", 'error');

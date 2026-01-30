@@ -35,6 +35,28 @@
 				<th scope="row" class="text-right">MRP:</th>
 				<td class="form-input-td">{{product_form.product_rate_with_gst}}</td>
 			</tr>
+			<tr>
+				<th scope="row" class="text-right">Product Category:</th>
+				<td class="form-input-td">
+					<select id="id_product_category" name="product_category">
+						<option value="" {% if not product_form.product_category.value %}selected{% endif %}>---------</option>
+						{% for category in product_category_list %}
+							<option value="{{ category.id }}" {% if product_form.product_category.value|stringformat:"s" == category.id|stringformat:"s" %}selected{% endif %}>{{ category.category_name }}</option>
+						{% endfor %}
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Product Image URL:</th>
+				<td class="form-input-td">
+					<textarea id="product_image_url" name="product_image_url" rows="2" cols="35">{{ product_form.product_image_url.value|default:'' }}</textarea>
+					<div id="image_preview" style="margin-top:10px;">
+						{% if product_form.product_image_url.value %}
+							<img src="{{ product_form.product_image_url.value }}" alt="Product Image" style="max-width:200px; max-height:200px;">
+						{% endif %}
+					</div>
+				</td>
+			</tr>
 		</tbody>
 	</table>
 
@@ -60,5 +82,19 @@ function popup_inventory() {
       });
     });
 }
+
+// Image URL Preview
+	const textarea = document.getElementById('product_image_url');
+	const previewDiv = document.getElementById('image_preview');
+
+	textarea.addEventListener('input', () => {
+		const url = textarea.value.trim();
+		if (url) {
+			previewDiv.innerHTML = `<img src="${url}" alt="Product Image" style="max-width:300px; max-height:300px;border:1px solid #ccc;">`;
+		} else {
+			previewDiv.innerHTML = '';
+		}
+	});
 </script>
+
 {% endblock %}

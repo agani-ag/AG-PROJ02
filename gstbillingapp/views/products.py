@@ -36,6 +36,7 @@ def product_edit(request, product_id):
             new_product = product_form.save()
             return redirect('products')
     context = {}
+    context['product_category_list'] = ProductCategory.objects.filter(user=request.user).values('id', 'category_name')
     context['product_form'] = ProductForm(instance=product_obj)
     context['id'] = product_obj.id
     return render(request, 'products/product_edit.html', context)
@@ -53,6 +54,7 @@ def product_add(request):
             return redirect('products')
     context = {}
     context['product_form'] = ProductForm()
+    context['product_category_list'] = ProductCategory.objects.filter(user=request.user).values('id', 'category_name')
     return render(request, 'products/product_edit.html', context)
 
 
@@ -112,7 +114,10 @@ def product_api_add(request):
 # ================= Product Category Views ===========================
 @login_required
 def product_category_list(request):
-    categories = ProductCategory.objects.filter(user=request.user).values('id', 'category_name')
+    from django.db.models import Count
+    categories = ProductCategory.objects.filter(user=request.user).annotate(
+        product_count=Count('product')
+    ).values('id', 'category_name', 'product_count')
     # Convert QuerySet to list for json_script
     return render(request, 'products/product_category.html', {'categories': list(categories)})
 
@@ -122,18 +127,40 @@ def product_category_save(request):
     if request.method == "POST":
         try:
             data = json.loads(request.body)
-            if 'id' in data and data['id']:
-                # Update existing
-                category = ProductCategory.objects.get(id=data['id'], user=request.user)
-                category.category_name = data.get('category_name', '')
-                category.save()
+            
+            # Handle batch save (array of categories)
+            if isinstance(data, list):
+                saved_count = 0
+                for item in data:
+                    if 'id' in item and item['id']:
+                        # Update existing
+                        category = ProductCategory.objects.get(id=item['id'], user=request.user)
+                        category.category_name = item.get('category_name', '')
+                        category.save()
+                    else:
+                        # Create new
+                        category = ProductCategory.objects.create(
+                            category_name=item.get('category_name', ''),
+                            user=request.user
+                        )
+                        item['id'] = category.id
+                    saved_count += 1
+                return JsonResponse({'success': True, 'saved_count': saved_count, 'data': data})
+            
+            # Handle single save
             else:
-                # Create new
-                category = ProductCategory.objects.create(
-                    category_name=data.get('category_name', ''),
-                    user=request.user
-                )
-            return JsonResponse({'success': True, 'id': category.id})
+                if 'id' in data and data['id']:
+                    # Update existing
+                    category = ProductCategory.objects.get(id=data['id'], user=request.user)
+                    category.category_name = data.get('category_name', '')
+                    category.save()
+                else:
+                    # Create new
+                    category = ProductCategory.objects.create(
+                        category_name=data.get('category_name', ''),
+                        user=request.user
+                    )
+                return JsonResponse({'success': True, 'id': category.id})
         except ProductCategory.DoesNotExist:
             return JsonResponse({'success': False, 'error': 'Category not found'})
         except Exception as e:

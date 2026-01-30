@@ -21,7 +21,7 @@ class ProductForm(ModelForm):
      class Meta:
         model = Product
         fields = ['model_no', 'product_name', 'product_hsn', 'product_gst_percentage',
-                    'product_rate_with_gst', 'product_discount']
+                    'product_rate_with_gst', 'product_discount', 'product_image_url', 'product_category']
 
 
 class UserProfileForm(ModelForm):
