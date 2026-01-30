@@ -44,6 +44,9 @@
 							<option value="{{ category.id }}" {% if product_form.product_category.value|stringformat:"s" == category.id|stringformat:"s" %}selected{% endif %}>{{ category.category_name }}</option>
 						{% endfor %}
 					</select>
+					<a href="#" class="btn btn-sm btn-secondary" title="Add Category" 
+						onclick="addCategory(event)"><i class="fas fa-plus"></i>
+					</a>
 				</td>
 			</tr>
 			<tr>
@@ -95,6 +98,52 @@ function popup_inventory() {
 			previewDiv.innerHTML = '';
 		}
 	});
+
+	// Add Category Button Handler
+	function addCategory(e) {
+		e.preventDefault(); // Prevent <a> from navigating
+
+		Swal.fire({
+			title: 'Enter new category name',
+			input: 'text',
+			inputPlaceholder: 'Category name',
+			showCancelButton: true,
+			confirmButtonText: 'Save',
+			cancelButtonText: 'Cancel',
+			inputValidator: function(value) {
+				if (!value.trim()) {
+					return 'Category name cannot be empty';
+				}
+			}
+		}).then(function(result) {
+			if (result.isConfirmed) {
+				var categoryName = result.value.trim();
+
+				$.ajax({
+					url: "{% url 'product_category_save' %}",
+					method: "POST",
+					contentType: "application/json",
+					headers: {
+						'X-CSRFToken': '{{ csrf_token }}'
+					},
+					data: JSON.stringify({ category_name: categoryName }),
+					success: function(data) {
+						if (data.success) {
+							Swal.fire('Success', 'Category created with ID: ' + data.id, 'success');
+							// Add the new category to dropdown and select it
+							$('#id_product_category').append('<option value="' + data.id + '" selected>' + categoryName + '</option>');
+						} else {
+							Swal.fire('Error', data.error || 'Failed to save category', 'error');
+						}
+					},
+					error: function(xhr, status, error) {
+						console.error(error);
+						Swal.fire('Error', 'Something went wrong', 'error');
+					}
+				});
+			}
+		});
+	}
 </script>
 
 {% endblock %}
