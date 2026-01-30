@@ -187,7 +187,7 @@ class Quotation(models.Model):
     
     def can_be_converted(self):
         """Check if quotation can be converted to invoice"""
-        return self.status in ['DRAFT', 'APPROVED'] and self.converted_invoice is None
+        return self.status in ['DRAFT', 'APPROVED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY'] and self.converted_invoice is None
     
     def can_be_deleted(self):
         """Check if quotation can be deleted"""

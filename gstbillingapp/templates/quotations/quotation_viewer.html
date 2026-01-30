@@ -25,7 +25,7 @@
 					{% elif quotation.status == 'DELIVERED' %}
 						<span class="badge badge-success">DELIVERED</span>
 					{% elif quotation.status == 'CONVERTED' %}
-						<span class="badge badge-secondary">CONVERTED TO INVOICE</span>
+						<span class="badge badge-secondary"><i class="fas fa-check-double"></i> RECEIVED BY CUSTOMER</span>
 					{% endif %}
 				</strong>
 			</div> 
@@ -312,44 +312,36 @@
 			class="btn btn-primary btn-curve d-print-none">
 			<i class="fas fa-print"></i>
 		</button>
+		{% if quotation.status == 'DRAFT' %}
+			<a href="#" onclick="approveQuotation({{ quotation.id }}); return false;" class="btn btn-success d-print-none" title="Approve Quotation">
+				<i class="fas fa-check-circle"></i> Approve
+			</a>
+		{% elif quotation.status != 'CONVERTED' %}
+			<button type="button" class="btn btn-info d-print-none" data-toggle="modal" data-target="#statusUpdateModal" title="Update Order Status">
+				<i class="fas fa-shipping-fast"></i> Update Status
+			</button>
+		{% endif %}
 		{% if quotation.status != 'CONVERTED' %}
-			{% if quotation.status == 'DRAFT' %}
-				<a href="#" onclick="approveQuotation({{ quotation.id }}); return false;" class="btn btn-success d-print-none" title="Approve Quotation">
-					<i class="fas fa-check-circle"></i> Approve
-				</a>
-			{% else %}
-				<button type="button" class="btn btn-info d-print-none" data-toggle="modal" data-target="#statusUpdateModal" title="Update Order Status">
-					<i class="fas fa-shipping-fast"></i> Update Status
-				</button>
-			{% endif %}
 			<a href="{% url 'quotation_edit' quotation.id %}" class="btn btn-warning d-print-none" title="Edit Quotation">
 				<i class="fas fa-edit"></i> Edit
 			</a>
+			{% if not quotation.converted_invoice %}
 			<a href="#" onclick="convertQuotation({{ quotation.id }}); return false;" class="btn btn-info d-print-none" title="Convert to Invoice">
 				<i class="fas fa-exchange-alt"></i> Convert to Invoice
 			</a>
+			{% endif %}
 			<a href="#" onclick="deleteQuotation({{ quotation.id }}); return false;" class="btn btn-danger d-print-none" title="Delete Quotation">
 				<i class="fas fa-trash"></i> Delete
 			</a>
 		{% else %}
-			{% if quotation.converted_invoice %}
-				<a href="{% url 'invoice_viewer' quotation.converted_invoice.id %}" class="btn btn-info d-print-none" title="View Invoice">
-					<i class="fas fa-file-invoice"></i> View Invoice
-				</a>
-			{% else %}
-				<button class="btn btn-secondary d-print-none" disabled title="Invoice has been deleted">
-					<i class="fas fa-file-invoice"></i> Invoice Deleted
-				</button>
-				<a href="{% url 'quotation_edit' quotation.id %}" class="btn btn-warning d-print-none" title="Edit Quotation">
-					<i class="fas fa-edit"></i> Edit
-				</a>
-				<a href="#" onclick="reconvertQuotation({{ quotation.id }}); return false;" class="btn btn-info d-print-none" title="Reconvert to Invoice">
-					<i class="fas fa-redo"></i> Reconvert to Invoice
-				</a>
-				<a href="#" onclick="deleteQuotation({{ quotation.id }}); return false;" class="btn btn-danger d-print-none" title="Delete Quotation">
-					<i class="fas fa-trash"></i> Delete
-				</a>
-			{% endif %}
+			<span class="badge badge-success p-2" style="font-size: 14px;">
+				<i class="fas fa-check-double"></i> Customer Confirmed Receipt
+			</span>
+		{% endif %}
+		{% if quotation.converted_invoice %}
+			<a href="{% url 'invoice_viewer' quotation.converted_invoice.id %}" class="btn btn-success d-print-none" title="View Invoice">
+				<i class="fas fa-file-invoice"></i> View Invoice
+			</a>
 		{% endif %}
 		<a href="{% url 'quotations' %}" class="btn btn-danger d-print-none" title="Back to Quotations"><i class="fas fa-arrow-left"></i> Back</a>
 	</div>
@@ -646,6 +638,7 @@
 								{% elif quotation.status == 'SHIPPED' %}Shipped
 								{% elif quotation.status == 'OUT_FOR_DELIVERY' %}Out for Delivery
 								{% elif quotation.status == 'DELIVERED' %}Delivered
+								{% elif quotation.status == 'CONVERTED' %}Received by Customer
 								{% endif %}
 							</strong>
 						</p>
@@ -660,6 +653,7 @@
 							<option value="SHIPPED" {% if quotation.status == 'SHIPPED' %}disabled{% endif %}>Shipped</option>
 							<option value="OUT_FOR_DELIVERY" {% if quotation.status == 'OUT_FOR_DELIVERY' %}disabled{% endif %}>Out for Delivery</option>
 							<option value="DELIVERED" {% if quotation.status == 'DELIVERED' %}disabled{% endif %}>Delivered</option>
+							<option value="CONVERTED" {% if quotation.status == 'CONVERTED' %}disabled{% endif %}>Received by Customer</option>
 						</select>
 					</div>
 				</form>

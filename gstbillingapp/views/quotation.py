@@ -224,6 +224,16 @@ def quotations_ajax(request):
             queryset = queryset.filter(status='DRAFT')
         elif status_filter == 'approved':
             queryset = queryset.filter(status='APPROVED')
+        elif status_filter == 'processing':
+            queryset = queryset.filter(status='PROCESSING')
+        elif status_filter == 'packed':
+            queryset = queryset.filter(status='PACKED')
+        elif status_filter == 'shipped':
+            queryset = queryset.filter(status='SHIPPED')
+        elif status_filter == 'out_for_delivery':
+            queryset = queryset.filter(status='OUT_FOR_DELIVERY')
+        elif status_filter == 'delivered':
+            queryset = queryset.filter(status='DELIVERED')
         elif status_filter == 'converted':
             queryset = queryset.filter(status='CONVERTED')
         
@@ -307,7 +317,12 @@ def quotations_ajax(request):
             status_badges = {
                 'DRAFT': '<span class="badge badge-secondary">Draft</span>',
                 'APPROVED': '<span class="badge badge-success">Approved</span>',
-                'CONVERTED': '<span class="badge badge-info">Converted</span>'
+                'PROCESSING': '<span class="badge badge-info"><i class="fas fa-cog fa-spin"></i> Processing</span>',
+                'PACKED': '<span class="badge badge-primary"><i class="fas fa-box"></i> Packed</span>',
+                'SHIPPED': '<span class="badge badge-primary"><i class="fas fa-shipping-fast"></i> Shipped</span>',
+                'OUT_FOR_DELIVERY': '<span class="badge badge-info"><i class="fas fa-truck"></i> Out for Delivery</span>',
+                'DELIVERED': '<span class="badge badge-success"><i class="fas fa-check-circle"></i> Delivered</span>',
+                'CONVERTED': '<span class="badge badge-dark"><i class="fas fa-check-double"></i> Received</span>'
             }
             status_html = status_badges.get(quotation.status, quotation.status)
 
@@ -544,8 +559,7 @@ def quotation_convert_to_invoice(request, quotation_id):
         
         new_invoice.save()
         
-        # Mark quotation as delivered (will be marked as CONVERTED when customer confirms receipt)
-        quotation.status = 'DELIVERED'
+        # Link invoice to quotation (status remains unchanged - business owner will update through tracking)
         quotation.converted_invoice = new_invoice
         quotation.converted_at = timezone.now()
         quotation.converted_by = request.user
