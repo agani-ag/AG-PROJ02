@@ -5,7 +5,8 @@ from .models import (
     Customer, Invoice, Product, UserProfile, 
     BillingProfile, Inventory, InventoryLog, 
     BookLog, Book, PurchaseLog, VendorPurchase,
-    ExpenseTracker, BankDetails, Notification
+    ExpenseTracker, BankDetails, Notification,
+    ProductCategory, Quotation
 )
 
 # User and Billing Profile
@@ -19,11 +20,13 @@ admin.site.register(Invoice)
 admin.site.register(Product)
 admin.site.register(Customer)
 admin.site.register(Inventory)
+admin.site.register(Quotation)
 admin.site.register(PurchaseLog)
 admin.site.register(BankDetails)
 admin.site.register(InventoryLog)
 admin.site.register(VendorPurchase)
 admin.site.register(ExpenseTracker)
+admin.site.register(ProductCategory)
 
 # Notification System
 @admin.register(Notification)

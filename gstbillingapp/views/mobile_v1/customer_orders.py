@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 
 # Models
 from ...models import (
-    Customer, Quotation, Product, UserProfile, Notification
+    Customer, Quotation, Product, UserProfile, Notification, ProductCategory
 )
 
 # Python imports
@@ -48,8 +48,20 @@ def customer_products_catalog(request):
         business_user = customer.user
         user_profile = get_object_or_404(UserProfile, user=business_user)
         
+        # Get category filter
+        category_id = request.GET.get('category', '').strip()
+        
+        # Get all categories for filter dropdown
+        categories = ProductCategory.objects.filter(user=business_user).order_by('category_name')
+        
         # Get active products from business owner
-        products = Product.objects.filter(user=business_user).order_by('product_name')
+        products = Product.objects.filter(user=business_user)
+        
+        # Apply category filter
+        if category_id and category_id.isdigit():
+            products = products.filter(product_category_id=int(category_id))
+        
+        products = products.select_related('product_category').order_by('product_name')
         
         # Calculate discounted prices for products
         products_with_discount = []
@@ -62,6 +74,8 @@ def customer_products_catalog(request):
                 'product_gst_percentage': float(product.product_gst_percentage),
                 'product_discount': float(product.product_discount or 0),
                 'product_hsn': product.product_hsn,
+                'product_image_url': product.product_image_url or '',
+                'product_category': product.product_category.category_name if product.product_category else '',
             }
             
             # Calculate discounted price
@@ -77,6 +91,8 @@ def customer_products_catalog(request):
         context['products'] = products_with_discount
         context['business_profile'] = user_profile
         context['cid'] = cid
+        context['categories'] = categories
+        context['selected_category'] = category_id
         
         return render(request, 'mobile_v1/orders/product_catalog.html', context)
     
@@ -459,6 +475,8 @@ def customer_edit_order(request, quotation_id):
                     'product_gst_percentage': float(product.product_gst_percentage),
                     'product_discount': float(product.product_discount or 0),
                     'product_hsn': product.product_hsn,
+                    'product_image_url': product.product_image_url or '',
+                    'product_category': product.product_category.category_name if product.product_category else '',
                 }
                 
                 # Calculate discounted price

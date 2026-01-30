@@ -191,6 +191,18 @@ class Quotation(models.Model):
             return True  # Invoice was deleted, allow deletion
         return self.status != 'CONVERTED'
 
+class ProductCategory(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    category_name = models.CharField(max_length=100)
+
+    def save(self, *args, **kwargs):
+        if self.category_name:
+            self.category_name = self.category_name.upper()
+        
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return str(self.category_name)
 
 class Product(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
@@ -200,6 +212,8 @@ class Product(models.Model):
     product_discount = models.FloatField(default=0)
     product_gst_percentage = models.FloatField(default=18)
     product_rate_with_gst = models.FloatField(default=0)
+    product_image_url = models.TextField(max_length=600, blank=True, null=True)
+    product_category = models.ForeignKey(ProductCategory, null=True, blank=True, on_delete=models.SET_NULL)
 
     def save(self, *args, **kwargs):
         if self.model_no:

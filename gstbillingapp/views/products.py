@@ -5,8 +5,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 
 # Models
-from ..models import Product, UserProfile
-
+from ..models import (
+    Product, UserProfile,
+    ProductCategory
+)
 # Utility functions
 from ..utils import (
     create_inventory, add_stock_to_inventory
@@ -106,3 +108,48 @@ def product_api_add(request):
                 inserted_count += 1
         return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products added successfully.\n{not_inserted_count} Products not added.\nTotal {len(data)} items.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add products.'})
+
+# ================= Product Category Views ===========================
+@login_required
+def product_category_list(request):
+    categories = ProductCategory.objects.filter(user=request.user).values('id', 'category_name')
+    # Convert QuerySet to list for json_script
+    return render(request, 'products/product_category.html', {'categories': list(categories)})
+
+
+@login_required
+def product_category_save(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            if 'id' in data and data['id']:
+                # Update existing
+                category = ProductCategory.objects.get(id=data['id'], user=request.user)
+                category.category_name = data.get('category_name', '')
+                category.save()
+            else:
+                # Create new
+                category = ProductCategory.objects.create(
+                    category_name=data.get('category_name', ''),
+                    user=request.user
+                )
+            return JsonResponse({'success': True, 'id': category.id})
+        except ProductCategory.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Category not found'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+@login_required
+def product_category_delete(request, pk):
+    if request.method == "DELETE":
+        try:
+            category = ProductCategory.objects.get(id=pk, user=request.user)
+            category.delete()
+            return JsonResponse({'success': True})
+        except ProductCategory.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Category not found'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})

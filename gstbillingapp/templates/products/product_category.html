@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-2">
+    <div class="col">
+        <h2>Product Categories</h2>
+    </div>
+    <div class="col text-right" style="padding-top: 0.5%;">
+        <button class="btn btn-primary btn-sm btn-curve" onclick="addRow()" title="Add Category">
+            <i class="fas fa-plus"></i> Add Category
+        </button>
+    </div>
+</div>
+
+<div id="myGrid" class="ag-theme-alpine" style="height: 500px;"></div>
+
+<!-- Pass categories as JSON -->
+{{ categories|json_script:"categories_data" }}
+{% endblock %}
+
+{% block includejs %}
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+const csrfToken = getCookie('csrftoken');
+const rowData = JSON.parse(document.getElementById('categories_data').textContent);
+
+// Columns
+const columnDefs = [
+    { field: "id", hide: true },
+    { field: "category_name", headerName: "Category Name", editable: true },
+    {
+        headerName: "Actions",
+        cellRenderer: params => {
+            const btn = document.createElement('button');
+            btn.className = "btn btn-danger btn-sm btn-curve";
+            btn.innerHTML = '<i class="fas fa-trash"></i>';
+            btn.onclick = () => deleteRow(params.data.id, params.node);
+            return btn;
+        }
+    }
+];
+
+// Grid options
+const gridOptions = {
+    columnDefs: columnDefs,
+    rowData: rowData,
+    onCellValueChanged: params => saveRow(params.data),
+    defaultColDef: { flex: 1, minWidth: 150, editable: true },
+    suppressNoRowsOverlay: false,
+    overlayNoRowsTemplate: '<span class="text-muted">No categories yet. Click "Add Category" to create one.</span>'
+};
+
+// Initialize grid
+new agGrid.Grid(document.querySelector('#myGrid'), gridOptions);
+
+// Add new row
+function addRow() {
+    const newItem = { category_name: "" };
+    gridOptions.api.applyTransaction({ add: [newItem], addIndex: 0 });
+
+    // Start editing immediately
+    setTimeout(() => {
+        gridOptions.api.startEditingCell({ rowIndex: 0, colKey: 'category_name' });
+    }, 50);
+}
+
+// Save row (create or update)
+function saveRow(data) {
+    fetch("{% url 'product_category_save' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken
+        },
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (res.success) {
+            data.id = res.id;
+            gridOptions.api.refreshCells();
+        } else {
+            Swal.fire('Error', res.error || "Failed to save category", 'error');
+        }
+    });
+}
+
+// Delete row
+function deleteRow(id, rowNode) {
+    if (!id) {
+        // Unsaved row, just remove from grid
+        gridOptions.api.applyTransaction({ remove: [rowNode.data] });
+        return;
+    }
+
+    Swal.fire({
+        title: 'Are you sure?',
+        text: "This will delete the category permanently!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`/product-categories/delete/${id}`, {
+                method: "DELETE",
+                headers: { "X-CSRFToken": csrfToken }
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    gridOptions.api.applyTransaction({ remove: [rowNode.data] });
+                    Swal.fire('Deleted!', 'Category has been deleted.', 'success');
+                } else {
+                    Swal.fire('Error', res.error || "Failed to delete category", 'error');
+                }
+            });
+        }
+    });
+}
+</script>
+{% endblock %}

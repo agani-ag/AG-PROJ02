@@ -51,11 +51,21 @@
                 <div class="card-header bg-success text-white py-1 px-2">
                     <small><i class="fas fa-check-circle"></i> In Order</small>
                 </div>
+                {% if product.product_image_url %}
+                <img src="{{ product.product_image_url }}" class="card-img-top" alt="{{ product.product_name }}" style="height: 120px; object-fit: cover;">
+                {% else %}
+                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 120px;">
+                    <i class="fas fa-box fa-2x text-muted"></i>
+                </div>
+                {% endif %}
                 <div class="card-body p-2">
                     <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
                         {{ product.product_name }}
                     </h6>
                     <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
+                    {% if product.product_category %}
+                    <small class="badge badge-info mb-1" style="font-size: 9px;">{{ product.product_category }}</small>
+                    {% endif %}
                     
                     {% if product.product_discount > 0 %}
                     <div class="mb-1">
@@ -105,11 +115,21 @@
              data-name="{{ product.product_name|lower }}" 
              data-model="{{ product.model_no|lower }}">
             <div class="card h-100 shadow-sm">
+                {% if product.product_image_url %}
+                <img src="{{ product.product_image_url }}" class="card-img-top" alt="{{ product.product_name }}" style="height: 120px; object-fit: cover;">
+                {% else %}
+                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 120px;">
+                    <i class="fas fa-box fa-2x text-muted"></i>
+                </div>
+                {% endif %}
                 <div class="card-body p-2">
                     <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
                         {{ product.product_name }}
                     </h6>
                     <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
+                    {% if product.product_category %}
+                    <small class="badge badge-info mb-1" style="font-size: 9px;">{{ product.product_category }}</small>
+                    {% endif %}
                     
                     {% if product.product_discount > 0 %}
                     <div class="mb-1">

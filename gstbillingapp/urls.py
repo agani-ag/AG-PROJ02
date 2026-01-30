@@ -77,6 +77,10 @@ urlpatterns = [
     path('products/edit/<int:product_id>', products.product_edit, name='product_edit'),
     path('products/delete', products.product_delete, name='product_delete'),
     path('productsjson', products.productsjson, name='productsjson'),
+    # Product Category URLs
+    path('product-categories', products.product_category_list, name='product_category_list'),
+    path('product-categories/save', products.product_category_save, name='product_category_save'),
+    path('product-categories/delete/<int:pk>', products.product_category_delete, name='product_category_delete'),
     # API Endpoints
     path('products/api/add', products.product_api_add, name='product_api_add'),
 
