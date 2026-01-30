@@ -27,6 +27,16 @@
                 </div>
                 
                 <div class="product-meta-badges">
+                    {% if product.product_category %}
+                    {% if product.product_category.parent_category %}
+                    <span class="product-badge" style="background: #5856d615; color: #5856d6;">
+                        <i class="bi bi-folder"></i> {{ product.product_category.parent_category.category_name }}
+                    </span>
+                    {% endif %}
+                    <span class="product-badge" style="background: #007aff15; color: #007aff;">
+                        <i class="bi bi-folder-fill"></i> {{ product.product_category.category_name }}
+                    </span>
+                    {% endif %}
                     {% if product.current_stock is not None %}
                     <span class="product-badge stock-badge {% if product.current_stock == 0 %}out-of-stock{% elif product.is_low_stock %}low-stock{% else %}in-stock{% endif %}" 
                         onclick="addInventoryStock('{{ product.user.id }}', '{{ product.id }}', '{{ product.alert_level }}', '{{ product.current_stock }}', '{{ product.model_no }}')">

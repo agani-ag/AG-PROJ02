@@ -1172,6 +1172,8 @@ def products(request):
     stock_filter = request.GET.get('stock_filter', 'all')  # all, in_stock, low_stock, out_of_stock
     discount_filter = request.GET.get('discount_filter', 'all')  # all, with_discount, no_discount
     hsn_filter = request.GET.get('hsn_filter', '')
+    parent_category_filter = request.GET.get('parent_category', '')
+    child_category_filter = request.GET.get('child_category', '')
     page_number = request.GET.get('page', 1)
     users_filter = request.GET.get('users_filter', '')
     user_ids = list(map(int, users_filter.split(','))) if users_filter else []
@@ -1183,7 +1185,7 @@ def products(request):
     hsn_codes = Product.objects.filter(product_hsn__isnull=False).exclude(product_hsn='').values_list('product_hsn', flat=True).distinct().order_by('product_hsn')
     
     # Filter products
-    products_qs = Product.objects.all().select_related('user')
+    products_qs = Product.objects.all().select_related('user', 'product_category', 'product_category__parent_category')
     
     # Apply users filter
     if users_filter:
@@ -1206,6 +1208,13 @@ def products(request):
     # HSN filter
     if hsn_filter:
         products_qs = products_qs.filter(product_hsn=hsn_filter)
+    
+    # Category filters
+    if parent_category_filter:
+        products_qs = products_qs.filter(product_category__parent_category__category_name=parent_category_filter)
+    
+    if child_category_filter:
+        products_qs = products_qs.filter(product_category__category_name=child_category_filter)
     
     # Discount filter
     if discount_filter == 'with_discount':
@@ -1236,7 +1245,7 @@ def products(request):
     # Add inventory data to products
     for product in products_page:
         try:
-            inventory = Inventory.objects.get(product=product)
+            inventory = Inventory.objects.get(product=product, user=product.user)
             product.current_stock = inventory.current_stock
             product.alert_level = inventory.alert_level
             product.is_low_stock = inventory.current_stock > 0 and inventory.current_stock <= inventory.alert_level
@@ -1244,18 +1253,29 @@ def products(request):
             product.current_stock = None
             product.alert_level = None
             product.is_low_stock = False
+        except Inventory.MultipleObjectsReturned:
+            # If there are still multiple inventories, take the first one
+            inventory = Inventory.objects.filter(product=product, user=product.user).first()
+            if inventory:
+                product.current_stock = inventory.current_stock
+                product.alert_level = inventory.alert_level
+                product.is_low_stock = inventory.current_stock > 0 and inventory.current_stock <= inventory.alert_level
+            else:
+                product.current_stock = None
+                product.alert_level = None
+                product.is_low_stock = False
         
         # Calculate price breakdown for discounted products
         if product.product_discount > 0:
             # Calculate base price (remove GST from product_rate_with_gst)
-            gst_multiplier = 1 + (product.product_gst_percentage / 100)
-            product.base_price = product.product_rate_with_gst / gst_multiplier
+            product.base_price = product.product_rate_with_gst
             
             # Calculate discounted base price
             discount_multiplier = 1 - (product.product_discount / 100)
             product.discounted_base_price = product.base_price * discount_multiplier
             
             # Calculate final price with GST
+            gst_multiplier = 1 + (product.product_gst_percentage / 100)
             product.final_price_with_gst = product.discounted_base_price * gst_multiplier
     
     # Get stats
@@ -1264,6 +1284,32 @@ def products(request):
     low_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0, current_stock__lte=F('alert_level')).count()
     out_of_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock=0).count()
     with_discount_count = Product.objects.filter(id__in=product_ids, product_discount__gt=0).count()
+    
+    # Get category hierarchy for filters
+    from ...models import ProductCategory
+    from collections import defaultdict
+    
+    category_hierarchy = defaultdict(list)
+    if users_filter:
+        categories = ProductCategory.objects.filter(
+            parent_category__isnull=False,
+            product__user__id__in=user_ids
+        ).select_related('parent_category').distinct()
+    elif user_id:
+        categories = ProductCategory.objects.filter(
+            parent_category__isnull=False,
+            product__user__id=user_id
+        ).select_related('parent_category').distinct()
+    else:
+        categories = ProductCategory.objects.filter(
+            parent_category__isnull=False
+        ).select_related('parent_category').distinct()
+    
+    for category in categories:
+        parent_name = category.parent_category.category_name
+        child_name = category.category_name
+        if child_name not in category_hierarchy[parent_name]:
+            category_hierarchy[parent_name].append(child_name)
     
     context = {
         'users': users,
@@ -1279,6 +1325,9 @@ def products(request):
         'current_stock_filter': stock_filter,
         'current_discount_filter': discount_filter,
         'current_hsn_filter': hsn_filter,
+        'current_parent_category': parent_category_filter,
+        'current_child_category': child_category_filter,
+        'category_hierarchy': dict(category_hierarchy),
         'users_filter': users_filter,
     }
     

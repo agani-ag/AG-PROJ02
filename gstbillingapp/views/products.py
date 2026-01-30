@@ -232,3 +232,129 @@ def product_category_delete(request, pk):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
     return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+# ================= AG Grid Products Views ==============================
+@login_required
+def products_aggrid(request):
+    """AG Grid products page with inline editing"""
+    context = {}
+    
+    # Get all products with categories
+    products = Product.objects.filter(user=request.user).select_related(
+        'product_category', 'product_category__parent_category'
+    ).order_by('-id')
+    
+    # Get all categories for dropdown
+    categories = ProductCategory.objects.filter(
+        user=request.user, parent_category__isnull=False
+    ).select_related('parent_category').order_by('parent_category__category_name', 'category_name')
+    
+    # Prepare product data for AG Grid
+    products_data = []
+    for product in products:
+        products_data.append({
+            'id': product.id,
+            'model_no': product.model_no,
+            'product_name': product.product_name or '',
+            'product_hsn': product.product_hsn or '',
+            'product_discount': product.product_discount,
+            'product_gst_percentage': product.product_gst_percentage,
+            'product_rate_with_gst': product.product_rate_with_gst,
+            'product_category_id': product.product_category.id if product.product_category else None,
+            'product_category_name': product.product_category.get_full_path() if product.product_category else '',
+            'parent_category': product.product_category.parent_category.category_name if product.product_category and product.product_category.parent_category else '',
+            'child_category': product.product_category.category_name if product.product_category else ''
+        })
+    
+    # Prepare categories for dropdown
+    categories_data = []
+    for category in categories:
+        categories_data.append({
+            'id': category.id,
+            'name': category.get_full_path(),
+            'parent': category.parent_category.category_name if category.parent_category else '',
+            'child': category.category_name
+        })
+    
+    context['products_json'] = json.dumps(products_data)
+    context['categories_json'] = json.dumps(categories_data)
+    context['products_count'] = len(products_data)
+    
+    return render(request, 'products/products_aggrid.html', context)
+
+
+@csrf_exempt
+@login_required
+def product_aggrid_update(request):
+    """API endpoint to update product from AG Grid"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            product_id = data.get('id')
+            
+            if not product_id:
+                return JsonResponse({'success': False, 'error': 'Product ID is required'})
+            
+            # Get product
+            product = Product.objects.get(id=product_id, user=request.user)
+            
+            # Update fields
+            if 'model_no' in data:
+                # Check for duplicate model_no
+                existing = Product.objects.filter(
+                    user=request.user, model_no=data['model_no']
+                ).exclude(id=product_id)
+                if existing.exists():
+                    return JsonResponse({'success': False, 'error': f"Model No '{data['model_no']}' already exists"})
+                product.model_no = data['model_no']
+            
+            if 'product_name' in data:
+                product.product_name = data['product_name']
+            
+            if 'product_hsn' in data:
+                product.product_hsn = data['product_hsn']
+            
+            if 'product_discount' in data:
+                product.product_discount = float(data['product_discount'])
+            
+            if 'product_gst_percentage' in data:
+                product.product_gst_percentage = float(data['product_gst_percentage'])
+            
+            if 'product_rate_with_gst' in data:
+                product.product_rate_with_gst = float(data['product_rate_with_gst'])
+            
+            if 'product_category_id' in data:
+                if data['product_category_id']:
+                    category = ProductCategory.objects.get(
+                        id=data['product_category_id'], user=request.user
+                    )
+                    product.product_category = category
+                else:
+                    product.product_category = None
+            
+            product.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Product updated successfully',
+                'product': {
+                    'id': product.id,
+                    'model_no': product.model_no,
+                    'product_name': product.product_name,
+                    'product_category_name': product.product_category.get_full_path() if product.product_category else '',
+                    'parent_category': product.product_category.parent_category.category_name if product.product_category and product.product_category.parent_category else '',
+                    'child_category': product.product_category.category_name if product.product_category else ''
+                }
+            })
+            
+        except Product.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Product not found'})
+        except ProductCategory.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Category not found'})
+        except ValueError as e:
+            return JsonResponse({'success': False, 'error': f'Invalid value: {str(e)}'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request method'})

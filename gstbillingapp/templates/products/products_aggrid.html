@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Products - AG Grid{% endblock %}
+
+{% block includecss %}
+<style>
+    .ag-theme-alpine {
+        --ag-header-height: 45px;
+        --ag-header-foreground-color: white;
+        --ag-header-background-color: #343a40;
+        --ag-odd-row-background-color: #f8f9fa;
+    }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .stats-card h3 {
+        margin: 0;
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+    
+    .stats-card p {
+        margin: 5px 0 0 0;
+        font-size: 1rem;
+        opacity: 0.9;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .btn-group-actions {
+        display: flex;
+        gap: 10px;
+    }
+    
+    .category-badge-parent {
+        background: #6f42c1;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 0.75rem;
+        margin-right: 4px;
+        display: inline-block;
+    }
+    
+    .category-badge-child {
+        background: #007bff;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 0.75rem;
+        display: inline-block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2><i class="fas fa-box"></i> Products - AG Grid</h2>
+        <p class="text-muted">Edit products inline with auto-save - Total Products: {{ products_count }}</p>
+    </div>
+    <div class="btn-group-actions">
+        <a href="{% url 'products' %}" class="btn btn-secondary btn-sm btn-curve" title="Back to List View">
+            <i class="fas fa-list"></i> List View
+        </a>
+        <a href="{% url 'product_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Product">
+            <i class="fas fa-plus"></i> Add New
+        </a>
+        <a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" title="Upload Excel">
+            <i class="fas fa-file-excel"></i> Upload
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div id="products-grid" class="ag-theme-alpine" style="height: 600px; width: 100%;"></div>
+    </div>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="toast" style="position: fixed; top: 80px; right: 20px; z-index: 9999; min-width: 300px;" data-autohide="true" data-delay="3000">
+    <div class="toast-header">
+        <i class="fas fa-info-circle mr-2"></i>
+        <strong class="mr-auto">Notification</strong>
+        <button type="button" class="ml-2 mb-1 close" data-dismiss="toast">&times;</button>
+    </div>
+    <div class="toast-body"></div>
+</div>
+
+{% endblock %}
+
+{% block includejs %}
+<script>
+    const productsData = {{ products_json|safe }};
+    const categoriesData = {{ categories_json|safe }};
+    
+    // Category value formatter
+    function categoryFormatter(params) {
+        if (!params.value) return '';
+        const category = categoriesData.find(c => c.id === params.value);
+        if (category) {
+            let html = '';
+            if (category.parent) {
+                html += `<span class="category-badge-parent">${category.parent}</span>`;
+            }
+            html += `<span class="category-badge-child">${category.child}</span>`;
+            return html;
+        }
+        return '';
+    }
+    
+    // Show toast notification
+    function showToast(message, type = 'info') {
+        const toast = $('#toast');
+        const toastBody = toast.find('.toast-body');
+        const toastHeader = toast.find('.toast-header');
+        
+        toastBody.text(message);
+        
+        // Update icon and color based on type
+        let icon = 'fa-info-circle';
+        let bgClass = 'bg-info';
+        
+        if (type === 'success') {
+            icon = 'fa-check-circle';
+            bgClass = 'bg-success';
+        } else if (type === 'error') {
+            icon = 'fa-times-circle';
+            bgClass = 'bg-danger';
+        }
+        
+        toastHeader.removeClass('bg-info bg-success bg-danger').addClass(bgClass);
+        toastHeader.find('i').removeClass().addClass(`fas ${icon} mr-2 text-white`);
+        toastHeader.css('color', 'white');
+        
+        toast.toast('show');
+    }
+    
+    // Cell style for editable cells
+    function editableCellStyle(params) {
+        return { backgroundColor: '#f0f8ff' };
+    }
+    
+    // Column definitions
+    const columnDefs = [
+        {
+            headerName: 'Model No',
+            field: 'model_no',
+            editable: true,
+            cellStyle: editableCellStyle,
+            pinned: 'left',
+            width: 150,
+            cellClassRules: {
+                'font-weight-bold': () => true
+            }
+        },
+        {
+            headerName: 'Product Name',
+            field: 'product_name',
+            editable: true,
+            cellStyle: editableCellStyle,
+            width: 200
+        },
+        {
+            headerName: 'HSN Code',
+            field: 'product_hsn',
+            editable: true,
+            cellStyle: editableCellStyle,
+            width: 120
+        },
+        {
+            headerName: 'Category',
+            field: 'product_category_id',
+            editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: {
+                values: ['', ...categoriesData.map(c => c.id)],
+                valueListGap: 0,
+                valueListMaxHeight: 300
+            },
+            valueFormatter: (params) => {
+                if (!params.value) return '-- No Category --';
+                const category = categoriesData.find(c => c.id === params.value);
+                return category ? category.name : '-- No Category --';
+            },
+            cellRenderer: categoryFormatter,
+            cellStyle: editableCellStyle,
+            width: 250,
+            refData: Object.fromEntries([
+                ['', '-- No Category --'],
+                ...categoriesData.map(c => [c.id, c.name])
+            ])
+        },
+        {
+            headerName: 'MRP (₹)',
+            field: 'product_rate_with_gst',
+            editable: true,
+            cellStyle: editableCellStyle,
+            type: 'numericColumn',
+            valueFormatter: params => params.value ? `₹${parseFloat(params.value).toFixed(2)}` : '₹0.00',
+            width: 120
+        },
+        {
+            headerName: 'Discount %',
+            field: 'product_discount',
+            editable: true,
+            cellStyle: editableCellStyle,
+            type: 'numericColumn',
+            valueFormatter: params => params.value ? `${params.value}%` : '0%',
+            width: 120
+        },
+        {
+            headerName: 'GST %',
+            field: 'product_gst_percentage',
+            editable: true,
+            cellStyle: editableCellStyle,
+            type: 'numericColumn',
+            valueFormatter: params => params.value ? `${params.value}%` : '0%',
+            width: 100
+        }
+    ];
+    
+    // Grid options
+    const gridOptions = {
+        columnDefs: columnDefs,
+        rowData: productsData,
+        defaultColDef: {
+            sortable: true,
+            filter: true,
+            resizable: true,
+            floatingFilter: true
+        },
+        animateRows: true,
+        rowSelection: 'single',
+        onCellValueChanged: onCellValueChanged,
+        stopEditingWhenCellsLoseFocus: true,
+        singleClickEdit: false,
+        enableCellTextSelection: true,
+        getRowId: params => params.data.id
+    };
+    
+    // Handle cell value changes
+    function onCellValueChanged(event) {
+        const updatedData = {
+            id: event.data.id,
+            [event.column.colId]: event.newValue
+        };
+        
+        // Show loading
+        event.node.setDataValue(event.column.colId, event.newValue);
+        
+        // Send update to server
+        fetch('{% url "product_aggrid_update" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrf-token]').content
+            },
+            body: JSON.stringify(updatedData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('✓ Product updated successfully', 'success');
+                
+                // Update category display if category was changed
+                if (event.column.colId === 'product_category_id' && data.product) {
+                    event.data.product_category_name = data.product.product_category_name;
+                    event.data.parent_category = data.product.parent_category;
+                    event.data.child_category = data.product.child_category;
+                    gridOptions.api.refreshCells({
+                        rowNodes: [event.node],
+                        columns: ['product_category_id']
+                    });
+                }
+            } else {
+                showToast('✗ ' + (data.error || 'Update failed'), 'error');
+                // Revert to old value
+                event.node.setDataValue(event.column.colId, event.oldValue);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('✗ Network error. Please try again.', 'error');
+            // Revert to old value
+            event.node.setDataValue(event.column.colId, event.oldValue);
+        });
+    }
+    
+    // Initialize grid on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const gridDiv = document.querySelector('#products-grid');
+        new agGrid.Grid(gridDiv, gridOptions);
+        
+        // Initialize Bootstrap toast
+        $('.toast').toast({ autohide: true, delay: 3000 });
+    });
+</script>
+{% endblock %}

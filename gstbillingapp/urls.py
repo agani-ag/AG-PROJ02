@@ -74,6 +74,7 @@ urlpatterns = [
 
     # Product URLs
     path('products', products.products, name='products'),
+    path('products/aggrid', products.products_aggrid, name='products_aggrid'),
     path('products/add', products.product_add, name='product_add'),
     path('products/edit/<int:product_id>', products.product_edit, name='product_edit'),
     path('products/delete', products.product_delete, name='product_delete'),
@@ -84,6 +85,7 @@ urlpatterns = [
     path('product-categories/delete/<int:pk>', products.product_category_delete, name='product_category_delete'),
     # API Endpoints
     path('products/api/add', products.product_api_add, name='product_api_add'),
+    path('products/api/aggrid-update', products.product_aggrid_update, name='product_aggrid_update'),
 
     # Inventory URLs
     path('inventory', inventory.inventory, name='inventory'),

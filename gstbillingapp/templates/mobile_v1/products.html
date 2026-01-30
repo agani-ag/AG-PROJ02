@@ -688,6 +688,43 @@
         </div>
     </div>
     
+    <!-- Multi-Level Category Filter -->
+    {% if category_hierarchy %}
+    <div class="filter-section" style="margin-top: 16px;">
+        <div class="filter-row">
+            <div class="form-group">
+                <label class="form-label">
+                    <i class="bi bi-folder"></i> Parent Category
+                    <button class="btn btn-sm" onclick="clearCategoryFilters()" style="float: right; padding: 0; background: none; border: none; color: #667eea; font-size: 12px; font-weight: 600;">
+                        <i class="bi bi-x-circle"></i> Clear
+                    </button>
+                </label>
+                <div class="btn-group-toggle d-flex flex-wrap" data-toggle="buttons" style="gap: 8px;">
+                    <label class="filter-tab parent-category-filter {% if not current_parent_category %}active{% endif %}" data-parent="" style="margin: 0;">
+                        <input type="radio" name="parent-filter" value="" {% if not current_parent_category %}checked{% endif %}> All
+                    </label>
+                    {% for parent_name, child_categories in category_hierarchy.items %}
+                    <label class="filter-tab parent-category-filter {% if current_parent_category == parent_name %}active{% endif %}" data-parent="{{ parent_name }}" style="margin: 0;">
+                        <input type="radio" name="parent-filter" value="{{ parent_name }}" {% if current_parent_category == parent_name %}checked{% endif %}> {{ parent_name }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="filter-row">
+            <div class="form-group">
+                <label class="form-label"><i class="bi bi-folder-fill"></i> Child Category</label>
+                <div class="btn-group-toggle d-flex flex-wrap" data-toggle="buttons" id="child-category-filters" style="gap: 8px;">
+                    <label class="filter-tab child-category-filter {% if not current_child_category %}active{% endif %}" data-child="" style="margin: 0;">
+                        <input type="radio" name="child-filter" value="" {% if not current_child_category %}checked{% endif %}> All
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <!-- Stock Filter Tabs -->
     <div class="filter-tabs">
         <button class="filter-tab stock-tab {% if current_stock_filter == 'all' %}active{% endif %}" data-filter="all">
@@ -742,8 +779,13 @@
     let stockFilter = '{{ current_stock_filter }}';
     let discountFilter = '{{ current_discount_filter }}';
     let hsnFilter = '{{ current_hsn_filter }}';
+    let parentCategoryFilter = '{{ current_parent_category }}';
+    let childCategoryFilter = '{{ current_child_category }}';
     let usersFilter = '{{ users_filter }}';
     let searchTimeout = null;
+    
+    // Category hierarchy from backend
+    const categoryHierarchy = {{ category_hierarchy|safe|default:"{}" }};
     
     // DOM Elements
     const userSelect = document.getElementById('userSelect');
@@ -759,6 +801,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         setupEventListeners();
         updateClearButton();
+        initializeCategoryFilters();
     });
     
     // Setup Event Listeners
@@ -812,6 +855,101 @@
         });
     }
     
+    // Initialize Category Filters
+    function initializeCategoryFilters() {
+        updateChildCategoryFilters();
+        
+        // Parent category filter click handler
+        document.querySelectorAll('.parent-category-filter').forEach(btn => {
+            btn.addEventListener('click', function() {
+                parentCategoryFilter = this.getAttribute('data-parent');
+                updateChildCategoryFilters();
+                loadProducts(1);
+            });
+        });
+    }
+    
+    // Update child category filter based on selected parent
+    function updateChildCategoryFilters() {
+        const childFilterContainer = document.getElementById('child-category-filters');
+        if (!childFilterContainer) return;
+        
+        childFilterContainer.innerHTML = '';
+        
+        // Always add "All" option
+        const allLabel = document.createElement('label');
+        allLabel.className = 'filter-tab child-category-filter active';
+        allLabel.setAttribute('data-child', '');
+        allLabel.style.margin = '0';
+        allLabel.innerHTML = '<input type="radio" name="child-filter" value="" checked> All';
+        childFilterContainer.appendChild(allLabel);
+        
+        // Add child categories based on selected parent
+        if (parentCategoryFilter && categoryHierarchy[parentCategoryFilter]) {
+            categoryHierarchy[parentCategoryFilter].forEach(childName => {
+                const label = document.createElement('label');
+                label.className = 'filter-tab child-category-filter';
+                if (childCategoryFilter === childName) {
+                    label.classList.add('active');
+                }
+                label.setAttribute('data-child', childName);
+                label.style.margin = '0';
+                label.innerHTML = `<input type="radio" name="child-filter" value="${childName}" ${childCategoryFilter === childName ? 'checked' : ''}> ${childName}`;
+                childFilterContainer.appendChild(label);
+            });
+        } else if (!parentCategoryFilter) {
+            // Show all child categories when "All" parent is selected
+            const allChildren = new Set();
+            Object.values(categoryHierarchy).forEach(children => {
+                children.forEach(child => allChildren.add(child));
+            });
+            
+            allChildren.forEach(childName => {
+                const label = document.createElement('label');
+                label.className = 'filter-tab child-category-filter';
+                if (childCategoryFilter === childName) {
+                    label.classList.add('active');
+                }
+                label.setAttribute('data-child', childName);
+                label.style.margin = '0';
+                label.innerHTML = `<input type="radio" name="child-filter" value="${childName}" ${childCategoryFilter === childName ? 'checked' : ''}> ${childName}`;
+                childFilterContainer.appendChild(label);
+            });
+        }
+        
+        // Reset child category selection if it doesn't match current parent
+        if (parentCategoryFilter && categoryHierarchy[parentCategoryFilter]) {
+            if (!categoryHierarchy[parentCategoryFilter].includes(childCategoryFilter)) {
+                childCategoryFilter = '';
+            }
+        }
+        
+        // Add click handlers to new buttons
+        document.querySelectorAll('.child-category-filter').forEach(btn => {
+            btn.addEventListener('click', function() {
+                childCategoryFilter = this.getAttribute('data-child');
+                loadProducts(1);
+            });
+        });
+    }
+    
+    // Clear category filters
+    function clearCategoryFilters() {
+        parentCategoryFilter = '';
+        childCategoryFilter = '';
+        
+        // Reset parent filter buttons
+        document.querySelectorAll('.parent-category-filter').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.getAttribute('data-parent') === '') {
+                btn.classList.add('active');
+            }
+        });
+        
+        updateChildCategoryFilters();
+        loadProducts(1);
+    }
+    
     // Load Products via AJAX
     function loadProducts(page = 1) {
         currentPage = page;
@@ -828,7 +966,9 @@
             stock_filter: stockFilter,
             discount_filter: discountFilter,
             hsn_filter: hsnFilter,
-            users_filter: usersFilter
+            users_filter: usersFilter,
+            parent_category: parentCategoryFilter,
+            child_category: childCategoryFilter
         });
         
         // AJAX request
