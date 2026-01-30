@@ -51,13 +51,9 @@
                 <div class="card-header bg-success text-white py-1 px-2">
                     <small><i class="fas fa-check-circle"></i> In Order</small>
                 </div>
-                {% if product.product_image_url %}
-                <img src="{{ product.product_image_url }}" class="card-img-top" alt="{{ product.product_name }}" style="height: 120px; object-fit: cover;">
-                {% else %}
-                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 120px;">
+                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 80px;">
                     <i class="fas fa-box fa-2x text-muted"></i>
                 </div>
-                {% endif %}
                 <div class="card-body p-2">
                     <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
                         {{ product.product_name }}
@@ -77,11 +73,9 @@
                     <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
                     {% endif %}
                     
-                    <div class="mb-2">
-                        <small class="text-muted">
-                            GST: {{ product.product_gst_percentage }}%
-                        </small>
-                    </div>
+                    <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
+                        <i class="fas fa-info-circle"></i> Details
+                    </button>
                     
                     <div class="input-group input-group-sm">
                         <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
@@ -115,13 +109,9 @@
              data-name="{{ product.product_name|lower }}" 
              data-model="{{ product.model_no|lower }}">
             <div class="card h-100 shadow-sm">
-                {% if product.product_image_url %}
-                <img src="{{ product.product_image_url }}" class="card-img-top" alt="{{ product.product_name }}" style="height: 120px; object-fit: cover;">
-                {% else %}
-                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 120px;">
+                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 80px;">
                     <i class="fas fa-box fa-2x text-muted"></i>
                 </div>
-                {% endif %}
                 <div class="card-body p-2">
                     <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
                         {{ product.product_name }}
@@ -141,11 +131,9 @@
                     <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
                     {% endif %}
                     
-                    <div class="mb-2">
-                        <small class="text-muted">
-                            GST: {{ product.product_gst_percentage }}%
-                        </small>
-                    </div>
+                    <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
+                        <i class="fas fa-info-circle"></i> Details
+                    </button>
                     
                     <div class="input-group input-group-sm">
                         <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
@@ -219,6 +207,51 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     updateCart();
 });
+
+function showProductDetails(id, name, modelNo, hsn, originalPrice, gst, discount, discountedPrice, imageUrl, category) {
+    // Set product name
+    document.getElementById('modalProductName').textContent = name;
+    document.getElementById('modalModelNo').textContent = modelNo;
+    document.getElementById('modalHsn').textContent = hsn || 'N/A';
+    document.getElementById('modalGst').textContent = gst + '%';
+    
+    // Set category
+    const categoryElement = document.getElementById('modalCategory');
+    if (category) {
+        categoryElement.textContent = category;
+        categoryElement.classList.remove('badge-secondary');
+        categoryElement.classList.add('badge-info');
+        categoryElement.parentElement.parentElement.style.display = '';
+    } else {
+        categoryElement.textContent = 'Uncategorized';
+        categoryElement.classList.remove('badge-info');
+        categoryElement.classList.add('badge-secondary');
+    }
+    
+    // Handle image
+    const imageContainer = document.getElementById('modalProductImage');
+    if (imageUrl) {
+        imageContainer.innerHTML = `<img src="${imageUrl}" alt="${name}" class="img-fluid rounded" style="max-height: 300px;">`;
+    } else {
+        imageContainer.innerHTML = `<div class="bg-light p-5 rounded"><i class="fas fa-box fa-4x text-muted"></i></div>`;
+    }
+    
+    // Handle discount
+    if (discount > 0) {
+        document.getElementById('modalDiscount').innerHTML = `<span class="badge badge-danger">${discount}% OFF</span>`;
+        document.getElementById('modalOriginalPrice').textContent = '₹' + originalPrice.toFixed(2);
+        document.getElementById('modalDiscountRow').style.display = '';
+        document.getElementById('modalOriginalPriceRow').style.display = '';
+        document.getElementById('modalPrice').innerHTML = `<span class="text-success">₹${discountedPrice.toFixed(2)}</span>`;
+    } else {
+        document.getElementById('modalDiscountRow').style.display = 'none';
+        document.getElementById('modalOriginalPriceRow').style.display = 'none';
+        document.getElementById('modalPrice').innerHTML = `<span class="text-primary">₹${originalPrice.toFixed(2)}</span>`;
+    }
+    
+    // Show modal
+    $('#productDetailsModal').modal('show');
+}
 
 function incrementQty(productId) {
     const input = document.getElementById(`qty-${productId}`);
@@ -352,6 +385,56 @@ document.getElementById('search-input').addEventListener('input', function(e) {
 // Initialize
 updateCart();
 </script>
+
+<!-- Product Details Modal -->
+<div class="modal fade" id="productDetailsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalProductName"></h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="modalProductImage" class="mb-3 text-center"></div>
+                <table class="table table-sm table-borderless">
+                    <tr>
+                        <th width="40%">Model No:</th>
+                        <td id="modalModelNo"></td>
+                    </tr>
+                    <tr>
+                        <th>HSN Code:</th>
+                        <td id="modalHsn"></td>
+                    </tr>
+                    <tr>
+                        <th>Category:</th>
+                        <td><span id="modalCategory" class="badge badge-info"></span></td>
+                    </tr>
+                    <tr>
+                        <th>GST:</th>
+                        <td id="modalGst"></td>
+                    </tr>
+                    <tr id="modalDiscountRow">
+                        <th>Discount:</th>
+                        <td id="modalDiscount"></td>
+                    </tr>
+                    <tr id="modalOriginalPriceRow">
+                        <th>Original Price:</th>
+                        <td><span class="text-muted text-decoration-line-through" id="modalOriginalPrice"></span></td>
+                    </tr>
+                    <tr>
+                        <th>Price:</th>
+                        <td><h5 class="mb-0" id="modalPrice"></h5></td>
+                    </tr>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% csrf_token %}
 {% endblock %}

@@ -57,14 +57,16 @@ def customer_products_catalog(request):
         # Get active products from business owner
         products = Product.objects.filter(user=business_user)
         
-        # Apply category filter
+        # Apply category filter if specified
         if category_id and category_id.isdigit():
             products = products.filter(product_category_id=int(category_id))
         
         products = products.select_related('product_category').order_by('product_name')
         
-        # Calculate discounted prices for products
-        products_with_discount = []
+        # Group products by category
+        products_by_category = {}
+        uncategorized_products = []
+        
         for product in products:
             product_dict = {
                 'id': product.id,
@@ -76,6 +78,7 @@ def customer_products_catalog(request):
                 'product_hsn': product.product_hsn,
                 'product_image_url': product.product_image_url or '',
                 'product_category': product.product_category.category_name if product.product_category else '',
+                'product_category_id': product.product_category.id if product.product_category else None,
             }
             
             # Calculate discounted price
@@ -85,10 +88,18 @@ def customer_products_catalog(request):
             else:
                 product_dict['discounted_price'] = float(product.product_rate_with_gst)
             
-            products_with_discount.append(product_dict)
+            # Group by category
+            if product.product_category:
+                category_name = product.product_category.category_name
+                if category_name not in products_by_category:
+                    products_by_category[category_name] = []
+                products_by_category[category_name].append(product_dict)
+            else:
+                uncategorized_products.append(product_dict)
         
         context['customer'] = customer
-        context['products'] = products_with_discount
+        context['products_by_category'] = products_by_category
+        context['uncategorized_products'] = uncategorized_products
         context['business_profile'] = user_profile
         context['cid'] = cid
         context['categories'] = categories
