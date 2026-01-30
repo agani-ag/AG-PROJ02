@@ -65,19 +65,42 @@
             <div class="item-row mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
                 <div class="d-flex justify-content-between mb-1">
                     <strong>{{ item.invoice_product }}</strong>
+                    {% if item.invoice_amt %}
                     <span class="text-primary font-weight-bold">
                         {{ currency }}{{ item.invoice_amt|floatformat:2 }}
                     </span>
+                    {% else %}
+                    <span class="text-primary font-weight-bold">
+                        {{ currency }}0.00
+                    </span>
+                    {% endif %}
                 </div>
                 
                 <div class="text-muted small mb-1">
                     Model: {{ item.invoice_model_no }}
                 </div>
                 
-                <div class="d-flex justify-content-between text-muted small">
-                    <span>{{ item.invoice_qty }} × {{ currency }}{{ item.invoice_rate_with_gst|floatformat:2 }}</span>
+                <div class="d-flex justify-content-between align-items-center text-muted small mb-1">
+                    <div>
+                        <span>Qty: {{ item.invoice_qty }}</span>
+                        <span class="mx-1">×</span>
+                        {% if item.invoice_discount > 0 %}
+                            <span class="text-decoration-line-through">{{ currency }}{{ item.invoice_rate_with_gst|floatformat:2 }}</span>
+                        {% else %}
+                            <span>{{ currency }}{{ item.invoice_rate_with_gst|floatformat:2 }}</span>
+                        {% endif %}
+                    </div>
                     <span>GST: {{ item.invoice_gst_percentage }}%</span>
                 </div>
+                
+                {% if item.invoice_discount > 0 %}
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge badge-danger" style="font-size: 10px;">{{ item.invoice_discount|floatformat:0 }}% OFF</span>
+                        <span class="text-success small font-weight-bold ml-2">{{ currency }}{{ item.invoice_rate_after_discount|floatformat:2 }} each</span>
+                    </div>
+                </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -154,6 +177,10 @@
            class="btn btn-primary btn-block mb-2">
             <i class="fas fa-edit"></i> Edit Order
         </a>
+        
+        <button onclick="deleteOrder()" class="btn btn-danger btn-block mb-2">
+            <i class="fas fa-trash-alt"></i> Delete Order
+        </button>
         {% endif %}
         
         <a href="{% url 'v1customerorders' %}?cid={{ cid }}" class="btn btn-outline-secondary btn-block">
@@ -161,4 +188,41 @@
         </a>
     </div>
 </div>
+
+{% csrf_token %}
+
+<script>
+function deleteOrder() {
+    if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+        return;
+    }
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch('{% url "v1customerorderdelete" quotation.id %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken
+        },
+        body: new URLSearchParams({
+            'cid': '{{ cid }}'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.href = '{% url "v1customerorders" %}?cid={{ cid }}';
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error deleting order. Please try again.');
+        console.error(error);
+    });
+}
+</script>
+
 {% endblock %}

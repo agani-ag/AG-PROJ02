@@ -57,6 +57,10 @@
                 
                 <div class="d-flex justify-content-end">
                     {% if item.quotation.status == 'DRAFT' %}
+                    <button onclick="deleteOrder({{ item.quotation.id }}, {{ item.quotation.quotation_number }})" 
+                            class="btn btn-sm btn-danger mr-2">
+                        <i class="fas fa-trash-alt"></i> Delete
+                    </button>
                     <a href="{% url 'v1customerorderedit' item.quotation.id %}?cid={{ cid }}" 
                        class="btn btn-sm btn-warning mr-2">
                         <i class="fas fa-edit"></i> Edit
@@ -82,4 +86,41 @@
         </div>
     {% endif %}
 </div>
+
+{% csrf_token %}
+
+<script>
+function deleteOrder(quotationId, quotationNumber) {
+    if (!confirm(`Are you sure you want to delete Order #${quotationNumber}? This action cannot be undone.`)) {
+        return;
+    }
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch(`/mobile/v1/customer/order/${quotationId}/delete`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken
+        },
+        body: new URLSearchParams({
+            'cid': '{{ cid }}'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error deleting order. Please try again.');
+        console.error(error);
+    });
+}
+</script>
+
 {% endblock %}

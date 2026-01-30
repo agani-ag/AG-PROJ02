@@ -372,6 +372,31 @@ def customer_order_detail(request, quotation_id):
         )
         
         quotation_data = json.loads(quotation.quotation_json)
+        
+        # Process items to ensure discount calculation and invoice_amt
+        for item in quotation_data.get('items', []):
+            # Ensure invoice_discount field exists
+            if 'invoice_discount' not in item:
+                item['invoice_discount'] = 0
+            
+            # Calculate invoice_rate_after_discount if not present or if discount exists
+            if item.get('invoice_discount', 0) > 0:
+                if 'invoice_rate_after_discount' not in item or not item['invoice_rate_after_discount']:
+                    rate_with_gst = float(item.get('invoice_rate_with_gst', 0))
+                    discount_percent = float(item.get('invoice_discount', 0))
+                    item['invoice_rate_after_discount'] = round(rate_with_gst * (1 - discount_percent / 100), 2)
+                
+                # Calculate invoice_amt using discounted rate
+                if 'invoice_amt' not in item or not item['invoice_amt']:
+                    qty = float(item.get('invoice_qty', 0))
+                    item['invoice_amt'] = round(qty * item['invoice_rate_after_discount'], 2)
+            else:
+                # Calculate invoice_amt using regular rate if not present
+                if 'invoice_amt' not in item or not item['invoice_amt']:
+                    qty = float(item.get('invoice_qty', 0))
+                    rate = float(item.get('invoice_rate_with_gst', 0))
+                    item['invoice_amt'] = round(qty * rate, 2)
+        
         user_profile = get_object_or_404(UserProfile, user=quotation.user)
         
         # Calculate total in words
@@ -681,3 +706,47 @@ def customer_update_order(request, quotation_id):
             'success': False,
             'message': f'Error updating order: {str(e)}'
         }, status=500)
+
+
+def customer_delete_order(request, quotation_id):
+    """Delete customer order (DRAFT only)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+    
+    try:
+        cid = request.POST.get('cid')
+        cid_data = parse_code_GS(cid)
+        
+        if not cid_data:
+            return JsonResponse({'success': False, 'message': 'Invalid customer code'}, status=400)
+        
+        customer_id = cid_data.get('C', None)
+        user_id = cid_data.get('GS', None)
+        
+        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
+        
+        quotation = get_object_or_404(
+            Quotation, 
+            id=quotation_id,
+            quotation_customer=customer,
+            created_by_customer=True
+        )
+        
+        # Check if order can be deleted (only DRAFT status)
+        if quotation.status != 'DRAFT':
+            return JsonResponse({
+                'success': False, 
+                'message': 'Only pending orders can be deleted.'
+            }, status=400)
+        
+        # Delete the quotation
+        quotation_number = quotation.quotation_number
+        quotation.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Order #{quotation_number} has been deleted successfully.'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})

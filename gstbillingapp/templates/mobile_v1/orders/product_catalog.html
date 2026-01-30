@@ -307,7 +307,24 @@ function updateCart() {
     totalAmount = 0;
     let totalItems = 0;
     
+    // Loop through categorized products
+    {% for category_name, products in products_by_category.items %}
     {% for product in products %}
+    const qty{{ product.id }} = parseInt(document.getElementById('qty-{{ product.id }}').value);
+    if (qty{{ product.id }} > 0) {
+        cart[{{ product.id }}] = {
+            product_id: {{ product.id }},
+            quantity: qty{{ product.id }},
+            rate: {{ product.discounted_price }}
+        };
+        totalAmount += qty{{ product.id }} * {{ product.discounted_price }};
+        totalItems += qty{{ product.id }};
+    }
+    {% endfor %}
+    {% endfor %}
+    
+    // Loop through uncategorized products
+    {% for product in uncategorized_products %}
     const qty{{ product.id }} = parseInt(document.getElementById('qty-{{ product.id }}').value);
     if (qty{{ product.id }} > 0) {
         cart[{{ product.id }}] = {
