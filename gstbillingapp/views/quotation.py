@@ -544,8 +544,8 @@ def quotation_convert_to_invoice(request, quotation_id):
         
         new_invoice.save()
         
-        # Mark quotation as converted
-        quotation.status = 'CONVERTED'
+        # Mark quotation as delivered (will be marked as CONVERTED when customer confirms receipt)
+        quotation.status = 'DELIVERED'
         quotation.converted_invoice = new_invoice
         quotation.converted_at = timezone.now()
         quotation.converted_by = request.user
@@ -743,6 +743,51 @@ def quotation_update_customer(request, quotation_id):
         return JsonResponse({
             'success': True,
             'message': 'Customer details updated successfully (marked as modified)'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)
+
+
+@login_required
+def quotation_update_status(request, quotation_id):
+    """Update quotation/order status for tracking"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+    
+    try:
+        quotation = get_object_or_404(Quotation, id=quotation_id, user=request.user)
+        new_status = request.POST.get('status')
+        
+        # Validate status
+        valid_statuses = ['DRAFT', 'APPROVED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CONVERTED']
+        if new_status not in valid_statuses:
+            return JsonResponse({'success': False, 'message': 'Invalid status'}, status=400)
+        
+        # Update status
+        old_status = quotation.status
+        quotation.status = new_status
+        quotation.save()
+        
+        # Get status display name
+        status_names = {
+            'DRAFT': 'Pending',
+            'APPROVED': 'Approved',
+            'PROCESSING': 'Processing',
+            'PACKED': 'Packed',
+            'SHIPPED': 'Shipped',
+            'OUT_FOR_DELIVERY': 'Out for Delivery',
+            'DELIVERED': 'Delivered',
+            'CONVERTED': 'Completed'
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Order status updated from {status_names.get(old_status, old_status)} to {status_names.get(new_status, new_status)}',
+            'new_status': new_status
         })
         
     except Exception as e:

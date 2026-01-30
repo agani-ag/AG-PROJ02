@@ -319,16 +319,20 @@ def customer_orders_list(request):
         for quotation in quotations:
             try:
                 quotation_data = json.loads(quotation.quotation_json)
+                items = quotation_data.get('items', [])
+                total_qty = sum(float(item.get('invoice_qty', 0)) for item in items)
                 quotations_list.append({
                     'quotation': quotation,
                     'total_amount': quotation_data.get('invoice_total_amt_with_gst', 0),
-                    'item_count': len(quotation_data.get('items', []))
+                    'item_count': len(items),
+                    'total_qty': total_qty
                 })
             except:
                 quotations_list.append({
                     'quotation': quotation,
                     'total_amount': 0,
-                    'item_count': 0
+                    'item_count': 0,
+                    'total_qty': 0
                 })
         
         context['customer'] = customer
@@ -403,6 +407,9 @@ def customer_order_detail(request, quotation_id):
         total_amount = quotation_data.get('invoice_total_amt_with_gst', 0)
         total_in_words = num2words.num2words(int(total_amount), lang='en_IN').title()
         
+        # Calculate total quantity
+        total_qty = sum(float(item.get('invoice_qty', 0)) for item in quotation_data.get('items', []))
+        
         # Check if order can be edited (only DRAFT status and customer-created)
         can_edit = quotation.status == 'DRAFT' and quotation.created_by_customer
         
@@ -411,6 +418,7 @@ def customer_order_detail(request, quotation_id):
         context['quotation_data'] = quotation_data
         context['user_profile'] = user_profile
         context['total_in_words'] = total_in_words
+        context['total_qty'] = total_qty
         context['currency'] = "₹"
         context['cid'] = cid
         context['can_edit'] = can_edit
@@ -461,8 +469,8 @@ def customer_edit_order(request, quotation_id):
         business_user = customer.user
         user_profile = get_object_or_404(UserProfile, user=business_user)
         
-        # Get all products
-        all_products = Product.objects.filter(user=business_user).order_by('product_name')
+        # Get all products with category relationship
+        all_products = Product.objects.filter(user=business_user).select_related('product_category').order_by('product_name')
         
         # Parse existing order data
         quotation_data = json.loads(quotation.quotation_json)
@@ -525,13 +533,37 @@ def customer_edit_order(request, quotation_id):
                 products_list.append(product_dict)
             return products_list
         
+        def group_by_category(products_list):
+            """Group products by category"""
+            by_category = {}
+            uncategorized = []
+            
+            for product in products_list:
+                category_name = product.get('product_category', '')
+                if category_name:
+                    if category_name not in by_category:
+                        by_category[category_name] = []
+                    by_category[category_name].append(product)
+                else:
+                    uncategorized.append(product)
+            
+            return by_category, uncategorized
+        
         products_in_order = add_discount_info(products_in_order_qs)
         products_not_in_order = add_discount_info(products_not_in_order_qs)
+        
+        # Group both lists by category
+        products_in_order_by_category, uncategorized_in_order = group_by_category(products_in_order)
+        products_not_in_order_by_category, uncategorized_not_in_order = group_by_category(products_not_in_order)
         
         context['customer'] = customer
         context['quotation'] = quotation
         context['products_in_order'] = products_in_order
         context['products_not_in_order'] = products_not_in_order
+        context['products_in_order_by_category'] = products_in_order_by_category
+        context['uncategorized_in_order'] = uncategorized_in_order
+        context['products_not_in_order_by_category'] = products_not_in_order_by_category
+        context['uncategorized_not_in_order'] = uncategorized_not_in_order
         context['business_profile'] = user_profile
         context['existing_products'] = existing_products
         context['cid'] = cid
@@ -746,6 +778,63 @@ def customer_delete_order(request, quotation_id):
         return JsonResponse({
             'success': True,
             'message': f'Order #{quotation_number} has been deleted successfully.'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
+
+
+def customer_order_received(request, quotation_id):
+    """Mark order as received by customer"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+    
+    try:
+        cid = request.POST.get('cid')
+        cid_data = parse_code_GS(cid)
+        
+        if not cid_data:
+            return JsonResponse({'success': False, 'message': 'Invalid customer code'}, status=400)
+        
+        customer_id = cid_data.get('C', None)
+        user_id = cid_data.get('GS', None)
+        
+        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
+        
+        quotation = get_object_or_404(
+            Quotation, 
+            id=quotation_id,
+            quotation_customer=customer,
+            created_by_customer=True
+        )
+        
+        # Check if order is delivered
+        if quotation.status != 'DELIVERED':
+            return JsonResponse({
+                'success': False, 
+                'message': 'Only delivered orders can be marked as received.'
+            }, status=400)
+        
+        # Update status to CONVERTED (completed)
+        quotation.status = 'CONVERTED'
+        quotation.save()
+        
+        # Create notification for business owner
+        try:
+            Notification.objects.create(
+                user=quotation.user,
+                notification_type='ORDER',
+                title=f'Order #{quotation.quotation_number} Received',
+                message=f'{customer.customer_name} has confirmed receipt of Order #{quotation.quotation_number}',
+                reference_id=quotation.id,
+                reference_type='quotation'
+            )
+        except:
+            pass  # Notification is optional
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Thank you for confirming receipt! Order marked as completed.'
         })
         
     except Exception as e:

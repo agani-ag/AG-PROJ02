@@ -33,7 +33,7 @@
     </div>
 
     <!-- Product Grid -->
-    <div class="row" id="product-list">
+    <div id="product-list">
         <!-- Existing Products Section -->
         {% if products_in_order %}
         <div class="col-12 mb-2">
@@ -43,56 +43,135 @@
             </div>
         </div>
         
-        {% for product in products_in_order %}
-        <div class="col-6 col-md-4 col-lg-3 mb-3 product-item product-in-order" 
-             data-name="{{ product.product_name|lower }}" 
-             data-model="{{ product.model_no|lower }}">
-            <div class="card h-100 shadow border-success" style="border-width: 2px !important;">
-                <div class="card-header bg-success text-white py-1 px-2">
-                    <small><i class="fas fa-check-circle"></i> In Order</small>
-                </div>
-                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 80px;">
-                    <i class="fas fa-box fa-2x text-muted"></i>
-                </div>
-                <div class="card-body p-2">
-                    <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
-                        {{ product.product_name }}
+        <!-- Products Grouped by Category (In Order) -->
+        {% for category_name, products in products_in_order_by_category.items %}
+        <div class="mb-4">
+            <div class="d-flex align-items-center mb-3">
+                <div class="flex-grow-1">
+                    <h6 class="mb-0 text-success">
+                        <i class="fas fa-folder"></i> {{ category_name }}
                     </h6>
-                    <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
-                    {% if product.product_category %}
-                    <small class="badge badge-info mb-1" style="font-size: 9px;">{{ product.product_category }}</small>
-                    {% endif %}
-                    
-                    {% if product.product_discount > 0 %}
-                    <div class="mb-1">
-                        <small class="text-muted text-decoration-line-through">₹{{ product.product_rate_with_gst|floatformat:2 }}</small>
-                        <span class="badge badge-danger ml-1" style="font-size: 9px;">-{{ product.product_discount|floatformat:0 }}%</span>
-                    </div>
-                    <h5 class="text-success mb-2">₹{{ product.discounted_price|floatformat:2 }}</h5>
-                    {% else %}
-                    <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
-                    {% endif %}
-                    
-                    <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
-                        <i class="fas fa-info-circle"></i> Details
-                    </button>
-                    
-                    <div class="input-group input-group-sm">
-                        <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
-                            <i class="fas fa-minus"></i>
-                        </button>
-                        <input type="number" class="form-control text-center font-weight-bold" 
-                               id="qty-{{ product.id }}" 
-                               value="0"
-                               min="0" readonly>
-                        <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
-                            <i class="fas fa-plus"></i>
-                        </button>
+                </div>
+                <span class="badge badge-success">{{ products|length }}</span>
+            </div>
+            
+            <div class="row">
+                {% for product in products %}
+                <div class="col-6 col-md-4 col-lg-3 mb-3 product-item product-in-order" 
+                     data-name="{{ product.product_name|lower }}" 
+                     data-model="{{ product.model_no|lower }}"
+                     data-category="{{ category_name|lower }}">
+                    <div class="card h-100 shadow border-success" style="border-width: 2px !important;">
+                        <div class="card-header bg-success text-white py-1 px-2">
+                            <small><i class="fas fa-check-circle"></i> In Order</small>
+                        </div>
+                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 80px;">
+                            <i class="fas fa-box fa-2x text-muted"></i>
+                        </div>
+                        <div class="card-body p-2">
+                            <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
+                                {{ product.product_name }}
+                            </h6>
+                            <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
+                            <small class="badge badge-info mb-1" style="font-size: 9px;">{{ category_name }}</small>
+                            
+                            {% if product.product_discount > 0 %}
+                            <div class="mb-1">
+                                <small class="text-muted text-decoration-line-through">₹{{ product.product_rate_with_gst|floatformat:2 }}</small>
+                                <span class="badge badge-danger ml-1" style="font-size: 9px;">-{{ product.product_discount|floatformat:0 }}%</span>
+                            </div>
+                            <h5 class="text-success mb-2">₹{{ product.discounted_price|floatformat:2 }}</h5>
+                            {% else %}
+                            <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
+                            {% endif %}
+                            
+                            <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
+                                <i class="fas fa-info-circle"></i> Details
+                            </button>
+                            
+                            <div class="input-group input-group-sm">
+                                <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <input type="number" class="form-control text-center font-weight-bold" 
+                                       id="qty-{{ product.id }}" 
+                                       value="0"
+                                       min="0" readonly>
+                                <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
         </div>
         {% endfor %}
+        
+        <!-- Uncategorized Products (In Order) -->
+        {% if uncategorized_in_order %}
+        <div class="mb-4">
+            <div class="d-flex align-items-center mb-3">
+                <div class="flex-grow-1">
+                    <h6 class="mb-0 text-success">
+                        <i class="fas fa-box"></i> Uncategorized
+                    </h6>
+                </div>
+                <span class="badge badge-success">{{ uncategorized_in_order|length }}</span>
+            </div>
+            
+            <div class="row">
+                {% for product in uncategorized_in_order %}
+                <div class="col-6 col-md-4 col-lg-3 mb-3 product-item product-in-order" 
+                     data-name="{{ product.product_name|lower }}" 
+                     data-model="{{ product.model_no|lower }}">
+                    <div class="card h-100 shadow border-success" style="border-width: 2px !important;">
+                        <div class="card-header bg-success text-white py-1 px-2">
+                            <small><i class="fas fa-check-circle"></i> In Order</small>
+                        </div>
+                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 80px;">
+                            <i class="fas fa-box fa-2x text-muted"></i>
+                        </div>
+                        <div class="card-body p-2">
+                            <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
+                                {{ product.product_name }}
+                            </h6>
+                            <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
+                            
+                            {% if product.product_discount > 0 %}
+                            <div class="mb-1">
+                                <small class="text-muted text-decoration-line-through">₹{{ product.product_rate_with_gst|floatformat:2 }}</small>
+                                <span class="badge badge-danger ml-1" style="font-size: 9px;">-{{ product.product_discount|floatformat:0 }}%</span>
+                            </div>
+                            <h5 class="text-success mb-2">₹{{ product.discounted_price|floatformat:2 }}</h5>
+                            {% else %}
+                            <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
+                            {% endif %}
+                            
+                            <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
+                                <i class="fas fa-info-circle"></i> Details
+                            </button>
+                            
+                            <div class="input-group input-group-sm">
+                                <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <input type="number" class="form-control text-center font-weight-bold" 
+                                       id="qty-{{ product.id }}" 
+                                       value="0"
+                                       min="0" readonly>
+                                <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         
         <!-- Divider -->
         <div class="col-12 mb-2 mt-2">
@@ -103,61 +182,136 @@
         </div>
         {% endif %}
         
-        <!-- Other Products Section -->
-        {% for product in products_not_in_order %}
-        <div class="col-6 col-md-4 col-lg-3 mb-3 product-item" 
-             data-name="{{ product.product_name|lower }}" 
-             data-model="{{ product.model_no|lower }}">
-            <div class="card h-100 shadow-sm">
-                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 80px;">
-                    <i class="fas fa-box fa-2x text-muted"></i>
-                </div>
-                <div class="card-body p-2">
-                    <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
-                        {{ product.product_name }}
+        <!-- Other Products Section (Grouped by Category) -->
+        {% for category_name, products in products_not_in_order_by_category.items %}
+        <div class="mb-4">
+            <div class="d-flex align-items-center mb-3">
+                <div class="flex-grow-1">
+                    <h6 class="mb-0 text-primary">
+                        <i class="fas fa-folder"></i> {{ category_name }}
                     </h6>
-                    <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
-                    {% if product.product_category %}
-                    <small class="badge badge-info mb-1" style="font-size: 9px;">{{ product.product_category }}</small>
-                    {% endif %}
-                    
-                    {% if product.product_discount > 0 %}
-                    <div class="mb-1">
-                        <small class="text-muted text-decoration-line-through">₹{{ product.product_rate_with_gst|floatformat:2 }}</small>
-                        <span class="badge badge-danger ml-1" style="font-size: 9px;">-{{ product.product_discount|floatformat:0 }}%</span>
-                    </div>
-                    <h5 class="text-success mb-2">₹{{ product.discounted_price|floatformat:2 }}</h5>
-                    {% else %}
-                    <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
-                    {% endif %}
-                    
-                    <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
-                        <i class="fas fa-info-circle"></i> Details
-                    </button>
-                    
-                    <div class="input-group input-group-sm">
-                        <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
-                            <i class="fas fa-minus"></i>
-                        </button>
-                        <input type="number" class="form-control text-center" 
-                               id="qty-{{ product.id }}" 
-                               value="0"
-                               min="0" readonly>
-                        <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
-                            <i class="fas fa-plus"></i>
-                        </button>
+                </div>
+                <span class="badge badge-primary">{{ products|length }}</span>
+            </div>
+            
+            <div class="row">
+                {% for product in products %}
+                <div class="col-6 col-md-4 col-lg-3 mb-3 product-item" 
+                     data-name="{{ product.product_name|lower }}" 
+                     data-model="{{ product.model_no|lower }}"
+                     data-category="{{ category_name|lower }}">
+                    <div class="card h-100 shadow-sm">
+                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 80px;">
+                            <i class="fas fa-box fa-2x text-muted"></i>
+                        </div>
+                        <div class="card-body p-2">
+                            <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
+                                {{ product.product_name }}
+                            </h6>
+                            <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
+                            <small class="badge badge-info mb-1" style="font-size: 9px;">{{ category_name }}</small>
+                            
+                            {% if product.product_discount > 0 %}
+                            <div class="mb-1">
+                                <small class="text-muted text-decoration-line-through">₹{{ product.product_rate_with_gst|floatformat:2 }}</small>
+                                <span class="badge badge-danger ml-1" style="font-size: 9px;">-{{ product.product_discount|floatformat:0 }}%</span>
+                            </div>
+                            <h5 class="text-success mb-2">₹{{ product.discounted_price|floatformat:2 }}</h5>
+                            {% else %}
+                            <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
+                            {% endif %}
+                            
+                            <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
+                                <i class="fas fa-info-circle"></i> Details
+                            </button>
+                            
+                            <div class="input-group input-group-sm">
+                                <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <input type="number" class="form-control text-center" 
+                                       id="qty-{{ product.id }}" 
+                                       value="0"
+                                       min="0" readonly>
+                                <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
         </div>
-        {% empty %}
-        {% if not products_in_order %}
+        {% endfor %}
+        
+        <!-- Uncategorized Products (Not in Order) -->
+        {% if uncategorized_not_in_order %}
+        <div class="mb-4">
+            <div class="d-flex align-items-center mb-3">
+                <div class="flex-grow-1">
+                    <h6 class="mb-0 text-primary">
+                        <i class="fas fa-box"></i> Uncategorized
+                    </h6>
+                </div>
+                <span class="badge badge-primary">{{ uncategorized_not_in_order|length }}</span>
+            </div>
+            
+            <div class="row">
+                {% for product in uncategorized_not_in_order %}
+                <div class="col-6 col-md-4 col-lg-3 mb-3 product-item" 
+                     data-name="{{ product.product_name|lower }}" 
+                     data-model="{{ product.model_no|lower }}">
+                    <div class="card h-100 shadow-sm">
+                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 80px;">
+                            <i class="fas fa-box fa-2x text-muted"></i>
+                        </div>
+                        <div class="card-body p-2">
+                            <h6 class="mb-1 text-truncate" title="{{ product.product_name }}">
+                                {{ product.product_name }}
+                            </h6>
+                            <small class="text-muted d-block mb-1">{{ product.model_no }}</small>
+                            
+                            {% if product.product_discount > 0 %}
+                            <div class="mb-1">
+                                <small class="text-muted text-decoration-line-through">₹{{ product.product_rate_with_gst|floatformat:2 }}</small>
+                                <span class="badge badge-danger ml-1" style="font-size: 9px;">-{{ product.product_discount|floatformat:0 }}%</span>
+                            </div>
+                            <h5 class="text-success mb-2">₹{{ product.discounted_price|floatformat:2 }}</h5>
+                            {% else %}
+                            <h5 class="text-primary mb-2">₹{{ product.product_rate_with_gst|floatformat:2 }}</h5>
+                            {% endif %}
+                            
+                            <button class="btn btn-sm btn-outline-info btn-block mb-2" onclick="showProductDetails({{ product.id }}, '{{ product.product_name|escapejs }}', '{{ product.model_no|escapejs }}', '{{ product.product_hsn|escapejs }}', {{ product.product_rate_with_gst }}, {{ product.product_gst_percentage }}, {{ product.product_discount }}, {{ product.discounted_price }}, '{{ product.product_image_url|escapejs }}', '{{ product.product_category|escapejs }}')">
+                                <i class="fas fa-info-circle"></i> Details
+                            </button>
+                            
+                            <div class="input-group input-group-sm">
+                                <button class="btn btn-outline-secondary" onclick="decrementQty({{ product.id }})">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <input type="number" class="form-control text-center" 
+                                       id="qty-{{ product.id }}" 
+                                       value="0"
+                                       min="0" readonly>
+                                <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if not products_in_order and not products_not_in_order_by_category and not uncategorized_not_in_order %}
         <div class="col-12 text-center py-5">
             <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
             <p class="text-muted">No products available</p>
         </div>
         {% endif %}
-        {% endfor %}
     </div>
 
     <!-- Cart Summary (Fixed Bottom) -->
@@ -165,8 +319,8 @@
         <div class="container-fluid">
             <div class="row align-items-center mb-2">
                 <div class="col-6">
-                    <small class="text-muted">Items:</small>
-                    <strong id="total-items" class="ml-1">0</strong>
+                    <small class="text-muted">Items: <strong id="item-count">0</strong></small>
+                    <small class="text-muted ml-2">Qty: <strong id="total-qty">0</strong></small>
                 </div>
                 <div class="col-6 text-right">
                     <small class="text-muted">Total:</small>
@@ -270,7 +424,8 @@ function decrementQty(productId) {
 function updateCart() {
     cart = {};
     totalAmount = 0;
-    let totalItems = 0;
+    let totalQty = 0;
+    let itemCount = 0;
     
     {% for product in products_in_order %}
     const qty{{ product.id }} = parseInt(document.getElementById('qty-{{ product.id }}').value);
@@ -281,7 +436,8 @@ function updateCart() {
             rate: {{ product.discounted_price }}
         };
         totalAmount += qty{{ product.id }} * {{ product.discounted_price }};
-        totalItems += qty{{ product.id }};
+        totalQty += qty{{ product.id }};
+        itemCount++;
     }
     {% endfor %}
     
@@ -294,16 +450,18 @@ function updateCart() {
             rate: {{ product.discounted_price }}
         };
         totalAmount += qty{{ product.id }} * {{ product.discounted_price }};
-        totalItems += qty{{ product.id }};
+        totalQty += qty{{ product.id }};
+        itemCount++;
     }
     {% endfor %}
     
-    document.getElementById('total-items').textContent = totalItems;
+    document.getElementById('item-count').textContent = itemCount;
+    document.getElementById('total-qty').textContent = totalQty;
     document.getElementById('total-amount').textContent = '₹' + totalAmount.toFixed(2);
     
     // Enable/disable update button
     const updateBtn = document.getElementById('update-order-btn');
-    if (totalItems > 0) {
+    if (itemCount > 0) {
         updateBtn.disabled = false;
         updateBtn.classList.remove('btn-secondary');
         updateBtn.classList.add('btn-success');
@@ -318,13 +476,35 @@ function updateOrder() {
     const orderItems = Object.values(cart);
     
     if (orderItems.length === 0) {
-        alert('Please add at least one item to the order');
+        Swal.fire({
+            icon: 'warning',
+            title: 'Empty Order',
+            text: 'Please add at least one item to the order',
+            confirmButtonText: 'OK'
+        });
         return;
     }
     
-    if (!confirm('Are you sure you want to update this order?')) {
-        return;
-    }
+    Swal.fire({
+        icon: 'question',
+        title: 'Update Order',
+        text: 'Are you sure you want to update this order?',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Update',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (!result.isConfirmed) {
+            return;
+        }
+        
+        performUpdate();
+    });
+}
+
+function performUpdate() {
+    const orderItems = Object.values(cart);
     
     // Disable button and show loading
     const updateBtn = document.getElementById('update-order-btn');
@@ -349,16 +529,35 @@ function updateOrder() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(data.message);
-            window.location.href = '{% url "v1customerorderdetail" quotation.id %}?cid={{ cid }}';
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: data.message,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#28a745'
+            }).then(() => {
+                window.location.href = '{% url "v1customerorderdetail" quotation.id %}?cid={{ cid }}';
+            });
         } else {
-            alert('Error: ' + data.message);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.message,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#dc3545'
+            });
             updateBtn.disabled = false;
             updateBtn.innerHTML = originalText;
         }
     })
     .catch(error => {
-        alert('Error updating order. Please try again.');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error updating order. Please try again.',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#dc3545'
+        });
         console.error(error);
         updateBtn.disabled = false;
         updateBtn.innerHTML = originalText;

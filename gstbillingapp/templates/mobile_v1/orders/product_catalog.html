@@ -176,8 +176,8 @@
         <div class="container-fluid">
             <div class="row align-items-center mb-2">
                 <div class="col-6">
-                    <small class="text-muted">Items:</small>
-                    <strong id="total-items" class="ml-1">0</strong>
+                    <small class="text-muted">Items: <strong id="item-count">0</strong></small>
+                    <small class="text-muted ml-2">Qty: <strong id="total-qty">0</strong></small>
                 </div>
                 <div class="col-6 text-right">
                     <small class="text-muted">Total:</small>
@@ -305,7 +305,8 @@ function decrementQty(productId) {
 function updateCart() {
     cart = {};
     totalAmount = 0;
-    let totalItems = 0;
+    let totalQty = 0;
+    let itemCount = 0;
     
     // Loop through categorized products
     {% for category_name, products in products_by_category.items %}
@@ -318,7 +319,8 @@ function updateCart() {
             rate: {{ product.discounted_price }}
         };
         totalAmount += qty{{ product.id }} * {{ product.discounted_price }};
-        totalItems += qty{{ product.id }};
+        totalQty += qty{{ product.id }};
+        itemCount++;
     }
     {% endfor %}
     {% endfor %}
@@ -333,16 +335,18 @@ function updateCart() {
             rate: {{ product.discounted_price }}
         };
         totalAmount += qty{{ product.id }} * {{ product.discounted_price }};
-        totalItems += qty{{ product.id }};
+        totalQty += qty{{ product.id }};
+        itemCount++;
     }
     {% endfor %}
     
-    document.getElementById('total-items').textContent = totalItems;
+    document.getElementById('item-count').textContent = itemCount;
+    document.getElementById('total-qty').textContent = totalQty;
     document.getElementById('total-amount').textContent = '₹' + totalAmount.toFixed(2);
     
     // Enable/disable order button
     const orderBtn = document.getElementById('place-order-btn');
-    if (totalItems > 0) {
+    if (itemCount > 0) {
         orderBtn.disabled = false;
         orderBtn.classList.remove('btn-secondary');
         orderBtn.classList.add('btn-primary');
@@ -370,7 +374,12 @@ function placeOrder() {
     const orderItems = Object.values(cart);
     
     if (orderItems.length === 0) {
-        alert('Please add items to cart');
+        Swal.fire({
+            icon: 'warning',
+            title: 'Empty Cart',
+            text: 'Please add items to cart',
+            confirmButtonText: 'OK'
+        });
         return;
     }
     
@@ -397,16 +406,35 @@ function placeOrder() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(data.message);
-            window.location.href = '{% url "v1customerorders" %}?cid={{ cid }}';
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: data.message,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#28a745'
+            }).then(() => {
+                window.location.href = '{% url "v1customerorders" %}?cid={{ cid }}';
+            });
         } else {
-            alert('Error: ' + data.message);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.message,
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#dc3545'
+            });
             orderBtn.disabled = false;
             orderBtn.innerHTML = originalText;
         }
     })
     .catch(error => {
-        alert('Error placing order. Please try again.');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error placing order. Please try again.',
+            confirmButtonText: 'OK',
+            confirmButtonColor: '#dc3545'
+        });
         console.error(error);
         orderBtn.disabled = false;
         orderBtn.innerHTML = originalText;

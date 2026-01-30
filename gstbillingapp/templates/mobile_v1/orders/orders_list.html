@@ -29,11 +29,21 @@
                     </div>
                     
                     {% if item.quotation.status == 'DRAFT' %}
-                        <span class="badge badge-warning">Pending</span>
+                        <span class="badge badge-warning"><i class="fas fa-clock"></i> Pending</span>
                     {% elif item.quotation.status == 'APPROVED' %}
-                        <span class="badge badge-success">Approved</span>
+                        <span class="badge badge-success"><i class="fas fa-check"></i> Approved</span>
+                    {% elif item.quotation.status == 'PROCESSING' %}
+                        <span class="badge badge-info"><i class="fas fa-cog fa-spin"></i> Processing</span>
+                    {% elif item.quotation.status == 'PACKED' %}
+                        <span class="badge badge-primary"><i class="fas fa-box"></i> Packed</span>
+                    {% elif item.quotation.status == 'SHIPPED' %}
+                        <span class="badge badge-primary"><i class="fas fa-shipping-fast"></i> Shipped</span>
+                    {% elif item.quotation.status == 'OUT_FOR_DELIVERY' %}
+                        <span class="badge badge-info"><i class="fas fa-truck"></i> Out for Delivery</span>
+                    {% elif item.quotation.status == 'DELIVERED' %}
+                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> Delivered</span>
                     {% elif item.quotation.status == 'CONVERTED' %}
-                        <span class="badge badge-info">Completed</span>
+                        <span class="badge badge-secondary"><i class="fas fa-file-invoice-dollar"></i> Completed</span>
                     {% endif %}
                 </div>
                 
@@ -41,7 +51,8 @@
                 
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <small class="text-muted">
-                        <i class="fas fa-box"></i> {{ item.item_count }} item{{ item.item_count|pluralize }}
+                        <i class="fas fa-box"></i> {{ item.item_count }} item{{ item.item_count|pluralize }} 
+                        <span class="badge badge-secondary ml-1">Qty: {{ item.total_qty|floatformat:0 }}</span>
                     </small>
                     <span class="text-primary font-weight-bold">
                         ₹{{ item.total_amount|floatformat:2 }}
@@ -87,38 +98,69 @@
     {% endif %}
 </div>
 
+{% include "mobile_v1/navbarC.html" %}
 {% csrf_token %}
 
 <script>
 function deleteOrder(quotationId, quotationNumber) {
-    if (!confirm(`Are you sure you want to delete Order #${quotationNumber}? This action cannot be undone.`)) {
-        return;
-    }
-    
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    
-    fetch(`/mobile/v1/customer/order/${quotationId}/delete`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': csrfToken
-        },
-        body: new URLSearchParams({
-            'cid': '{{ cid }}'
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            location.reload();
-        } else {
-            alert('Error: ' + data.message);
+    Swal.fire({
+        icon: 'warning',
+        title: 'Delete Order',
+        text: `Are you sure you want to delete Order #${quotationNumber}? This action cannot be undone.`,
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Delete',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (!result.isConfirmed) {
+            return;
         }
-    })
-    .catch(error => {
-        alert('Error deleting order. Please try again.');
-        console.error(error);
+        
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(`/mobile/v1/customer/order/${quotationId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken
+            },
+            body: new URLSearchParams({
+                'cid': '{{ cid }}'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted!',
+                    text: data.message,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#28a745'
+                }).then(() => {
+                    location.reload();
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: data.message,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#dc3545'
+                });
+            }
+        })
+        .catch(error => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error deleting order. Please try again.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#dc3545'
+            });
+            console.error(error);
+        });
     });
 }
 </script>

@@ -121,6 +121,11 @@ class Quotation(models.Model):
     STATUS_CHOICES = [
         ('DRAFT', 'Draft'),
         ('APPROVED', 'Approved'),
+        ('PROCESSING', 'Processing'),
+        ('PACKED', 'Packed'),
+        ('SHIPPED', 'Shipped'),
+        ('OUT_FOR_DELIVERY', 'Out for Delivery'),
+        ('DELIVERED', 'Delivered'),
         ('CONVERTED', 'Converted to Invoice'),
     ]
     
@@ -136,7 +141,7 @@ class Quotation(models.Model):
     )
     quotation_json = models.TextField()
     is_gst = models.BooleanField(default=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='DRAFT')
     customer_details_modified = models.BooleanField(default=False)  # Track if JSON customer differs from FK customer
     
     # Conversion tracking
