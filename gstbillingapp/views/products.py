@@ -238,6 +238,7 @@ def product_category_delete(request, pk):
 @login_required
 def products_aggrid(request):
     """AG Grid products page with inline editing"""
+    from ..models import Inventory
     context = {}
     
     # Get all products with categories
@@ -253,6 +254,24 @@ def products_aggrid(request):
     # Prepare product data for AG Grid
     products_data = []
     for product in products:
+        # Get inventory data
+        try:
+            inventory = Inventory.objects.filter(product=product, user=request.user).first()
+            if inventory:
+                current_stock = inventory.current_stock
+                alert_level = inventory.alert_level
+            else:
+                current_stock = 0
+                alert_level = 0
+        except Inventory.MultipleObjectsReturned:
+            # If multiple inventories exist, take the first one
+            inventory = Inventory.objects.filter(product=product, user=request.user).first()
+            current_stock = inventory.current_stock if inventory else 0
+            alert_level = inventory.alert_level if inventory else 0
+        except Exception:
+            current_stock = 0
+            alert_level = 0
+        
         products_data.append({
             'id': product.id,
             'model_no': product.model_no,
@@ -264,7 +283,9 @@ def products_aggrid(request):
             'product_category_id': product.product_category.id if product.product_category else None,
             'product_category_name': product.product_category.get_full_path() if product.product_category else '',
             'parent_category': product.product_category.parent_category.category_name if product.product_category and product.product_category.parent_category else '',
-            'child_category': product.product_category.category_name if product.product_category else ''
+            'child_category': product.product_category.category_name if product.product_category else '',
+            'current_stock': current_stock,
+            'alert_level': alert_level
         })
     
     # Prepare categories for dropdown
@@ -288,6 +309,9 @@ def products_aggrid(request):
 @login_required
 def product_aggrid_update(request):
     """API endpoint to update product from AG Grid"""
+    from ..models import Inventory, InventoryLog
+    from datetime import datetime
+    
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -334,6 +358,50 @@ def product_aggrid_update(request):
                     product.product_category = None
             
             product.save()
+            
+            # Handle inventory updates
+            inventory_updated = False
+            if 'current_stock' in data or 'alert_level' in data:
+                # Try to get existing inventory, handle multiple records
+                inventory = Inventory.objects.filter(
+                    product=product,
+                    user=request.user
+                ).first()
+                
+                if not inventory:
+                    # Create new inventory if none exists
+                    inventory = Inventory.objects.create(
+                        product=product,
+                        user=request.user,
+                        current_stock=0,
+                        alert_level=0
+                    )
+                
+                if 'current_stock' in data:
+                    old_stock = inventory.current_stock
+                    new_stock = int(data['current_stock'])
+                    
+                    if old_stock != new_stock:
+                        # Create inventory log for stock change
+                        stock_change = new_stock - old_stock
+                        log = InventoryLog.objects.create(
+                            user=request.user,
+                            product=product,
+                            date=datetime.now(),
+                            change=stock_change,
+                            change_type=0,  # Other
+                            description=f'Stock updated from {old_stock} to {new_stock} via AG Grid'
+                        )
+                        inventory.current_stock = new_stock
+                        inventory.last_log = log
+                        inventory_updated = True
+                
+                if 'alert_level' in data:
+                    inventory.alert_level = int(data['alert_level'])
+                    inventory_updated = True
+                
+                if inventory_updated:
+                    inventory.save()
             
             return JsonResponse({
                 'success': True,

@@ -231,6 +231,50 @@
             type: 'numericColumn',
             valueFormatter: params => params.value ? `${params.value}%` : '0%',
             width: 100
+        },
+        {
+            headerName: 'Current Stock',
+            field: 'current_stock',
+            editable: true,
+            cellStyle: editableCellStyle,
+            type: 'numericColumn',
+            width: 130,
+            cellStyle: params => {
+                let style = { backgroundColor: '#f0f8ff' };
+                // Highlight low stock in yellow, out of stock in red
+                if (params.data.current_stock === 0) {
+                    style.backgroundColor = '#ffcccc'; // Light red
+                    style.color = '#cc0000';
+                    style.fontWeight = 'bold';
+                } else if (params.data.current_stock <= params.data.alert_level && params.data.alert_level > 0) {
+                    style.backgroundColor = '#ffffcc'; // Light yellow
+                    style.color = '#cc6600';
+                    style.fontWeight = 'bold';
+                }
+                return style;
+            }
+        },
+        {
+            headerName: 'Alert Level',
+            field: 'alert_level',
+            editable: true,
+            cellStyle: editableCellStyle,
+            type: 'numericColumn',
+            width: 120
+        },
+        {
+            headerName: 'Actions',
+            field: 'id',
+            pinned: 'right',
+            width: 120,
+            cellRenderer: params => {
+                return `<button class="btn btn-warning btn-sm" onclick="viewInventoryLogs(${params.value})" title="View Inventory Logs">
+                    <i class="fas fa-file-lines"></i> Logs
+                </button>`;
+            },
+            sortable: false,
+            filter: false,
+            editable: false
         }
     ];
     
@@ -309,5 +353,23 @@
         // Initialize Bootstrap toast
         $('.toast').toast({ autohide: true, delay: 3000 });
     });
+    
+    // View inventory logs popup
+    function viewInventoryLogs(productId) {
+        fetch(`/inventory/${productId}?nav=1`)
+            .then(r => r.text())
+            .then(html => {
+                Swal.fire({
+                    html: `<div style="height:80vh; overflow-y:auto;width:90%;margin:auto;border:2px solid #ccc;">${html}</div>`,
+                    width: '80%',
+                    showCloseButton: true,
+                    showConfirmButton: false,
+                });
+            })
+            .catch(error => {
+                console.error('Error loading inventory logs:', error);
+                showToast('✗ Failed to load inventory logs', 'error');
+            });
+    }
 </script>
 {% endblock %}
