@@ -173,7 +173,7 @@
                                 <input type="number" class="form-control text-center font-weight-bold" 
                                        id="qty-{{ product.id }}" 
                                        value="0"
-                                       min="0" readonly>
+                                       min="0" onchange="updateCart()">
                                 <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
                                     <i class="fas fa-plus"></i>
                                 </button>
@@ -240,7 +240,7 @@
                                 <input type="number" class="form-control text-center font-weight-bold" 
                                        id="qty-{{ product.id }}" 
                                        value="0"
-                                       min="0" readonly>
+                                       min="0" onchange="updateCart()">
                                 <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
                                     <i class="fas fa-plus"></i>
                                 </button>
@@ -344,7 +344,7 @@
                                 <input type="number" class="form-control text-center" 
                                        id="qty-{{ product.id }}" 
                                        value="0"
-                                       min="0" readonly>
+                                       min="0" onchange="updateCart()">
                                 <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
                                     <i class="fas fa-plus"></i>
                                 </button>
@@ -408,7 +408,7 @@
                                 <input type="number" class="form-control text-center" 
                                        id="qty-{{ product.id }}" 
                                        value="0"
-                                       min="0" readonly>
+                                       min="0" onchange="updateCart()">
                                 <button class="btn btn-outline-secondary" onclick="incrementQty({{ product.id }})">
                                     <i class="fas fa-plus"></i>
                                 </button>
