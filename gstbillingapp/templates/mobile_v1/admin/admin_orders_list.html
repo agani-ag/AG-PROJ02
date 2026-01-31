@@ -3,7 +3,64 @@
 
 {% block title %}Manage Orders{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Force dropdown items to be visible in dark mode - highest specificity */
+    [data-theme="dark"] .dropdown-menu .dropdown-item,
+    [data-theme="dark"] .btn-group .dropdown-menu .dropdown-item,
+    [data-theme="dark"] .dropdown-item {
+        color: #ffffff !important;
+        background-color: transparent !important;
+    }
+    
+    [data-theme="dark"] .dropdown-menu .dropdown-item:hover,
+    [data-theme="dark"] .dropdown-menu .dropdown-item:focus,
+    [data-theme="dark"] .btn-group .dropdown-menu .dropdown-item:hover,
+    [data-theme="dark"] .btn-group .dropdown-menu .dropdown-item:focus,
+    [data-theme="dark"] .dropdown-item:hover,
+    [data-theme="dark"] .dropdown-item:focus {
+        background-color: #2c2c2e !important;
+        color: #ffffff !important;
+    }
+    
+    /* Ensure colored icons remain visible */
+    [data-theme="dark"] .dropdown-item .text-warning,
+    [data-theme="dark"] .dropdown-item .text-success,
+    [data-theme="dark"] .dropdown-item .text-info,
+    [data-theme="dark"] .dropdown-item .text-primary,
+    [data-theme="dark"] .dropdown-item .text-secondary {
+        opacity: 1 !important;
+    }
+    
+    /* Override any link color inheritance */
+    [data-theme="dark"] a.dropdown-item {
+        color: #ffffff !important;
+    }
+    
+    [data-theme="dark"] a.dropdown-item:hover,
+    [data-theme="dark"] a.dropdown-item:focus {
+        color: #ffffff !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
+<style>
+    /* Ultra-specific dark mode dropdown fix - loaded after base styles */
+    html[data-theme="dark"] .container-fluid .btn-group .dropdown-menu .dropdown-item,
+    html[data-theme="dark"] .container-fluid .dropdown-menu .dropdown-item,
+    html[data-theme="dark"] body .dropdown-menu a.dropdown-item {
+        color: #ffffff !important;
+    }
+    
+    html[data-theme="dark"] .container-fluid .btn-group .dropdown-menu .dropdown-item:hover,
+    html[data-theme="dark"] .container-fluid .dropdown-menu .dropdown-item:hover,
+    html[data-theme="dark"] body .dropdown-menu a.dropdown-item:hover {
+        background-color: #2c2c2e !important;
+        color: #ffffff !important;
+    }
+</style>
+
 <div class="container-fluid px-3 py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4 class="mb-0"><i class="fas fa-clipboard-list"></i> Manage Orders</h4>
@@ -12,16 +69,16 @@
                 <i class="fas fa-filter"></i> Filter
             </button>
             <div class="dropdown-menu dropdown-menu-right">
-                <a class="dropdown-item" href="?status=all"><i class="fas fa-list"></i> All Orders</a>
+                <a class="dropdown-item" href="?status=all&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-list"></i> All Orders</a>
                 <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="?status=DRAFT"><i class="fas fa-clock text-warning"></i> Pending</a>
-                <a class="dropdown-item" href="?status=APPROVED"><i class="fas fa-check text-success"></i> Approved</a>
-                <a class="dropdown-item" href="?status=PROCESSING"><i class="fas fa-cog text-info"></i> Processing</a>
-                <a class="dropdown-item" href="?status=PACKED"><i class="fas fa-box text-primary"></i> Packed</a>
-                <a class="dropdown-item" href="?status=SHIPPED"><i class="fas fa-shipping-fast text-primary"></i> Shipped</a>
-                <a class="dropdown-item" href="?status=OUT_FOR_DELIVERY"><i class="fas fa-truck text-info"></i> Out for Delivery</a>
-                <a class="dropdown-item" href="?status=DELIVERED"><i class="fas fa-check-circle text-success"></i> Delivered</a>
-                <a class="dropdown-item" href="?status=CONVERTED"><i class="fas fa-file-invoice-dollar text-secondary"></i> Completed</a>
+                <a class="dropdown-item" href="?status=DRAFT&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-clock text-warning"></i> Pending</a>
+                <a class="dropdown-item" href="?status=APPROVED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-check text-success"></i> Approved</a>
+                <a class="dropdown-item" href="?status=PROCESSING&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-cog text-info"></i> Processing</a>
+                <a class="dropdown-item" href="?status=PACKED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-box text-primary"></i> Packed</a>
+                <a class="dropdown-item" href="?status=SHIPPED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-shipping-fast text-primary"></i> Shipped</a>
+                <a class="dropdown-item" href="?status=OUT_FOR_DELIVERY&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-truck text-info"></i> Out for Delivery</a>
+                <a class="dropdown-item" href="?status=DELIVERED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-check-circle text-success"></i> Delivered</a>
+                <a class="dropdown-item" href="?status=CONVERTED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-file-invoice-dollar text-secondary"></i> Completed</a>
             </div>
         </div>
     </div>
@@ -79,6 +136,9 @@
                         <small class="text-muted d-block">
                             <i class="fas fa-user"></i> {{ item.customer_name }}
                         </small>
+                        <small class="text-primary d-block font-weight-bold">
+                            <i class="fas fa-store"></i> {{ item.business_brand }}
+                        </small>
                         <small class="text-muted d-block">
                             <i class="far fa-calendar"></i> 
                             {{ item.quotation.quotation_date|date:"d M Y" }}
@@ -130,13 +190,13 @@
                 
                 <div class="btn-toolbar" role="toolbar">
                     <div class="btn-group btn-group-sm mr-2 mb-2" role="group">
-                        <a href="{% url 'v1adminorderdetail' item.quotation.id %}" 
+                        <a href="{% url 'v1adminorderdetail' item.quotation.id %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" 
                            class="btn btn-outline-primary">
                             <i class="fas fa-eye"></i> View
                         </a>
                         
-                        {% if item.quotation.can_be_edited %}
-                        <a href="{% url 'v1adminorderedit' item.quotation.id %}" 
+                        {% if item.quotation.status == 'DRAFT' and request.GET.admin == "true" %}
+                        <a href="{% url 'v1adminorderedit' item.quotation.id %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" 
                            class="btn btn-outline-warning">
                             <i class="fas fa-edit"></i> Edit
                         </a>
@@ -188,7 +248,7 @@
                     </div>
                     {% endif %}
                     
-                    {% if item.quotation.can_be_converted %}
+                    {% if item.quotation.can_be_converted and request.GET.admin == "true" %}
                     <div class="btn-group btn-group-sm mb-2" role="group">
                         <button onclick="convertToInvoice({{ item.quotation.id }}, {{ item.quotation.quotation_number }})" 
                                 class="btn btn-success">
@@ -215,7 +275,7 @@
             <h5 class="text-muted mb-3">No orders found</h5>
             {% if current_filter and current_filter != 'all' %}
             <p class="text-muted">No orders with status: <strong>{{ current_filter }}</strong></p>
-            <a href="{% url 'v1adminorders' %}" class="btn btn-primary">
+            <a href="{% url 'v1adminorders' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="btn btn-primary">
                 <i class="fas fa-list"></i> View All Orders
             </a>
             {% else %}

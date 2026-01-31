@@ -532,7 +532,7 @@
             </div>
             <div class="row">
                 <div class="col-6">
-                    <a href="{% url 'v1adminorderdetail' quotation.id %}" 
+                    <a href="{% url 'v1adminorderdetail' quotation.id %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" 
                        class="btn btn-secondary btn-block">
                         <i class="fas fa-times"></i> Cancel
                     </a>
@@ -833,7 +833,8 @@ function performUpdate() {
                 confirmButtonText: 'OK',
                 confirmButtonColor: '#28a745'
             }).then(() => {
-                window.location.href = '{% url "v1adminorderdetail" quotation.id %}';
+                const params = new URLSearchParams(window.location.search);
+                window.location.href = '{% url "v1adminorderdetail" quotation.id %}?' + params.toString();
             });
         } else {
             Swal.fire({

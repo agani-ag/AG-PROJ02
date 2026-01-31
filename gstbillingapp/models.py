@@ -179,11 +179,8 @@ class Quotation(models.Model):
         return f"QT-{self.quotation_number} | {self.quotation_date} | {self.status}"
     
     def can_be_edited(self):
-        """Check if quotation can be edited"""
-        # Can edit if not converted, or if converted but invoice was deleted
-        if self.status == 'CONVERTED' and self.converted_invoice is None:
-            return True  # Invoice was deleted, allow editing
-        return self.status != 'CONVERTED'
+        """Check if quotation can be edited - only DRAFT orders can be edited"""
+        return self.status == 'DRAFT'
     
     def can_be_converted(self):
         """Check if quotation can be converted to invoice"""

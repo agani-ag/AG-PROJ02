@@ -20,11 +20,23 @@ def admin_orders_list(request):
     """Admin view for managing all orders"""
     user = request.user
     
-    # Get filter status from query params
+    # Get filter parameters
     status_filter = request.GET.get('status', 'all')
+    users_filter = request.GET.get('users_filter', None)  # None means not provided
+    user_ids = []
     
-    # Base queryset
-    queryset = Quotation.objects.filter(user=user).select_related('quotation_customer', 'user', 'converted_invoice')
+    # Get all users for dropdown
+    users = UserProfile.objects.all().select_related('user').order_by('business_title')
+    
+    # Base queryset - Admin mode defaults to showing ALL orders
+    if users_filter is None or users_filter == '':
+        # No filter OR empty string - show ALL orders (admin default)
+        queryset = Quotation.objects.all().select_related('quotation_customer', 'user', 'converted_invoice')
+    else:
+        # Specific user IDs provided - filter by those users
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        queryset = Quotation.objects.filter(user__id__in=user_ids).select_related('quotation_customer', 'user', 'converted_invoice')
     
     # Apply status filter
     if status_filter and status_filter != 'all':
@@ -49,12 +61,21 @@ def admin_orders_list(request):
             elif quotation_data.get('customer_name'):
                 customer_name = quotation_data.get('customer_name')
             
+            # Get business brand/title
+            business_brand = "Unknown Brand"
+            try:
+                user_profile = UserProfile.objects.get(user=quotation.user)
+                business_brand = user_profile.business_brand or user_profile.user.username
+            except UserProfile.DoesNotExist:
+                business_brand = quotation.user.username
+            
             quotations_list.append({
                 'quotation': quotation,
                 'total_amount': total_amount,
                 'total_qty': total_qty,
                 'item_count': item_count,
-                'customer_name': customer_name
+                'customer_name': customer_name,
+                'business_brand': business_brand
             })
         except Exception as e:
             print(f"Error processing quotation {quotation.id}: {e}")
@@ -64,7 +85,12 @@ def admin_orders_list(request):
     status_counts = {}
     for status_choice in Quotation.STATUS_CHOICES:
         status_code = status_choice[0]
-        count = Quotation.objects.filter(user=user, status=status_code).count()
+        if users_filter is None or users_filter == '':
+            # No filter OR empty string - show ALL orders count (admin default)
+            count = Quotation.objects.filter(status=status_code).count()
+        else:
+            # Filter by specific user IDs
+            count = Quotation.objects.filter(user__id__in=user_ids, status=status_code).count()
         status_counts[status_code] = count
     
     # Processing count (sum of PROCESSING + PACKED + SHIPPED + OUT_FOR_DELIVERY)
@@ -80,7 +106,9 @@ def admin_orders_list(request):
         'status_counts': status_counts,
         'processing_count': processing_count,
         'current_filter': status_filter,
-        'has_more': len(queryset) > 50
+        'has_more': len(queryset) > 50,
+        'users': users,
+        'users_filter': users_filter,
     }
     
     return render(request, 'mobile_v1/admin/admin_orders_list.html', context)
@@ -89,9 +117,23 @@ def admin_orders_list(request):
 @login_required
 def admin_order_detail(request, quotation_id):
     """Admin view for order details"""
-    user = request.user
+    users_filter = request.GET.get('users_filter', None)  # None means not provided
     
-    quotation = get_object_or_404(Quotation, id=quotation_id, user=user)
+    # Get quotation - Admin mode allows ALL orders by default
+    quotation = get_object_or_404(Quotation, id=quotation_id)
+    
+    # Apply user filter ONLY if specific user IDs provided (not None, not empty)
+    if users_filter and users_filter != '':
+        # Specific user IDs provided - check if quotation user is in the list
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        if quotation.user.id not in user_ids:
+            return render(request, 'mobile_v1/orders/error.html', {
+                'error_message': 'Order not found or access denied.'
+            })
+    # else: No filter (None) or empty string - allow ALL orders (admin mode)
+    
+    # Use quotation's user for operations
+    user = quotation.user
     
     try:
         quotation_data = json.loads(quotation.quotation_json)
@@ -128,9 +170,23 @@ def admin_order_detail(request, quotation_id):
 @login_required
 def admin_order_edit(request, quotation_id):
     """Admin mobile view for editing orders"""
-    user = request.user
+    users_filter = request.GET.get('users_filter', None)
     
-    quotation = get_object_or_404(Quotation, id=quotation_id, user=user)
+    # Get quotation - Admin mode allows ALL orders by default
+    quotation = get_object_or_404(Quotation, id=quotation_id)
+    
+    # Apply user filter only if specific user IDs provided
+    if users_filter and users_filter != '':
+        # Specific user IDs - check access
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        if quotation.user.id not in user_ids:
+            return render(request, 'mobile_v1/orders/error.html', {
+                'error_message': 'Order not found or access denied.'
+            })
+    # else: No filter or empty string - allow ALL orders (admin mode)
+    
+    # Use quotation's user for product filtering
+    user = quotation.user
     
     # Check if can be edited
     if not quotation.can_be_edited():
@@ -273,9 +329,21 @@ def admin_order_edit(request, quotation_id):
 @require_POST
 def admin_order_update_status(request, quotation_id):
     """Update order status"""
-    user = request.user
+    users_filter = request.POST.get('users_filter', None)
     
-    quotation = get_object_or_404(Quotation, id=quotation_id, user=user)
+    # Get quotation - Admin mode allows ALL orders by default
+    quotation = get_object_or_404(Quotation, id=quotation_id)
+    
+    # Apply user filter only if specific user IDs provided
+    if users_filter and users_filter != '':
+        # Specific user IDs - check access
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        if quotation.user.id not in user_ids:
+            return JsonResponse({
+                'success': False,
+                'message': 'Order not found or access denied.'
+            })
+    # else: No filter or empty string - allow ALL orders (admin mode)
     
     new_status = request.POST.get('new_status', '').upper()
     
@@ -312,9 +380,24 @@ def admin_order_update_status(request, quotation_id):
 @require_POST
 def admin_order_convert_to_invoice(request, quotation_id):
     """Convert quotation to invoice"""
-    user = request.user
+    users_filter = request.POST.get('users_filter', None)
     
-    quotation = get_object_or_404(Quotation, id=quotation_id, user=user)
+    # Get quotation - Admin mode allows ALL orders by default
+    quotation = get_object_or_404(Quotation, id=quotation_id)
+    
+    # Apply user filter only if specific user IDs provided
+    if users_filter and users_filter != '':
+        # Specific user IDs - check access
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        if quotation.user.id not in user_ids:
+            return JsonResponse({
+                'success': False,
+                'message': 'Order not found or access denied.'
+            })
+    # else: No filter or empty string - allow ALL orders (admin mode)
+    
+    # Use quotation's user for invoice operations
+    user = quotation.user
     
     # Check if can be converted
     if not quotation.can_be_converted():
@@ -349,8 +432,7 @@ def admin_order_convert_to_invoice(request, quotation_id):
                 invoice_date=timezone.now().date(),
                 invoice_customer=quotation.quotation_customer,
                 invoice_json=json.dumps(quotation_data),
-                is_gst=quotation.is_gst,
-                customer_details_modified=quotation.customer_details_modified
+                is_gst=quotation.is_gst
             )
             
             # Update inventory for each item
@@ -404,10 +486,25 @@ def admin_order_convert_to_invoice(request, quotation_id):
 @require_POST
 def admin_order_update(request, quotation_id):
     """Admin endpoint for updating order items"""
-    user = request.user
+    users_filter = request.POST.get('users_filter', None)
     
     try:
-        quotation = get_object_or_404(Quotation, id=quotation_id, user=user)
+        # Get quotation - Admin mode allows ALL orders by default
+        quotation = get_object_or_404(Quotation, id=quotation_id)
+        
+        # Apply user filter only if specific user IDs provided
+        if users_filter and users_filter != '':
+            # Specific user IDs - check access
+            user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+            if quotation.user.id not in user_ids:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Order not found or access denied.'
+                })
+        # else: No filter or empty string - allow ALL orders (admin mode)
+        
+        # Use quotation's user for operations
+        user = quotation.user
         
         # Check if order can be edited
         if not quotation.can_be_edited():

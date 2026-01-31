@@ -25,13 +25,15 @@
             <span>Books</span>
         </a>
 
+        {% if request.GET.admin == "true" %}
         <!-- Notifications -->
         <a href="{% url 'v1customernotifications' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="notifications">
             <i class="fas fa-bell"></i>
             <span>Notifications</span>
             <span class="notification-badge" id="mobile-notification-badge" style="display: none;"></span>
         </a>
-
+        {% endif %}
+        
         <!-- Profile -->
         <a href="{% url 'v1customerprofile' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="profile">
             <i class="fas fa-user-circle"></i>

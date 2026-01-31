@@ -32,12 +32,10 @@
         </a>
         
         <!-- Orders (Admin) -->
-        {% if request.GET.admin == "true" %}
         <a href="{% url 'v1adminorders' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="orders">
             <i class="fas fa-clipboard-list"></i>
             <span>Orders</span>
         </a>
-        {% endif %}
         
         <!-- Notifications -->
         <a href="{% url 'v1notifications' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="notifications">
