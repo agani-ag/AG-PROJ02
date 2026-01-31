@@ -323,8 +323,8 @@ def product_aggrid_update(request):
             # Get product
             product = Product.objects.get(id=product_id, user=request.user)
             
-            # Update fields
-            if 'model_no' in data:
+            # Update fields - only update if value is provided and not empty
+            if 'model_no' in data and data['model_no']:
                 # Check for duplicate model_no
                 existing = Product.objects.filter(
                     user=request.user, model_no=data['model_no']
@@ -334,18 +334,20 @@ def product_aggrid_update(request):
                 product.model_no = data['model_no']
             
             if 'product_name' in data:
-                product.product_name = data['product_name']
+                # Allow empty string for product_name (it's optional)
+                product.product_name = data['product_name'] if data['product_name'] else ''
             
             if 'product_hsn' in data:
-                product.product_hsn = data['product_hsn']
+                # Allow empty string for HSN (it's optional)
+                product.product_hsn = data['product_hsn'] if data['product_hsn'] else ''
             
-            if 'product_discount' in data:
+            if 'product_discount' in data and data['product_discount'] is not None:
                 product.product_discount = float(data['product_discount'])
             
-            if 'product_gst_percentage' in data:
+            if 'product_gst_percentage' in data and data['product_gst_percentage'] is not None:
                 product.product_gst_percentage = float(data['product_gst_percentage'])
             
-            if 'product_rate_with_gst' in data:
+            if 'product_rate_with_gst' in data and data['product_rate_with_gst'] is not None:
                 product.product_rate_with_gst = float(data['product_rate_with_gst'])
             
             if 'product_category_id' in data:
