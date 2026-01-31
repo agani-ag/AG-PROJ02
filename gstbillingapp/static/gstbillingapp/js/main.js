@@ -300,7 +300,7 @@ function initialize_fuse_products () {
             maxPatternLength: 32,
             minMatchCharLength: 1,
             keys: [
-            "model_no",
+            "model_no","product_name","product_hsn"
             ]
         };
         fuse_products = new Fuse(data, fuse_product_options);
