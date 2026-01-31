@@ -23,6 +23,12 @@ def admin_orders_list(request):
     # Get filter parameters
     status_filter = request.GET.get('status', 'all')
     users_filter = request.GET.get('users_filter', None)  # None means not provided
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    customer_filter = request.GET.get('customer', '')
+    order_type = request.GET.get('order_type', 'all')  # all, customer, admin
+    page = int(request.GET.get('page', 1))
+    per_page = 20
     user_ids = []
     
     # Get all users for dropdown
@@ -32,22 +38,60 @@ def admin_orders_list(request):
     if users_filter is None or users_filter == '':
         # No filter OR empty string - show ALL orders (admin default)
         queryset = Quotation.objects.all().select_related('quotation_customer', 'user', 'converted_invoice')
+        # Get all customers for dropdown (from all users)
+        from ...models import Customer
+        all_customers = Customer.objects.filter(
+            quotations__isnull=False
+        ).distinct().order_by('customer_name')
     else:
         # Specific user IDs provided - filter by those users
         user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
         users = users.filter(user__id__in=user_ids)
         queryset = Quotation.objects.filter(user__id__in=user_ids).select_related('quotation_customer', 'user', 'converted_invoice')
+        # Get customers for dropdown (only from filtered users' orders)
+        from ...models import Customer
+        all_customers = Customer.objects.filter(
+            quotations__user__id__in=user_ids
+        ).distinct().order_by('customer_name')
     
     # Apply status filter
     if status_filter and status_filter != 'all':
         queryset = queryset.filter(status=status_filter.upper())
     
+    # Apply date range filter
+    if date_from:
+        from datetime import datetime
+        queryset = queryset.filter(quotation_date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+    if date_to:
+        from datetime import datetime
+        queryset = queryset.filter(quotation_date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+    
+    # Apply customer filter
+    if customer_filter and customer_filter != 'all':
+        try:
+            customer_id = int(customer_filter)
+            queryset = queryset.filter(quotation_customer_id=customer_id)
+        except ValueError:
+            pass  # Invalid customer ID, skip filter
+    
+    # Apply order type filter
+    if order_type == 'customer':
+        queryset = queryset.filter(created_by_customer=True)
+    elif order_type == 'admin':
+        queryset = queryset.filter(created_by_customer=False)
+    
     # Order by latest first
     queryset = queryset.order_by('-quotation_date', '-id')
     
-    # Get all quotations with calculated totals
+    # Pagination
+    total_orders = queryset.count()
+    total_pages = (total_orders + per_page - 1) // per_page
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    
+    # Get all quotations with calculated totals (paginated)
     quotations_list = []
-    for quotation in queryset[:50]:  # Limit to 50 for performance
+    for quotation in queryset[start_idx:end_idx]:
         try:
             quotation_data = json.loads(quotation.quotation_json)
             
@@ -101,14 +145,31 @@ def admin_orders_list(request):
         status_counts.get('OUT_FOR_DELIVERY', 0)
     )
     
+    # Pagination info
+    pagination = {
+        'current_page': page,
+        'total_pages': total_pages,
+        'total_orders': total_orders,
+        'has_previous': page > 1,
+        'has_next': page < total_pages,
+        'previous_page': page - 1,
+        'next_page': page + 1,
+        'page_range': range(max(1, page - 2), min(total_pages + 1, page + 3)),
+    }
+    
     context = {
         'quotations_list': quotations_list,
         'status_counts': status_counts,
         'processing_count': processing_count,
         'current_filter': status_filter,
-        'has_more': len(queryset) > 50,
         'users': users,
         'users_filter': users_filter,
+        'pagination': pagination,
+        'date_from': date_from,
+        'date_to': date_to,
+        'customer_filter': customer_filter,
+        'order_type': order_type,
+        'all_customers': all_customers,
     }
     
     return render(request, 'mobile_v1/admin/admin_orders_list.html', context)

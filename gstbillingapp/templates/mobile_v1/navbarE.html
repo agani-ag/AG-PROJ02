@@ -116,6 +116,9 @@
             } else if (page === 'products' && currentPath.endsWith('/products')) {
                 item.classList.add('active');
                 activeItem = item;
+            } else if (page === 'orders' && currentPath.includes('/admin/orders')) {
+                item.classList.add('active');
+                activeItem = item;
             } else if (page === 'notifications' && currentPath.endsWith('/notifications')) {
                 item.classList.add('active');
                 activeItem = item;

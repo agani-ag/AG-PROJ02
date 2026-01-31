@@ -64,21 +64,79 @@
 <div class="container-fluid px-3 py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4 class="mb-0"><i class="fas fa-clipboard-list"></i> Manage Orders</h4>
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-toggle="dropdown">
-                <i class="fas fa-filter"></i> Filter
-            </button>
-            <div class="dropdown-menu dropdown-menu-right">
-                <a class="dropdown-item" href="?status=all&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-list"></i> All Orders</a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="?status=DRAFT&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-clock text-warning"></i> Pending</a>
-                <a class="dropdown-item" href="?status=APPROVED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-check text-success"></i> Approved</a>
-                <a class="dropdown-item" href="?status=PROCESSING&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-cog text-info"></i> Processing</a>
-                <a class="dropdown-item" href="?status=PACKED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-box text-primary"></i> Packed</a>
-                <a class="dropdown-item" href="?status=SHIPPED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-shipping-fast text-primary"></i> Shipped</a>
-                <a class="dropdown-item" href="?status=OUT_FOR_DELIVERY&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-truck text-info"></i> Out for Delivery</a>
-                <a class="dropdown-item" href="?status=DELIVERED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-check-circle text-success"></i> Delivered</a>
-                <a class="dropdown-item" href="?status=CONVERTED&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}"><i class="fas fa-file-invoice-dollar text-secondary"></i> Completed</a>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-toggle="collapse" data-target="#advancedFilters">
+            <i class="fas fa-filter"></i> Filters
+        </button>
+    </div>
+
+    <!-- Advanced Filters (Collapsible) -->
+    <div class="collapse {% if date_from or date_to or customer_filter or order_type != 'all' %}show{% endif %}" id="advancedFilters">
+        <div class="card shadow-sm mb-3">
+            <div class="card-body p-3">
+                <form method="get" action="{% url 'v1adminorders' %}" id="filterForm">
+                    <input type="hidden" name="u" value="{{ request.GET.u }}">
+                    <input type="hidden" name="admin" value="{{ request.GET.admin }}">
+                    <input type="hidden" name="users_filter" value="{{ request.GET.users_filter }}">
+                    
+                    <div class="row">
+                        <!-- Status Filter -->
+                        <div class="col-6 mb-2">
+                            <label class="small font-weight-bold mb-1">Status</label>
+                            <select name="status" class="form-control form-control-sm" onchange="this.form.submit()">
+                                <option value="all" {% if current_filter == 'all' %}selected{% endif %}>All Orders</option>
+                                <option value="DRAFT" {% if current_filter == 'DRAFT' %}selected{% endif %}>Pending</option>
+                                <option value="APPROVED" {% if current_filter == 'APPROVED' %}selected{% endif %}>Approved</option>
+                                <option value="PROCESSING" {% if current_filter == 'PROCESSING' %}selected{% endif %}>Processing</option>
+                                <option value="PACKED" {% if current_filter == 'PACKED' %}selected{% endif %}>Packed</option>
+                                <option value="SHIPPED" {% if current_filter == 'SHIPPED' %}selected{% endif %}>Shipped</option>
+                                <option value="OUT_FOR_DELIVERY" {% if current_filter == 'OUT_FOR_DELIVERY' %}selected{% endif %}>Out for Delivery</option>
+                                <option value="DELIVERED" {% if current_filter == 'DELIVERED' %}selected{% endif %}>Delivered</option>
+                                <option value="CONVERTED" {% if current_filter == 'CONVERTED' %}selected{% endif %}>Completed</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Order Type Filter -->
+                        <div class="col-6 mb-2">
+                            <label class="small font-weight-bold mb-1">Order Type</label>
+                            <select name="order_type" class="form-control form-control-sm" onchange="this.form.submit()">
+                                <option value="all" {% if order_type == 'all' %}selected{% endif %}>All Types</option>
+                                <option value="customer" {% if order_type == 'customer' %}selected{% endif %}>Customer Orders</option>
+                                <option value="admin" {% if order_type == 'admin' %}selected{% endif %}>Admin Orders</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Date From -->
+                        <div class="col-6 mb-2">
+                            <label class="small font-weight-bold mb-1">Date From</label>
+                            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}" onchange="this.form.submit()">
+                        </div>
+                        
+                        <!-- Date To -->
+                        <div class="col-6 mb-2">
+                            <label class="small font-weight-bold mb-1">Date To</label>
+                            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}" onchange="this.form.submit()">
+                        </div>
+                        
+                        <!-- Customer Dropdown -->
+                        <div class="col-12 mb-2">
+                            <label class="small font-weight-bold mb-1">Customer</label>
+                            <select name="customer" class="form-control form-control-sm" onchange="this.form.submit()">
+                                <option value="all" {% if customer_filter == 'all' or not customer_filter %}selected{% endif %}>All Customers</option>
+                                {% for customer in all_customers %}
+                                <option value="{{ customer.id }}" {% if customer_filter == customer.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ customer.customer_name }}{% if customer.customer_mobile_number %} - {{ customer.customer_mobile_number }}{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end mt-2">
+                        <a href="{% url 'v1adminorders' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-times"></i> Clear All
+                        </a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -261,12 +319,64 @@
         </div>
         {% endfor %}
         
-        <!-- Load More Button (if needed) -->
-        {% if has_more %}
-        <div class="text-center mt-3">
-            <button class="btn btn-outline-primary" onclick="loadMore()">
-                <i class="fas fa-chevron-down"></i> Load More
-            </button>
+        <!-- Pagination Controls -->
+        {% if pagination.total_pages > 1 %}
+        <div class="card shadow-sm mt-3 mb-3">
+            <div class="card-body p-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted">
+                        Showing {{ quotations_list|length }} of {{ pagination.total_orders }} orders
+                    </small>
+                    <small class="text-muted">
+                        Page {{ pagination.current_page }} of {{ pagination.total_pages }}
+                    </small>
+                </div>
+                
+                <nav>
+                    <ul class="pagination pagination-sm mb-0 justify-content-center">
+                        <!-- Previous Button -->
+                        <li class="page-item {% if not pagination.has_previous %}disabled{% endif %}">
+                            <a class="page-link" href="?page={{ pagination.previous_page }}&status={{ current_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&customer={{ customer_filter }}&order_type={{ order_type }}&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        
+                        <!-- First Page -->
+                        {% if pagination.current_page > 3 %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1&status={{ current_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&customer={{ customer_filter }}&order_type={{ order_type }}&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}">1</a>
+                        </li>
+                        {% if pagination.current_page > 4 %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                        {% endif %}
+                        
+                        <!-- Page Numbers -->
+                        {% for page_num in pagination.page_range %}
+                        <li class="page-item {% if page_num == pagination.current_page %}active{% endif %}">
+                            <a class="page-link" href="?page={{ page_num }}&status={{ current_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&customer={{ customer_filter }}&order_type={{ order_type }}&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}">{{ page_num }}</a>
+                        </li>
+                        {% endfor %}
+                        
+                        <!-- Last Page -->
+                        {% if pagination.current_page < pagination.total_pages|add:"-2" %}
+                        {% if pagination.current_page < pagination.total_pages|add:"-3" %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination.total_pages }}&status={{ current_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&customer={{ customer_filter }}&order_type={{ order_type }}&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}">{{ pagination.total_pages }}</a>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- Next Button -->
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="?page={{ pagination.next_page }}&status={{ current_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&customer={{ customer_filter }}&order_type={{ order_type }}&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
         </div>
         {% endif %}
     {% else %}
@@ -284,9 +394,8 @@
         </div>
     {% endif %}
 </div>
-
 <script>
-// Search functionality
+// Search functionality (local client-side search)
 document.getElementById('search-input').addEventListener('input', function(e) {
     const searchTerm = e.target.value.toLowerCase();
     const orderItems = document.querySelectorAll('.order-item');
@@ -456,6 +565,9 @@ function convertToInvoice(quotationId, quotationNumber) {
     });
 }
 </script>
+
+<!-- EMPLOYEE NAVBAR -->
+{% include "mobile_v1/navbarE.html" %}
 
 {% csrf_token %}
 {% endblock %}
