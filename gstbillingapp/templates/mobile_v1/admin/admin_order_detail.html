@@ -1,0 +1,623 @@
+{% extends "mobile_v1/base.html" %}
+{% load static %}
+
+{% block title %}Order #{{ quotation.quotation_number }} - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3 pb-5 mb-5">
+    <!-- Header with Status -->
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <h5 class="mb-1">
+                <i class="fas fa-file-invoice"></i> 
+                Order #{{ quotation.quotation_number }}
+            </h5>
+            <small class="text-muted">
+                {% if quotation.created_by_customer %}
+                <i class="fas fa-mobile-alt"></i> Customer Order
+                {% else %}
+                <i class="fas fa-user-tie"></i> Admin Order
+                {% endif %}
+            </small>
+        </div>
+        
+        <div class="text-right">
+            {% if quotation.status == 'DRAFT' %}
+                <span class="badge badge-warning"><i class="fas fa-clock"></i> Pending</span>
+            {% elif quotation.status == 'APPROVED' %}
+                <span class="badge badge-success"><i class="fas fa-check"></i> Approved</span>
+            {% elif quotation.status == 'PROCESSING' %}
+                <span class="badge badge-info"><i class="fas fa-cog fa-spin"></i> Processing</span>
+            {% elif quotation.status == 'PACKED' %}
+                <span class="badge badge-primary"><i class="fas fa-box"></i> Packed</span>
+            {% elif quotation.status == 'SHIPPED' %}
+                <span class="badge badge-primary"><i class="fas fa-shipping-fast"></i> Shipped</span>
+            {% elif quotation.status == 'OUT_FOR_DELIVERY' %}
+                <span class="badge badge-info"><i class="fas fa-truck"></i> Out for Delivery</span>
+            {% elif quotation.status == 'DELIVERED' %}
+                <span class="badge badge-success"><i class="fas fa-check-circle"></i> Delivered</span>
+            {% elif quotation.status == 'CONVERTED' %}
+                <span class="badge badge-secondary"><i class="fas fa-file-invoice-dollar"></i> Completed</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="btn-toolbar mb-3" role="toolbar">
+        {% if quotation.status != 'CONVERTED' %}
+        <div class="btn-group btn-group-sm mr-2 flex-fill" role="group">
+            <button type="button" class="btn btn-outline-info dropdown-toggle" data-toggle="dropdown">
+                <i class="fas fa-tasks"></i> Update Status
+            </button>
+            <div class="dropdown-menu">
+                {% if quotation.status == 'DRAFT' %}
+                <a class="dropdown-item" href="#" onclick="updateStatus('APPROVED'); return false;">
+                    <i class="fas fa-check text-success"></i> Approve Order
+                </a>
+                {% endif %}
+                
+                {% if quotation.status in 'DRAFT,APPROVED' %}
+                <a class="dropdown-item" href="#" onclick="updateStatus('PROCESSING'); return false;">
+                    <i class="fas fa-cog text-info"></i> Mark as Processing
+                </a>
+                {% endif %}
+                
+                {% if quotation.status in 'APPROVED,PROCESSING' %}
+                <a class="dropdown-item" href="#" onclick="updateStatus('PACKED'); return false;">
+                    <i class="fas fa-box text-primary"></i> Mark as Packed
+                </a>
+                {% endif %}
+                
+                {% if quotation.status in 'PROCESSING,PACKED' %}
+                <a class="dropdown-item" href="#" onclick="updateStatus('SHIPPED'); return false;">
+                    <i class="fas fa-shipping-fast text-primary"></i> Mark as Shipped
+                </a>
+                {% endif %}
+                
+                {% if quotation.status == 'SHIPPED' %}
+                <a class="dropdown-item" href="#" onclick="updateStatus('OUT_FOR_DELIVERY'); return false;">
+                    <i class="fas fa-truck text-info"></i> Out for Delivery
+                </a>
+                {% endif %}
+                
+                {% if quotation.status in 'SHIPPED,OUT_FOR_DELIVERY' %}
+                <a class="dropdown-item" href="#" onclick="updateStatus('DELIVERED'); return false;">
+                    <i class="fas fa-check-circle text-success"></i> Mark as Delivered
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if quotation.can_be_converted %}
+        <button onclick="convertToInvoice()" class="btn btn-success btn-sm flex-fill">
+            <i class="fas fa-file-invoice-dollar"></i> Convert to Invoice
+        </button>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- Order Information Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-2 text-muted">Order Information</h6>
+            <table class="table table-sm table-borderless mb-0">
+                <tr>
+                    <td width="50%"><i class="far fa-calendar"></i> Date:</td>
+                    <td class="text-right">{{ quotation.quotation_date|date:"d M Y" }}</td>
+                </tr>
+                {% if quotation.valid_until %}
+                <tr>
+                    <td><i class="far fa-clock"></i> Valid Until:</td>
+                    <td class="text-right">{{ quotation.valid_until|date:"d M Y" }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td><i class="fas fa-clock"></i> Created:</td>
+                    <td class="text-right">{{ quotation.created_at|date:"d M Y, h:i A" }}</td>
+                </tr>
+                {% if quotation.updated_at %}
+                <tr>
+                    <td><i class="fas fa-sync-alt"></i> Last Updated:</td>
+                    <td class="text-right">{{ quotation.updated_at|date:"d M Y, h:i A" }}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- Customer Details Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="card-subtitle mb-0 text-muted">Customer Details</h6>
+                {% if quotation.quotation_customer %}
+                <a href="{% url 'customer_edit' quotation.quotation_customer.id %}" 
+                   class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-user-edit"></i> Edit Customer
+                </a>
+                {% endif %}
+            </div>
+            {% if quotation.quotation_customer %}
+            <p class="mb-1"><strong>{{ quotation.quotation_customer.customer_name }}</strong></p>
+            {% if quotation.quotation_customer.customer_phone %}
+            <p class="mb-1 text-muted small">
+                <i class="fas fa-phone"></i> {{ quotation.quotation_customer.customer_phone }}
+            </p>
+            {% endif %}
+            {% if quotation.quotation_customer.customer_address %}
+            <p class="mb-1 text-muted small">
+                <i class="fas fa-map-marker-alt"></i> {{ quotation.quotation_customer.customer_address }}
+            </p>
+            {% endif %}
+            {% if quotation.quotation_customer.customer_gst %}
+            <p class="mb-0 text-muted small">
+                <i class="fas fa-file-invoice"></i> GSTIN: {{ quotation.quotation_customer.customer_gst }}
+            </p>
+            {% endif %}
+            {% else %}
+            <p class="text-muted mb-0">No customer linked</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Order Items Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="card-subtitle mb-0 text-muted">Order Items</h6>
+                <div class="text-muted small">
+                    <span class="badge badge-info">{{ quotation_data.items|length }} item{{ quotation_data.items|length|pluralize }}</span>
+                    <span class="badge badge-primary ml-1">Qty: {{ total_qty|floatformat:0 }}</span>
+                </div>
+            </div>
+            
+            {% for item in quotation_data.items %}
+            <div class="item-row mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                <div class="d-flex justify-content-between mb-1">
+                    <strong>{{ item.invoice_product_name }}</strong>
+                    {% if item.invoice_amt %}
+                    <span class="text-primary font-weight-bold">
+                        {{ currency }}{{ item.invoice_amt|floatformat:2 }}
+                    </span>
+                    {% else %}
+                    <span class="text-primary font-weight-bold">
+                        {{ currency }}0.00
+                    </span>
+                    {% endif %}
+                </div>
+                
+                <div class="text-muted small mb-1">
+                    Model: {{ item.invoice_model_no }}
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center text-muted small mb-1">
+                    <div>
+                        <span>Qty: {{ item.invoice_qty }}</span>
+                        <span class="mx-1">×</span>
+                        {% if item.invoice_discount > 0 %}
+                            <span class="text-decoration-line-through">{{ currency }}{{ item.invoice_rate|floatformat:2 }}</span>
+                        {% else %}
+                            <span>{{ currency }}{{ item.invoice_rate|floatformat:2 }}</span>
+                        {% endif %}
+                    </div>
+                    <span>GST: {{ item.invoice_gst_percentage }}%</span>
+                </div>
+                
+                {% if item.invoice_discount > 0 %}
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge badge-danger" style="font-size: 10px;">{{ item.invoice_discount|floatformat:0 }}% OFF</span>
+                        <span class="text-success small font-weight-bold ml-2">{{ currency }}{{ item.invoice_discounted_rate|floatformat:2 }} each</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Totals Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-3 text-muted">Summary</h6>
+            
+            <table class="table table-sm table-borderless mb-0">
+                <tr>
+                    <td>Subtotal (without GST):</td>
+                    <td class="text-right">
+                        {{ currency }}{{ quotation_data.invoice_total_amt_without_gst|floatformat:2 }}
+                    </td>
+                </tr>
+                
+                {% if quotation_data.invoice_total_amt_cgst > 0 %}
+                <tr class="text-muted">
+                    <td>CGST:</td>
+                    <td class="text-right">
+                        {{ currency }}{{ quotation_data.invoice_total_amt_cgst|floatformat:2 }}
+                    </td>
+                </tr>
+                <tr class="text-muted">
+                    <td>SGST:</td>
+                    <td class="text-right">
+                        {{ currency }}{{ quotation_data.invoice_total_amt_sgst|floatformat:2 }}
+                    </td>
+                </tr>
+                {% endif %}
+                
+                {% if quotation_data.invoice_total_amt_igst > 0 %}
+                <tr class="text-muted">
+                    <td>IGST:</td>
+                    <td class="text-right">
+                        {{ currency }}{{ quotation_data.invoice_total_amt_igst|floatformat:2 }}
+                    </td>
+                </tr>
+                {% endif %}
+                
+                <tr class="border-top">
+                    <td><strong>Total Amount:</strong></td>
+                    <td class="text-right">
+                        <strong class="text-primary h5 mb-0">
+                            {{ currency }}{{ quotation_data.invoice_total_amt_with_gst|floatformat:2 }}
+                        </strong>
+                    </td>
+                </tr>
+            </table>
+            
+            <p class="text-muted small mb-0 mt-2">
+                <strong>Amount in words:</strong><br>
+                {{ total_in_words }} Rupees Only
+            </p>
+        </div>
+    </div>
+
+    <!-- Order Tracking Timeline -->
+    {% if quotation.status != 'DRAFT' %}
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-3 text-muted"><i class="fas fa-route"></i> Order Tracking</h6>
+            
+            <div class="tracking-timeline">
+                <!-- Approved -->
+                <div class="timeline-item {% if quotation.status == 'APPROVED' or quotation.status == 'PROCESSING' or quotation.status == 'PACKED' or quotation.status == 'SHIPPED' or quotation.status == 'OUT_FOR_DELIVERY' or quotation.status == 'DELIVERED' or quotation.status == 'CONVERTED' %}active{% endif %}">
+                    <div class="timeline-icon">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <div class="timeline-content">
+                        <strong>Approved</strong>
+                        <small class="d-block text-muted">Order confirmed</small>
+                    </div>
+                </div>
+                
+                <!-- Processing -->
+                <div class="timeline-item {% if quotation.status == 'PROCESSING' or quotation.status == 'PACKED' or quotation.status == 'SHIPPED' or quotation.status == 'OUT_FOR_DELIVERY' or quotation.status == 'DELIVERED' or quotation.status == 'CONVERTED' %}active{% endif %}">
+                    <div class="timeline-icon">
+                        <i class="fas fa-cog"></i>
+                    </div>
+                    <div class="timeline-content">
+                        <strong>Processing</strong>
+                        <small class="d-block text-muted">Order is being prepared</small>
+                    </div>
+                </div>
+                
+                <!-- Packed -->
+                <div class="timeline-item {% if quotation.status == 'PACKED' or quotation.status == 'SHIPPED' or quotation.status == 'OUT_FOR_DELIVERY' or quotation.status == 'DELIVERED' or quotation.status == 'CONVERTED' %}active{% endif %}">
+                    <div class="timeline-icon">
+                        <i class="fas fa-box"></i>
+                    </div>
+                    <div class="timeline-content">
+                        <strong>Packed</strong>
+                        <small class="d-block text-muted">Order packed and ready</small>
+                    </div>
+                </div>
+                
+                <!-- Shipped -->
+                <div class="timeline-item {% if quotation.status == 'SHIPPED' or quotation.status == 'OUT_FOR_DELIVERY' or quotation.status == 'DELIVERED' or quotation.status == 'CONVERTED' %}active{% endif %}">
+                    <div class="timeline-icon">
+                        <i class="fas fa-shipping-fast"></i>
+                    </div>
+                    <div class="timeline-content">
+                        <strong>Shipped</strong>
+                        <small class="d-block text-muted">Order dispatched</small>
+                    </div>
+                </div>
+                
+                <!-- Out for Delivery -->
+                <div class="timeline-item {% if quotation.status == 'OUT_FOR_DELIVERY' or quotation.status == 'DELIVERED' or quotation.status == 'CONVERTED' %}active{% endif %}">
+                    <div class="timeline-icon">
+                        <i class="fas fa-truck"></i>
+                    </div>
+                    <div class="timeline-content">
+                        <strong>Out for Delivery</strong>
+                        <small class="d-block text-muted">On the way</small>
+                    </div>
+                </div>
+                
+                <!-- Delivered -->
+                <div class="timeline-item {% if quotation.status == 'DELIVERED' or quotation.status == 'CONVERTED' %}active{% endif %}">
+                    <div class="timeline-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="timeline-content">
+                        <strong>Delivered</strong>
+                        <small class="d-block text-muted">Order completed</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if quotation.notes %}
+    <!-- Notes Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-2 text-muted"><i class="fas fa-sticky-note"></i> Notes</h6>
+            <p class="mb-0 small">{{ quotation.notes }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Conversion Info (if converted) -->
+    {% if quotation.status == 'CONVERTED' and quotation.converted_invoice %}
+    <div class="card shadow-sm mb-3 border-success">
+        <div class="card-body">
+            <h6 class="card-subtitle mb-2 text-success">
+                <i class="fas fa-file-invoice-dollar"></i> Converted to Invoice
+            </h6>
+            <p class="mb-1">
+                <strong>Invoice #:</strong> {{ quotation.converted_invoice.invoice_number }}
+            </p>
+            <p class="mb-2 text-muted small">
+                <i class="fas fa-clock"></i> Converted on {{ quotation.converted_at|date:"d M Y, h:i A" }}
+            </p>
+            <a href="{% url 'invoice_viewer' quotation.converted_invoice.id %}" 
+               class="btn btn-success btn-sm btn-block">
+                <i class="fas fa-eye"></i> View Invoice
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Action Buttons -->
+    <div class="mb-3">
+        {% if quotation.can_be_edited %}
+        <a href="{% url 'v1adminorderedit' quotation.id %}" 
+           class="btn btn-warning btn-block mb-2">
+            <i class="fas fa-edit"></i> Edit Order
+        </a>
+        {% endif %}
+        
+        <a href="{% url 'v1adminorders' %}" class="btn btn-outline-secondary btn-block">
+            <i class="fas fa-arrow-left"></i> Back to Orders
+        </a>
+    </div>
+</div>
+
+{% csrf_token %}
+
+<script>
+const quotationId = {{ quotation.id }};
+const quotationNumber = {{ quotation.quotation_number }};
+
+function updateStatus(newStatus) {
+    const statusNames = {
+        'APPROVED': 'Approved',
+        'PROCESSING': 'Processing',
+        'PACKED': 'Packed',
+        'SHIPPED': 'Shipped',
+        'OUT_FOR_DELIVERY': 'Out for Delivery',
+        'DELIVERED': 'Delivered'
+    };
+    
+    Swal.fire({
+        title: 'Update Order Status',
+        text: `Change status to: ${statusNames[newStatus]}?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#17a2b8',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, update it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+                title: 'Updating...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            fetch(`{% url 'v1adminorderupdatestatus' 0 %}`.replace('0', quotationId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body: new URLSearchParams({
+                    'new_status': newStatus
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Status Updated!',
+                        text: data.message,
+                        confirmButtonColor: '#28a745'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message,
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Failed to update status. Please try again.',
+                    confirmButtonColor: '#dc3545'
+                });
+            });
+        }
+    });
+}
+
+function convertToInvoice() {
+    Swal.fire({
+        title: 'Convert to Invoice',
+        html: `Convert Order #${quotationNumber} to Invoice?<br><small class="text-muted">This action will create an invoice and update inventory.</small>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '<i class="fas fa-check"></i> Yes, Convert',
+        cancelButtonText: 'Cancel',
+        input: 'textarea',
+        inputLabel: 'Invoice Notes (Optional)',
+        inputPlaceholder: 'Add any notes for this invoice...',
+        inputAttributes: {
+            'aria-label': 'Invoice notes'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Show loading
+            Swal.fire({
+                title: 'Converting...',
+                text: 'Please wait while we create the invoice',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            fetch(`{% url 'v1adminorderconvert' 0 %}`.replace('0', quotationId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body: new URLSearchParams({
+                    'notes': result.value || ''
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Invoice Created!',
+                        html: `<p>${data.message}</p><small class="text-muted">Invoice #${data.invoice_number}</small>`,
+                        confirmButtonColor: '#28a745',
+                        confirmButtonText: 'View Invoice'
+                    }).then(() => {
+                        window.location.href = data.invoice_url;
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message,
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Failed to convert to invoice. Please try again.',
+                    confirmButtonColor: '#dc3545'
+                });
+            });
+        }
+    });
+}
+</script>
+
+<style>
+.tracking-timeline {
+    position: relative;
+}
+
+.timeline-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 25px;
+    position: relative;
+    padding-left: 45px;
+}
+
+.timeline-item:last-child {
+    margin-bottom: 0;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 17px;
+    top: 35px;
+    bottom: -25px;
+    width: 2px;
+    background: #e0e0e0;
+}
+
+.timeline-item.active:not(:last-child)::before {
+    background: #28a745;
+}
+
+.timeline-icon {
+    position: absolute;
+    left: 0;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    background: #f8f9fa;
+    border: 2px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+    font-size: 14px;
+    z-index: 1;
+}
+
+.timeline-item.active .timeline-icon {
+    background: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+.timeline-content {
+    flex: 1;
+}
+
+.timeline-content strong {
+    display: block;
+    font-size: 14px;
+    color: #495057;
+    margin-bottom: 2px;
+}
+
+.timeline-item.active .timeline-content strong {
+    color: #28a745;
+}
+</style>
+
+{% endblock %}

@@ -4,7 +4,8 @@ from django.urls import path
 # Local imports
 from .views.mobile_v1 import (
     customer,
-    customer_orders
+    customer_orders,
+    admin_orders
 )
 
 urlpatterns = [
@@ -35,6 +36,14 @@ urlpatterns = [
     path('purchaselogs', customer.purchase_logs, name='v1purchaselogs'),
     path('expensestracker', customer.expenses_tracker, name='v1expensestracker'),
     path('notifications', customer.notifications, name='v1notifications'),
+    
+    # Admin Order Management URLs
+    path('admin/orders', admin_orders.admin_orders_list, name='v1adminorders'),
+    path('admin/order/<int:quotation_id>', admin_orders.admin_order_detail, name='v1adminorderdetail'),
+    path('admin/order/<int:quotation_id>/edit', admin_orders.admin_order_edit, name='v1adminorderedit'),
+    path('admin/order/<int:quotation_id>/update', admin_orders.admin_order_update, name='v1adminorderupdate'),
+    path('admin/order/<int:quotation_id>/update-status', admin_orders.admin_order_update_status, name='v1adminorderupdatestatus'),
+    path('admin/order/<int:quotation_id>/convert', admin_orders.admin_order_convert_to_invoice, name='v1adminorderconvert'),
 
     # API URLs
     path('customers/api', customer.customersapi, name='v1customersapi'),
