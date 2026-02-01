@@ -88,18 +88,34 @@
         
         <!-- Graph Dropdown -->
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="graphsDropdown" role="button" data-toggle="dropdown"
-            aria-haspopup="true" aria-expanded="false">
+          <a class="nav-link dropdown-toggle" href="#" id="graphsDropdown" role="button"
+            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
             Graphs
           </a>
-          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="graphsDropdown">
-            <a class="dropdown-item" href="{% url 'sales_dashboard' %}">Sales Dashboard</a>
-            <a class="dropdown-item" href="{% url 'customer_books_graph' %}">Books Graph</a>
-            <a class="dropdown-item" href="{% url 'customer_graph' %}">Customer Graph</a>
-            <a class="dropdown-item" href="{% url 'expense_tracker_graph' %}">Expense Tracker Graph</a>
-            <div class="dropdown-divider"></div>
-            <h6 class="dropdown-header">Maps</h6>
-            <a class="dropdown-item" href="{% url 'customer_location_map' %}">Customer Location Map</a>
+
+          <div class="dropdown-menu dropdown-menu-right graphs-dropdown p-3"
+              aria-labelledby="graphsDropdown">
+
+            <div class="row">
+              <!-- LEFT COLUMN -->
+              <div class="col-6">
+                <h6 class="dropdown-header">Graphs</h6>
+                <a class="dropdown-item" href="{% url 'sales_dashboard' %}">Sales Dashboard</a>
+                <a class="dropdown-item" href="{% url 'customer_books_graph' %}">Books Graph</a>
+                <a class="dropdown-item" href="{% url 'customer_graph' %}">Customer Graph</a>
+                <a class="dropdown-item" href="{% url 'expense_tracker_graph' %}">Expense Tracker Graph</a>
+                <div class="dropdown-divider"></div>
+                <h6 class="dropdown-header">Maps</h6>
+                <a class="dropdown-item" href="{% url 'customer_location_map' %}">Customer Location Map</a>
+              </div>
+
+              <!-- RIGHT COLUMN -->
+              <div class="col-6 border-left">
+                <h6 class="dropdown-header">Reports</h6>
+                <a class="dropdown-item" href="{% url 'sales_report' %}">Sales Report</a>
+              </div>
+            </div>
+
           </div>
         </li>
 
@@ -130,6 +146,15 @@
   </div>
 </nav>
 
+<style>
+  .graphs-dropdown {
+    min-width: 420px;
+  }
+
+  .graphs-dropdown .dropdown-item {
+    padding-left: 0;
+  }
+</style>
 <script>
   // WebSocket for real-time notifications
   let notificationSocket = null;

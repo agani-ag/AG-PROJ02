@@ -6,7 +6,8 @@ from .views import (
     auth, profile, invoices, customers,
     books, products, inventory, purchases,
     vendor_purchase, features, views,
-    expense_tracker, bank_details, graphs, quotation, notifications
+    expense_tracker, bank_details, graphs,
+    quotation, notifications, reports
 )
 
 urlpatterns = [
@@ -128,6 +129,9 @@ urlpatterns = [
     path('feature/upload', features.excel_upload, name='feature_upload'),
     path('api/passkey-auth', auth.passkey_auth, name='passkey_auth'),
     path('download/sqlite', features.download_sqlite, name='download_sqlite'),
+
+    # Reports URLs
+    path('reports/sales', reports.sales_report, name='sales_report'),
 
     # Graphs and Analytics URLs
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),

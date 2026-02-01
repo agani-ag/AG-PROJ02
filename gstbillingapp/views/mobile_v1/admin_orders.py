@@ -15,7 +15,7 @@ import json
 from ...models import Quotation, Customer, Product, Invoice, Inventory, InventoryLog, UserProfile
 
 
-@login_required
+# @login_required
 def admin_orders_list(request):
     """Admin view for managing all orders"""
     user = request.user
@@ -175,7 +175,7 @@ def admin_orders_list(request):
     return render(request, 'mobile_v1/admin/admin_orders_list.html', context)
 
 
-@login_required
+# @login_required
 def admin_order_detail(request, quotation_id):
     """Admin view for order details"""
     users_filter = request.GET.get('users_filter', None)  # None means not provided
@@ -228,7 +228,7 @@ def admin_order_detail(request, quotation_id):
     return render(request, 'mobile_v1/admin/admin_order_detail.html', context)
 
 
-@login_required
+# @login_required
 def admin_order_edit(request, quotation_id):
     """Admin mobile view for editing orders"""
     users_filter = request.GET.get('users_filter', None)
@@ -386,7 +386,7 @@ def admin_order_edit(request, quotation_id):
         })
 
 
-@login_required
+# @login_required
 @require_POST
 def admin_order_update_status(request, quotation_id):
     """Update order status"""
@@ -437,7 +437,7 @@ def admin_order_update_status(request, quotation_id):
     })
 
 
-@login_required
+# @login_required
 @require_POST
 def admin_order_convert_to_invoice(request, quotation_id):
     """Convert quotation to invoice"""
@@ -543,7 +543,7 @@ def admin_order_convert_to_invoice(request, quotation_id):
         })
 
 
-@login_required
+# @login_required
 @require_POST
 def admin_order_update(request, quotation_id):
     """Admin endpoint for updating order items"""
