@@ -1,104 +1,79 @@
 {% extends "base.html" %}
+{% block content %}
 {% load static %}
-
 {% block includecss %}
 <link rel="stylesheet" href="{% static 'gstbillingapp/pdf.css' %}" id="pdf-css">
 {% endblock %}
 
-{% block content %}
+<!-- PDF WRAPPER -->
+<div id="pdf-wrapper">
 
-<!-- FILTER SECTION -->
-<div class="mb-3">
-    <form id="sales-filter-form" class="form-inline">
-        <!-- Month -->
-        <label for="month">Month:</label>
-        <select id="month" name="month" class="form-control mx-2">
-            {% for m_num, m_name in months %}
-            <option value="{{ m_num }}" {% if m_num == current_month %}selected{% endif %}>{{ m_name }}</option>
-            {% endfor %}
-        </select>
+    <!-- HEADER -->
+    <div id="pdf-header" class="pdf-header">
+        <div class="header-title">
+            {{ user_profile.business_title }}
+        </div>
 
-        <!-- Year -->
-        <label for="year">Year:</label>
-        <select id="year" name="year" class="form-control mx-2">
-            {% for y in year_list %}
-            <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
-            {% endfor %}
-        </select>
+        <div class="header-sub">
+            {{ user_profile.business_address }}
+        </div>
 
-        <!-- Customer -->
-        <label for="customer">Customer:</label>
-        <select id="customer" name="customer" class="form-control mx-2">
-            <option value="">All</option>
-            {% for c in customers %}
-            <option value="{{ c.id }}">{{ c }}</option>
-            {% endfor %}
-        </select>
-    </form>
-</div>
+        <div class="header-sub">
+            Phone: {{ user_profile.business_phone }} |
+            GST: {{ user_profile.business_gst }}
+        </div>
 
-<!-- HEADER -->
-<div id="pdf-header" class="pdf-header">
-    <div class="header-title">{{ user_profile.business_title }}</div>
-    <div class="header-sub">{{ user_profile.business_address }}</div>
-    <div class="header-sub">
-        Phone: {{ user_profile.business_phone }} | GST: {{ user_profile.business_gst }}
+        <div class="header-report">
+            Sales Report | FY 2024–25
+        </div>
+
+        <hr>
     </div>
-    <div class="header-report">Sales Report | FY 2024–25</div>
-    <hr>
+
+    <!-- CONTENT -->
+    <div id="pdf-content">
+        <table class="table table-bordered table-sm">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Invoices</th>
+                    <th class="text-right">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in customer_sales %}
+                <tr>
+                    <td>{{ row.customer }}</td>
+                    <td>{{ row.total_invoices }}</td>
+                    <td class="text-right">{{ row.total_amount }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- FOOTER -->
+    <div id="pdf-footer" class="pdf-footer">
+        <hr>
+        <span>Generated on {% now "d-m-Y" %}</span>
+    </div>
+
 </div>
 
-<!-- CONTENT -->
-<div id="pdf-content">
-    <table class="table table-bordered table-sm">
-        <thead>
-            <tr>
-                <th class="text-left">Customer</th>
-                <th>Invoices</th>
-                <th>Sales</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for cs in customer_sales %}
-            <tr>
-                <td class="text-left">{{ cs.customer }}</td>
-                <td>{{ cs.total_invoices }}</td>
-                <td class="text-right">₹{{ cs.total_amount|floatformat:2 }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-<!-- FOOTER -->
-<div id="pdf-footer" class="pdf-footer">
-    <hr>
-    <span>Generated on {% now "d-m-Y" %}</span>
-</div>
-
-<!-- DOWNLOAD BUTTON -->
-<div class="mt-3">
-    <button class="btn btn-danger" onclick="downloadPDF()">
-        <i class="fas fa-file-pdf"></i> Download PDF
-    </button>
-</div>
+<!-- BUTTON -->
+<button class="btn btn-danger mt-3" onclick="downloadPDF()">
+    <i class="fas fa-file-pdf"></i> Download PDF
+</button>
 
 {% endblock %}
 
 {% block includejs %}
 <script>
-// ================== Download PDF ==================
 function downloadPDF() {
-    const header = document.getElementById("pdf-header").outerHTML;
-    const content = document.getElementById("pdf-content").outerHTML;
-    const footer = document.getElementById("pdf-footer").outerHTML;
-
-    const fullHtml = `<div>${header}${content}${footer}</div>`;
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = fullHtml;
+    const element = document.getElementById('pdf-wrapper');
 
     const opt = {
-        margin: [15, 10, 20, 10],
+        margin: 10,
         filename: 'gst-report.pdf',
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
@@ -107,7 +82,7 @@ function downloadPDF() {
 
     html2pdf()
         .set(opt)
-        .from(wrapper)
+        .from(element)
         .toPdf()
         .get('pdf')
         .then(function(pdf) {
@@ -123,32 +98,5 @@ function downloadPDF() {
         })
         .save();
 }
-
-// ================== AJAX FILTER ==================
-const form = document.getElementById("sales-filter-form");
-form.addEventListener("change", function() {
-    const month = document.getElementById("month").value;
-    const year = document.getElementById("year").value;
-    const customer = document.getElementById("customer").value;
-
-    fetch(`?month=${month}&year=${year}&customer=${customer}`, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(response => response.json())
-    .then(data => {
-        const tbody = document.querySelector("#pdf-content tbody");
-        tbody.innerHTML = "";
-
-        data.customer_sales.forEach(cs => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td class="text-left">${cs.customer}</td>
-                <td>${cs.total_invoices}</td>
-                <td class="text-right">₹${cs.total_amount.toFixed(2)}</td>
-            `;
-            tbody.appendChild(row);
-        });
-    });
-});
 </script>
 {% endblock %}

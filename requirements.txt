@@ -4,4 +4,4 @@ social-auth-app-django
 daphne
 channels
 channels-redis
-weasyprint
+reportlab

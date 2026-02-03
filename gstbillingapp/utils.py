@@ -519,3 +519,16 @@ def mark_all_notifications_read(user):
         is_read=False, 
         is_deleted=False
     ).update(is_read=True, read_at=datetime.now())
+
+# ================= Location Methods ===========================
+import math
+
+def distance_meters(lat1, lng1, lat2, lng2):
+    R = 6371000
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))

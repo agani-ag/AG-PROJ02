@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<style>#map{height:80vh}</style>
+</head>
+<body>
+<h4>Admin Dashboard</h4>
+<div id="map"></div>
+<div id="alerts"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script>
+const map=L.map("map").setView([0,0],2);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+let heat=L.heatLayer([],{radius:25}).addTo(map);
+let last=null;
+
+setInterval(()=>{
+ fetch("/api/location/poll/").then(r=>r.json()).then(d=>{
+  d.forEach(p=>heat.addLatLng([p.lat,p.lng,0.6]));
+ })
+},1000);
+
+setInterval(()=>{
+ fetch("/api/location/geofence/").then(r=>r.json()).then(d=>{
+  d.forEach(e=>{
+   document.getElementById("alerts").innerHTML+=
+    `<div>${e.user} ${e.event} ${e.fence}</div>`;
+  })
+ })
+},1000);
+</script>
+</body>
+</html>

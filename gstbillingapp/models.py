@@ -522,3 +522,37 @@ class Notification(models.Model):
             'SYSTEM': 'badge-dark',
         }
         return badge_map.get(self.notification_type, 'badge-info')
+    
+# ======================= Live Location Tracking =================================
+class LiveLocation(models.Model):
+    USER_TYPES = (
+        ("customer", "Customer"),
+        ("employee", "Employee"),
+    )
+
+    user_id = models.CharField(max_length=100)
+    user_type = models.CharField(max_length=20, choices=USER_TYPES)
+    room = models.CharField(max_length=100, db_index=True)
+    lat = models.FloatField()
+    lng = models.FloatField()
+    accuracy = models.CharField(max_length=20, default="gps")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+
+class GeoFence(models.Model):
+    name = models.CharField(max_length=100)
+    center_lat = models.FloatField()
+    center_lng = models.FloatField()
+    radius_meters = models.IntegerField()
+    active = models.BooleanField(default=True)
+
+
+class GeoFenceEvent(models.Model):
+    user_id = models.CharField(max_length=100)
+    user_type = models.CharField(max_length=20)
+    fence = models.ForeignKey(GeoFence, on_delete=models.CASCADE)
+    event_type = models.CharField(max_length=10)  # enter / exit
+    created_at = models.DateTimeField(auto_now_add=True)

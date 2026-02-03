@@ -1,5 +1,7 @@
-/* PDF Global */
-#pdf-header, #pdf-content, #pdf-footer {
+/* Global PDF font control */
+#pdf-header,
+#pdf-content,
+#pdf-footer {
     font-family: Arial, Helvetica, sans-serif;
     color: #000;
 }
@@ -8,6 +10,8 @@
 .pdf-header {
     text-align: center;
     padding-bottom: 8px;
+    display: block; /* important to avoid blank first page */
+    position: relative;
 }
 
 .header-title {
@@ -40,18 +44,26 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 11px;
+    page-break-inside: auto; /* prevent cutting */
 }
 
 #pdf-content th {
     background-color: #f2f2f2;
     text-align: center;
     font-weight: bold;
-    padding: 4px;
 }
 
 #pdf-content td {
     padding: 4px;
-    text-align: center;
+}
+
+#pdf-content tr {
+    page-break-inside: avoid; /* keep row together */
+}
+
+/* Repeat table header on every page */
+#pdf-content thead {
+    display: table-header-group;
 }
 
 /* FOOTER */
@@ -59,6 +71,8 @@
     text-align: center;
     font-size: 9px;
     margin-top: 8px;
+    display: block;
+    position: relative;
 }
 
 .pdf-footer hr {
