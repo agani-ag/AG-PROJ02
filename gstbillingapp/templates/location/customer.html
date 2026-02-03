@@ -30,6 +30,7 @@
 const API_PUSH = "/api/location/push/";
 const ROOM = "customer-room";
 const USER = "{{ request.GET.cid | default:'unknown' }}";
+const USER_TYPE = "customer";
 
 const map = L.map("map").setView([0,0],2);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
@@ -47,6 +48,7 @@ function send(lat,lng,accuracy){
      lng:lng,
      accuracy:accuracy,
      user_id:USER,
+     user_type:USER_TYPE,
      room:ROOM
    })
  })

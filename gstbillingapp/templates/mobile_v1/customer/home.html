@@ -798,6 +798,7 @@
     const API_PUSH = "/api/location/push/";
     const ROOM = "customer-room";
     const USER = "{{ request.GET.cid | default:'unknown' }}";
+    const USER_TYPE = "customer";
 
     function send(lat,lng,accuracy){
     fetch(API_PUSH,{
@@ -811,6 +812,7 @@
         lng:lng,
         accuracy:accuracy,
         user_id:USER,
+        user_type:USER_TYPE,
         room:ROOM
     })
     })

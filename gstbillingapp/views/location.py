@@ -26,11 +26,9 @@ def admin_dashboard(request):
 def push_location(request):
     data = json.loads(request.body)
 
-    user_type = "employee" if request.user.is_staff else "customer"
-
     loc = LiveLocation.objects.create(
         user_id=data.get("user_id", "unknown"),
-        user_type=user_type,
+        user_type=data.get("user_type", "unknown"),
         room=data.get("room", "default"),
         lat=data["lat"],
         lng=data["lng"],
@@ -52,7 +50,7 @@ def push_location(request):
         if inside and (not last or last.event_type == "exit"):
             GeoFenceEvent.objects.create(
                 user_id=loc.user_id,
-                user_type=user_type,
+                user_type=data.get("user_type", "unknown"),
                 fence=fence,
                 event_type="enter"
             )
@@ -60,7 +58,7 @@ def push_location(request):
         if not inside and last and last.event_type == "enter":
             GeoFenceEvent.objects.create(
                 user_id=loc.user_id,
-                user_type=user_type,
+                user_type=data.get("user_type", "unknown"),
                 fence=fence,
                 event_type="exit"
             )
