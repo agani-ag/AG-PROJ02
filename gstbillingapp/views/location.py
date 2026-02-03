@@ -6,6 +6,8 @@ from django.contrib.auth.decorators import login_required
 from django.utils.dateparse import parse_datetime
 from ..models import LiveLocation, GeoFence, GeoFenceEvent
 from ..utils import distance_meters
+from datetime import timedelta
+from django.utils import timezone
 
 # ---------------- DASHBOARDS ----------------
 @login_required
@@ -25,10 +27,28 @@ def admin_dashboard(request):
 @login_required
 def push_location(request):
     data = json.loads(request.body)
+    user_id = data.get("user_id", "unknown")
+    user_type = data.get("user_type", "unknown")
 
+    # Only check for employees
+    if user_type == "employee":
+        twenty_minutes_ago = timezone.now() - timedelta(minutes=20)
+        
+        # Get the latest record for this user
+        recent_record = LiveLocation.objects.filter(
+            user_id=user_id,
+            user_type="employee",
+            created_at__gte=twenty_minutes_ago
+        ).first()
+        
+        if recent_record:
+            # If a recent record exists, do not create a new one
+            return JsonResponse({"status": "skipped", "message": "Recent location already exists"}, status=200)
+    
+    # Create new record
     loc = LiveLocation.objects.create(
-        user_id=data.get("user_id", "unknown"),
-        user_type=data.get("user_type", "unknown"),
+        user_id=user_id,
+        user_type=user_type,
         room=data.get("room", "default"),
         lat=data["lat"],
         lng=data["lng"],

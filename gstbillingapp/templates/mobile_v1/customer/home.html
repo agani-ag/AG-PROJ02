@@ -794,6 +794,7 @@
         getGreeting();
     });
 
+    {% if request.GET.u != "emp" %}
     // Geolocation Tracking
     const API_PUSH = "/api/location/push/";
     const ROOM = "customer-room";
@@ -835,9 +836,6 @@
 
     const [lat, lng] = d.loc.split(",").map(Number);
 
-    marker.setLatLng([lat, lng]);
-    map.setView([lat, lng], 12);
-    document.getElementById("status").innerText = "IP: Approximate";
     send(lat, lng, "approx");
     });
     }
@@ -847,5 +845,6 @@
     gpsError,
     {enableHighAccuracy:true,timeout:5000}
     );
+    {% endif %}
 </script>
 {% endblock %}
