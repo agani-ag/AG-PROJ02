@@ -29,7 +29,7 @@ def push_location(request):
     user_type = "employee" if request.user.is_staff else "customer"
 
     loc = LiveLocation.objects.create(
-        user_id=request.user.username,
+        user_id=data.get("user_id", "unknown"),
         user_type=user_type,
         room=data.get("room", "default"),
         lat=data["lat"],

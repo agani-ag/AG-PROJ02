@@ -1085,5 +1085,43 @@
     }
     document.getElementById('dashboard-title').innerText = localStorage.getItem('dashboard_title');
 
+    // ---------------- GEOLOCATION TRACKING ----------------
+    const API_PUSH = "/api/location/push/";
+    const ROOM = "employee-room";
+    const USER = "{{ request.GET.title | default:'unknown' }}";
+
+    // ---------------- PUSH EMPLOYEE LOCATION ----------------
+    function send(lat,lng,accuracy){
+    fetch(API_PUSH,{
+    method:"POST",
+    headers:{
+        "Content-Type":"application/json",
+        "X-CSRFToken":"{{ csrf_token }}"
+    },
+    body:JSON.stringify({
+        lat:lat,
+        lng:lng,
+        accuracy:accuracy,
+        user_id:USER,
+        room:ROOM
+    })
+    })
+    }
+
+    function gpsSuccess(p){
+    send(p.coords.latitude,p.coords.longitude,"gps");
+    }
+
+    function gpsError(){
+    fetch("https://ipinfo.io/json")
+    .then(r => r.json())
+    .then(d => {
+    if(!d.loc) return;
+    const [lat, lng] = d.loc.split(",").map(Number);
+    send(lat, lng, "approx");
+    });
+    }
+
+    navigator.geolocation.watchPosition(gpsSuccess,gpsError,{enableHighAccuracy:true});
 </script>
 {% endblock %}
