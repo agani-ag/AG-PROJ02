@@ -34,7 +34,6 @@
         </a>
         {% endif %}
         
-        {% if request.GET.admin == "true" %}
         <!-- Profile -->
         <a href="{% url 'v1customerprofile' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="profile">
             <i class="fas fa-user-circle"></i>
