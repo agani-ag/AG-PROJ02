@@ -37,12 +37,14 @@
             <span>Orders</span>
         </a>
         
+        {% if temp %}
         <!-- Notifications -->
         <a href="{% url 'v1notifications' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="notifications">
             <i class="fas fa-bell"></i>
             <span>Notifications</span>
             <span class="notification-badge" id="mobile-notification-badge" style="display: none;"></span>
         </a>
+        {% endif %}
         
         {% if request.GET.admin == "true" %}
         <!-- Expenses Tracker -->
@@ -143,6 +145,7 @@
         }
     });
     
+{% if temp %}
     // WebSocket for real-time notification count
     let mobileWs = null;
     let mobileReconnectInterval = null;
@@ -199,4 +202,5 @@
     
     // Connect on page load
     connectMobileNotificationWebSocket();
+{% endif %}
 </script>
