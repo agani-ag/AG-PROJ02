@@ -32,12 +32,14 @@ def purchases_logs(request):
 @login_required
 def purchases_logs_add(request):
     context = {}
-    context['categories'] = PurchaseLog.objects.filter(user=request.user).values_list('category', flat=True).distinct().exclude(category__isnull=True)
-    context['references'] = PurchaseLog.objects.filter(user=request.user).values_list('reference', flat=True).distinct().exclude(reference__isnull=True)
+    context['categories'] = PurchaseLog.objects.filter(user=request.user).values_list('category', flat=True).distinct().exclude(category__isnull=True).exclude(category__exact='')
+    context['references'] = PurchaseLog.objects.filter(user=request.user).values_list('reference', flat=True).distinct().exclude(reference__isnull=True).exclude(reference__exact='')
     context['form'] = PurchaseLogForm()
         
     if request.method == "POST":
-        form = PurchaseLogForm(request.POST)
+        form = PurchaseLogForm(request.POST.copy())
+        if form.data.get('vendor') == 'None':
+            form.data['vendor'] = ''
         if form.is_valid():
             purchase = form.save(commit=False)
             purchase.user = request.user

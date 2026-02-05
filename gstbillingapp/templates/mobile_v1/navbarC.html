@@ -13,12 +13,6 @@
             <span>Invoices</span>
         </a>
         
-        <!-- Orders -->
-        <a href="{% url 'v1customerorders' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="orders">
-            <i class="fas fa-shopping-cart"></i>
-            <span>Orders</span>
-        </a>
-        
         <!-- Books -->
         <a href="{% url 'v1customerbooks' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="books">
             <i class="fas fa-book-open"></i>
@@ -26,6 +20,12 @@
         </a>
 
         {% if temp %}
+        <!-- Orders -->
+        <a href="{% url 'v1customerorders' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="orders">
+            <i class="fas fa-shopping-cart"></i>
+            <span>Orders</span>
+        </a>
+
         <!-- Notifications -->
         <a href="{% url 'v1customernotifications' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="notifications">
             <i class="fas fa-bell"></i>
