@@ -1071,10 +1071,12 @@ def purchase_logs(request):
         purchases_qs = purchases_qs.filter(vendor__id=vendor_id)
     
     # Apply type filter
-    if type_filter == 'purchase':
+    if type_filter == 'paid':
         purchases_qs = purchases_qs.filter(change_type=0)
-    elif type_filter == 'paid':
+    elif type_filter == 'purchase':
         purchases_qs = purchases_qs.filter(change_type=1)
+    elif type_filter == 'returned':
+        purchases_qs = purchases_qs.filter(change_type=2)    
     elif type_filter == 'others':
         purchases_qs = purchases_qs.filter(change_type=3)
     
@@ -1120,14 +1122,17 @@ def purchase_logs(request):
     
     # Calculate totals for current filter
     totals = purchases_qs.aggregate(
-        total_purchase=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-        total_paid=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_purchase=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
         total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
     )
     
     total_purchase = abs(totals['total_purchase'] or 0)
     total_paid = abs(totals['total_paid'] or 0)
-    total_balance = total_purchase - total_paid
+    total_returned = abs(totals['total_returned'] or 0)
+    total_others = abs(totals['total_others'] or 0)
+    total_balance = total_purchase - (total_paid + total_returned + total_others)
     total_count = paginator.count
     
     context.update({
@@ -1137,6 +1142,8 @@ def purchase_logs(request):
         'page_obj': page_obj,
         'total_purchase': total_purchase,
         'total_paid': total_paid,
+        'total_returned': total_returned,
+        'total_others': total_others,
         'total_balance': total_balance,
         'total_count': total_count,
         'current_user_id': user_id,
@@ -1156,6 +1163,8 @@ def purchase_logs(request):
             'total_count': total_count,
             'total_purchase': float(total_purchase),
             'total_paid': float(total_paid),
+            'total_returned': float(total_returned),
+            'total_others': float(total_others),
             'total_balance': float(total_balance),
             'has_next': page_obj.has_next(),
             'has_previous': page_obj.has_previous(),

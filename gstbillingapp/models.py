@@ -321,8 +321,9 @@ class PurchaseLog(models.Model):
     vendor = models.ForeignKey("VendorPurchase", null=True, blank=True, on_delete=models.SET_NULL)
     date = models.DateTimeField(default=datetime.now, blank=True, null=True)
     CHANGE_TYPES = [
-        (0, 'Purchase'),
-        (1, 'Paid'),
+        (0, 'Paid'),
+        (1, 'Purchase'),
+        (2, 'Return'),
         (3, 'Others'),
     ]
     change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)

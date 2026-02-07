@@ -1,8 +1,8 @@
 # Django imports
 from django.contrib import messages
-from django.db.models import Sum
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Sum, Case, When, FloatField, F, Q
 
 # Models
 from ..models import (
@@ -14,6 +14,7 @@ from ..forms import (
     PurchaseLogForm
 )
 # Third-party libraries
+import num2words
 import json
 import datetime
 
@@ -21,12 +22,37 @@ import datetime
 @login_required
 def purchases_logs(request):
     context = {}
-    context['total_purchased'] = PurchaseLog.objects.filter(user=request.user, change_type=0).aggregate(Sum('change'))['change__sum']
-    context['total_paid'] = PurchaseLog.objects.filter(user=request.user, change_type=1).aggregate(Sum('change'))['change__sum']
-    context['total_others'] = PurchaseLog.objects.filter(user=request.user, change_type=3).aggregate(Sum('change'))['change__sum']
-    context['total_balance'] = PurchaseLog.objects.filter(user=request.user).aggregate(Sum('change'))['change__sum']
-    
-    context['purchases'] = PurchaseLog.objects.filter(user=request.user).order_by('-date')
+    purchases_logs = PurchaseLog.objects.filter(user=request.user).order_by('-date')
+    totals = purchases_logs.aggregate(
+        total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+        total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+    )
+    # Fill in context with totals, using 0 if None
+    total_purchased = totals['total_purchased'] or 0
+    total_paid = totals['total_paid'] or 0
+    total_returned = totals['total_returned'] or 0
+    total_others = totals['total_others'] or 0
+    total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
+    # Calculate balance (absolute value if you want it always positive)
+    context['total_balance'] = total_balance
+    context['total_balance_word'] = num2words.num2words(abs(int(context['total_balance'])), lang='en_IN').title()
+    context['total_purchased'] = abs(total_purchased)
+    context['total_paid'] = abs(total_paid)
+    context['total_returned'] = abs(total_returned)
+    context['total_others'] = abs(total_others)
+    if request.GET.get('filter') == 'paid':
+        purchases_logs = purchases_logs.filter(change_type=0)
+    elif request.GET.get('filter') == 'purchased':
+        purchases_logs = purchases_logs.filter(change_type=1)
+    elif request.GET.get('filter') == 'returned':
+        purchases_logs = purchases_logs.filter(change_type=2)
+    elif request.GET.get('filter') == 'others':
+        purchases_logs = purchases_logs.filter(change_type=3)
+    else:
+        purchases_logs = purchases_logs.filter(Q(change_type=0) | Q(change_type=1) | Q(change_type=2) | Q(change_type=3))
+    context['purchases'] = purchases_logs    
     return render(request, 'purchases/purchases.html', context)
 
 @login_required

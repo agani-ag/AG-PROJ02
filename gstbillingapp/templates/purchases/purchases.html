@@ -19,13 +19,14 @@
 			</div>
 		</div>
 		
-		<!-- Summary Cards -->
-		<div class="row mb-3 p-0">
+		<!-- Summary Cards Row -->
+		<div class="row mb-3">
 			<div class="col-md-3">
 				<div class="card bg-danger text-white">
 					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-receipt"></i> Total Purchased</h6>
+						<h6 class="card-title"><i class="fas fa-receipt"></i> Total Sales</h6>
 						<h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
+						<a href="?filter=purchased" class="stretched-link"></a>
 					</div>
 				</div>
 			</div>
@@ -34,6 +35,16 @@
 					<div class="card-body">
 						<h6 class="card-title"><i class="fas fa-circle-check"></i> Total Paid</h6>
 						<h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
+						<a href="?filter=paid" class="stretched-link"></a>
+					</div>
+				</div>
+			</div>
+			<div class="col-md-3">
+				<div class="card bg-orange text-white">
+					<div class="card-body">
+						<h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
+						<h3>₹ {{ total_returned | default:0 | floatformat:2 | intcomma }}</h3>
+						<a href="?filter=returned" class="stretched-link"></a>
 					</div>
 				</div>
 			</div>
@@ -42,20 +53,18 @@
 					<div class="card-body">
 						<h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
 						<h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
-					</div>
-				</div>
-			</div>
-			<div class="col-md-3">
-				<div class="card bg-orange text-white">
-					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-exclamation-triangle"></i> Balance Due</h6>
-						<h3>₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</h3>
+						<a href="?filter=others" class="stretched-link"></a>
 					</div>
 				</div>
 			</div>
 		</div>
-	</div>
-
+		<p class="font-weight-bold">
+			<span>Current Balance:</span> 
+			<span class="text-danger">
+				<a href="?filter=balance" class="text-danger">
+				₹ {{ total_balance | default:0 | floatformat:2 | intcomma }} </a></span>
+			<span>({{ total_balance_word }})</span>
+		</p>
 	<table class="table table-hover font-weight-bold" id="purchase-table">
 		<thead class="thead-dark">
 			<tr>
@@ -69,11 +78,12 @@
 		</thead>
 		<tbody class="two-col-form">
 			{% for purchase in purchases %}
-			<!-- <tr class="{% if purchase.change > 0 %} table-success {% else %} table-danger {% endif %}"> -->
-				{% if purchase.change_type == 1 %}
+				{% if purchase.change_type == 0 %}
 					<tr class="table-success">
-				{% elif purchase.change_type == 0 %}
+				{% elif purchase.change_type == 1 %}
 					<tr class="table-danger">
+				{% elif purchase.change_type == 2 %}
+					<tr class="table-warning">
 				{% else %}
 					<tr class="table-info">
 				{% endif %}
