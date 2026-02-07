@@ -715,7 +715,18 @@
         </div>
         {% load humanize %}
         {% for log in overdue_logs %}
-            <div class="overdue-item" data-overdue-days="{{ log.overdue_days }}">
+            <div class="overdue-item"
+                style="cursor:pointer"
+                onclick="showOverdueDetails(this)"
+                data-vendor-id="{{ log.vendor_id|default:'' }}"
+                data-date="{{ log.date|date:'Y-m-d H:i:s' }}"
+                data-overdue-days="{{ log.overdue_days }}"
+                data-change="{{ log.change }}"
+                data-reference="{{ log.reference }}"
+                data-category="{{ log.category }}"
+                data-amount="{{ log.amount_positive }}"
+                data-payment-pending="{{ log.payment_pending }}">
+
                 <span class="summary-item">
                     <span class="summary-label">
                         <i class="fas fa-receipt" style="color: #ff3b30;"></i>
@@ -845,5 +856,85 @@
         }
         getGreeting();
     });
+</script>
+<script>
+function showOverdueDetails(el) {
+
+    const paymentPending = el.dataset.paymentPending === "True";
+
+    Swal.fire({
+    title: 'Overdue Bill',
+    icon: 'warning',
+    width: 420,
+    confirmButtonText: 'Close',
+    html: `
+    <div style="font-size:14px; text-align:left">
+
+        ${el.dataset.vendorId
+            ? `<div style="margin-bottom:10px">
+                    <i class="fa fa-user text-primary"></i>
+                    <strong> Vendor</strong><br>
+                    <span>${el.dataset.vendorId}</span>
+            </div>`
+            : ''
+        }
+
+        <div style="margin-bottom:10px">
+            <i class="fa fa-calendar text-info"></i>
+            <strong> Date</strong><br>
+            <span>${el.dataset.date}</span>
+        </div>
+
+        <div style="margin-bottom:10px">
+            <i class="fa fa-file-text text-secondary"></i>
+            <strong> Reference</strong><br>
+            <span><b>${el.dataset.reference}</b></span>
+        </div>
+
+        <div style="margin-bottom:10px">
+            <i class="fa fa-tags text-warning"></i>
+            <strong> Category</strong><br>
+            <span>${el.dataset.category}</span>
+        </div>
+
+        <hr>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+            <div>
+                <i class="fa fa-clock text-danger"></i>
+                <strong> Overdue</strong>
+            </div>
+            <span class="badge badge-danger">
+                ${el.dataset.overdueDays} Days
+            </span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+            <div>
+                <i class="fa fa-money text-success"></i>
+                <strong> Amount</strong>
+            </div>
+            <span style="color:#28a745;font-weight:bold">
+                ₹${Number(el.dataset.amount).toLocaleString()}
+            </span>
+        </div>
+
+        <div style="text-align:center; margin-top:15px">
+            ${
+                paymentPending
+                ? `<span class="badge badge-danger px-3 py-2">
+                        <i class="fa fa-exclamation-circle"></i> Payment Pending
+                   </span>`
+                : `<span class="badge badge-success px-3 py-2">
+                        <i class="fa fa-check-circle"></i> Paid
+                   </span>`
+            }
+        </div>
+
+    </div>
+    `
+});
+
+}
 </script>
 {% endblock %}

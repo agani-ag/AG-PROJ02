@@ -1205,6 +1205,10 @@ def purchase_logs_overdue(request):
         total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
         total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
         total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+        paid_count=Count(Case(When(change_type=0, then=1), output_field=IntegerField())),
+        purchased_count=Count(Case(When(change_type=1, then=1), output_field=IntegerField())),
+        returned_count=Count(Case(When(change_type=2, then=1), output_field=IntegerField())),
+        others_count=Count(Case(When(change_type=3, then=1), output_field=IntegerField())),
     )
     
     total_purchased = abs(totals['total_purchased'] or 0)
@@ -1212,6 +1216,15 @@ def purchase_logs_overdue(request):
     total_returned = abs(totals['total_returned'] or 0)
     total_others = abs(totals['total_others'] or 0)
     total_balance = total_purchased - (total_paid + total_returned + total_others)
+    # Counts
+    context['purchased_count'] = totals['purchased_count'] or 0
+    context['paid_count'] = totals['paid_count'] or 0
+    context['returned_count'] = totals['returned_count'] or 0
+    context['others_count'] = totals['others_count'] or 0
+
+    overall_payment_percentage = 0
+    if total_purchased > 0:
+        overall_payment_percentage = min(100, (total_paid / total_purchased) * 100)
 
     # Overdue
     only_purchases = only_purchases = purchases_qs.filter(change_type=1).annotate(amount_positive=Abs('change')).order_by('date')
@@ -1256,6 +1269,7 @@ def purchase_logs_overdue(request):
         'total_others': total_others,
         'total_balance': total_balance,
         'users_filter': users_filter,
+        'overall_payment_percentage': round(overall_payment_percentage, 1),
     })
         
     return render(request, 'mobile_v1/purchase_overdue_log.html', context)
