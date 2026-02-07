@@ -1,0 +1,849 @@
+{% extends "mobile_v1/base.html" %}
+{% load static %}
+{% load humanize %}
+{% block title %}Overdue Purchases{% endblock %}
+
+{% block includecss %}
+<style>
+    /* Samsung One UI Home Page Styling */
+    .home-wrapper {
+        max-width: 640px;
+        margin: 0 auto;
+        padding-bottom: 80px;
+    }
+    
+    /* Welcome Header */
+    .welcome-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 0 0 16px 16px;
+        padding: 32px 20px 24px;
+        margin: -12px -8px 20px;
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+    }
+    
+    .greeting-text {
+        font-size: 15px;
+        color: rgba(255, 255, 255, 0.85);
+        margin: 0 0 4px;
+        font-weight: 500;
+    }
+    
+    .customer-name {
+        font-size: 26px;
+        font-weight: 700;
+        color: white;
+        margin: 0;
+        letter-spacing: -0.5px;
+    }
+    
+    /* Section Headers */
+    .section-header {
+        padding: 24px 8px 12px;
+    }
+    
+    .section-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+        letter-spacing: -0.3px;
+    }
+    
+    .section-subtitle {
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+        font-weight: 500;
+    }
+    
+    /* Stats Cards */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+        display: block;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: currentColor;
+        opacity: 0.8;
+    }
+    
+    .stat-card:active {
+        transform: scale(0.97);
+    }
+    
+    .stat-card.danger {
+        color: #ff3b30;
+    }
+    
+    .stat-card.success {
+        color: #34c759;
+    }
+    
+    .stat-card.warning {
+        color: #ff9500;
+    }
+    
+    .stat-card.info {
+        color: #007aff;
+    }
+    
+    .stat-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+    }
+    
+    .stat-card.danger .stat-icon {
+        background: rgba(255, 59, 48, 0.12);
+    }
+    
+    .stat-card.success .stat-icon {
+        background: rgba(52, 199, 89, 0.12);
+    }
+    
+    .stat-card.warning .stat-icon {
+        background: rgba(255, 149, 0, 0.12);
+    }
+    
+    .stat-card.info .stat-icon {
+        background: rgba(0, 122, 255, 0.12);
+    }
+    
+    .stat-icon i {
+        font-size: 18px;
+    }
+    
+    .stat-card.danger .stat-icon i {
+        color: #ff3b30;
+    }
+    
+    .stat-card.success .stat-icon i {
+        color: #34c759;
+    }
+    
+    .stat-card.warning .stat-icon i {
+        color: #ff9500;
+    }
+    
+    .stat-card.info .stat-icon i {
+        color: #007aff;
+    }
+    
+    .stat-label {
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+        margin: 0 0 6px;
+        font-weight: 500;
+    }
+    
+    .stat-value {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+        letter-spacing: -0.5px;
+    }
+    
+    .stat-count {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+    }
+    
+    /* Summary Section */
+    .summary-section {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+    }
+    
+    .summary-title {
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0 0 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .summary-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--oneui-divider);
+    }
+    
+    .summary-item:last-child {
+        border-bottom: none;
+    }
+    
+    .summary-label {
+        font-size: 15px;
+        color: var(--oneui-text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .summary-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+    }
+    
+    .summary-badge {
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        margin-left: 6px;
+    }
+    
+    .badge-danger {
+        background: #ffebee;
+        color: #c62828;
+    }
+    
+    .badge-success {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+    
+    .badge-warning {
+        background: #fff3e0;
+        color: #e65100;
+    }
+    
+    .badge-info {
+        background: #e3f2fd;
+        color: #1565c0;
+    }
+    
+    /* Footer Info */
+    .page-footer {
+        background: white;
+        border-radius: 16px;
+        padding: 16px 20px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .footer-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+    }
+    
+    .footer-info i {
+        font-size: 16px;
+    }
+    
+    .footer-value {
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+    }
+    
+    /* Dark Mode Overrides */
+    [data-theme="dark"] .stat-card {
+        background: var(--oneui-card-bg);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-theme="dark"] .summary-section {
+        background: var(--oneui-card-bg);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-theme="dark"] .page-footer {
+        background: var(--oneui-card-bg);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-theme="dark"] .stat-card.danger .stat-icon {
+        background: rgba(255, 59, 48, 0.2);
+    }
+    
+    [data-theme="dark"] .stat-card.success .stat-icon {
+        background: rgba(52, 199, 89, 0.2);
+    }
+    
+    [data-theme="dark"] .stat-card.warning .stat-icon {
+        background: rgba(255, 149, 0, 0.2);
+    }
+    
+    [data-theme="dark"] .stat-card.info .stat-icon {
+        background: rgba(0, 122, 255, 0.2);
+    }
+    
+    [data-theme="dark"] .badge-danger {
+        background: rgba(255, 59, 48, 0.15);
+        color: #ff6b6b;
+    }
+    
+    [data-theme="dark"] .badge-success {
+        background: rgba(52, 199, 89, 0.15);
+        color: #69db7c;
+    }
+    
+    [data-theme="dark"] .badge-warning {
+        background: rgba(255, 149, 0, 0.15);
+        color: #ffa94d;
+    }
+    
+    [data-theme="dark"] .badge-info {
+        background: rgba(0, 122, 255, 0.15);
+        color: #4dabf7;
+    }
+    
+    /* Progress Section */
+    .progress-section {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+    }
+    
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .progress-title {
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .progress-period {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--oneui-text-secondary);
+        padding: 4px 10px;
+        background: var(--oneui-divider);
+        border-radius: 8px;
+    }
+    
+    .progress-item {
+        margin-bottom: 20px;
+    }
+    
+    .progress-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    .progress-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+    
+    .progress-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--oneui-text-primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .progress-label i {
+        font-size: 16px;
+    }
+    
+    .progress-percentage {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+    }
+    
+    .progress-bar-container {
+        height: 8px;
+        background: var(--oneui-divider);
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .progress-bar::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.3) 50%,
+            rgba(255, 255, 255, 0) 100%
+        );
+        animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% {
+            transform: translateX(-100%);
+        }
+        100% {
+            transform: translateX(100%);
+        }
+    }
+    
+    .progress-bar.success {
+        background: linear-gradient(90deg, #34c759 0%, #30d158 100%);
+    }
+    
+    .progress-bar.danger {
+        background: linear-gradient(90deg, #ff3b30 0%, #ff453a 100%);
+    }
+    
+    .progress-bar.warning {
+        background: linear-gradient(90deg, #ff9500 0%, #ffa726 100%);
+    }
+    
+    .progress-bar.info {
+        background: linear-gradient(90deg, #007aff 0%, #0a84ff 100%);
+    }
+    
+    .progress-values {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+    }
+    
+    .progress-current {
+        font-weight: 600;
+    }
+    
+    /* Dark Mode - Progress Section */
+    [data-theme="dark"] .progress-section {
+        background: var(--oneui-card-bg);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-theme="dark"] .progress-bar-container {
+        background: rgba(255, 255, 255, 0.1);
+    }
+    
+    [data-theme="dark"] .progress-period {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    [data-theme="dark"] .activity-list {
+        background: var(--oneui-card-bg);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Section Headers */
+    .section-header {
+        padding: 24px 8px 12px;
+    }
+    
+    .section-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+        letter-spacing: -0.3px;
+    }
+    
+    .section-subtitle {
+        font-size: 13px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+        font-weight: 500;
+    }
+    /* Recent Activity */
+    .activity-list {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: var(--oneui-shadow);
+        margin: 0 8px 20px;
+    }
+    
+    .activity-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--oneui-divider);
+        text-decoration: none;
+        color: inherit;
+    }
+    
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    
+    .activity-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 16px;
+    }
+    
+    .activity-icon.invoice {
+        background: rgba(255, 149, 0, 0.15);
+        color: #ff9500;
+    }
+    
+    .activity-icon.expense {
+        background: rgba(255, 59, 48, 0.15);
+        color: #ff3b30;
+    }
+    
+    .activity-details {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .activity-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .activity-subtitle {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+    }
+    
+    .activity-amount {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        flex-shrink: 0;
+    }
+    /* Inventory Alerts */
+    .alert-card {
+        background: white;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: var(--oneui-shadow);
+        margin: 0 8px 20px;
+    }
+    
+    .alert-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--oneui-bg);
+        border-radius: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .alert-item:last-child {
+        margin-bottom: 0;
+    }
+    
+    .alert-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 18px;
+    }
+    
+    .alert-icon.warning {
+        background: rgba(255, 149, 0, 0.15);
+        color: #ff9500;
+    }
+    
+    .alert-icon.danger {
+        background: rgba(255, 59, 48, 0.15);
+        color: #ff3b30;
+    }
+    
+    .alert-icon.success {
+        background: rgba(52, 199, 89, 0.15);
+        color: #34c759;
+    }
+    
+    .alert-content {
+        flex: 1;
+    }
+    
+    .alert-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--oneui-text-primary);
+        margin: 0 0 4px;
+    }
+    
+    .alert-description {
+        font-size: 12px;
+        color: var(--oneui-text-secondary);
+        margin: 0;
+    }
+    
+    .alert-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--oneui-text-primary);
+        flex-shrink: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="home-wrapper">
+    
+    <!-- Welcome Header -->
+    <div class="welcome-header">
+        <h1 class="customer-name">Overdue Bills</h1>
+        <p class="greeting-text">Hi, <span id="d-title">User</span> 
+            <span class="greeting-text" id="greeting">Good Morning</span>
+        </p>
+    </div>
+    
+    <!-- Purchase Balance Section -->
+    <div class="section-header">
+        <h2 class="section-title">Purchase Balance</h2>
+        <p class="section-subtitle">Outstanding amount</p>
+    </div>
+    
+    <div class="progress-section">
+        <div class="progress-header">
+            <h3 class="progress-title">
+                <i class="fas fa-wallet"></i>
+                Balance Overview
+            </h3>
+            <span class="progress-period text-dark font-weight-bold">{{ overall_payment_percentage|default:0 }}%</span>
+        </div>
+        
+        <!-- Balance Progress -->
+        <div class="progress-item">
+            <div class="progress-info">
+                <span class="progress-label">
+                    <i class="fas fa-money-bill-wave" style="color: #ff3b30;"></i>
+                    Total Outstanding
+                </span>
+                <span class="progress-percentage" style="color: #ff3b30;">₹{{ total_balance|default:0|floatformat:2|intcomma }}</span>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar danger" style="width: {{ overall_payment_percentage|default:0 }}%;"></div>
+            </div>
+            <div class="progress-values">
+                <span class="progress-current">Paid: ₹{{ total_paid|default:0|floatformat:2|intcomma }}</span>
+                <span>Total: ₹{{ total_purchased|default:0|floatformat:2|intcomma }}</span>
+            </div>
+        </div>
+        <hr>
+
+        <!-- Overdue Summary -->
+        <div class="progress-header" id="overdue-section">
+            <h3 class="progress-title">
+                <i class="bi bi-clock-history"></i>
+                Overdue Bills
+            </h3>
+            {% if not show_80_only %}
+                <a class="progress-period text-dark font-weight-bold" href="{{ url_overdue_80 }}#overdue-section">
+                    {{ overdue_logs|length }}
+                </a>
+            {% else %}
+                <a class="progress-period text-dark font-weight-bold" href="{{ url_show_all }}#overdue-section">
+                    {{ overdue_logs|length }}
+                </a>
+            {% endif %}
+
+        </div>
+        {% load humanize %}
+        {% for log in overdue_logs %}
+            <div class="overdue-item" data-overdue-days="{{ log.overdue_days }}">
+                <span class="summary-item">
+                    <span class="summary-label">
+                        <i class="fas fa-receipt" style="color: #ff3b30;"></i>
+                        <span>
+                            {{ log.date|date:"d/m/Y" }}
+                            <span class="badge badge-danger">{{ log.overdue_days }} Days</span>
+                            <br><small class="text-muted">{{ log.date|naturaltime }}</small>
+                        </span>
+                    </span>
+                    <span class="summary-value">
+                        ₹{{ log.amount_positive|default:0|floatformat:2|intcomma }}
+                        {% if forloop.first %}
+                            <br>
+                            <span class="badge badge-warning">
+                                ₹{{ log.balance_after|default:0|floatformat:2|intcomma }}
+                            </span>
+                        {% endif %}
+                    </span>
+                {% if log.associated_invoice %}</a>{% else %}</span>{% endif %}
+            </div>
+        {% empty %}
+            <p style="padding: 12px 0; color: var(--oneui-text-secondary); text-align: center;">
+                No overdue bills.
+            </p>
+        {% endfor %}
+    </div>
+    
+    <!-- Global Transactions Summary -->
+    <div class="section-header">
+        <h2 class="section-title">Overall Purchase Summary</h2>
+        <p class="section-subtitle">{{ start_end_year }}</p>
+    </div>
+    
+    <div class="summary-section">
+        <h3 class="summary-title">
+            <i class="fas fa-chart-line"></i>
+            Transaction Overview
+        </h3>
+        
+        <span class="summary-item">
+            <span class="summary-label">
+                <i class="fas fa-receipt" style="color: #ff3b30;"></i>
+                Total Purchased
+                <span class="summary-badge badge-danger">{{ purchased_count|default:0 }}</span>
+            </span>
+            <span class="summary-value">₹{{ total_purchased|default:0|floatformat:2|intcomma }}</span>
+        </span>
+        
+        <span class="summary-item">
+            <span class="summary-label">
+                <i class="fas fa-circle-check" style="color: #34c759;"></i>
+                Total Paid
+                <span class="summary-badge badge-success">{{ paid_count|default:0 }}</span>
+            </span>
+            <span class="summary-value">₹{{ total_paid|default:0|floatformat:2|intcomma }}</span>
+        </span>
+        
+        <span class="summary-item">
+            <span class="summary-label">
+                <i class="fas fa-reply" style="color: #ff9500;"></i>
+                Total Returned
+                <span class="summary-badge badge-warning">{{ returned_count|default:0 }}</span>
+            </span>
+            <span class="summary-value">₹{{ total_returned|default:0|floatformat:2|intcomma }}</span>
+        </span>
+        
+        <span class="summary-item">
+            <span class="summary-label">
+                <i class="fas fa-ellipsis" style="color: #007aff;"></i>
+                Other Transactions
+                <span class="summary-badge badge-info">{{ others_count|default:0 }}</span>
+            </span>
+            <span class="summary-value">₹{{ total_others|default:0|floatformat:2|intcomma }}</span>
+        </span>
+    </div>
+
+    <!-- Page Footer -->
+    <div class="section-header">
+        <h2 class="section-title">Brands</h2>
+        <p class="section-subtitle">Accessible brands or associated companies</p>
+    </div>
+
+    <div class="activity-list">
+        <h3 class="summary-title">
+            <i class="bi bi-tags"></i>
+            Brand Tracking
+        </h3>
+        
+        {% for user in users %}
+        <div class="activity-item">
+            <div class="alert-icon success">
+                <i class="bi bi-clipboard-data"></i>
+            </div>
+            <div class="activity-details">
+                <h4 class="activity-title">{{ user.business_brand|default:"Unknown Brand" }}</h4>
+                <p class="activity-subtitle">{{ user.business_title|default:"Unknown Brand" }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% include "mobile_v1/navbarE.html" %}
+</div>
+
+{% endblock %}
+
+{% block includejs %}
+<script>
+    function getGreeting() {
+        const hour = new Date().getHours();
+        let greeting = "Hello";
+        if (hour >= 5 && hour < 12) {
+            greeting = "Good Morning";
+        } else if (hour >= 12 && hour < 17) {
+            greeting = "Good Afternoon";
+        } else if (hour >= 17 && hour < 21) {
+            greeting = "Good Evening";
+        } else {
+            greeting = "Good Night";
+        }
+        document.getElementById("greeting").innerText = greeting;
+    }
+
+    $(document).ready(function () {
+        var DTITLE = localStorage.getItem('dashboard_title');
+        if (DTITLE !== 'Dashboard') {
+            document.getElementById('d-title').innerText = DTITLE;
+        }
+        getGreeting();
+    });
+</script>
+{% endblock %}

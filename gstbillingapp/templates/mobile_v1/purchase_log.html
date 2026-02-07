@@ -641,7 +641,10 @@
         <button class="filter-tab {% if current_date_filter == 'month' %}active{% endif %}" data-filter="month">
             <i class="bi bi-calendar-month"></i> This Month
         </button>
-        
+        <a href="{% url 'v1purchaseoverduelogs' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="filter-tab {% if current_date_filter == 'overdue' %}active{% endif %}" 
+            data-filter="overdue" style="text-decoration: none;">
+             <i class="bi bi-calendar-x"></i> Overdue Bills
+        </a>
     </div>
     
     <!-- Stats Section -->

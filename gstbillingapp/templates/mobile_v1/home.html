@@ -673,6 +673,7 @@
             <p class="stat-count">{{ current_month_expense_count|intcomma }} transaction{{ current_month_expense_count|pluralize }}</p>
         </div>
         
+        {% if request.GET.admin == "true" %}
         <div class="stat-card purple">
             <div class="stat-icon">
                 <i class="bi bi-bag"></i>
@@ -680,7 +681,9 @@
             <p class="stat-label">Vendor Purchases</p>
             <h3 class="stat-value">₹{{ current_month_purchase_amount|floatformat:0|intcomma }}</h3>
             <p class="stat-count">{{ current_month_purchase_count|intcomma }} purchase{{ current_month_purchase_count|pluralize }}</p>
+            <a href="{% url 'v1purchaseoverduelogs' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}&overdue=80" class="stretched-link"></a>
         </div>
+        {% endif %}
         
         <div class="stat-card info">
             <div class="stat-icon">
@@ -823,7 +826,6 @@
             </span>
         </div>
         
-        {% if request.GET.admin == "true" %}
         <div class="summary-item">
             <span class="summary-label">
                 <i class="bi bi-cash-stack"></i>
@@ -834,7 +836,6 @@
                 <span class="summary-badge badge-danger">{{ total_expense_count|intcomma }}</span>
             </span>
         </div>
-        {% endif %}
     </div>
     
     <!-- Payment Progress -->

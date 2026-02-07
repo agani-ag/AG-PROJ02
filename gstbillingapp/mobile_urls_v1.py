@@ -34,8 +34,9 @@ urlpatterns = [
     path('products', customer.products, name='v1products'),
     path('customers', customer.customers, name='v1customers'),
     path('purchaselogs', customer.purchase_logs, name='v1purchaselogs'),
-    path('expensestracker', customer.expenses_tracker, name='v1expensestracker'),
     path('notifications', customer.notifications, name='v1notifications'),
+    path('expensestracker', customer.expenses_tracker, name='v1expensestracker'),
+    path('purchaselogs/overdue', customer.purchase_logs_overdue, name='v1purchaseoverduelogs'),
     
     # Admin Order Management URLs
     path('admin/orders', admin_orders.admin_orders_list, name='v1adminorders'),

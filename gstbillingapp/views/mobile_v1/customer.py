@@ -1175,6 +1175,91 @@ def purchase_logs(request):
     
     return render(request, 'mobile_v1/purchase_log.html', context)
 
+def purchase_logs_overdue(request):
+    """Purchase Logs listing with filtering, search, and pagination"""
+    
+    context = {}
+    
+    # Get filter parameters
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
+    
+    # Get all users for dropdown
+    users = UserProfile.objects.all().select_related('user').order_by('business_title')
+    
+    # Base queryset
+    purchases_qs = PurchaseLog.objects.select_related('user', 'vendor').order_by('-date')
+    
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        purchases_qs = purchases_qs.filter(user__id__in=user_ids)
+    
+    # Apply date filter
+    now = timezone.now()
+    
+    # Calculate totals for current filter
+    totals = purchases_qs.aggregate(
+        total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+        total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+    )
+    
+    total_purchased = abs(totals['total_purchased'] or 0)
+    total_paid = abs(totals['total_paid'] or 0)
+    total_returned = abs(totals['total_returned'] or 0)
+    total_others = abs(totals['total_others'] or 0)
+    total_balance = total_purchased - (total_paid + total_returned + total_others)
+
+    # Overdue
+    only_purchases = only_purchases = purchases_qs.filter(change_type=1).annotate(amount_positive=Abs('change')).order_by('date')
+    remaining_amount = abs(total_paid) + abs(total_returned) + abs(total_others)
+    show_80_only = request.GET.get('overdue') == '80'
+    filtered_logs = []
+    payment_failed = False
+    for log in only_purchases:
+        # overdue days
+        log.overdue_days = (now - log.date).days if log.date else 0
+        invoice_amount = log.amount_positive
+
+        if not payment_failed and remaining_amount >= invoice_amount:
+            # covered
+            remaining_amount -= invoice_amount
+            continue
+
+        # once failed, everything is overdue
+        payment_failed = True
+        log.remaining_amount = remaining_amount
+        log.balance_after = abs(remaining_amount - invoice_amount)
+        log.payment_pending = True
+        if show_80_only and log.overdue_days < 80:
+            continue
+        filtered_logs.append(log)
+
+    params = request.GET.copy()
+    params_overdue_80 = params.copy()
+    params_overdue_80['overdue'] = '80'
+    params_show_all = params.copy()
+    params_show_all.pop('overdue', None)
+    context['url_overdue_80'] = f"?{urlencode(params_overdue_80)}"
+    context['url_show_all'] = f"?{urlencode(params_show_all)}"
+    context['show_80_only'] = show_80_only
+    context['overdue_logs'] = filtered_logs
+    
+    context.update({
+        'users': users,
+        'total_purchased': total_purchased,
+        'total_paid': total_paid,
+        'total_returned': total_returned,
+        'total_others': total_others,
+        'total_balance': total_balance,
+        'users_filter': users_filter,
+    })
+        
+    return render(request, 'mobile_v1/purchase_overdue_log.html', context)
+
 def products(request):
     user_id = request.GET.get('user_id', None)
     search_query = request.GET.get('search', '').strip()
