@@ -395,6 +395,10 @@ def customer_home(request):
     context['url_show_all'] = f"?{urlencode(params_show_all)}"
     context['show_90_only'] = show_90_only
     context['overdue_logs'] = filtered_logs
+    filtered_amount = sum(log.amount_positive for log in filtered_logs)
+    filtered_amount -= filtered_logs[0].remaining_amount if filtered_logs else 0
+    context['overdue_amount'] = filtered_amount
+            
     return render(request, 'mobile_v1/customer/home.html', context)
 
 def customer_invoice_viewer(request, invoice_id):
@@ -1260,6 +1264,10 @@ def purchase_logs_overdue(request):
     context['url_show_all'] = f"?{urlencode(params_show_all)}"
     context['show_80_only'] = show_80_only
     context['overdue_logs'] = filtered_logs
+    filtered_amount = sum(log.amount_positive for log in filtered_logs)
+    filtered_amount -= filtered_logs[0].remaining_amount if filtered_logs else 0
+    context['overdue_amount'] = filtered_amount
+            
     
     context.update({
         'users': users,

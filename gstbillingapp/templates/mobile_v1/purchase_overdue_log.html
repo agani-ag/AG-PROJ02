@@ -701,18 +701,10 @@
             <h3 class="progress-title">
                 <i class="bi bi-clock-history"></i>
                 Overdue Bills
+                <small class="text-danger" style="font-size: 12px; margin-left: 6px;">₹{{ overdue_amount|default:0|floatformat:2|intcomma }}</small>
             </h3>
-            {% if not show_80_only %}
-                <a class="progress-period text-dark font-weight-bold" href="{{ url_overdue_80 }}#overdue-section">
-                    {{ overdue_logs|length }}
-                </a>
-            {% else %}
-                <a class="progress-period text-dark font-weight-bold" href="{{ url_show_all }}#overdue-section">
-                    {{ overdue_logs|length }}
-                </a>
-            {% endif %}
-
-        </div>
+                <span class="progress-period text-dark font-weight-bold">{{ overdue_logs|length }}</span>
+            </div>
         {% load humanize %}
         {% for log in overdue_logs %}
             <div class="overdue-item"
@@ -752,6 +744,29 @@
                 No overdue bills.
             </p>
         {% endfor %}
+        {% if show_80_only %}
+        <span class="summary-item">
+            <span class="summary-label" style="display: flex; align-items: center; gap: 6px; margin-top: 12px;">
+                <i class="fas fa-exclamation-triangle" style="color: #ff9500;"></i>
+                Total Overdue Amount
+            </span>
+            <span class="summary-value" style="font-size: 18px; font-weight: 700; color: #ff3b30;">
+                ₹{{ overdue_amount|default:0|floatformat:2|intcomma }}
+            </span>
+        </span>
+            <div style="text-align: center; margin-top: 12px;">
+                <a href="{{ url_show_all }}" class="btn btn-sm btn-outline-primary">
+                    Show All Overdue Bills
+                </a>
+            </div>
+        {% else %}
+            <div style="text-align: center; margin-top: 12px;">
+                <a href="{{ url_overdue_80 }}" class="btn btn-sm btn-outline-primary">
+                    Show Only 80 Days Overdue Bills
+                </a>
+            </div>
+        {% endif %}
+
     </div>
     
     <!-- Global Transactions Summary -->
