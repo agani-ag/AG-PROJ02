@@ -10,10 +10,12 @@
 				<h2>Purchases Logs</h2>
 			</div>
 			<div class="col-md-6 text-right" style="margin-top: auto;">
-				<a href="{% url 'purchases_logs_add' %}" class="btn btn-primary btn-sm btn-curve">
+				<a href="{% url 'purchases_logs_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add New Purchase">
 					<i class="fas fa-plus"></i>
 				</a>
-				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve">
+				<a href="{% url 'purchases_logs_overdue' %}" class="btn btn-warning btn-sm btn-curve" title="View Overdue Purchases">
+					<i class="fas fa-exclamation-triangle"></i></a>
+				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" title="Upload Purchases">
 					<i class="fas fa-file-excel"></i>
 				</a>
 			</div>
@@ -114,7 +116,7 @@
 				</td>
 				<td>
 					<div class="btn-group" role="group" aria-label="Basic example">
-						<a href="{% url 'purchases_logs_delete' purchase.id %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-trash"></i></a>
+						<a href="{% url 'purchases_logs_delete' purchase.id %}" class="btn btn-danger btn-sm btn-curve" title="Delete Purchase"><i class="fas fa-trash"></i></a>
 					</div>
 				</td>
 			</tr>

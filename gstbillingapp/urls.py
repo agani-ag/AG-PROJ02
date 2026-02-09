@@ -106,6 +106,9 @@ urlpatterns = [
     path('purchases_logs', purchases.purchases_logs, name='purchases_logs'),
     path('purchases_logs/add', purchases.purchases_logs_add, name='purchases_logs_add'),
     path('purchases_logs/delete/<int:pid>', purchases.purchases_logs_delete, name='purchases_logs_delete'),
+    # Overdue Purchases
+    path('purchases_logs/overdue', purchases.purchases_logs_overdue, name='purchases_logs_overdue'),
+    path('purchases_logs/overdue/api', purchases.purchases_logs_overdue_api, name='purchases_logs_overdue_api'),
 
     # Vendor Purchase URLs
     path('purchases/vendors', vendor_purchase.vendors_purchase, name='vendors_purchase'),

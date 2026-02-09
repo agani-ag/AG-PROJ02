@@ -362,7 +362,7 @@ def customer_home(request):
     context['last_month_paid_count'] = abs(int(last_month_paid_count))
     context['last_month_purchased_count'] = abs(int(last_month_purchased_count))
     # Overdue
-    only_purchases = only_purchases = book_logs.filter(change_type=1).annotate(amount_positive=Abs('change')).order_by('date')
+    only_purchases = book_logs.filter(change_type=1).annotate(amount_positive=Abs('change')).order_by('date')
     remaining_amount = abs(total_paid) + abs(total_returned) + abs(total_others)
     show_90_only = request.GET.get('overdue') == '90'
     filtered_logs = []
