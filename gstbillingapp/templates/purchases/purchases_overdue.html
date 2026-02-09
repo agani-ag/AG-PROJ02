@@ -5,7 +5,7 @@
 {% block includecss %}
 <style>
     #overdueGrid {
-        height: 80vh;
+        height: 75vh;
         width: 100%;
     }
 
@@ -62,8 +62,9 @@
 <div class="row">
     <div class="col-md-6">
         <h2>Purchases - Overdue</h2>
-    </div>
-    <div class="col-md-6 text-right" style="margin-top: auto;">
+        <p class="font-weight-bold text-danger" id="overdue_amount"></p>
+        </div>
+    <div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;">
         <a href="{% url 'purchases_logs' %}" class="btn btn-success btn-sm btn-curve" title="View Purchases Logs">
             Purchases Logs <i class="fas fa-arrow-right"></i> 
         </a>
@@ -86,7 +87,7 @@ document.addEventListener("DOMContentLoaded", function () {
         {
             headerName: "#",
             valueGetter: params => params.node.rowIndex + 1,
-            width: 80,
+            width: 90,
             pinned: "left",
             sortable: false,
             filter: false,
@@ -145,7 +146,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 return `<button class="btn btn-sm btn-primary" onclick="viewPurchase(JSON.parse('${rowData}'))" title="View Purchase Details">View</button>`;
             },
             cellStyle: { textAlign: "center" },
-            width: 120,
+            width: 150,
             sortable: false,
             filter: false
         }
@@ -168,6 +169,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     };
 
+    
     const gridDiv = document.querySelector("#overdueGrid");
     new agGrid.Grid(gridDiv, gridOptions);
 
@@ -177,6 +179,20 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(res => res.json())
         .then(data => {
             gridOptions.api.setRowData(data);
+            const overdueAmount = data.reduce((sum, item) => sum + (item.payment_pending && item.overdue_days >= 80 ? item.amount : 0), 0);
+            const item = data.find(row => row.first_overdue === true);
+            const remainingAmount = item ? item.remaining_amount : 0;
+            const overdueAmountWithRemaining = overdueAmount - remainingAmount;
+            const overdueCount = data.filter(item => item.payment_pending && item.overdue_days >= 80).length;
+            if (overdueAmountWithRemaining > 0) {
+                document.getElementById("overdue_amount").textContent =
+                    `₹ ${overdueAmountWithRemaining.toLocaleString('en-IN', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    })} (${overdueCount} overdue purchase${overdueCount > 1 ? 's' : ''})`;
+            } else {
+                document.getElementById("overdue_amount").textContent = "There are no overdue purchases at the moment.";
+            }
         })
         .catch(() => {
             Swal.fire("Error", "Unable to load overdue purchases", "error");
