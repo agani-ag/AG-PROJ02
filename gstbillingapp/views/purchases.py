@@ -84,7 +84,7 @@ def purchases_logs_delete(request,pid):
 
 # ================= Utilities ====================================
 def get_change_type_change(change_type, change):
-    if change_type == '0':
+    if change_type == '1':  # Purchased
         if int(change) > 0:
             change = -int(change)
     else:
