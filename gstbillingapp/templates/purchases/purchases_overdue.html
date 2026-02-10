@@ -100,7 +100,7 @@ document.addEventListener("DOMContentLoaded", function () {
         {
             headerName: "Date",
             field: "date",
-            valueFormatter: p => p.value ? new Date(p.value).toLocaleDateString() : "-"
+            valueFormatter: p => p.value || "-"
         },
         {
             headerName: "Amount",

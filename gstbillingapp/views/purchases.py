@@ -108,7 +108,7 @@ def purchases_logs_overdue_api(request):
 
         result.append({
             'id': log.id,
-            'date': log.date.strftime('%Y-%m-%d') if log.date else '',
+            'date': log.date.strftime('%d-%m-%Y') if log.date else '',
             'category': log.category,
             'reference': log.reference,
             'amount': invoice_amount,
