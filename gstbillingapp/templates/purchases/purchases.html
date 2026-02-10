@@ -115,7 +115,7 @@
 				</td>
 				<td>
 					{% if purchase.vendor %}
-						<a href="{% url 'purchases_vendor_logs' purchase.vendor.id %}" style="text-decoration: none;">{{ purchase.vendor.vendor_name }}</a>
+						<a href="{% url 'purchases_vendor_logs' purchase.vendor.id %}" style="text-decoration: none; color: black;">{{ purchase.vendor.vendor_name }}</a>
 					{% else %}
 						<span class="text-danger">N/A</span>
 					{% endif %}
