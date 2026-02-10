@@ -34,7 +34,7 @@
 			{% endif %}
 			</h6>
 		<h6>
-			<span style="cursor:pointer;" onclick="alert_levelupdate({{ inventory.id }}, {{ inventory.alert_level }})">
+			<span style="cursor:pointer;" onclick="alert_levelupdate({{ inventory.id }}, {{ inventory.alert_level }})" title="Update Stock Alert Level">
 				Stock Alert Level : <span class="text-primary font-weight-bold">{{ inventory.alert_level }}</span>
 			</span>
 		</h6>
@@ -48,10 +48,10 @@
 		</h4>
 	</div>
 	<div class="col text-right">
-		<a href="{% url 'inventory_logs_add' inventory.id %}" class="btn btn-primary btn-sm btn-curve">
+		<a href="{% url 'inventory_logs_add' inventory.id %}" class="btn btn-primary btn-sm btn-curve" title="Add Logs">
 			<i class="fas fa-plus"></i></a>
-		<a href="{% url 'inventory' %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-reply"></i></a>
-		<a href="{% url 'product_edit' inventory.product.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
+		<a href="{% url 'inventory' %}" class="btn btn-danger btn-sm btn-curve" title="Back to Inventory"><i class="fas fa-reply"></i></a>
+		<a href="{% url 'product_edit' inventory.product.id %}" class="btn btn-warning btn-sm btn-curve" title="Edit Product"><i class="fas fa-pen-to-square"></i></a>
 	</div>
 </div>
 

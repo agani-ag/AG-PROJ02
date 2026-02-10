@@ -1,0 +1,457 @@
+{% extends "mobile_v1/base.html" %}
+{% load static %}
+{% load humanize %}
+{% block title %}Notifications - GST Sync{% endblock %}
+
+{% block includecss %}
+<style>
+    body {
+        background: var(--oneui-bg);
+        padding-bottom: 80px;
+    }
+    
+    .notifications-wrapper {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 16px 12px;
+    }
+    
+    .page-header {
+        background: var(--oneui-primary);
+        border-radius: 16px;
+        padding: 24px 20px;
+        margin-bottom: 20px;
+        box-shadow: var(--oneui-shadow-lg);
+    }
+    
+    .page-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #ffffff !important;
+        margin: 0 0 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .page-subtitle {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.9) !important;
+        margin: 0;
+    }
+    
+    .filter-section {
+        background: var(--oneui-surface);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--oneui-shadow);
+        border: 1px solid var(--oneui-divider);
+    }
+    
+    .filter-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--oneui-text-secondary) !important;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .type-filter {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+    
+    .type-filter::-webkit-scrollbar {
+        height: 4px;
+    }
+    
+    .type-filter::-webkit-scrollbar-thumb {
+        background: var(--oneui-divider);
+        border-radius: 2px;
+    }
+    
+    .type-badge {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+        border: 2px solid var(--oneui-divider);
+        background: var(--oneui-surface);
+        color: var(--oneui-text-primary) !important;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    
+    .type-badge:hover:not(.active) {
+        text-decoration: none;
+        background: var(--oneui-bg);
+    }
+    
+    .type-badge.active,
+    .type-badge.active:hover,
+    .type-badge.active:focus,
+    .type-badge.active:active {
+        background: #667eea !important;
+        color: #ffffff !important;
+        border-color: #667eea !important;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+    }
+    
+    .notification-card {
+        background: var(--oneui-surface);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: var(--oneui-shadow);
+        transition: all 0.2s;
+        border-left: 4px solid transparent;
+        position: relative;
+        border: 1px solid var(--oneui-divider);
+    }
+    
+    .notification-card.unread {
+        border-left-color: var(--oneui-primary);
+        background: var(--oneui-surface);
+        border-left-width: 4px;
+    }
+    
+    .notification-card:active {
+        transform: scale(0.98);
+    }
+    
+    .notification-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+    
+    .notification-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+    
+    .notification-content {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .notification-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--oneui-text-primary) !important;
+        margin: 0 0 4px;
+    }
+    
+    .notification-message {
+        font-size: 14px;
+        color: var(--oneui-text-secondary) !important;
+        margin: 0 0 8px;
+        line-height: 1.4;
+    }
+    
+    .notification-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    
+    .notification-time {
+        font-size: 12px;
+        color: var(--oneui-text-secondary) !important;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .notification-type-badge {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: inherit !important;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: var(--oneui-surface);
+        border-radius: 12px;
+        box-shadow: var(--oneui-shadow);
+        border: 1px solid var(--oneui-divider);
+    }
+    
+    .empty-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 16px;
+        background: var(--oneui-bg);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        color: var(--oneui-text-secondary) !important;
+    }
+    
+    .empty-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--oneui-text-primary) !important;
+        margin: 0 0 8px;
+    }
+    
+    .empty-subtitle {
+        font-size: 14px;
+        color: var(--oneui-text-secondary) !important;
+        margin: 0;
+    }
+    
+    .pagination {
+        justify-content: center;
+        margin-top: 20px;
+    }
+    
+    .page-link {
+        border-radius: 8px;
+        margin: 0 4px;
+        color: var(--oneui-primary) !important;
+        border-color: var(--oneui-divider) !important;
+        background: var(--oneui-surface) !important;
+    }
+    
+    .page-item.active .page-link {
+        background: var(--oneui-primary) !important;
+        border-color: var(--oneui-primary) !important;
+        color: #ffffff !important;
+    }
+    
+    /* Type-specific colors */
+    .icon-success { background: rgba(52, 199, 89, 0.1); color: var(--oneui-success); }
+    .icon-info { background: rgba(0, 122, 255, 0.1); color: var(--oneui-info); }
+    .icon-warning { background: rgba(255, 149, 0, 0.1); color: var(--oneui-warning); }
+    .icon-error { background: rgba(255, 59, 48, 0.1); color: var(--oneui-danger); }
+    .icon-invoice { background: rgba(88, 86, 214, 0.1); color: var(--oneui-info); }
+    .icon-quotation { background: rgba(175, 82, 222, 0.1); color: #af52de; }
+    .icon-customer { background: rgba(0, 122, 255, 0.1); color: var(--oneui-info); }
+    .icon-product { background: rgba(255, 149, 0, 0.1); color: var(--oneui-warning); }
+    .icon-payment { background: rgba(52, 199, 89, 0.1); color: var(--oneui-success); }
+    .icon-system { background: rgba(142, 142, 147, 0.1); color: var(--oneui-text-secondary); }
+    
+    .badge-success { background: rgba(52, 199, 89, 0.1); color: var(--oneui-success); }
+    .badge-info { background: rgba(0, 122, 255, 0.1); color: var(--oneui-info); }
+    .badge-warning { background: rgba(255, 149, 0, 0.1); color: var(--oneui-warning); }
+    .badge-error { background: rgba(255, 59, 48, 0.1); color: var(--oneui-danger); }
+    .badge-invoice { background: rgba(88, 86, 214, 0.1); color: var(--oneui-info); }
+    .badge-quotation { background: rgba(175, 82, 222, 0.1); color: #af52de; }
+    .badge-customer { background: rgba(0, 122, 255, 0.1); color: var(--oneui-info); }
+    .badge-product { background: rgba(255, 149, 0, 0.1); color: var(--oneui-warning); }
+    .badge-payment { background: rgba(52, 199, 89, 0.1); color: var(--oneui-success); }
+    .badge-system { background: rgba(142, 142, 147, 0.1); color: var(--oneui-text-secondary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notifications-wrapper">
+    <!-- Header -->
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-bell"></i>
+            Notifications
+        </h1>
+        <p class="page-subtitle">
+            {% if notifications_count %}
+                {{ notifications_count }} notification{{ notifications_count|pluralize }}
+            {% else %}
+                No notifications yet
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="filter-section">
+        <div class="filter-label">Filter by Type</div>
+        <div class="type-filter">
+            <a href="?cid={{ request.GET.cid }}" 
+               class="type-badge {% if not notification_type %}active{% endif %}">
+                All
+            </a>
+            <a href="?cid={{ request.GET.cid }}&type=INFO" 
+               class="type-badge {% if notification_type == 'INFO' %}active{% endif %}">
+                <i class="fas fa-info-circle"></i> Info
+            </a>
+            <a href="?cid={{ request.GET.cid }}&type=SUCCESS" 
+               class="type-badge {% if notification_type == 'SUCCESS' %}active{% endif %}">
+                <i class="fas fa-check-circle"></i> Success
+            </a>
+            <a href="?cid={{ request.GET.cid }}&type=WARNING" 
+               class="type-badge {% if notification_type == 'WARNING' %}active{% endif %}">
+                <i class="fas fa-exclamation-triangle"></i> Warning
+            </a>
+            <a href="?cid={{ request.GET.cid }}&type=ERROR" 
+               class="type-badge {% if notification_type == 'ERROR' %}active{% endif %}">
+                <i class="fas fa-times-circle"></i> Error
+            </a>
+            <a href="?cid={{ request.GET.cid }}&type=INVOICE" 
+               class="type-badge {% if notification_type == 'INVOICE' %}active{% endif %}">
+                <i class="fas fa-file-invoice"></i> Invoice
+            </a>
+            <a href="?cid={{ request.GET.cid }}&type=PAYMENT" 
+               class="type-badge {% if notification_type == 'PAYMENT' %}active{% endif %}">
+                <i class="fas fa-dollar-sign"></i> Payment
+            </a>
+        </div>
+    </div>
+
+    <!-- Notifications List -->
+    <div id="notifications-list">
+        {% if notifications %}
+            {% for notification in notifications %}
+            <div class="notification-card {% if not notification.is_read %}unread{% endif %}" 
+                 data-notification-id="{{ notification.id }}"
+                 onclick="markAsRead({{ notification.id }}, '{{ notification.link_url|default:'' }}')">
+                <div class="notification-header">
+                    <div class="notification-icon icon-{{ notification.notification_type|lower }}">
+                        <i class="{{ notification.get_icon_class }}"></i>
+                    </div>
+                    <div class="notification-content">
+                        <h3 class="notification-title">{{ notification.title }}</h3>
+                        <p class="notification-message">{{ notification.message }}</p>
+                        <div class="notification-footer">
+                            <span class="notification-time">
+                                <i class="far fa-clock"></i>
+                                {{ notification.created_at|naturaltime }}
+                            </span>
+                            <span class="notification-type-badge badge-{{ notification.notification_type|lower }}">
+                                {{ notification.get_notification_type_display }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="far fa-bell-slash"></i>
+                </div>
+                <h3 class="empty-title">No Notifications</h3>
+                <p class="empty-subtitle">You're all caught up! Check back later.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Pagination -->
+    {% if notifications.has_other_pages %}
+    <nav>
+        <ul class="pagination">
+            {% if notifications.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?cid={{ request.GET.cid }}&type={{ notification_type }}&page={{ notifications.previous_page_number }}">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            </li>
+            {% endif %}
+            
+            <li class="page-item active">
+                <span class="page-link">{{ notifications.number }} of {{ notifications.paginator.num_pages }}</span>
+            </li>
+            
+            {% if notifications.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?cid={{ request.GET.cid }}&type={{ notification_type }}&page={{ notifications.next_page_number }}">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+{% include "mobile_v1/navbarC.html" %}
+{% endblock %}
+
+{% block includejs %}
+<script>
+    // WebSocket connection for real-time notifications
+    let ws = null;
+    let reconnectInterval = null;
+    
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/notifications/`;
+        
+        ws = new WebSocket(wsUrl);
+        
+        ws.onopen = function() {
+            console.log('Notifications WebSocket connected');
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
+        };
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'notification') {
+                // Reload the page to show new notification
+                window.location.reload();
+            }
+        };
+        
+        ws.onerror = function(error) {
+            console.error('WebSocket error:', error);
+        };
+        
+        ws.onclose = function() {
+            console.log('WebSocket disconnected, reconnecting...');
+            reconnectInterval = setInterval(connectWebSocket, 5000);
+        };
+    }
+    
+    // Connect on page load
+    connectWebSocket();
+    
+    // Mark notification as read
+    function markAsRead(notificationId, linkUrl) {
+        fetch('/mobile/v1/api/notifications/mark-read', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: `notification_id=${notificationId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Update UI
+                const card = document.querySelector(`[data-notification-id="${notificationId}"]`);
+                if (card) {
+                    card.classList.remove('unread');
+                }
+                // Navigate if link exists
+                if (linkUrl) {
+                    window.location.href = linkUrl;
+                }
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+</script>
+{% endblock %}

@@ -31,6 +31,7 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',  # Channels ASGI server - must be first
     'gstbillingapp.apps.GstbillingappConfig',
     'social_django',
     'django.contrib.admin',
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
+    'channels',  # Django Channels for WebSocket
 ]
 
 MIDDLEWARE = [
@@ -50,6 +52,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'gstbillingapp.middleware.Custom404Middleware',  # Custom 404 handler for DEBUG = True
 ]
 
 ROOT_URLCONF = 'gstbilling.urls'
@@ -74,6 +77,19 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'gstbilling.wsgi.application'
+ASGI_APPLICATION = 'gstbilling.asgi.application'
+
+# Channels Configuration
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        # For production, use Redis:
+        # 'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        # 'CONFIG': {
+        #     'hosts': [('127.0.0.1', 6379)],
+        # },
+    },
+}
 
 
 # Database

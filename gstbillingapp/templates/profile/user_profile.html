@@ -13,6 +13,7 @@
 					<div>
 						<a href="{% url 'user_profile_edit' %}" class="btn btn-light btn-sm"><b><i class="fas fa-pen-to-square"></i></b></a>
                     	<a href="{% url 'logout_view' %}" class="btn btn-light btn-sm"><b><i class="fas fa-right-from-bracket"></i></b></a>
+                    	<a href="{% url 'download_sqlite' %}" class="btn btn-light btn-sm"><b><i class="fas fa-download"></i></b></a>
 					</div>
                 </div>
                 <div class="card-body">
@@ -65,7 +66,7 @@
                                     <!-- UPI QR Code -->
                                     {% if user_profile.bankdetails.upi_id %}
                                         <br>
-                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am=100"></div>
+                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}"></div>
                                         <strong>UPI ID:</strong> {{ user_profile.bankdetails.upi_id }}
                                     {% endif %}
                                 </td>

@@ -81,15 +81,15 @@
 	</table>
 
 	<div class="form-group text-right">
-		<button type="button" id="toggleEditBtn" class="btn btn-success"><i class="fas fa-location-dot"></i></button>
+		<button type="button" id="toggleEditBtn" class="btn btn-success" title="Enable Maps"><i class="fas fa-location-dot"></i></button>
 		{% if customer_password %}
-			<a onclick="resetCustomerPassword('{{ customer_id }}')" class="btn btn-dark"><i class="fas fa-redo"></i></a>
+			<a onclick="resetCustomerPassword('{{ customer_id }}')" class="btn btn-dark" title="Reset Customer Password"><i class="fas fa-redo"></i></a>
 		{% endif %}
-		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+		<button type="submit" class="btn btn-primary" title="Save Customer"><i class="fas fa-save"></i></button>
 </form>
-		<a class="btn btn-danger" href="{% url 'customers' %}"><i class="fas fa-cancel"></i></a>
+		<a class="btn btn-danger" href="{% url 'customers' %}" title="Back To Customers"><i class="fas fa-cancel"></i></a>
 		{% if id %}
-			<a class="btn btn-warning" href="#" onclick="popup_books()"><i class="fas fa-file-lines"></i></a>
+			<a class="btn btn-warning" href="#" onclick="popup_books()" title="Inventory Logs"><i class="fas fa-file-lines"></i></a>
 		{% endif %}
 	</div>
 

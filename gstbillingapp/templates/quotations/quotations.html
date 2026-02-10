@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+
+	<h2>Quotations</h2>
+
+	<!-- Filter Options Row -->
+	<div class="row mb-3 align-items-end">
+		<div class="col-md-2">
+			<label for="quotationTypeFilter" class="mb-1"><small><strong>Type:</strong></small></label>
+			<select id="quotationTypeFilter" class="form-control form-control-sm">
+				<option value="all">All Types</option>
+				<option value="gst" selected>GST</option>
+				<option value="non_gst">Non-GST</option>
+			</select>
+		</div>
+		<div class="col-md-2">
+			<label for="statusFilter" class="mb-1"><small><strong>Status:</strong></small></label>
+			<select id="statusFilter" class="form-control form-control-sm">
+				<option value="all">All Status</option>
+				<option value="draft">Draft</option>
+				<option value="approved">Approved</option>
+				<option value="processing">Processing</option>
+				<option value="packed">Packed</option>
+				<option value="shipped">Shipped</option>
+				<option value="out_for_delivery">Out for Delivery</option>
+				<option value="delivered">Delivered</option>
+				<option value="converted">Received by Customer</option>
+			</select>
+		</div>
+		<div class="col-md-2">
+			<label for="customerFilter" class="mb-1"><small><strong>Customer:</strong></small></label>
+			<select id="customerFilter" class="form-control form-control-sm">
+				<option value="">All Customers</option>
+				{% for customer in customers %}
+				<option value="{{ customer.id }}">{{ customer.customer_name }}</option>
+				{% endfor %}
+			</select>
+		</div>
+		<div class="col-md-2">
+			<label for="dateFilter" class="mb-1"><small><strong>Date:</strong></small></label>
+			<select id="dateFilter" class="form-control form-control-sm">
+				<option value="all">All Time</option>
+				<option value="today">Today</option>
+				<option value="week">This Week</option>
+				<option value="month">This Month</option>
+				<option value="custom">Custom</option>
+			</select>
+		</div>
+		<div class="col-md-1" id="startDateWrapper" style="display:none;">
+			<label for="startDate" class="mb-1"><small><strong>From:</strong></small></label>
+			<input type="date" id="startDate" class="form-control form-control-sm">
+		</div>
+		<div class="col-md-1" id="endDateWrapper" style="display:none;">
+			<label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
+			<input type="date" id="endDate" class="form-control form-control-sm">
+		</div>
+		<div class="col-md-1">
+			<button id="clearFilters" class="btn btn-secondary btn-sm btn-block">
+				<i class="fas fa-times"></i> Clear
+			</button>
+		</div>
+		<div class="col-md-3">
+			<div class="card shadow-sm border-primary">
+				<div class="card-body p-2 text-center">
+					<small class="text-muted d-block" style="font-size: 0.75rem;">TOTAL AMOUNT</small>
+					<div id="total-quotation-amount" class="font-weight-bold text-primary" style="font-size: 1.3rem;">
+						<i class="fas fa-spinner fa-spin"></i>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+<hr>
+
+	<table class="table table-bordered" id="quotation-table">
+		<thead class="thead-dark">
+			<tr>
+				<th>Quotation Number</th>
+				<th>Date</th>
+				<th>Customer</th>
+				<th>Amount</th>
+				<th>Status</th>
+				<th>Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+			<!-- Data loaded via AJAX -->
+		</tbody>
+	</table>
+
+{% endblock %}
+
+
+{% block includejs %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script type="text/javascript">
+
+	$(document).ready( function () {
+		// Set default filter
+		$('#quotationTypeFilter').val('gst');
+
+		var table = $('#quotation-table').DataTable({
+			"processing": true,
+			"serverSide": true,
+			"ajax": {
+				"url": "/quotations/ajax/",
+				"type": "GET",
+				"data": function(d) {
+					d.quotation_type = $('#quotationTypeFilter').val() || 'all';
+					d.status_filter = $('#statusFilter').val() || 'all';
+					d.customer_id = $('#customerFilter').val() || '';
+					d.date_filter = $('#dateFilter').val() || 'all';
+					d.start_date = $('#startDate').val() || '';
+					d.end_date = $('#endDate').val() || '';
+					console.log('Sending request data:', d);
+				},
+				"error": function(xhr, error, code) {
+					console.error('AJAX Error:', {
+						status: xhr.status,
+						statusText: xhr.statusText,
+						responseText: xhr.responseText,
+						error: error,
+						code: code
+					});
+					alert('Error loading data. Check console for details.');
+				},
+				"dataSrc": function(json) {
+					console.log('Received data:', json);
+					if (json.error) {
+						alert('Server error: ' + json.error);
+						return [];
+					}
+					return json.data;
+				}
+			},
+			"columns": [
+				{ "data": "quotation_number", "orderable": true },
+				{ "data": "quotation_date", "orderable": true },
+				{ "data": "customer", "orderable": true },
+				{ "data": "quotation_amount", "orderable": false },
+				{ "data": "status", "orderable": true },
+				{ "data": "actions", "orderable": false }
+			],
+			"order": [[1, "desc"]],
+			"pageLength": 15,
+			"lengthMenu": [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]],
+			"searching": true,
+			"info": true
+		});
+
+	// Show total quotation amount
+	table.on('xhr', function(e, settings, json) {
+		if (json && typeof json.total_quotation_amount !== 'undefined') {
+			$('#total-quotation-amount').html('<strong>₹ ' + json.total_quotation_amount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>');
+		}
+	});
+		
+		// Show/hide custom date range inputs
+		$('#dateFilter').on('change', function() {
+			if ($(this).val() === 'custom') {
+				$('#startDateWrapper').show();
+				$('#endDateWrapper').show();
+			} else {
+				$('#startDateWrapper').hide();
+				$('#endDateWrapper').hide();
+				table.ajax.reload();
+			}
+		});
+
+		// Auto-reload when custom date inputs change
+		$('#startDate, #endDate').on('change', function() {
+			if ($('#dateFilter').val() === 'custom' && $('#startDate').val() && $('#endDate').val()) {
+				table.ajax.reload();
+			}
+		});
+
+		// Clear filters button
+		$('#clearFilters').on('click', function() {
+			$('#quotationTypeFilter').val('all');
+			$('#statusFilter').val('all');
+			$('#customerFilter').val('');
+			$('#dateFilter').val('all');
+			$('#startDate').val('');
+			$('#endDate').val('');
+			$('#startDateWrapper').hide();
+			$('#endDateWrapper').hide();
+			table.ajax.reload();
+		});
+
+		// Auto-reload on filter changes
+		$('#quotationTypeFilter, #statusFilter, #customerFilter').on('change', function() {
+			table.ajax.reload();
+		});
+	});
+
+	function convertToInvoice(quotationId) {
+		Swal.fire({
+			title: 'Convert to Invoice?',
+			text: "This will create an invoice and update inventory & books. This action cannot be undone.",
+			icon: 'question',
+			showCancelButton: true,
+			confirmButtonColor: '#28a745',
+			cancelButtonColor: '#6c757d',
+			confirmButtonText: 'Yes, Convert it!'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				// Show loading
+				Swal.fire({
+					title: 'Processing...',
+					text: 'Converting quotation to invoice',
+					allowOutsideClick: false,
+					allowEscapeKey: false,
+					didOpen: () => {
+						Swal.showLoading();
+					}
+				});
+
+				// Make AJAX request
+				fetch(`/quotation/convert/${quotationId}`, {
+					method: 'POST',
+					headers: {
+						'X-CSRFToken': '{{ csrf_token }}',
+						'Content-Type': 'application/json'
+					}
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.success) {
+						Swal.fire({
+							icon: 'success',
+							title: 'Success!',
+							text: data.message,
+							showCancelButton: true,
+							confirmButtonText: 'View Invoice',
+							cancelButtonText: 'Stay Here'
+						}).then((result) => {
+							if (result.isConfirmed) {
+							window.location.href = `/invoice/${data.invoice_id}/`;
+							} else {
+								$('#quotation-table').DataTable().ajax.reload();
+							}
+						});
+					} else {
+						Swal.fire({
+							icon: 'error',
+							title: 'Error',
+							text: data.message
+						});
+					}
+				})
+				.catch(error => {
+					Swal.fire({
+						icon: 'error',
+						title: 'Error',
+						text: 'An error occurred while converting'
+					});
+					console.error('Error:', error);
+				});
+			}
+		});
+	}
+
+	function deleteQuotation(quotationId) {
+		Swal.fire({
+			title: 'Delete Quotation?',
+			text: "This action cannot be undone.",
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonColor: '#dc3545',
+			cancelButtonColor: '#6c757d',
+			confirmButtonText: 'Yes, delete it!'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				fetch(`/quotation/delete/${quotationId}`, {
+					method: 'POST',
+					headers: {
+						'X-CSRFToken': '{{ csrf_token }}',
+						'Content-Type': 'application/json'
+					}
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.success) {
+						Swal.fire({
+							icon: 'success',
+							title: 'Deleted!',
+							text: 'Quotation has been deleted.',
+							timer: 2000
+						}).then(() => {
+							$('#quotation-table').DataTable().ajax.reload();
+						});
+					} else {
+						Swal.fire({
+							icon: 'error',
+							title: 'Error',
+							text: 'Failed to delete quotation'
+						});
+					}
+				})
+				.catch(error => {
+					Swal.fire({
+						icon: 'error',
+						title: 'Error',
+						text: 'An error occurred'
+					});
+					console.error('Error:', error);
+				});
+			}
+		});
+	}
+	
+</script>
+{% endblock %}

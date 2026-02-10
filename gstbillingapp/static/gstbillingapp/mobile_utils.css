@@ -1,0 +1,46 @@
+/* SweetAlert2 popup */
+.swal-mobile {
+    width: 90% !important;
+    max-width: 400px;
+    padding: 20px 15px;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+/* Input box – fit inside popup on mobile */
+.swal-mobile .swal2-input {
+    width: 100%;
+    max-width: 100%;
+    font-size: 16px !important;
+    padding: 10px 12px !important;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    margin: 10px 0 0 0;
+}
+
+/* Timer bar container */
+#timer-bar {
+    height: 6px;
+    width: 100%;
+    background: #22c55e;
+    border-radius: 6px;
+    margin-top: 15px;
+    transition: width 1s linear;
+}
+
+/* Timer text */
+#reset-timer {
+    margin-top: 8px;
+    font-weight: 600;
+    color: #dc2626;
+    text-align: center;
+    font-size: 14px;
+}
+
+/* Mobile-friendly confirm button */
+.swal2-confirm {
+    font-size: 16px !important;
+    padding: 12px !important;
+    margin-top: 15px !important;
+}

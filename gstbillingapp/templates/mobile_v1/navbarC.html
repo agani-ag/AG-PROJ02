@@ -19,6 +19,21 @@
             <span>Books</span>
         </a>
 
+        {% if temp %}
+        <!-- Orders -->
+        <a href="{% url 'v1customerorders' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="orders">
+            <i class="fas fa-shopping-cart"></i>
+            <span>Orders</span>
+        </a>
+
+        <!-- Notifications -->
+        <a href="{% url 'v1customernotifications' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="notifications">
+            <i class="fas fa-bell"></i>
+            <span>Notifications</span>
+            <span class="notification-badge" id="mobile-notification-badge" style="display: none;"></span>
+        </a>
+        {% endif %}
+        
         <!-- Profile -->
         <a href="{% url 'v1customerprofile' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="profile">
             <i class="fas fa-user-circle"></i>
@@ -35,6 +50,26 @@
     </div>
 </nav>
 
+<style>
+    .nav-item {
+        position: relative;
+    }
+    
+    .notification-badge {
+        position: absolute;
+        top: 4px;
+        right: 8px;
+        background: #ff3b30;
+        color: white;
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: 700;
+        min-width: 18px;
+        text-align: center;
+    }
+</style>
+
 <script>
     // Add All With users_filter={{ request.GET.users_filter }}&u={{ request.GET.u }}
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -45,6 +80,7 @@
         url.searchParams.set('admin', '{{ request.GET.admin }}');
         item.href = url.toString();
     });
+    
     // Highlight active nav item based on current URL
     document.addEventListener('DOMContentLoaded', function() {
         const currentPath = window.location.pathname;
@@ -61,14 +97,86 @@
                 item.classList.add('active');
             } else if (page === 'invoices' && currentPath.includes('customer/invoices')) {
                 item.classList.add('active');
+            } else if (page === 'orders' && (currentPath.includes('customer/orders') || currentPath.includes('customer/products') || currentPath.includes('customer/order/'))) {
+                item.classList.add('active');
             } else if (page === 'books' && currentPath.includes('customer/books')) {
+                item.classList.add('active');
+            } else if (page === 'notifications' && currentPath.includes('customer/notifications')) {
                 item.classList.add('active');
             } else if (page === 'profile' && currentPath.includes('customer/profile') && 
                        !currentPath.includes('home') && 
                        !currentPath.includes('invoices') && 
-                       !currentPath.includes('books')) {
+                       !currentPath.includes('books') &&
+                       !currentPath.includes('notifications')) {
                 item.classList.add('active');
             }
         });
     });
+
+{% if temp %}
+    // WebSocket for real-time notification count
+    let mobileWs = null;
+    let mobileReconnectInterval = null;
+    
+    function connectMobileNotificationWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/notifications/`;
+        
+        mobileWs = new WebSocket(wsUrl);
+        
+        mobileWs.onopen = function() {
+            console.log('Mobile notification WebSocket connected');
+            if (mobileReconnectInterval) {
+                clearInterval(mobileReconnectInterval);
+                mobileReconnectInterval = null;
+            }
+            updateNotificationBadge();
+        };
+        
+        mobileWs.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.type === 'notification' || data.type === 'count_update') {
+                updateNotificationBadge();
+            }
+        };
+        
+        mobileWs.onerror = function(error) {
+            console.error('Mobile WebSocket error:', error);
+        };
+        
+        mobileWs.onclose = function() {
+            console.log('Mobile WebSocket disconnected, reconnecting...');
+            mobileReconnectInterval = setInterval(connectMobileNotificationWebSocket, 5000);
+        };
+    }
+    
+    function updateNotificationBadge() {
+        // Extract user ID from cid parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const cid = urlParams.get('cid');
+        if (!cid) return;
+        
+        // Parse the cid to get user ID (format: GS-<user_id>-C-<customer_id>)
+        const matches = cid.match(/GS-(\d+)-/);
+        if (!matches) return;
+        
+        const userId = matches[1];
+        
+        fetch(`/mobile/v1/api/notifications/count?user_id=${userId}`)
+            .then(response => response.json())
+            .then(data => {
+                const badge = document.getElementById('mobile-notification-badge');
+                if (data.count > 0) {
+                    badge.textContent = data.count > 99 ? '99+' : data.count;
+                    badge.style.display = 'block';
+                } else {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(error => console.error('Error fetching notification count:', error));
+    }
+    
+    // Connect on page load
+    connectMobileNotificationWebSocket();
+{% endif %}
 </script>

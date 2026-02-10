@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Notifications - GST Sync{% endblock %}
+
+{% block content %}
+
+<div class="row mb-3 align-items-center">
+    <div class="col">
+        <h2>Notifications
+            {% if unread_count > 0 %}
+                <span class="badge badge-danger ml-2" id="unread-badge">{{ unread_count }} New</span>
+            {% endif %}
+        </h2>
+    </div>
+    <div class="col text-right">
+        <button class="btn btn-success btn-sm btn-curve" onclick="markAllAsRead()" title="Mark all as read">
+            <i class="fas fa-check-double"></i>
+        </button>
+        <button class="btn btn-warning btn-sm btn-curve" onclick="deleteAllRead()" title="Clear all read">
+            <i class="fas fa-trash"></i>
+        </button>
+        <button class="btn btn-primary btn-sm btn-curve" onclick="refreshNotifications()" title="Refresh">
+            <i class="fas fa-sync"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Filter Options Row -->
+<div class="row mb-3 align-items-end">
+    <div class="col-md-3">
+        <label for="filter-type" class="mb-1"><small><strong>Type:</strong></small></label>
+        <select class="form-control form-control-sm" id="filter-type" onchange="applyFilters()">
+            <option value="all" {% if filter_type == 'all' %}selected{% endif %}>All Types</option>
+            {% for type_code, type_name in notification_types %}
+                <option value="{{ type_code }}" {% if filter_type == type_code %}selected{% endif %}>{{ type_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label for="filter-status" class="mb-1"><small><strong>Status:</strong></small></label>
+        <select class="form-control form-control-sm" id="filter-status" onchange="applyFilters()">
+            <option value="all" {% if filter_status == 'all' %}selected{% endif %}>All</option>
+            <option value="unread" {% if filter_status == 'unread' %}selected{% endif %}>Unread Only</option>
+            <option value="read" {% if filter_status == 'read' %}selected{% endif %}>Read Only</option>
+        </select>
+    </div>
+</div>
+
+<hr>
+<!-- Notifications Table -->
+<table class="table table-bordered" id="notification-table">
+    <thead class="thead-dark">
+        <tr>
+            <th width="5%">Type</th>
+            <th width="25%">Title</th>
+            <th width="35%">Message</th>
+            <th width="15%">Date & Time</th>
+            <th width="20%">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if notifications %}
+            {% for notification in notifications %}
+                <tr id="notification-{{ notification.id }}" class="{% if not notification.is_read %}table-info{% endif %}">
+                    <td class="text-center">
+                        <i class="bi {{ notification.get_icon_class }}" style="font-size: 1.5rem;"></i>
+                        <br>
+                        <span class="badge {{ notification.get_badge_class }} badge-sm mt-1">
+                            {{ notification.get_notification_type_display }}
+                        </span>
+                    </td>
+                    <td>
+                        <strong>{{ notification.title }}</strong>
+                        {% if not notification.is_read %}
+                            <br><span class="badge badge-danger badge-sm">NEW</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ notification.message }}</td>
+                    <td>
+                        <small class="text-muted">
+                            <i class="fas fa-clock"></i> {{ notification.created_at|date:"M d, Y" }}<br>
+                            {{ notification.created_at|date:"h:i A" }}
+                        </small>
+                    </td>
+                    <td>
+                        <div class="btn-group-vertical btn-group-sm" role="group">
+                            {% if notification.link_url %}
+                                <a href="{{ notification.link_url }}" 
+                                   class="btn btn-primary btn-sm btn-curve mb-1"
+                                   onclick="markAsReadAndNavigate(event, {{ notification.id }}, '{{ notification.link_url }}')"
+                                   title="{{ notification.link_text|default:'View Details' }}">
+                                    <i class="fas fa-arrow-right"></i> {{ notification.link_text|default:"View" }}
+                                </a>
+                            {% endif %}
+                            
+                            {% if not notification.is_read %}
+                                <button class="btn btn-success btn-sm btn-curve mb-1" 
+                                        onclick="markAsRead({{ notification.id }})"
+                                        title="Mark as read">
+                                    <i class="fas fa-check"></i> Mark Read
+                                </button>
+                            {% endif %}
+                            
+                            <button class="btn btn-danger btn-sm btn-curve" 
+                                    onclick="deleteNotification({{ notification.id }})"
+                                    title="Delete">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="5" class="text-center p-5">
+                    <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No notifications</h5>
+                    <p class="text-muted">You don't have any notifications at the moment.</p>
+                </td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<!-- Pagination -->
+{% if notifications.has_other_pages %}
+<nav aria-label="Notifications pagination">
+    <ul class="pagination justify-content-center">
+        {% if notifications.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1&type={{ filter_type }}&status={{ filter_status }}">First</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ notifications.previous_page_number }}&type={{ filter_type }}&status={{ filter_status }}">Previous</a>
+            </li>
+        {% endif %}
+        
+        <li class="page-item active">
+            <span class="page-link">
+                Page {{ notifications.number }} of {{ notifications.paginator.num_pages }}
+            </span>
+        </li>
+        
+        {% if notifications.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ notifications.next_page_number }}&type={{ filter_type }}&status={{ filter_status }}">Next</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ notifications.paginator.num_pages }}&type={{ filter_type }}&status={{ filter_status }}">Last</a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+
+
+<script>
+    // Auto-refresh notifications every 30 seconds
+    let autoRefreshInterval;
+    
+    function startAutoRefresh() {
+        autoRefreshInterval = setInterval(function() {
+            updateUnreadCount();
+        }, 30000); // 30 seconds
+    }
+    
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+    }
+    
+    // Update unread count in badge
+    function updateUnreadCount() {
+        fetch('/notifications/api/count/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateUnreadBadge(data.unread_count);
+                }
+            })
+            .catch(error => console.error('Error fetching unread count:', error));
+    }
+    
+    function updateUnreadBadge(count) {
+        const badge = document.getElementById('unread-badge');
+        if (count > 0) {
+            if (badge) {
+                badge.textContent = count + ' New';
+            }
+        } else {
+            if (badge) {
+                badge.remove();
+            }
+        }
+        updateNavbarBadge(count);
+    }
+    
+    function updateNavbarBadge(count) {
+        const navbarBadge = document.getElementById('notification-count-badge');
+        if (navbarBadge) {
+            if (count > 0) {
+                navbarBadge.textContent = count;
+                navbarBadge.style.display = 'inline-block';
+            } else {
+                navbarBadge.style.display = 'none';
+            }
+        }
+    }
+    
+    // Mark notification as read
+    function markAsRead(notificationId) {
+        fetch(`/notifications/${notificationId}/mark-read/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const row = document.getElementById(`notification-${notificationId}`);
+                if (row) {
+                    row.classList.remove('table-info');
+                    // Remove NEW badge
+                    const badge = row.querySelector('.badge-danger');
+                    if (badge) badge.remove();
+                    // Remove mark as read button
+                    const btn = row.querySelector('.btn-success');
+                    if (btn) btn.remove();
+                }
+                updateUnreadBadge(data.unread_count);
+            }
+        })
+        .catch(error => console.error('Error marking as read:', error));
+    }
+    
+    // Mark as read and navigate
+    function markAsReadAndNavigate(event, notificationId, url) {
+        event.preventDefault();
+        
+        fetch(`/notifications/${notificationId}/mark-read/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = url;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            window.location.href = url; // Navigate anyway
+        });
+    }
+    
+    // Mark all as read
+    function markAllAsRead() {
+        if (!confirm('Mark all notifications as read?')) return;
+        
+        fetch('/notifications/mark-all-read/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    
+    // Delete notification
+    function deleteNotification(notificationId) {
+        if (!confirm('Delete this notification?')) return;
+        
+        fetch(`/notifications/${notificationId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const row = document.getElementById(`notification-${notificationId}`);
+                if (row) {
+                    row.style.transition = 'opacity 0.5s';
+                    row.style.opacity = '0';
+                    setTimeout(() => row.remove(), 500);
+                }
+                updateUnreadBadge(data.unread_count);
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    
+    // Delete all read notifications
+    function deleteAllRead() {
+        if (!confirm('Delete all read notifications?')) return;
+        
+        fetch('/notifications/delete-all-read/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    
+    // Refresh notifications
+    function refreshNotifications() {
+        location.reload();
+    }
+    
+    // Apply filters
+    function applyFilters() {
+        const type = document.getElementById('filter-type').value;
+        const status = document.getElementById('filter-status').value;
+        window.location.href = `?type=${type}&status=${status}`;
+    }
+    
+    // Get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Start WebSocket connection when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        connectWebSocket();
+    });
+    
+    // Close WebSocket when page unloads
+    window.addEventListener('beforeunload', function() {
+        if (notificationSocket) {
+            notificationSocket.close();
+        }
+    });
+</script>
+
+{% endblock %}

@@ -8,9 +8,9 @@
 	</div>
 	<div class="col text-right" style="padding-top: 0.5%;">
 		
-		<a href="{% url 'customer_add' %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-plus"></i></a>
-		<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve"><i class="fas fa-file-excel"></i></a>
-		<button class="btn btn-warning btn-sm btn-curve" id="set-allcustomer-userid"><i class="fas fa-refresh"></i></button>
+		<a href="{% url 'customer_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Customer"><i class="fas fa-plus"></i></a>
+		<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" title="Upload Features"><i class="fas fa-file-excel"></i></a>
+		<button class="btn btn-warning btn-sm btn-curve" id="set-allcustomer-userid" title="Reset Customer User IDs"><i class="fas fa-refresh"></i></button>
 	</div>
 </div>
 
@@ -21,7 +21,7 @@
 			<th>Address</th>
 			<th>Phone</th>
 			<th>GST NO</th>
-			<th>Mobile</th>
+			<th>M ID</th>
 			<th>Actions</th>
 		</tr>
 	</thead>
@@ -33,19 +33,19 @@
 			<td>{% if customer.customer_phone %}{{customer.customer_phone}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 			<td>{% if customer.customer_gst %}{{customer.customer_gst}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 			<td>
-				{% if customer.is_mobile_user %}
-					<a href="#" class="btn btn-orange-on btn-sm btn-curve"><i class="fas fa-toggle-on"></i></a>
+				{% if customer.customer_userid %}
+					<a href="#" class="font-weight-bold text-{% if customer.is_mobile_user %}success{% else %}danger{% endif %}" onclick="IsMobileUser_Status('{{ customer.customer_userid }}')" title="Enable / Disable Mobile User">{{customer.customer_userid | upper}}</a>
 				{% else %}
-					<a href="#" class="btn btn-orange-off btn-sm btn-curve"><i class="fas fa-toggle-off"></i></a>
+					<span class="text-muted">N/A</span>
 				{% endif %}
 			</td>
 			<td>
 				<div class="btn-group" role="group" aria-label="Basic example">
-					<a href="{% url 'customer_edit' customer.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
-					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#customerDeleteModal" data-customer-id="{{customer.id}}" data-customer-name="{{customer.customer_name}}"><i class="fas fa-trash"></i></button>
-					<a href="{% url 'book_logs' customer.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-lines"></i></a>
+					<a href="{% url 'customer_edit' customer.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Customer"><i class="fas fa-pen-to-square"></i></a>
+					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#customerDeleteModal" data-customer-id="{{customer.id}}" data-customer-name="{{customer.customer_name}}" title="Delete Customer"><i class="fas fa-trash"></i></button>
+					<a href="{% url 'book_logs' customer.id %}" class="btn btn-warning btn-sm btn-curve" title="View Book Logs"><i class="fas fa-file-lines"></i></a>
 					{% if customer.customer_latitude and customer.customer_longitude %}
-					<a href="#" class="btn btn-success btn-sm btn-curve" onclick="popup_Customer_maps('{{ customer.customer_latitude }}', '{{ customer.customer_longitude }}', '{{ customer.customer_name }}')">
+					<a href="#" class="btn btn-success btn-sm btn-curve" onclick="popup_Customer_maps('{{ customer.customer_latitude }}', '{{ customer.customer_longitude }}', '{{ customer.customer_name }}')" title="View on Map">
 						<i class="fas fa-location-dot"></i></a>
 					{% endif %}
 				</div>
@@ -208,5 +208,43 @@ function popup_Customer_maps(latitude, longitude, name) {
         }
     });
 }
+
+function IsMobileUser_Status(customerUserId) {
+	Swal.fire({
+		title: 'Customer Mobile User Status',
+		text: "This will update the Mobile Login of the customer!",
+		icon: 'warning',
+		showCancelButton: true,
+		confirmButtonColor: '#3085d6',
+		cancelButtonColor: '#d33',
+		confirmButtonText: 'Yes, Update status!'
+	}).then((result) => {
+		if (result.isConfirmed) {
+			$.ajax({
+				type: "POST",
+				url: "/customers/api/is_mobile_user",
+				data: {
+					'customer_userid': customerUserId,
+				},
+				success: function(response) {
+					Swal.fire(
+						'Success!',
+						response.message,
+						'success'
+					).then(() => {
+						location.reload();
+					});
+				},
+				error: function(xhr, status, error) {
+					Swal.fire(
+						'Error!',
+						'An error occurred while updating Mobile User status.',
+						'error'
+					);
+				}
+			});
+		}
+	});
+};
 </script>
 {% endblock %}

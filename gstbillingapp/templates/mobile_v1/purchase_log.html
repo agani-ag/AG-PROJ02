@@ -129,28 +129,42 @@
     }
     
     .purchase-icon.purchase {
-        background: #34c75915;
+        background: #ff3b3015;
     }
     
     .purchase-icon.purchase i {
         font-size: 22px;
-        color: #34c759;
+        color: #ff3b30;
     }
     
     .purchase-icon.paid {
-        background: #ff3b3015;
+        background: #34c75915;
     }
     
     .purchase-icon.paid i {
         font-size: 22px;
-        color: #ff3b30;
+        color: #34c759;
     }
     
     .purchase-icon.other i {
         font-size: 22px;
         color: #8e8e93;
     }
-    
+    .purchase-icon.returned {
+        background: #ff9f0a15;
+    }
+    .purchase-icon.returned i {
+        font-size: 22px;
+        color: #ff9f0a;
+    }
+    .purchase-icon.others {
+        background: #9259cc15;
+    }
+    .purchase-icon.others i {
+        font-size: 22px;
+        color: #9259cc;
+    }
+
     .purchase-details {
         flex: 1;
         min-width: 0;
@@ -234,11 +248,16 @@
     }
     
     .purchase-amount.purchase {
+        color: #ff3b30;
+    }
+    .purchase-amount.paid {
         color: #34c759;
     }
-    
-    .purchase-amount.paid {
-        color: #ff3b30;
+    .purchase-amount.returned {
+        color: #ff9f0a;
+    }
+    .purchase-amount.others {
+        color: #9259cc;
     }
     
     .purchase-footer {
@@ -499,15 +518,21 @@
     }
     
     .stat-value.purchase {
-        color: #34c759;
+        color: #ff3b30;
     }
     
     .stat-value.paid {
-        color: #ff3b30;
+        color: #34c759;
     }
     
     .stat-value.balance {
         color: #007aff;
+    }
+    .stat-value.returned {
+        color: #ff9f0a;
+    }
+    .stat-value.others {
+        color: #9259cc;
     }
 </style>
 {% endblock %}
@@ -596,6 +621,7 @@
                 <option value="all" {% if current_type_filter == 'all' %}selected{% endif %}>All Types</option>
                 <option value="purchase" {% if current_type_filter == 'purchase' %}selected{% endif %}>Purchase</option>
                 <option value="paid" {% if current_type_filter == 'paid' %}selected{% endif %}>Paid</option>
+                <option value="returned" {% if current_type_filter == 'returned' %}selected{% endif %}>Returned</option>
                 <option value="others" {% if current_type_filter == 'others' %}selected{% endif %}>Others</option>
             </select>
         </div>
@@ -615,6 +641,10 @@
         <button class="filter-tab {% if current_date_filter == 'month' %}active{% endif %}" data-filter="month">
             <i class="bi bi-calendar-month"></i> This Month
         </button>
+        <a href="{% url 'v1purchaseoverduelogs' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="filter-tab {% if current_date_filter == 'overdue' %}active{% endif %}" 
+            data-filter="overdue" style="text-decoration: none;">
+             <i class="bi bi-calendar-x"></i> Overdue Bills
+        </a>
     </div>
     
     <!-- Stats Section -->
@@ -626,6 +656,14 @@
         <div class="stat-card">
             <div class="stat-label">Paid</div>
             <div class="stat-value paid">₹{{ total_paid|floatformat:0|intcomma }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Returned</div>
+            <div class="stat-value returned">₹{{ total_returned|floatformat:0|intcomma }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Others</div>
+            <div class="stat-value others">₹{{ total_others|floatformat:0|intcomma }}</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">Balance</div>
@@ -703,7 +741,14 @@
             if (totalBalance) {
                 totalBalance.textContent = '₹' + Math.floor(data.total_balance).toLocaleString('en-IN');
             }
-            
+            const totalOthers = document.querySelector('.stat-value.others');
+            if (totalOthers) {
+                totalOthers.textContent = '₹' + Math.floor(data.total_others).toLocaleString('en-IN');
+            }
+            const totalReturned = document.querySelector('.stat-value.returned');
+            if (totalReturned) {
+                totalReturned.textContent = '₹' + Math.floor(data.total_returned).toLocaleString('en-IN');
+            }
             // Update header count
             const headerCount = document.querySelector('.header-count span');
             if (headerCount) {

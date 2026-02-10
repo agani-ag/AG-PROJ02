@@ -1,0 +1,36 @@
+{% load humanize %}
+
+{% if notifications %}
+    {% for notification in notifications %}
+    <div class="notification-card {% if not notification.is_read %}unread{% endif %}" 
+         data-notification-id="{{ notification.id }}"
+         onclick="markAsRead({{ notification.id }}, '{{ notification.link_url|default:'' }}')">
+        <div class="notification-header">
+            <div class="notification-icon icon-{{ notification.notification_type|lower }}">
+                <i class="{{ notification.get_icon_class }}"></i>
+            </div>
+            <div class="notification-content">
+                <h3 class="notification-title">{{ notification.title }}</h3>
+                <p class="notification-message">{{ notification.message }}</p>
+                <div class="notification-footer">
+                    <span class="notification-time">
+                        <i class="far fa-clock"></i>
+                        {{ notification.created_at|naturaltime }}
+                    </span>
+                    <span class="notification-type-badge badge-{{ notification.notification_type|lower }}">
+                        {{ notification.get_notification_type_display }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="empty-state">
+        <div class="empty-icon">
+            <i class="far fa-bell-slash"></i>
+        </div>
+        <h3 class="empty-title">No Notifications</h3>
+        <p class="empty-subtitle">You're all caught up! Check back later.</p>
+    </div>
+{% endif %}

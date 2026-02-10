@@ -83,9 +83,11 @@ def passkey_auth(request):
 
             # Define valid passkeys
             passkeys = {
-                "66666": 1,
-                "77777": 2,
-                "88888": 3
+                "11111": 1,
+                "22222": 2,
+                "33333": 3,
+                "44444": 4,
+                "55555": 5,
             }
 
             # Check if the passkey is valid

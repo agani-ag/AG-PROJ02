@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-2">
+    <div class="col">
+        <h2>Product Categories <span class="badge badge-secondary" id="categoryCount">0</span></h2>
+        <small class="text-muted">Create parent categories (e.g., ORGANIC, NON-ORGANIC) and child categories (e.g., FRUITS, VEGETABLES)</small>
+    </div>
+    <div class="col text-right" style="padding-top: 0.5%;">
+        <button class="btn btn-success btn-sm btn-curve" id="saveBtn" onclick="saveAllChanges()" style="display: none; margin-right: 10px;" title="Save Changes">
+            <i class="fas fa-save"></i> Save Changes <span id="changeCount" class="badge badge-light">0</span>
+        </button>
+        <button class="btn btn-primary btn-sm btn-curve" onclick="addRow()" title="Add Category">
+            <i class="fas fa-plus"></i> Add Category
+        </button>
+    </div>
+</div>
+
+<div id="myGrid" class="ag-theme-alpine" style="height: 500px;"></div>
+
+<!-- Pass categories as JSON -->
+{{ categories|json_script:"categories_data" }}
+{{ parent_categories|json_script:"parent_categories_data" }}
+{% endblock %}
+
+{% block includejs %}
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+const csrfToken = getCookie('csrftoken');
+const rowData = JSON.parse(document.getElementById('categories_data').textContent);
+const parentCategories = JSON.parse(document.getElementById('parent_categories_data').textContent);
+let editedRows = new Set();
+
+// Update category count
+document.getElementById('categoryCount').textContent = rowData.length;
+
+// Create parent category options for dropdown
+const parentOptions = {};
+parentOptions[''] = '(None - Parent Category)';
+parentCategories.forEach(cat => {
+    parentOptions[cat.id] = cat.category_name;
+});
+
+// Columns
+const columnDefs = [
+    { field: "id", hide: true },
+    { field: "parent_category_id", hide: true },
+    { 
+        field: "category_name", 
+        headerName: "Category Name", 
+        editable: true, 
+        flex: 2,
+        cellRenderer: params => {
+            if (params.data.is_parent) {
+                return `<strong style="color: #007bff;">${params.value}</strong>`;
+            }
+            return params.value;
+        }
+    },
+    { 
+        field: "parent_category_name", 
+        headerName: "Parent Category", 
+        editable: true,
+        flex: 2,
+        cellEditor: 'agSelectCellEditor',
+        cellEditorParams: {
+            values: Object.keys(parentOptions).map(k => parentOptions[k])
+        },
+        valueGetter: params => {
+            return params.data.parent_category_name || '(None - Parent Category)';
+        },
+        valueSetter: params => {
+            const selectedValue = params.newValue;
+            if (selectedValue === '(None - Parent Category)') {
+                params.data.parent_category_id = null;
+                params.data.parent_category_name = null;
+            } else {
+                const parentId = Object.keys(parentOptions).find(key => parentOptions[key] === selectedValue);
+                params.data.parent_category_id = parentId;
+                params.data.parent_category_name = selectedValue;
+            }
+            return true;
+        },
+        cellRenderer: params => {
+            if (params.data.is_parent) {
+                return '<span class="badge badge-primary">Parent Category</span>';
+            }
+            return params.value || '<span class="text-muted">-</span>';
+        }
+    },
+    { 
+        field: "product_count", 
+        headerName: "Products", 
+        editable: false, 
+        flex: 1,
+        cellRenderer: params => {
+            const count = params.value || 0;
+            return `<span class="badge badge-info">${count}</span>`;
+        }
+    },
+    {
+        headerName: "Actions",
+        flex: 1,
+        cellRenderer: params => {
+            const btn = document.createElement('button');
+            btn.className = "btn btn-danger btn-sm btn-curve";
+            btn.innerHTML = '<i class="fas fa-trash"></i>';
+            btn.onclick = () => deleteRow(params.data.id, params.node);
+            return btn;
+        }
+    }
+];
+
+// Grid options
+const gridOptions = {
+    columnDefs: columnDefs,
+    rowData: rowData,
+    onCellValueChanged: params => {
+        // Mark row as edited
+        editedRows.add(params.node);
+        updateSaveButton();
+    },
+    defaultColDef: { 
+        flex: 1, 
+        minWidth: 100, 
+        editable: true,
+        sortable: true,
+        filter: true
+    },
+    suppressNoRowsOverlay: false,
+    overlayNoRowsTemplate: '<span class="text-muted">No categories yet. Click "Add Category" to create one.</span>'
+};
+
+// Initialize grid
+new agGrid.Grid(document.querySelector('#myGrid'), gridOptions);
+
+// Update save button visibility
+function updateSaveButton() {
+    const saveBtn = document.getElementById('saveBtn');
+    const changeCount = document.getElementById('changeCount');
+    
+    if (editedRows.size > 0) {
+        saveBtn.style.display = 'inline-block';
+        changeCount.textContent = editedRows.size;
+    } else {
+        saveBtn.style.display = 'none';
+    }
+}
+
+// Add new row
+function addRow() {
+    const newItem = { 
+        category_name: "", 
+        parent_category_id: null,
+        parent_category_name: null,
+        product_count: 0,
+        is_parent: false
+    };
+    gridOptions.api.applyTransaction({ add: [newItem], addIndex: 0 });
+
+    // Get the newly added node and mark as edited
+    gridOptions.api.forEachNode((node, index) => {
+        if (index === 0) {
+            editedRows.add(node);
+        }
+    });
+    
+    updateSaveButton();
+
+    // Start editing immediately
+    setTimeout(() => {
+        gridOptions.api.startEditingCell({ rowIndex: 0, colKey: 'category_name' });
+    }, 50);
+}
+
+// Save all changes
+function saveAllChanges() {
+    const dataToSave = [];
+    editedRows.forEach(node => {
+        dataToSave.push({
+            id: node.data.id,
+            category_name: node.data.category_name,
+            parent_category_id: node.data.parent_category_id
+        });
+    });
+
+    if (dataToSave.length === 0) {
+        return;
+    }
+
+    fetch("{% url 'product_category_save' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrfToken
+        },
+        body: JSON.stringify(dataToSave)
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (res.success) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Saved!',
+                text: `${res.saved_count} categor${res.saved_count === 1 ? 'y' : 'ies'} saved successfully.`,
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                location.reload();
+            });
+        } else {
+            Swal.fire('Error', res.error || "Failed to save categories", 'error');
+        }
+    })
+    .catch(error => {
+        Swal.fire('Error', 'Failed to save changes: ' + error.message, 'error');
+    });
+}
+
+// Delete row
+function deleteRow(id, rowNode) {
+    if (!id) {
+        // Unsaved row, just remove from grid
+        gridOptions.api.applyTransaction({ remove: [rowNode.data] });
+        editedRows.delete(rowNode);
+        updateSaveButton();
+        document.getElementById('categoryCount').textContent = gridOptions.api.getDisplayedRowCount();
+        return;
+    }
+
+    Swal.fire({
+        title: 'Are you sure?',
+        text: "This will delete the category permanently!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`/product-categories/delete/${id}`, {
+                method: "DELETE",
+                headers: { "X-CSRFToken": csrfToken }
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    gridOptions.api.applyTransaction({ remove: [rowNode.data] });
+                    editedRows.delete(rowNode);
+                    updateSaveButton();
+                    document.getElementById('categoryCount').textContent = gridOptions.api.getDisplayedRowCount();
+                    Swal.fire('Deleted!', 'Category has been deleted.', 'success');
+                } else {
+                    Swal.fire('Error', res.error || "Failed to delete category", 'error');
+                }
+            });
+        }
+    });
+}
+</script>
+{% endblock %}
