@@ -5,6 +5,7 @@
     <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>
         {% block title %}
             GST Sync
@@ -45,21 +46,41 @@
         {% endif %}
 
         {% if error_message %}
-            <div class="alert alert-danger" role="alert">
-                {{ error_message }}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <strong><i class="fas fa-times-circle"></i> Error!</strong> {{ error_message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
         {% endif %}
 
         {% if success_message %}
-            <div class="alert alert-success" role="alert">
-                {{ success_message }}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <strong><i class="fas fa-check-circle"></i> Success!</strong> {{ success_message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
         {% endif %}
 
         {% if messages %}
             {% for message in messages %}
-                <div class="alert alert-{{ message.tags }}" role="alert">
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert" style="margin-top: 20px; margin-bottom: 20px;">
+                    <strong>
+                        {% if message.tags == 'warning' %}
+                            <i class="fas fa-exclamation-triangle"></i> Warning!
+                        {% elif message.tags == 'success' %}
+                            <i class="fas fa-check-circle"></i> Success!
+                        {% elif message.tags == 'error' or message.tags == 'danger' %}
+                            <i class="fas fa-times-circle"></i> Error!
+                        {% elif message.tags == 'info' %}
+                            <i class="fas fa-info-circle"></i> Info!
+                        {% endif %}
+                    </strong>
                     {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
                 </div>
             {% endfor %}
         {% endif %}
@@ -98,6 +119,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <!-- QR Code Styling JS -->

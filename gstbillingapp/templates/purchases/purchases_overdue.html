@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}Overdue Purchases{% endblock %}
+
+{% block includecss %}
+<style>
+    #overdueGrid {
+        height: 75vh;
+        width: 100%;
+    }
+
+    /* Entire row color */
+    .row-pending {
+        background-color: #fff1f1 !important;
+    }
+
+    .row-paid {
+        background-color: #f1fff4 !important;
+    }
+
+    .row-warning {
+        background-color: #fff8e1 !important;
+    }
+
+    /* Status badges */
+    .badge-pending {
+        background-color: #dc3545;
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .badge-paid {
+        background-color: #28a745;
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .badge-warning {
+        background-color: #ffc107;
+        color: #212529;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    /* SweetAlert custom */
+    .swal-wide .swal2-html-container {
+        text-align: left;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <h2>Purchases - Overdue</h2>
+        <p class="font-weight-bold text-danger" id="overdue_amount"></p>
+        </div>
+    <div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;">
+        <a href="{% url 'purchases_logs' %}" class="btn btn-success btn-sm btn-curve" title="View Purchases Logs">
+            Purchases Logs <i class="fas fa-arrow-right"></i> 
+        </a>
+    </div>
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div id="overdueGrid" class="ag-theme-alpine"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const columnDefs = [
+        {
+            headerName: "#",
+            valueGetter: params => params.node.rowIndex + 1,
+            width: 90,
+            pinned: "left",
+            sortable: false,
+            filter: false,
+            resizable: false,
+            cellStyle: {
+                textAlign: "center",
+                fontWeight: "bold"
+            }
+        },
+        {
+            headerName: "Date",
+            field: "date",
+            valueFormatter: p => p.value || "-"
+        },
+        {
+            headerName: "Amount",
+            field: "amount",
+            type: "numericColumn",
+            valueFormatter: p => "₹ " + p.value.toFixed(2),
+            cellStyle: { textAlign: "right", fontWeight: "bold" }
+        },
+        {
+            headerName: "Overdue Days",
+            field: "overdue_days",
+            cellStyle: params => {
+                if (params.data.payment_pending === false) {
+                    return { color: "#28a745", fontWeight: "bold", textAlign: "center" };
+                } else if (params.value >= 80) {
+                    return { color: "#ffc107", fontWeight: "bold", textAlign: "center" };
+                } else if (params.value > 0) {
+                    return { color: "#dc3545", fontWeight: "bold", textAlign: "center" };
+                } else {
+                    return { textAlign: "center", fontWeight: "bold" };
+                }
+            }
+        },
+        {
+            headerName: "Payment Status",
+            field: "payment_pending",
+            cellRenderer: params => {
+                if (params.data.payment_pending === false) {
+                    return `<span class="badge-paid">PAID</span>`;
+                } else if (params.data.overdue_days >= 80) {
+                    return `<span class="badge-warning">OVERDUE</span>`;
+                } else {
+                    return `<span class="badge-pending">PENDING</span>`;
+                }
+            },
+            cellStyle: { textAlign: "center" }
+        },
+        {
+            headerName: "Action",
+            field: "id",
+            cellRenderer: params => {
+                const rowData = JSON.stringify(params.data).replace(/"/g, '&quot;');
+                return `<button class="btn btn-sm btn-primary" onclick="viewPurchase(JSON.parse('${rowData}'))" title="View Purchase Details">View</button>`;
+            },
+            cellStyle: { textAlign: "center" },
+            width: 150,
+            sortable: false,
+            filter: false
+        }
+    ];
+
+    const gridOptions = {
+        columnDefs: columnDefs,
+        defaultColDef: {
+            sortable: true,
+            filter: true,
+            resizable: true
+        },
+        pagination: true,
+        paginationPageSize: 25,
+        animateRows: true,
+        rowClassRules: {
+            "row-pending": params => params.data.payment_pending === true && params.data.overdue_days < 80,
+            "row-paid": params => params.data.payment_pending === false,
+            "row-warning": params => params.data.payment_pending === true && params.data.overdue_days >= 80
+        }
+    };
+
+    
+    const gridDiv = document.querySelector("#overdueGrid");
+    new agGrid.Grid(gridDiv, gridOptions);
+
+    gridOptions.api.showLoadingOverlay();
+
+    fetch("{% url 'purchases_logs_overdue_api' %}")
+        .then(res => res.json())
+        .then(data => {
+            gridOptions.api.setRowData(data);
+            const overdueAmount = data.reduce((sum, item) => sum + (item.payment_pending && item.overdue_days >= 80 ? item.amount : 0), 0);
+            const item = data.find(row => row.first_overdue === true);
+            const remainingAmount = item ? item.remaining_amount : 0;
+            const overdueAmountWithRemaining = overdueAmount - remainingAmount;
+            const overdueCount = data.filter(item => item.payment_pending && item.overdue_days >= 80).length;
+            if (overdueAmountWithRemaining > 0) {
+                document.getElementById("overdue_amount").textContent =
+                    `₹ ${overdueAmountWithRemaining.toLocaleString('en-IN', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    })} (${overdueCount} overdue purchase${overdueCount > 1 ? 's' : ''})`;
+            } else {
+                document.getElementById("overdue_amount").textContent = "There are no overdue purchases at the moment.";
+            }
+        })
+        .catch(() => {
+            Swal.fire("Error", "Unable to load overdue purchases", "error");
+        });
+
+    // Expose globally if needed
+    window.gridOptions = gridOptions;
+
+});
+
+// SweetAlert function
+function viewPurchase(data) {
+    Swal.fire({
+        title: `<strong>Purchase Details</strong>`,
+        html: `
+            <table class="table table-borderless" style="text-align:left">
+                <tr><th>Date:</th><td>${data.date || '-'}</td></tr>
+                <tr><th>Category:</th><td>${data.category || '-'}</td></tr>
+                <tr><th>Reference:</th><td>${data.reference || '-'}</td></tr>
+                <tr><th>Amount:</th><td>
+                    <span class="badge-paid">₹ ${data.amount.toFixed(2)}</span>
+                </td></tr>
+                <tr><th>Overdue Days:</th><td class="font-weight-bold">${data.overdue_days}</td></tr>
+                ${data.first_overdue ? `
+                    <tr><th>Remaining Amount:</th><td><span class="badge-warning">₹ ${data.remaining_amount.toFixed(2)}</span></td></tr>
+                    <tr><th>Balance After:</th><td><span class="badge-pending">₹ ${data.balance_after.toFixed(2)}</span></td></tr>
+                ` : ''}
+                <tr><th>Payment Status:</th><td>
+                    ${data.payment_pending 
+                        ? (data.overdue_days >= 80 
+                            ? '<span class="badge-warning">OVERDUE</span>'
+                            : '<span class="badge-pending">PENDING</span>') 
+                        : '<span class="badge-paid">PAID</span>'}
+                </td></tr>
+            </table>
+        `,
+        showCloseButton: true,
+        confirmButtonText: 'Close',
+        width: 450,
+        customClass: {
+            popup: 'swal-wide'
+        }
+    });
+}
+</script>
+{% endblock %}

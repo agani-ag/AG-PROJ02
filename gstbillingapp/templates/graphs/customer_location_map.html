@@ -306,7 +306,11 @@
 
     <div class="side-panel" id="side-panel">
         <div class="panel-header">
-            <h2>Customer Locations</h2>
+            {% if customers|length == all_customers|length %}
+                <h2>Customer Locations</h2>
+            {% else %}
+                <h2>Customer Locations ({{ customers|length }}/{{ all_customers|length }})</h2>
+            {% endif %}
         </div>
         
         <div class="toolbar">

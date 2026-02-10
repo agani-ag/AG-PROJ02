@@ -35,15 +35,47 @@
 				<th scope="row" class="text-right">MRP:</th>
 				<td class="form-input-td">{{product_form.product_rate_with_gst}}</td>
 			</tr>
+			<tr>
+				<th scope="row" class="text-right">Product Category:</th>
+				<td class="form-input-td">
+					<select id="id_product_category" name="product_category">
+						<option value="" {% if not product_form.product_category.value %}selected{% endif %}>---------</option>
+						{% for category in product_category_list %}
+							<option value="{{ category.id }}" {% if product_form.product_category.value|stringformat:"s" == category.id|stringformat:"s" %}selected{% endif %}>
+								{% if category.parent_category__category_name %}
+									{{ category.parent_category__category_name }} &gt; {{ category.category_name }}
+								{% else %}
+									{{ category.category_name }}
+								{% endif %}
+							</option>
+						{% endfor %}
+					</select>
+					<a href="#" class="btn btn-sm btn-secondary" title="Add Category" 
+						onclick="addCategory(event)"><i class="fas fa-plus"></i>
+					</a>
+					<small class="text-muted d-block">Only child categories can be assigned to products</small>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Product Image URL:</th>
+				<td class="form-input-td">
+					<textarea id="product_image_url" name="product_image_url" rows="2" cols="35">{{ product_form.product_image_url.value|default:'' }}</textarea>
+					<div id="image_preview" style="margin-top:10px;">
+						{% if product_form.product_image_url.value %}
+							<img src="{{ product_form.product_image_url.value }}" alt="Product Image" style="max-width:200px; max-height:200px;">
+						{% endif %}
+					</div>
+				</td>
+			</tr>
 		</tbody>
 	</table>
 
 	<div class="form-group text-right">
-		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+		<button type="submit" class="btn btn-primary" title="Save Product"><i class="fas fa-save"></i></button>
 </form>
-		<a class="btn btn-danger" href="{% url 'products' %}"><i class="fas fa-cancel"></i></a>
+		<a class="btn btn-danger" href="{% url 'products' %}" title="Cancel Product"><i class="fas fa-cancel"></i></a>
 		{% if id %}
-			<a class="btn btn-warning" href="#" onclick="popup_inventory()"><i class="fas fa-file-lines"></i></a>
+			<a class="btn btn-warning" href="#" onclick="popup_inventory()" title="View Inventory Logs"><i class="fas fa-file-lines"></i></a>
 		{% endif %}
 	</div>
 
@@ -60,5 +92,107 @@ function popup_inventory() {
       });
     });
 }
+
+// Image URL Preview
+	const textarea = document.getElementById('product_image_url');
+	const previewDiv = document.getElementById('image_preview');
+
+	textarea.addEventListener('input', () => {
+		const url = textarea.value.trim();
+		if (url) {
+			previewDiv.innerHTML = `<img src="${url}" alt="Product Image" style="max-width:300px; max-height:300px;border:1px solid #ccc;">`;
+		} else {
+			previewDiv.innerHTML = '';
+		}
+	});
+
+	// Add Category Button Handler
+	function addCategory(e) {
+		e.preventDefault(); // Prevent <a> from navigating
+
+		// Fetch parent categories first
+		fetch("{% url 'product_category_list' %}")
+			.then(response => response.text())
+			.then(html => {
+				// Extract parent categories from the response
+				const parser = new DOMParser();
+				const doc = parser.parseFromString(html, 'text/html');
+				const parentCategoriesScript = doc.getElementById('parent_categories_data');
+				let parentOptions = '<option value="">None (Create Parent Category)</option>';
+				
+				if (parentCategoriesScript) {
+					const parents = JSON.parse(parentCategoriesScript.textContent);
+					parents.forEach(parent => {
+						parentOptions += `<option value="${parent.id}">${parent.category_name}</option>`;
+					});
+				}
+
+				Swal.fire({
+					title: 'Add New Category',
+					html: `
+						<div class="form-group text-left">
+							<label for="category-name">Category Name <span class="text-danger">*</span></label>
+							<input type="text" id="category-name" class="form-control" placeholder="Enter category name">
+						</div>
+						<div class="form-group text-left">
+							<label for="parent-category">Parent Category</label>
+							<select id="parent-category" class="form-control">
+								${parentOptions}
+							</select>
+							<small class="text-muted">Leave empty to create a parent category, or select a parent for a child category</small>
+						</div>
+					`,
+					showCancelButton: true,
+					confirmButtonText: 'Save',
+					cancelButtonText: 'Cancel',
+					preConfirm: () => {
+						const categoryName = document.getElementById('category-name').value.trim();
+						const parentId = document.getElementById('parent-category').value;
+						
+						if (!categoryName) {
+							Swal.showValidationMessage('Category name is required');
+							return false;
+						}
+						
+						return { categoryName, parentId };
+					}
+				}).then((result) => {
+					if (result.isConfirmed) {
+						const { categoryName, parentId } = result.value;
+						
+						$.ajax({
+							url: "{% url 'product_category_save' %}",
+							method: "POST",
+							contentType: "application/json",
+							headers: {
+								'X-CSRFToken': '{{ csrf_token }}'
+							},
+							data: JSON.stringify({ 
+								category_name: categoryName,
+								parent_category_id: parentId || null
+							}),
+							success: function(data) {
+								if (data.success) {
+									Swal.fire('Success', 'Category created: ' + data.full_path, 'success');
+									// Add the new category to dropdown if it's a child category
+									if (parentId) {
+										$('#id_product_category').append('<option value="' + data.id + '" selected>' + data.full_path + '</option>');
+									} else {
+										Swal.fire('Info', 'Parent category created. Now create child categories under it to assign to products.', 'info');
+									}
+								} else {
+									Swal.fire('Error', data.error || 'Failed to save category', 'error');
+								}
+							},
+							error: function(xhr, status, error) {
+								console.error(error);
+								Swal.fire('Error', 'Something went wrong', 'error');
+							}
+						});
+					}
+				});
+			});
+	}
 </script>
+
 {% endblock %}

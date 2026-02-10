@@ -10,10 +10,13 @@
 				<h2>Products</h2>
 			</div>
 			<div class="col text-right" style="padding-top: 0.5%;">
-				<a href="{% url 'product_add' %}" class="btn btn-primary btn-sm btn-curve">
+				<a href="{% url 'products_aggrid' %}" class="btn btn-info btn-sm btn-curve" title="AG Grid View" style="text-decoration: none;">
+					<i class="fas fa-table-cells"></i> AG Grid
+				</a>
+				<a href="{% url 'product_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Product">
 					<i class="fas fa-plus"></i>
 				</a>
-				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" style="text-decoration: none;">
+				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" style="text-decoration: none;" title="Upload Excel">
 					<i class="fas fa-file-excel"></i>
 				</a>
 			</div>
@@ -24,6 +27,7 @@
 				<tr>
 					<th>Model No</th>
 					<th>Product Name</th>
+					<th>Category</th>
 					<th>MRP</th>
 					<th>Discount%</th>
 					<th>GST%</th>
@@ -35,14 +39,26 @@
 				<tr>
 	 				<td>{{product.model_no}}</td>
 	 				<td>{% if product.product_name %}{{product.product_name}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+	 				<td>
+						{% if product.product_category %}
+							{% if product.product_category.parent_category %}
+								<span class="badge badge-secondary">{{product.product_category.parent_category.category_name}}</span>
+								<span class="badge badge-primary">{{product.product_category.category_name}}</span>
+							{% else %}
+								<span class="badge badge-primary">{{product.product_category.category_name}}</span>
+							{% endif %}
+						{% else %}
+							<span class="text-muted">-</span>
+						{% endif %}
+					</td>
 	 				<td>{{product.product_rate_with_gst}}</td>
 	 				<td>{{product.product_discount}}%</td>
 	 				<td>{{product.product_gst_percentage}}%</td>
 	 				<td>
 						<div class="btn-group" role="group" aria-label="Basic example">
-							<a href="{% url 'product_edit' product.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
-							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.model_no}}"><i class="fas fa-trash"></i></button>
-							<a href="{% url 'inventory_logs' product.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-file-lines"></i></a>
+							<a href="{% url 'product_edit' product.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Product"><i class="fas fa-pen-to-square"></i></a>
+							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.model_no}}" title="Delete Product"><i class="fas fa-trash"></i></button>
+							<a href="{% url 'inventory_logs' product.id %}" class="btn btn-warning btn-sm btn-curve" title="View Inventory Logs"><i class="fas fa-file-lines"></i></a>
 						</div>
 					</td>
 				</tr>
@@ -99,7 +115,7 @@ $(document).ready( function () {
 	$('#product-table').DataTable({
 		"order": [],
 		"columnDefs": [ {
-			"targets": 5,
+			"targets": 6,
 			"sortable": false,
 			"searchable": false
 		}],

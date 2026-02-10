@@ -12,6 +12,7 @@ from ..models import Invoice
 from ..models import UserProfile
 from ..models import Book
 from ..models import BookLog
+from ..models import Quotation
 
 # Utility functions
 from ..utils import invoice_data_validator
@@ -34,6 +35,7 @@ def invoice_create(request):
     # if business info is blank redirect to update it
     user_profile = get_object_or_404(UserProfile, user=request.user)
     if not user_profile.business_title:
+        messages.warning(request, "Please update your business name before creating invoices.")
         return redirect('user_profile_edit')
     if not user_profile.business_gst:
         messages.warning(request, "Please update your business GST number before creating invoices.")
@@ -67,6 +69,11 @@ def invoice_create(request):
             is_gst = False
         else:
             is_gst = True
+        
+        if is_gst and invoice_data['customer-gst'].strip() == '':
+            messages.warning(request, "GST Invoice requires Customer GST Number.")
+            return render(request, 'invoices/invoice_create.html', context)
+
         validation_error = invoice_data_validator(invoice_data)
         if validation_error:
             context["error_message"] = validation_error
@@ -84,19 +91,21 @@ def invoice_create(request):
                         customer_gst=invoice_data['customer-gst'])
         except:
             pass
-
+        
         if not customer:
-            customer = Customer(user=request.user,
-                customer_name=invoice_data['customer-name'],
-                customer_address=invoice_data['customer-address'],
-                customer_phone=invoice_data['customer-phone'],
-                customer_gst=invoice_data['customer-gst'])
-            # create customer book
-            customer.save()
-            add_customer_book(customer)
+            # customer = Customer(user=request.user,
+            #     customer_name=invoice_data['customer-name'],
+            #     customer_address=invoice_data['customer-address'],
+            #     customer_phone=invoice_data['customer-phone'],
+            #     customer_gst=invoice_data['customer-gst'])
+            # # create customer book
+            # customer.save()
+            # add_customer_book(customer)
+            messages.warning(request, "Customer does not exist. Please add the customer first.")
+            return redirect('customer_add')
 
         # save product
-        update_products_from_invoice(invoice_data_processed, request)
+        # update_products_from_invoice(invoice_data_processed, request)
 
 
         # save invoice
@@ -117,12 +126,9 @@ def invoice_create(request):
 @login_required
 def invoices(request):
     context = {}
-    return render(request, 'invoices/invoices.html', context)
-
-@login_required
-def non_gst_invoices(request):
-    context = {}
-    context['non_gst_mode'] = True
+    # Get all customers for dropdown filter
+    customers = Customer.objects.filter(user=request.user).order_by('customer_name')
+    context['customers'] = customers
     return render(request, 'invoices/invoices.html', context)
 
 @login_required
@@ -140,19 +146,34 @@ def invoices_ajax(request):
         order_direction = request.GET.get('order[0][dir]', 'desc')
         
         # Filter parameters
-        invoice_type = request.GET.get('invoice_type', 'all')  # all, gst, non_gst
+        invoice_type = request.GET.get('invoice_type', 'all')  # all, gst, non_gst, not_pushed, missing_in_books
         date_filter = request.GET.get('date_filter', 'all')
         start_date = request.GET.get('start_date', '')
         end_date = request.GET.get('end_date', '')
+        customer_id = request.GET.get('customer_id', '')  # customer filter
         
         # Base queryset
         queryset = Invoice.objects.filter(user=request.user).select_related('invoice_customer')
+        
+        # Apply customer filter
+        if customer_id and customer_id.isdigit():
+            queryset = queryset.filter(invoice_customer__id=int(customer_id))
         
         # Apply invoice type filter
         if invoice_type == 'gst':
             queryset = queryset.filter(is_gst=True)
         elif invoice_type == 'non_gst':
             queryset = queryset.filter(is_gst=False)
+        elif invoice_type == 'not_pushed':
+            queryset = queryset.filter(books_reflected=False)
+        elif invoice_type == 'missing_in_books':
+            # Find invoices marked as reflected but with no BookLog entry
+            # Only execute this expensive query when this filter is active
+            existing_invoice_ids = set(BookLog.objects.filter(
+                parent_book__user=request.user,
+                associated_invoice__isnull=False
+            ).values_list('associated_invoice_id', flat=True))
+            queryset = queryset.filter(books_reflected=True).exclude(id__in=existing_invoice_ids)
         
         # Apply date filters
         if date_filter and date_filter != 'all':
@@ -185,32 +206,48 @@ def invoices_ajax(request):
         # Filtered records count
         filtered_records = queryset.count()
         
+        # Default ordering: by invoice_date desc, then id desc
+        default_ordering = ['-invoice_date', '-id']
+
         # Ordering
         order_columns = ['invoice_number', 'invoice_date', 'invoice_customer__customer_name']
         if 0 <= order_column_index < len(order_columns):
             order_by = order_columns[order_column_index]
             if order_direction == 'desc':
                 order_by = '-' + order_by
-            queryset = queryset.order_by(order_by)
+            # Apply user-specified order first, then fallback to date & id desc
+            queryset = queryset.order_by(order_by, '-invoice_date', '-id')
         else:
-            queryset = queryset.order_by('-id')
+            # Default ordering
+            queryset = queryset.order_by(*default_ordering)
         
-        # Pagination
+        # Calculate total invoice amount - optimized query
+        # Use values_list to only fetch invoice_json field, not all related data
+        total_invoice_amount = 0.0
+        invoice_jsons = queryset.values_list('invoice_json', flat=True)
+        for invoice_json_str in invoice_jsons:
+            try:
+                invoice_json = json.loads(invoice_json_str)
+                invoice_amount = float(invoice_json.get('invoice_total_amt_with_gst', 0))
+                total_invoice_amount += invoice_amount
+            except Exception:
+                pass
+        
+        # Pagination - apply after total calculation
         queryset = queryset[start:start + length]
         
-        # Prepare data and calculate total invoice amount
+        # Prepare data for current page
         data = []
-        total_invoice_amount = 0.0
         for invoice in queryset:
             # Invoice number
             if invoice.is_gst:
                 invoice_num = str(invoice.invoice_number)
             else:
-                invoice_num = f'<span class="text-danger font-weight-bold">NG{invoice.invoice_number}</span>'
+                invoice_num = f'<span class="text-danger font-weight-bold">INV-{invoice.invoice_number}</span>'
 
             # Customer
             if invoice.invoice_customer:
-                customer_html = f'<a href="/books/{invoice.invoice_customer.id}" style="text-decoration: none;color: black;">{invoice.invoice_customer.customer_name}</a>'
+                customer_html = f'<a href="/books/{invoice.invoice_customer.id}" style="text-decoration: none;color: black;" title="View Books">{invoice.invoice_customer.customer_name}</a>'
             else:
                 customer_html = '<span class="text-danger">N/A</span>'
 
@@ -221,17 +258,20 @@ def invoices_ajax(request):
             except Exception:
                 invoice_amount = 0.0
 
-            total_invoice_amount += invoice_amount
-
             # Actions
             actions_html = '<div class="btn-group" role="group">'
-            actions_html += f'<button type="button" onclick="popup_invoice({invoice.id})" class="btn btn-primary btn-sm btn-curve"><i class="fa fa-eye"></i></button>'
-            actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve"><i class="fa fa-external-link-square"></i></a>'
+            actions_html += f'<button type="button" onclick="popup_invoice({invoice.id})" class="btn btn-primary btn-sm btn-curve" title="Preview Invoice"><i class="fa fa-eye"></i></button>'
+            actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve" title="View Invoice"><i class="fa fa-external-link-square"></i></a>'
             if invoice.invoice_customer:
-                actions_html += f'<a href="/customer/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve"><i class="fa fa-user"></i></a>'
+                actions_html += f'<a href="/customer/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve" title="Edit Customer"><i class="fa fa-user"></i></a>'
+            
+            # Add push/fix button for not_pushed or missing_in_books filters
+            if invoice_type in ['not_pushed', 'missing_in_books']:
+                button_title = 'Push to Books' if invoice_type == 'not_pushed' else 'Fix & Push to Books'
+                actions_html += f'<button type="button" onclick="pushToBooks({invoice.id})" class="btn btn-success btn-sm btn-curve" title="{button_title}"><i class="fa fa-book"></i></button>'
 
             customer_info = invoice.invoice_customer.customer_name if invoice.invoice_customer else "N/A"
-            actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{invoice.id}" data-invoice-number="{invoice.invoice_number}, for {customer_info}"><i class="fa fa-trash"></i></button>'
+            actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{invoice.id}" data-invoice-number="{invoice.invoice_number}, for {customer_info}" title="Delete Invoice"><i class="fa fa-trash"></i></button>'
             actions_html += '</div>'
 
             data.append({
@@ -278,12 +318,92 @@ def invoice_delete(request):
     if request.method == "POST":
         invoice_id = request.POST["invoice_id"]
         invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
-        is_non_gst = not invoice_obj.is_gst
+        
+        # Check if this invoice was converted from a quotation
+        source_quotation = None
+        try:
+            source_quotation = Quotation.objects.filter(converted_invoice=invoice_obj).first()
+        except:
+            pass
+        
+        # Check if user wants to move invoice to quotation before deleting
+        if len(request.POST.getlist('move-to-quotation')):
+            if source_quotation:
+                # Invoice came from a quotation - just reset the original quotation instead of creating duplicate
+                source_quotation.converted_invoice = None
+                source_quotation.converted_at = None
+                source_quotation.converted_by = None
+                source_quotation.status = 'DRAFT'  # Reset to DRAFT so it can be edited/reconverted
+                source_quotation.notes = (source_quotation.notes or '') + f'\nInvoice #{invoice_obj.invoice_number} was deleted and quotation restored.'
+                source_quotation.save()
+                messages.success(request, f'Invoice #{invoice_obj.invoice_number} deleted. Original Quotation #{source_quotation.quotation_number} has been restored as DRAFT.')
+            else:
+                # Invoice was not from a quotation - create new quotation
+                try:
+                    # Get next quotation number
+                    user_profile = get_object_or_404(UserProfile, user=request.user)
+                    
+                    if invoice_obj.is_gst:
+                        # GST quotation numbers (shared across same GST)
+                        max_quotation_number = []
+                        user_profiles = UserProfile.objects.filter(business_gst=user_profile.business_gst)
+                        for profile in user_profiles:
+                            max_num = Quotation.objects.filter(
+                                user=profile.user, is_gst=True
+                            ).aggregate(Max('quotation_number'))['quotation_number__max']
+                            max_quotation_number.append(max_num)
+                        max_quotation_number = [num for num in max_quotation_number if num is not None]
+                        
+                        if max_quotation_number:
+                            next_quotation_number = max(max_quotation_number) + 1
+                        else:
+                            next_quotation_number = 1
+                    else:
+                        # Non-GST quotation
+                        next_quotation_number = Quotation.objects.filter(
+                            user=request.user, is_gst=False
+                        ).aggregate(Max('quotation_number'))['quotation_number__max']
+                        if not next_quotation_number:
+                            next_quotation_number = 1
+                        else:
+                            next_quotation_number += 1
+                    
+                    # Create quotation with invoice data
+                    new_quotation = Quotation(
+                        user=request.user,
+                        quotation_number=next_quotation_number,
+                        quotation_date=invoice_obj.invoice_date,
+                        valid_until=(invoice_obj.invoice_date + datetime.timedelta(days=30)),
+                        quotation_customer=invoice_obj.invoice_customer,
+                        quotation_json=invoice_obj.invoice_json,  # Copy invoice JSON
+                        is_gst=invoice_obj.is_gst,
+                        status='DRAFT',
+                        notes=f'Created from deleted Invoice #{invoice_obj.invoice_number}'
+                    )
+                    new_quotation.save()
+                    
+                    messages.success(request, f'Invoice #{invoice_obj.invoice_number} moved to Quotation #{new_quotation.quotation_number}')
+                except Exception as e:
+                    messages.error(request, f'Error moving to quotation: {str(e)}')
+        elif source_quotation:
+            # User didn't check "Move to Quotation" but invoice came from quotation
+            # Just reset the source quotation without moving
+            source_quotation.converted_invoice = None
+            source_quotation.converted_at = None
+            source_quotation.converted_by = None
+            source_quotation.save()
+            messages.info(request, f'Invoice deleted. Source Quotation #{source_quotation.quotation_number} has been reset.')
+        
+        # Proceed with normal deletion process
         if len(request.POST.getlist('inventory-del')):
             remove_inventory_entries_for_invoice(invoice_obj, request.user)
         if len(request.POST.getlist('book-del')):
-            booklog_obj = get_object_or_404(BookLog,associated_invoice=invoice_obj)
-            book = get_object_or_404(Book,user=request.user,id=booklog_obj.parent_book.id)
+            try:
+                booklog_obj = get_object_or_404(BookLog,associated_invoice=invoice_obj)
+                book = get_object_or_404(Book,user=request.user,id=booklog_obj.parent_book.id)
+            except:
+                messages.warning(request, f'Error Invoice #{invoice_obj.invoice_number} deletion from books')
+                return redirect('invoices')
             booklog_obj.delete()
             new_total = BookLog.objects.filter(parent_book=book).aggregate(Sum('change'))['change__sum']
             new_last_log = BookLog.objects.filter(parent_book=book).last()
@@ -293,9 +413,53 @@ def invoice_delete(request):
             book.last_log = new_last_log
             book.save()
         invoice_obj.delete()
-        if is_non_gst:
-            return redirect('non_gst_invoices')
+        
+        if not len(request.POST.getlist('move-to-quotation')):
+            messages.success(request, f'Invoice #{invoice_obj.invoice_number} deleted successfully')
     return redirect('invoices')
+
+
+@login_required
+def invoice_push_to_books(request, invoice_id):
+    """Manually push an invoice to books if it wasn't reflected"""
+    if request.method == 'POST':
+        try:
+            invoice = get_object_or_404(Invoice, id=invoice_id, user=request.user)
+            
+            # Check if there's already a BookLog entry for this invoice
+            existing_booklog = BookLog.objects.filter(associated_invoice=invoice).first()
+            
+            if existing_booklog:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Invoice already has a book entry'
+                }, status=400)
+            
+            # If books_reflected is True but no BookLog exists, this is a data inconsistency
+            # Reset the flag to allow proper pushing
+            if invoice.books_reflected:
+                invoice.books_reflected = False
+                invoice.save()
+            
+            # Push to books
+            auto_deduct_book_from_invoice(invoice)
+            
+            # Update the flag
+            invoice.books_reflected = True
+            invoice.save()
+            
+            messages.success(request, f'Invoice #{invoice.invoice_number} successfully pushed to books')
+            return JsonResponse({
+                'success': True,
+                'message': f'Invoice #{invoice.invoice_number} pushed to books successfully'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request'}, status=405)
 
 # ================= Invoice API Views ===========================
 @login_required

@@ -560,6 +560,7 @@
     let currentPage = {{ page_obj.number|default:1 }};
     let userId = '{{ current_user_id }}';
     let searchQuery = '{{ current_search }}';
+    let usersFilter = '{{ users_filter }}';
     let searchTimeout = null;
     
     // DOM Elements
@@ -636,6 +637,7 @@
         const params = new URLSearchParams({
             page: currentPage,
             user_id: userId,
+            users_filter: usersFilter,
             search: searchQuery
         });
         

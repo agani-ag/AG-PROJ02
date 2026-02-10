@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block content %}
+{% load static %}
+{% block includecss %}
+<link rel="stylesheet" href="{% static 'gstbillingapp/pdf.css' %}" id="pdf-css">
+{% endblock %}
+
+<!-- PDF WRAPPER -->
+<div id="pdf-wrapper">
+
+    <!-- HEADER -->
+    <div id="pdf-header" class="pdf-header">
+        <div class="header-title">
+            {{ user_profile.business_title }}
+        </div>
+
+        <div class="header-sub">
+            {{ user_profile.business_address }}
+        </div>
+
+        <div class="header-sub">
+            Phone: {{ user_profile.business_phone }} |
+            GST: {{ user_profile.business_gst }}
+        </div>
+
+        <div class="header-report">
+            Sales Report | FY 2024–25
+        </div>
+
+        <hr>
+    </div>
+
+    <!-- CONTENT -->
+    <div id="pdf-content">
+        <table class="table table-bordered table-sm">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Invoices</th>
+                    <th class="text-right">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in customer_sales %}
+                <tr>
+                    <td>{{ row.customer }}</td>
+                    <td>{{ row.total_invoices }}</td>
+                    <td class="text-right">{{ row.total_amount }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- FOOTER -->
+    <div id="pdf-footer" class="pdf-footer">
+        <hr>
+        <span>Generated on {% now "d-m-Y" %}</span>
+    </div>
+
+</div>
+
+<!-- BUTTON -->
+<button class="btn btn-danger mt-3" onclick="downloadPDF()">
+    <i class="fas fa-file-pdf"></i> Download PDF
+</button>
+
+{% endblock %}
+
+{% block includejs %}
+<script>
+function downloadPDF() {
+    const element = document.getElementById('pdf-wrapper');
+
+    const opt = {
+        margin: 10,
+        filename: 'gst-report.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf()
+        .set(opt)
+        .from(element)
+        .toPdf()
+        .get('pdf')
+        .then(function(pdf) {
+            const totalPages = pdf.internal.getNumberOfPages();
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+
+            for (let i = 1; i <= totalPages; i++) {
+                pdf.setPage(i);
+                pdf.setFontSize(9);
+                pdf.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+            }
+        })
+        .save();
+}
+</script>
+{% endblock %}

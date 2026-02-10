@@ -125,6 +125,14 @@
         color: #007aff;
     }
     
+    .stat-number.returned-color {
+        color: #ff9500;
+    }
+
+    .stat-number.others-color {
+        color: #764ba2;
+    }
+    
     .stat-label {
         display: block;
         font-size: 0.75rem;
@@ -769,6 +777,14 @@
             <span class="stat-number balance-color" id="totalBalance">₹{{ total_balance|floatformat:0|intcomma }}</span>
             <span class="stat-label">Balance</span>
         </div>
+        <div class="stat-item">
+            <span class="stat-number returned-color" id="totalReturned">₹{{ total_returned|floatformat:0|intcomma }}</span>
+            <span class="stat-label">Returned</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number others-color" id="totalOthers">₹{{ total_others|floatformat:0|intcomma }}</span>
+            <span class="stat-label">Others</span>
+        </div>
     </div>
 </div>
 
@@ -812,6 +828,32 @@
                 <button class="clear-search" id="clearSearch">
                     <i class="bi bi-x"></i>
                 </button>
+            </div>
+        </div>
+        
+        <!-- Date Filter -->
+        <div class="filter-row">
+            <div class="form-group">
+                <label class="form-label" for="dateFilter">Date Filter</label>
+                <select id="dateFilter" class="form-select">
+                    <option value="all" {% if current_date_filter == 'all' %}selected{% endif %}>All Time</option>
+                    <option value="today" {% if current_date_filter == 'today' %}selected{% endif %}>Today</option>
+                    <option value="week" {% if current_date_filter == 'week' %}selected{% endif %}>This Week</option>
+                    <option value="month" {% if current_date_filter == 'month' %}selected{% endif %}>This Month</option>
+                    <option value="custom" {% if current_date_filter == 'custom' %}selected{% endif %}>Custom Range</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Custom Date Range -->
+        <div class="filter-row" id="customDateRow" style="{% if current_date_filter != 'custom' %}display: none;{% endif %}">
+            <div class="form-group">
+                <label class="form-label" for="startDate">Start Date</label>
+                <input type="date" id="startDate" class="form-select" value="{{ current_start_date }}">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="endDate">End Date</label>
+                <input type="date" id="endDate" class="form-select" value="{{ current_end_date }}">
             </div>
         </div>
     </div>
@@ -891,6 +933,9 @@
     let searchQuery = '{{ current_search }}';
     let filterType = '{{ current_filter_type|default:"all" }}';
     let statusFilter = '{{ current_status_filter|default:"active" }}';
+    let dateFilter = '{{ current_date_filter|default:"all" }}';
+    let startDate = '{{ current_start_date }}';
+    let endDate = '{{ current_end_date }}';
     let searchTimeout = null;
     let usersFilter = '{{ users_filter|default:"" }}';
     let allCustomers = [];
@@ -900,6 +945,10 @@
     const customerSelect = document.getElementById('customerSelect');
     const searchInput = document.getElementById('searchInput');
     const clearSearchBtn = document.getElementById('clearSearch');
+    const dateFilterSelect = document.getElementById('dateFilter');
+    const customDateRow = document.getElementById('customDateRow');
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
     const bookList = document.getElementById('bookList');
     const loadingSpinner = document.getElementById('loadingSpinner');
     const prevBtn = document.getElementById('prevBtn');
@@ -949,6 +998,36 @@
             currentPage = 1;
             updateClearButton();
             loadBooks();
+        });
+        
+        // Date filter dropdown
+        dateFilterSelect.addEventListener('change', function() {
+            dateFilter = this.value;
+            if (dateFilter === 'custom') {
+                customDateRow.style.display = 'flex';
+            } else {
+                customDateRow.style.display = 'none';
+                currentPage = 1;
+                loadBooks();
+            }
+            triggerHaptic();
+        });
+        
+        // Custom date inputs
+        startDateInput.addEventListener('change', function() {
+            startDate = this.value;
+            if (dateFilter === 'custom' && startDate && endDate) {
+                currentPage = 1;
+                loadBooks();
+            }
+        });
+        
+        endDateInput.addEventListener('change', function() {
+            endDate = this.value;
+            if (dateFilter === 'custom' && startDate && endDate) {
+                currentPage = 1;
+                loadBooks();
+            }
         });
         
         // Filter tabs
@@ -1047,6 +1126,9 @@
             search: searchQuery,
             filter_type: filterType,
             status_filter: statusFilter,
+            date_filter: dateFilter,
+            start_date: startDate,
+            end_date: endDate,
             page: currentPage,
             admin: admin,
             user_filter: userFilter,
@@ -1069,6 +1151,8 @@
             document.getElementById('totalPurchased').textContent = `₹${Math.round(data.total_purchased).toLocaleString('en-IN')}`;
             document.getElementById('totalPaid').textContent = `₹${Math.round(data.total_paid).toLocaleString('en-IN')}`;
             document.getElementById('totalBalance').textContent = `₹${Math.round(data.total_balance).toLocaleString('en-IN')}`;
+            document.getElementById('totalReturned').textContent = `₹${Math.round(data.total_returned).toLocaleString('en-IN')}`;
+            document.getElementById('totalOthers').textContent = `₹${Math.round(data.total_others).toLocaleString('en-IN')}`;
             
             updatePagination(data);
         })

@@ -139,6 +139,27 @@ def customerall_userid_set(request):
 
 
 @csrf_exempt
+def customer_is_mobile_user(request):
+    if request.method == "POST":
+        customer_userid = request.POST.get("customer_userid", None)
+        if not customer_userid:
+            return JsonResponse({'status': 'error', 'message': 'Customer UserID is required.'})
+        try:
+            customer_obj = Customer.objects.get(customer_userid=customer_userid)
+            if customer_obj.is_mobile_user:
+                is_mobile_user = False
+                message = f'Customer {customer_userid.upper()} mobile login is turned off.'
+            else:
+                is_mobile_user = True
+                message = f'Customer {customer_userid.upper()} mobile login is turned on.'
+            customer_obj.is_mobile_user = is_mobile_user
+            customer_obj.save()
+            return JsonResponse({'status': 'success', 'message': message})
+        except Customer.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Customer not found.'})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to check mobile user status.'})
+
+@csrf_exempt
 def customer_api_add(request):
     if request.method == "POST":
         business_uid = request.GET.get('business_uid', None)

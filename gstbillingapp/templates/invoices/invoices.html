@@ -3,11 +3,7 @@
 
 {% block content %}
 
-	{% if non_gst_mode %}	
-		<h2>Non-GST Invoices</h2>
-	{% else %}
-		<h2>Invoices</h2>
-	{% endif %}
+	<h2>Invoices</h2>
 
 	<!-- Filter Options Row -->
 	<div class="row mb-3 align-items-end">
@@ -15,8 +11,19 @@
 			<label for="invoiceTypeFilter" class="mb-1"><small><strong>Type:</strong></small></label>
 			<select id="invoiceTypeFilter" class="form-control form-control-sm">
 				<option value="all">All Types</option>
-				<option value="gst" {% if not non_gst_mode %}selected{% endif %}>GST</option>
-				<option value="non_gst" {% if non_gst_mode %}selected{% endif %}>Non-GST</option>
+				<option value="gst" selected>GST</option>
+				<option value="non_gst">Non-GST</option>
+				<option value="not_pushed">Not Pushed to Books</option>
+				<option value="missing_in_books">Missing in Books</option>
+			</select>
+		</div>
+		<div class="col-md-2">
+			<label for="customerFilter" class="mb-1"><small><strong>Customer:</strong></small></label>
+			<select id="customerFilter" class="form-control form-control-sm">
+				<option value="">All Customers</option>
+				{% for customer in customers %}
+				<option value="{{ customer.id }}">{{ customer.customer_name }}</option>
+				{% endfor %}
 			</select>
 		</div>
 		<div class="col-md-2">
@@ -29,25 +36,30 @@
 				<option value="custom">Custom</option>
 			</select>
 		</div>
-		<div class="col-md-3" id="startDateWrapper" style="display:none;">
+		<div class="col-md-2" id="startDateWrapper" style="display:none;">
 			<label for="startDate" class="mb-1"><small><strong>From:</strong></small></label>
 			<input type="date" id="startDate" class="form-control form-control-sm">
 		</div>
-		<div class="col-md-3" id="endDateWrapper" style="display:none;">
+		<div class="col-md-2" id="endDateWrapper" style="display:none;">
 			<label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
 			<input type="date" id="endDate" class="form-control form-control-sm">
 		</div>
-		<div class="col-md-2">
+		<div class="col-md-1">
 			<button id="clearFilters" class="btn btn-secondary btn-sm btn-block">
 				<i class="fas fa-times"></i> Clear
 			</button>
 		</div>
-	<div class="col-md-3 text-right">
-		<div id="total-invoice-amount" class="font-weight-bold text-primary" style="font-size: 1.1rem;">
-			<!-- Total will be populated by JavaScript -->
+		<div class="col-md-3">
+			<div class="card shadow-sm border-danger">
+				<div class="card-body p-2 text-center">
+					<small class="text-muted d-block" style="font-size: 0.75rem;">TOTAL AMOUNT</small>
+					<div id="total-invoice-amount" class="font-weight-bold text-danger" style="font-size: 1.3rem;">
+						<i class="fas fa-spinner fa-spin"></i>
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
-</div>
 
 <hr>
 
@@ -81,6 +93,7 @@
 				Are you sure you want to delete <b><span class="invoice-number"></span></b>?
 					<div class="form-group">
 						<input hidden="true" type="text" class="form-control" name="invoice_id">
+						<input type="checkbox" id="move-to-quotation" name="move-to-quotation" value="move-to-quotation"> <b>Move to Quotation Before Deleting</b><br>
 						<input type="checkbox" id="book-del" name="book-del" value="book-del" checked> <b>Remove Book Deductions Also</b><br>
 						<input type="checkbox" id="inventory-del" name="inventory-del" value="inventory-del" checked> <b>Remove Inventory Deductions Also</b>
 					</div>
@@ -114,11 +127,7 @@
 
 	$(document).ready( function () {
 		// Set default filter based on page mode
-		{% if non_gst_mode %}
-			$('#invoiceTypeFilter').val('non_gst');
-		{% else %}
-			$('#invoiceTypeFilter').val('gst');
-		{% endif %}
+		$('#invoiceTypeFilter').val('gst');
 
 		var table = $('#invoice-table').DataTable({
 			"processing": true,
@@ -128,6 +137,7 @@
 				"type": "GET",
 				"data": function(d) {
 					d.invoice_type = $('#invoiceTypeFilter').val() || 'all';
+					d.customer_id = $('#customerFilter').val() || '';
 					d.date_filter = $('#dateFilter').val() || 'all';
 					d.start_date = $('#startDate').val() || '';
 					d.end_date = $('#endDate').val() || '';
@@ -166,10 +176,10 @@
 			"info": true
 		});
 
-	// Show total invoice amount at top right
+	// Show total invoice amount
 	table.on('xhr', function(e, settings, json) {
 		if (json && typeof json.total_invoice_amount !== 'undefined') {
-			$('#total-invoice-amount').html('<strong>Total: ₹ ' + json.total_invoice_amount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>');
+			$('#total-invoice-amount').html('<strong>₹ ' + json.total_invoice_amount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>');
 		}
 	});
 		// Show/hide custom date range inputs
@@ -194,6 +204,7 @@
 		// Clear filters button
 		$('#clearFilters').on('click', function() {
 			$('#invoiceTypeFilter').val('all');
+			$('#customerFilter').val('');
 			$('#dateFilter').val('all');
 			$('#startDate').val('');
 			$('#endDate').val('');
@@ -204,6 +215,11 @@
 
 		// Auto-reload on change for invoice type filter
 		$('#invoiceTypeFilter').on('change', function() {
+			table.ajax.reload();
+		});
+
+		// Auto-reload on change for customer filter
+		$('#customerFilter').on('change', function() {
 			table.ajax.reload();
 		});
 	});
@@ -219,6 +235,69 @@
 			showConfirmButton: false,
 		});
 	});
+}
+
+function pushToBooks(invoiceId) {
+	Swal.fire({
+		title: 'Push to Books?',
+		text: "This will manually add this invoice to the books.",
+		icon: 'question',
+		showCancelButton: true,
+		confirmButtonColor: '#28a745',
+		cancelButtonColor: '#6c757d',
+		confirmButtonText: 'Yes, Push it!'
+	}).then((result) => {
+		if (result.isConfirmed) {
+			// Show loading
+			Swal.fire({
+				title: 'Processing...',
+				text: 'Pushing invoice to books',
+				allowOutsideClick: false,
+				allowEscapeKey: false,
+				didOpen: () => {
+					Swal.showLoading();
+				}
+			});
+
+			// Make AJAX request
+			fetch(`/invoices/push-to-books/${invoiceId}`, {
+				method: 'POST',
+				headers: {
+					'X-CSRFToken': '{{ csrf_token }}',
+					'Content-Type': 'application/json'
+				}
+			})
+			.then(response => response.json())
+			.then(data => {
+				if (data.success) {
+					Swal.fire({
+						icon: 'success',
+						title: 'Success!',
+						text: data.message,
+						timer: 2000
+					}).then(() => {
+						// Reload the table to update the button visibility
+						$('#invoice-table').DataTable().ajax.reload();
+					});
+				} else {
+					Swal.fire({
+						icon: 'error',
+						title: 'Error',
+						text: data.message
+					});
+				}
+			})
+			.catch(error => {
+				Swal.fire({
+					icon: 'error',
+					title: 'Error',
+					text: 'An error occurred while pushing to books'
+				});
+				console.error('Error:', error);
+			});
+		}
+	});
 }	
+
 </script>
 {% endblock %}

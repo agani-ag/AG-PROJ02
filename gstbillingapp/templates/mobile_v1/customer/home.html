@@ -683,7 +683,7 @@
                 <i class="fas fa-wallet"></i>
                 Balance Overview
             </h3>
-            <span class="progress-period">All Time</span>
+            <span class="progress-period text-dark font-weight-bold">{{ overall_payment_percentage|default:0 }}%</span>
         </div>
         
         <!-- Balance Progress -->
@@ -703,6 +703,72 @@
                 <span>Total: ₹{{ total_purchased|default:0|floatformat:2|intcomma }}</span>
             </div>
         </div>
+        <hr>
+
+        <!-- Overdue Summary -->
+        <div class="progress-header" id="overdue-section">
+            <h3 class="progress-title">
+                <i class="bi bi-clock-history"></i>
+                Overdue Bills
+            </h3>
+            <span class="progress-period text-dark font-weight-bold">{{ overdue_logs|length }}</span>
+
+        </div>
+        {% load humanize %}
+        {% for log in overdue_logs %}
+            <div class="overdue-item" data-overdue-days="{{ log.overdue_days }}">
+                {% if log.associated_invoice %}
+                <a href="{% url 'v1customerinvoiceviewer' log.associated_invoice.id %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&user_filter={{ request.GET.user_filter }}&cid={{ request.GET.cid }}"
+                    class="summary-item" style="text-decoration: none;">
+                {% else %}
+                <span class="summary-item" style="text-decoration: none;">
+                {% endif %}
+                    <span class="summary-label">
+                        <i class="fas fa-receipt" style="color: #ff3b30;"></i>
+                        <span>
+                            {{ log.date|date:"d/m/Y" }}
+                            <span class="badge badge-danger">{{ log.overdue_days }} Days</span>
+                            <br><small class="text-muted">{{ log.date|naturaltime }}</small>
+                        </span>
+                    </span>
+                    <span class="summary-value">
+                        ₹{{ log.amount_positive|default:0|floatformat:2|intcomma }}
+                        {% if forloop.first %}
+                            <br>
+                            <span class="badge badge-warning">
+                                ₹{{ log.balance_after|default:0|floatformat:2|intcomma }}
+                            </span>
+                        {% endif %}
+                    </span>
+                {% if log.associated_invoice %}</a>{% else %}</span>{% endif %}
+            </div>
+        {% empty %}
+            <p style="padding: 12px 0; color: var(--oneui-text-secondary); text-align: center;">
+                No overdue bills.
+            </p>
+        {% endfor %}
+        {% if show_90_only %}
+        <span class="summary-item">
+            <span class="summary-label" style="display: flex; align-items: center; gap: 6px; margin-top: 12px;">
+                <i class="fas fa-exclamation-triangle" style="color: #ff9500;"></i>
+                Total Overdue Amount
+            </span>
+            <span class="summary-value" style="font-size: 18px; font-weight: 700; color: #ff3b30;">
+                ₹{{ overdue_amount|default:0|floatformat:2|intcomma }}
+            </span>
+        </span>
+            <div style="text-align: center; margin-top: 12px;">
+                <a href="{{ url_show_all }}" class="btn btn-sm btn-outline-primary">
+                    Show All Overdue Bills
+                </a>
+            </div>
+        {% else %}
+            <div style="text-align: center; margin-top: 12px;">
+                <a href="{{ url_overdue_90 }}" class="btn btn-sm btn-outline-primary">
+                    Show Only 90 Days Overdue Bills
+                </a>
+            </div>
+        {% endif %}
     </div>
     
     <!-- Page Footer -->
@@ -741,5 +807,58 @@
     $(document).ready(function () {
         getGreeting();
     });
+
+    {% if request.GET.u != "emp" %}
+    // Geolocation Tracking
+    const API_PUSH = "/api/location/push/";
+    const ROOM = "customer-room";
+    const USER = "{{ request.GET.cid | default:'unknown' }}";
+    const USER_TYPE = "customer";
+
+    function send(lat,lng,accuracy){
+    fetch(API_PUSH,{
+    method:"POST",
+    headers:{
+        "Content-Type":"application/json",
+        "X-CSRFToken":"{{ csrf_token }}"
+    },
+    body:JSON.stringify({
+        lat:lat,
+        lng:lng,
+        accuracy:accuracy,
+        user_id:USER,
+        user_type:USER_TYPE,
+        room:ROOM
+    })
+    })
+    }
+
+    function gpsSuccess(pos){
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    marker.setLatLng([lat,lng]);
+    map.setView([lat,lng],16);
+    document.getElementById("status").innerText="GPS: Exact";
+    send(lat,lng,"gps");
+    }
+
+    function gpsError(){
+    fetch("https://ipinfo.io/json")
+    .then(r => r.json())
+    .then(d => {
+    if(!d.loc) return;
+
+    const [lat, lng] = d.loc.split(",").map(Number);
+
+    send(lat, lng, "approx");
+    });
+    }
+
+    navigator.geolocation.watchPosition(
+    gpsSuccess,
+    gpsError,
+    {enableHighAccuracy:true,timeout:5000}
+    );
+    {% endif %}
 </script>
 {% endblock %}

@@ -27,8 +27,19 @@
                 </div>
                 
                 <div class="product-meta-badges">
+                    {% if product.product_category %}
+                    {% if product.product_category.parent_category %}
+                    <span class="product-badge" style="background: #5856d615; color: #5856d6;">
+                        <i class="bi bi-folder"></i> {{ product.product_category.parent_category.category_name }}
+                    </span>
+                    {% endif %}
+                    <span class="product-badge" style="background: #007aff15; color: #007aff;">
+                        <i class="bi bi-folder-fill"></i> {{ product.product_category.category_name }}
+                    </span>
+                    {% endif %}
                     {% if product.current_stock is not None %}
-                    <span class="product-badge stock-badge {% if product.current_stock == 0 %}out-of-stock{% elif product.is_low_stock %}low-stock{% else %}in-stock{% endif %}">
+                    <span class="product-badge stock-badge {% if product.current_stock == 0 %}out-of-stock{% elif product.is_low_stock %}low-stock{% else %}in-stock{% endif %}" 
+                        onclick="addInventoryStock('{{ product.user.id }}', '{{ product.id }}', '{{ product.alert_level }}', '{{ product.current_stock }}', '{{ product.model_no }}')">
                         <i class="bi bi-box"></i> Stock: {{ product.current_stock|intcomma }}
                         {% if product.alert_level %}
                         / Alert: {{ product.alert_level|intcomma }}
@@ -83,3 +94,79 @@
         <p class="empty-state-text">Try adjusting your search or filters</p>
     </div>
 {% endif %}
+
+<script>
+function addInventoryStock(brand, productId, stock_alert, current_stock, modelNo) {
+    Swal.fire({
+        title: "Add Stock",
+        html: `
+        <input type="number" id="added_stock" class="swal2-input" placeholder="Enter stock quantity (${current_stock})"
+            style="height:38px;font-size:14px;width:85%;margin:6px auto;" min="1">
+        <p style="font-size:14px;color:#555;">Enter Stock</p>
+        <input type="number" id="stock_alert" class="swal2-input" placeholder="Stock alert level (optional)" 
+            style="height:38px;font-size:14px;width:85%;margin:6px auto;" value="${stock_alert}" min="1">
+        <p style="font-size:14px;color:#555;">Enter Stock Alert Level</p>
+        <label style="font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;">
+            <input type="checkbox" id="reduce_stock">Reduce stock</label>
+        <label style="font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;">
+            <input type="checkbox" id="only_alert">Only Alert</label>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: "Add Stock",
+        cancelButtonText: "Cancel",
+        confirmButtonColor: "#3085d6",
+        preConfirm: () => {
+            const addedStock = document.getElementById("added_stock").value;
+            const stockAlert = document.getElementById("stock_alert").value;
+            const reduce_stock = document.getElementById("reduce_stock").checked;
+            const only_alert = document.getElementById("only_alert").checked;
+            const title = '{{ request.GET.title|default:""|upper }}';
+
+            if (!addedStock || addedStock <= 0) {
+                Swal.showValidationMessage("Please enter a valid stock quantity");
+                return false;
+            }
+
+            return {
+                added_stock: addedStock,
+                stock_alert: stockAlert,
+                reduce_stock: reduce_stock,
+                only_alert: only_alert,
+                title: title
+            };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`{% url 'v1productinventorystockaddapi' %}?brand=${brand}&product_id=${productId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": getCookie("csrftoken")
+                },
+                body: `added_stock=${result.value.added_stock}&stock_alert=${result.value.stock_alert}&reduce_stock=${result.value.reduce_stock}&only_alert=${result.value.only_alert}&title=${result.value.title}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    Swal.fire("Success!", data.message, "success")
+                        .then(() => {
+                            const url = new URL(window.location.href);
+                            if (modelNo) {
+                                url.searchParams.set("search", modelNo);
+                            } else {
+                                url.searchParams.delete("search");
+                            }
+                            window.location.href = url;
+                        });
+                } else {
+                    Swal.fire("Error", data.message, "error");
+                }
+            })
+            .catch(() => {
+                Swal.fire("Error", "Something went wrong!", "error");
+            });
+        }
+    });
+}
+</script>

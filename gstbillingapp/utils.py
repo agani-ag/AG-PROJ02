@@ -273,3 +273,262 @@ def parse_code_GS(input_code):
     # Create a dictionary from the matches
     result = {key.upper(): int(value) for key, value in matches}
     return result
+
+
+# ================ Notification System Methods =================
+def create_notification(user, title, message, notification_type='INFO', 
+                       link_url=None, link_text=None, 
+                       related_object_type=None, related_object_id=None):
+    """
+    Create a notification for a user.
+    
+    Usage Examples:
+        # Simple notification
+        create_notification(request.user, "Welcome", "Welcome to GST Billing System", "SUCCESS")
+        
+        # Notification with link
+        create_notification(
+            request.user, 
+            "New Invoice", 
+            "Invoice #1234 has been created",
+            "INVOICE",
+            link_url="/invoice/1234/",
+            link_text="View Invoice"
+        )
+        
+        # Notification with related object
+        create_notification(
+            request.user,
+            "Payment Received",
+            "Payment of ₹5000 received from Customer ABC",
+            "PAYMENT",
+            link_url="/customers/123/",
+            link_text="View Customer",
+            related_object_type="Customer",
+            related_object_id=123
+        )
+    
+    Args:
+        user: User object
+        title: Notification title (max 200 chars)
+        message: Notification message
+        notification_type: Type of notification (INFO, SUCCESS, WARNING, ERROR, 
+                          INVOICE, QUOTATION, CUSTOMER, PRODUCT, PAYMENT, SYSTEM)
+        link_url: Optional URL to navigate when clicked
+        link_text: Optional text for the link button
+        related_object_type: Optional model name (e.g., "Invoice", "Customer")
+        related_object_id: Optional ID of the related object
+    
+    Returns:
+        Notification object
+    """
+    from .models import Notification
+    
+    notification = Notification.objects.create(
+        user=user,
+        notification_type=notification_type,
+        title=title[:200],  # Ensure max length
+        message=message,
+        link_url=link_url,
+        link_text=link_text,
+        related_object_type=related_object_type,
+        related_object_id=related_object_id
+    )
+    
+    # Send real-time notification via WebSocket
+    try:
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+        
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            # Send notification to user's WebSocket
+            async_to_sync(channel_layer.group_send)(
+                f"notifications_user_{user.id}",
+                {
+                    'type': 'notification_message',
+                    'notification': {
+                        'id': notification.id,
+                        'title': notification.title,
+                        'message': notification.message,
+                        'notification_type': notification.notification_type,
+                        'link_url': notification.link_url or '',
+                        'link_text': notification.link_text or 'View',
+                        'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                        'icon_class': notification.get_icon_class(),
+                        'badge_class': notification.get_badge_class(),
+                    }
+                }
+            )
+            
+            # Send updated count
+            unread_count = Notification.objects.filter(
+                user=user, is_read=False, is_deleted=False
+            ).count()
+            
+            async_to_sync(channel_layer.group_send)(
+                f"notifications_user_{user.id}",
+                {
+                    'type': 'count_update',
+                    'count': unread_count
+                }
+            )
+    except Exception as e:
+        # If WebSocket fails, continue silently
+        print(f"WebSocket notification failed: {e}")
+    
+    return notification
+
+
+def notify_invoice_created(user, invoice):
+    """
+    Create notification when invoice is created
+    
+    Usage: notify_invoice_created(request.user, invoice_obj)
+    """
+    return create_notification(
+        user=user,
+        title=f"Invoice #{invoice.invoice_number} Created",
+        message=f"New invoice #{invoice.invoice_number} created for {invoice.invoice_customer.customer_name if invoice.invoice_customer else 'N/A'}",
+        notification_type="INVOICE",
+        link_url=f"/invoice/{invoice.id}/",
+        link_text="View Invoice",
+        related_object_type="Invoice",
+        related_object_id=invoice.id
+    )
+
+
+def notify_quotation_created(user, quotation):
+    """
+    Create notification when quotation is created
+    
+    Usage: notify_quotation_created(request.user, quotation_obj)
+    """
+    return create_notification(
+        user=user,
+        title=f"Quotation #{quotation.quotation_number} Created",
+        message=f"New quotation #{quotation.quotation_number} created for {quotation.quotation_customer.customer_name if quotation.quotation_customer else 'N/A'}",
+        notification_type="QUOTATION",
+        link_url=f"/quotation/{quotation.id}/",
+        link_text="View Quotation",
+        related_object_type="Quotation",
+        related_object_id=quotation.id
+    )
+
+
+def notify_quotation_approved(user, quotation):
+    """
+    Create notification when quotation is approved
+    
+    Usage: notify_quotation_approved(request.user, quotation_obj)
+    """
+    return create_notification(
+        user=user,
+        title=f"Quotation #{quotation.quotation_number} Approved",
+        message=f"Quotation #{quotation.quotation_number} has been approved and is ready for conversion",
+        notification_type="SUCCESS",
+        link_url=f"/quotation/{quotation.id}/",
+        link_text="View Quotation",
+        related_object_type="Quotation",
+        related_object_id=quotation.id
+    )
+
+
+def notify_payment_received(user, customer, amount):
+    """
+    Create notification when payment is received
+    
+    Usage: notify_payment_received(request.user, customer_obj, 5000)
+    """
+    return create_notification(
+        user=user,
+        title="Payment Received",
+        message=f"Payment of ₹{amount:,.2f} received from {customer.customer_name}",
+        notification_type="PAYMENT",
+        link_url=f"/customers/edit/{customer.id}",
+        link_text="View Customer",
+        related_object_type="Customer",
+        related_object_id=customer.id
+    )
+
+
+def notify_low_stock(user, product, quantity):
+    """
+    Create notification for low stock alert
+    
+    Usage: notify_low_stock(request.user, product_obj, 5)
+    """
+    return create_notification(
+        user=user,
+        title="Low Stock Alert",
+        message=f"Product '{product.product_name}' ({product.model_no}) has low stock: {quantity} units remaining",
+        notification_type="WARNING",
+        link_url="/products",
+        link_text="View Products",
+        related_object_type="Product",
+        related_object_id=product.id
+    )
+
+
+def notify_custom(user, title, message, notification_type='INFO', 
+                 link_url=None, link_text=None):
+    """
+    Create a custom notification with flexible parameters
+    
+    Usage: 
+        notify_custom(
+            request.user, 
+            "Custom Alert", 
+            "This is a custom message",
+            "WARNING",
+            "/some-page/",
+            "Go to Page"
+        )
+    """
+    return create_notification(
+        user=user,
+        title=title,
+        message=message,
+        notification_type=notification_type,
+        link_url=link_url,
+        link_text=link_text
+    )
+
+
+def get_unread_notification_count(user):
+    """
+    Get count of unread notifications for a user
+    
+    Usage: count = get_unread_notification_count(request.user)
+    """
+    from .models import Notification
+    return Notification.objects.filter(user=user, is_read=False, is_deleted=False).count()
+
+
+def mark_all_notifications_read(user):
+    """
+    Mark all notifications as read for a user
+    
+    Usage: mark_all_notifications_read(request.user)
+    """
+    from .models import Notification
+    from datetime import datetime
+    
+    Notification.objects.filter(
+        user=user, 
+        is_read=False, 
+        is_deleted=False
+    ).update(is_read=True, read_at=datetime.now())
+
+# ================= Location Methods ===========================
+import math
+
+def distance_meters(lat1, lng1, lat2, lng2):
+    R = 6371000
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))

@@ -2,28 +2,33 @@
 from django.forms import FloatField
 from django.utils import timezone
 from django.http import JsonResponse
-from django.db.models.functions import Cast
 from django.core.paginator import Paginator
 from django.template.loader import render_to_string
 from django.shortcuts import get_object_or_404, render
 from django.db.models import (
     Sum, Case, When, FloatField, IntegerField,
-    F,Q, CharField, Min, Max, Count
+    F,Q, CharField, Min, Max, Count, ExpressionWrapper
 )
-
+from django.db.models.functions import (
+    Abs, Cast
+)
 # Models
 from ...models import (
     Customer, UserProfile, Invoice,
     Book, BookLog, ExpenseTracker, Product,
-    PurchaseLog, VendorPurchase, Inventory
+    PurchaseLog, VendorPurchase, Inventory,
+    InventoryLog, Notification
 )
 
 # Python imports
 import json
 import num2words
+from urllib.parse import urlencode
 
 # Utility functions
-from ...utils import parse_code_GS
+from ...utils import (
+    parse_code_GS
+)
 
 # ================= Customer =============================
 def customer_profile(request):
@@ -282,8 +287,8 @@ def customer_home(request):
     total_paid = totals['total_paid'] or 0
     total_returned = totals['total_returned'] or 0
     total_others = totals['total_others'] or 0
-    total_balance = abs(total_purchased) - abs(total_paid)
-    # total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
+    # total_balance = abs(total_purchased) - abs(total_paid)
+    total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
     # Counts
     context['purchased_count'] = totals['purchased_count'] or 0
     context['paid_count'] = totals['paid_count'] or 0
@@ -356,6 +361,44 @@ def customer_home(request):
     context['last_month_total_paid'] = abs(int(last_month_total_paid))
     context['last_month_paid_count'] = abs(int(last_month_paid_count))
     context['last_month_purchased_count'] = abs(int(last_month_purchased_count))
+    # Overdue
+    only_purchases = book_logs.filter(change_type=1).annotate(amount_positive=Abs('change')).order_by('date')
+    remaining_amount = abs(total_paid) + abs(total_returned) + abs(total_others)
+    show_90_only = request.GET.get('overdue') == '90'
+    filtered_logs = []
+    payment_failed = False
+    for log in only_purchases:
+        # overdue days
+        log.overdue_days = (now - log.date).days if log.date else 0
+        invoice_amount = log.amount_positive
+
+        if not payment_failed and remaining_amount >= invoice_amount:
+            # covered
+            remaining_amount -= invoice_amount
+            continue
+
+        # once failed, everything is overdue
+        payment_failed = True
+        log.remaining_amount = remaining_amount
+        log.balance_after = abs(remaining_amount - invoice_amount)
+        log.payment_pending = True
+        if show_90_only and log.overdue_days < 90:
+            continue
+        filtered_logs.append(log)
+
+    params = request.GET.copy()
+    params_overdue_90 = params.copy()
+    params_overdue_90['overdue'] = '90'
+    params_show_all = params.copy()
+    params_show_all.pop('overdue', None)
+    context['url_overdue_90'] = f"?{urlencode(params_overdue_90)}"
+    context['url_show_all'] = f"?{urlencode(params_show_all)}"
+    context['show_90_only'] = show_90_only
+    context['overdue_logs'] = filtered_logs
+    filtered_amount = sum(log.amount_positive for log in filtered_logs)
+    filtered_amount -= filtered_logs[0].remaining_amount if filtered_logs else 0
+    context['overdue_amount'] = filtered_amount
+            
     return render(request, 'mobile_v1/customer/home.html', context)
 
 def customer_invoice_viewer(request, invoice_id):
@@ -444,6 +487,7 @@ def customers(request):
         'total_count': total_count,
         'current_user_id': user_id,
         'current_search': search_query,
+        'users_filter': users_filter,
     })
     
     # AJAX request - return JSON with HTML
@@ -456,6 +500,7 @@ def customers(request):
             'has_previous': page_obj.has_previous(),
             'current_page': page_obj.number,
             'total_pages': paginator.num_pages,
+            'users_filter': users_filter,
         })
     
     return render(request, 'mobile_v1/customers.html', context)
@@ -577,6 +622,7 @@ def invoices(request):
 
 def books(request):
     """Books listing with filtering, search, and pagination"""
+    from datetime import datetime, timedelta
     context = {}
     
     # Get filter parameters
@@ -585,6 +631,9 @@ def books(request):
     search_query = request.GET.get('search', '').strip()
     filter_type = request.GET.get('filter_type', 'all')  # all, payments, purchases, returns, others
     status_filter = request.GET.get('status_filter', 'active')  # active, inactive, all
+    date_filter = request.GET.get('date_filter', 'all')  # all, today, week, month, custom
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
     page_number = request.GET.get('page', 1)
     users_filter = request.GET.get('users_filter', '')
     user_ids = []
@@ -639,6 +688,24 @@ def books(request):
             Q(change__icontains=search_query)
         )
     
+    # Apply date filter
+    today = datetime.now().date()
+    if date_filter == 'today':
+        books_qs = books_qs.filter(date=today)
+    elif date_filter == 'week':
+        week_ago = today - timedelta(days=7)
+        books_qs = books_qs.filter(date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = today - timedelta(days=30)
+        books_qs = books_qs.filter(date__gte=month_ago)
+    elif date_filter == 'custom' and start_date and end_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end = datetime.strptime(end_date, '%Y-%m-%d').date()
+            books_qs = books_qs.filter(date__gte=start, date__lte=end)
+        except ValueError:
+            pass  # Invalid date format, ignore
+    
     # Order by date
     books_qs = books_qs.order_by('-date')
     
@@ -673,6 +740,22 @@ def books(request):
             Q(description__icontains=search_query) |
             Q(change__icontains=search_query)
         )
+    # Apply date filter to totals
+    if date_filter == 'today':
+        totals_qs = totals_qs.filter(date=today)
+    elif date_filter == 'week':
+        week_ago = today - timedelta(days=7)
+        totals_qs = totals_qs.filter(date__gte=week_ago)
+    elif date_filter == 'month':
+        month_ago = today - timedelta(days=30)
+        totals_qs = totals_qs.filter(date__gte=month_ago)
+    elif date_filter == 'custom' and start_date and end_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end = datetime.strptime(end_date, '%Y-%m-%d').date()
+            totals_qs = totals_qs.filter(date__gte=start, date__lte=end)
+        except ValueError:
+            pass
     
     # Calculate totals for current filter (only active)
     totals = totals_qs.aggregate(
@@ -685,7 +768,10 @@ def books(request):
     # Calculate balance
     total_purchased = abs(totals['total_purchased'] or 0)
     total_paid = abs(totals['total_paid'] or 0)
-    total_balance = total_purchased - total_paid
+    total_returned = abs(totals['total_returned'] or 0)
+    total_others = abs(totals['total_others'] or 0)
+    # total_balance = total_purchased - total_paid
+    total_balance = total_purchased - (total_paid + total_returned + total_others)
     
     context.update({
         'users': users,
@@ -697,8 +783,13 @@ def books(request):
         'current_search': search_query,
         'current_filter_type': filter_type,
         'current_status_filter': status_filter,
+        'current_date_filter': date_filter,
+        'current_start_date': start_date,
+        'current_end_date': end_date,
         'total_purchased': total_purchased,
         'total_paid': total_paid,
+        'total_returned': total_returned,
+        'total_others': total_others,
         'total_balance': total_balance,
         'users_filter': users_filter,
     })
@@ -715,6 +806,8 @@ def books(request):
             'total_pages': paginator.num_pages,
             'total_purchased': total_purchased,
             'total_paid': total_paid,
+            'total_returned': total_returned,
+            'total_others': total_others,
             'total_balance': total_balance,
             'users_filter': users_filter,
         })
@@ -724,6 +817,7 @@ def books(request):
 def customersapi(request):
     customers = Customer.objects.all().values(
         business_name=F('customer_name'),
+        brand_name=F('user__userprofile__business_brand'),
         name=F('customer_userid'),
         password=F('customer_password'),
         gst=F('customer_gst')
@@ -737,13 +831,18 @@ def customersapi(request):
     for customer in customers:
         gst = customer['gst']
         userid = customer['name']
-        link = f"/mobile/v1/customer/home?cid={userid}"
+        brand_name = customer['brand_name']
+
+        link_obj = {
+            "name": brand_name,
+            "link": f"/mobile/v1/customer/home?cid={userid}"
+        }
 
         if gst not in gst_map:
             gst_map[gst] = []
 
-        if link not in gst_map[gst]:
-            gst_map[gst].append(link)
+        if link_obj not in gst_map[gst]:
+            gst_map[gst].append(link_obj)
 
     # Build final response
     customers_dict = {}
@@ -751,13 +850,14 @@ def customersapi(request):
     for customer in customers:
         name = customer['name']
         gst = customer['gst']
+        links = gst_map.get(gst, [])
 
         customers_dict[name] = {
             'business_name': customer['business_name'],
             'name': name,
             'password': customer['password'],
             'deflink': f"/mobile/v1/customer/home?cid={name}",
-            'linklist': gst_map.get(gst, [])
+            'linklist': links if len(links) > 1 else []
         }
 
     return JsonResponse(customers_dict, safe=False)
@@ -794,6 +894,30 @@ def customers_book_add_api(request):
             book_log.save()
 
             return JsonResponse({'status': 'success', 'message': 'Payment added successfully.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+
+    return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+
+def customers_reset_password_api(request):
+    cid = request.GET.get('cid')
+    if not cid:
+        return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+    customer = get_object_or_404(Customer, customer_userid=cid)
+    customers = Customer.objects.filter(
+        customer_gst=customer.customer_gst,
+        is_mobile_user=True
+    )
+    if request.method == 'POST':
+        new_password = request.POST.get('new_password', '').strip()
+        if not new_password:
+            return JsonResponse({'status': 'error', 'message': 'Password cannot be empty.'})
+        try:
+            for customer in customers:
+                customer.customer_password = new_password
+                customer.is_mobile_user = True
+                customer.save()
+            return JsonResponse({'status': 'success', 'message': 'Password reset successfully.'})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
 
@@ -951,10 +1075,12 @@ def purchase_logs(request):
         purchases_qs = purchases_qs.filter(vendor__id=vendor_id)
     
     # Apply type filter
-    if type_filter == 'purchase':
+    if type_filter == 'paid':
         purchases_qs = purchases_qs.filter(change_type=0)
-    elif type_filter == 'paid':
+    elif type_filter == 'purchase':
         purchases_qs = purchases_qs.filter(change_type=1)
+    elif type_filter == 'returned':
+        purchases_qs = purchases_qs.filter(change_type=2)    
     elif type_filter == 'others':
         purchases_qs = purchases_qs.filter(change_type=3)
     
@@ -1000,14 +1126,17 @@ def purchase_logs(request):
     
     # Calculate totals for current filter
     totals = purchases_qs.aggregate(
-        total_purchase=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-        total_paid=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_purchase=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
         total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
     )
     
     total_purchase = abs(totals['total_purchase'] or 0)
     total_paid = abs(totals['total_paid'] or 0)
-    total_balance = total_purchase - total_paid
+    total_returned = abs(totals['total_returned'] or 0)
+    total_others = abs(totals['total_others'] or 0)
+    total_balance = total_purchase - (total_paid + total_returned + total_others)
     total_count = paginator.count
     
     context.update({
@@ -1017,6 +1146,8 @@ def purchase_logs(request):
         'page_obj': page_obj,
         'total_purchase': total_purchase,
         'total_paid': total_paid,
+        'total_returned': total_returned,
+        'total_others': total_others,
         'total_balance': total_balance,
         'total_count': total_count,
         'current_user_id': user_id,
@@ -1036,6 +1167,8 @@ def purchase_logs(request):
             'total_count': total_count,
             'total_purchase': float(total_purchase),
             'total_paid': float(total_paid),
+            'total_returned': float(total_returned),
+            'total_others': float(total_others),
             'total_balance': float(total_balance),
             'has_next': page_obj.has_next(),
             'has_previous': page_obj.has_previous(),
@@ -1046,12 +1179,117 @@ def purchase_logs(request):
     
     return render(request, 'mobile_v1/purchase_log.html', context)
 
+def purchase_logs_overdue(request):
+    """Purchase Logs listing with filtering, search, and pagination"""
+    
+    context = {}
+    
+    # Get filter parameters
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
+    
+    # Get all users for dropdown
+    users = UserProfile.objects.all().select_related('user').order_by('business_title')
+    
+    # Base queryset
+    purchases_qs = PurchaseLog.objects.select_related('user', 'vendor').order_by('-date')
+    
+    # Apply users filter
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+        purchases_qs = purchases_qs.filter(user__id__in=user_ids)
+    
+    # Apply date filter
+    now = timezone.now()
+    
+    # Calculate totals for current filter
+    totals = purchases_qs.aggregate(
+        total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+        total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+        paid_count=Count(Case(When(change_type=0, then=1), output_field=IntegerField())),
+        purchased_count=Count(Case(When(change_type=1, then=1), output_field=IntegerField())),
+        returned_count=Count(Case(When(change_type=2, then=1), output_field=IntegerField())),
+        others_count=Count(Case(When(change_type=3, then=1), output_field=IntegerField())),
+    )
+    
+    total_purchased = abs(totals['total_purchased'] or 0)
+    total_paid = abs(totals['total_paid'] or 0)
+    total_returned = abs(totals['total_returned'] or 0)
+    total_others = abs(totals['total_others'] or 0)
+    total_balance = total_purchased - (total_paid + total_returned + total_others)
+    # Counts
+    context['purchased_count'] = totals['purchased_count'] or 0
+    context['paid_count'] = totals['paid_count'] or 0
+    context['returned_count'] = totals['returned_count'] or 0
+    context['others_count'] = totals['others_count'] or 0
+
+    overall_payment_percentage = 0
+    if total_purchased > 0:
+        overall_payment_percentage = min(100, (total_paid / total_purchased) * 100)
+
+    # Overdue
+    only_purchases = only_purchases = purchases_qs.filter(change_type=1).annotate(amount_positive=Abs('change')).order_by('date')
+    remaining_amount = abs(total_paid) + abs(total_returned) + abs(total_others)
+    show_80_only = request.GET.get('overdue') == '80'
+    filtered_logs = []
+    payment_failed = False
+    for log in only_purchases:
+        # overdue days
+        log.overdue_days = (now - log.date).days if log.date else 0
+        invoice_amount = log.amount_positive
+
+        if not payment_failed and remaining_amount >= invoice_amount:
+            # covered
+            remaining_amount -= invoice_amount
+            continue
+
+        # once failed, everything is overdue
+        payment_failed = True
+        log.remaining_amount = remaining_amount
+        log.balance_after = abs(remaining_amount - invoice_amount)
+        log.payment_pending = True
+        if show_80_only and log.overdue_days < 80:
+            continue
+        filtered_logs.append(log)
+
+    params = request.GET.copy()
+    params_overdue_80 = params.copy()
+    params_overdue_80['overdue'] = '80'
+    params_show_all = params.copy()
+    params_show_all.pop('overdue', None)
+    context['url_overdue_80'] = f"?{urlencode(params_overdue_80)}"
+    context['url_show_all'] = f"?{urlencode(params_show_all)}"
+    context['show_80_only'] = show_80_only
+    context['overdue_logs'] = filtered_logs
+    filtered_amount = sum(log.amount_positive for log in filtered_logs)
+    filtered_amount -= filtered_logs[0].remaining_amount if filtered_logs else 0
+    context['overdue_amount'] = filtered_amount
+            
+    
+    context.update({
+        'users': users,
+        'total_purchased': total_purchased,
+        'total_paid': total_paid,
+        'total_returned': total_returned,
+        'total_others': total_others,
+        'total_balance': total_balance,
+        'users_filter': users_filter,
+        'overall_payment_percentage': round(overall_payment_percentage, 1),
+    })
+        
+    return render(request, 'mobile_v1/purchase_overdue_log.html', context)
+
 def products(request):
     user_id = request.GET.get('user_id', None)
     search_query = request.GET.get('search', '').strip()
     stock_filter = request.GET.get('stock_filter', 'all')  # all, in_stock, low_stock, out_of_stock
     discount_filter = request.GET.get('discount_filter', 'all')  # all, with_discount, no_discount
     hsn_filter = request.GET.get('hsn_filter', '')
+    parent_category_filter = request.GET.get('parent_category', '')
+    child_category_filter = request.GET.get('child_category', '')
     page_number = request.GET.get('page', 1)
     users_filter = request.GET.get('users_filter', '')
     user_ids = list(map(int, users_filter.split(','))) if users_filter else []
@@ -1063,7 +1301,7 @@ def products(request):
     hsn_codes = Product.objects.filter(product_hsn__isnull=False).exclude(product_hsn='').values_list('product_hsn', flat=True).distinct().order_by('product_hsn')
     
     # Filter products
-    products_qs = Product.objects.all().select_related('user')
+    products_qs = Product.objects.all().select_related('user', 'product_category', 'product_category__parent_category')
     
     # Apply users filter
     if users_filter:
@@ -1086,6 +1324,13 @@ def products(request):
     # HSN filter
     if hsn_filter:
         products_qs = products_qs.filter(product_hsn=hsn_filter)
+    
+    # Category filters
+    if parent_category_filter:
+        products_qs = products_qs.filter(product_category__parent_category__category_name=parent_category_filter)
+    
+    if child_category_filter:
+        products_qs = products_qs.filter(product_category__category_name=child_category_filter)
     
     # Discount filter
     if discount_filter == 'with_discount':
@@ -1116,7 +1361,7 @@ def products(request):
     # Add inventory data to products
     for product in products_page:
         try:
-            inventory = Inventory.objects.get(product=product)
+            inventory = Inventory.objects.get(product=product, user=product.user)
             product.current_stock = inventory.current_stock
             product.alert_level = inventory.alert_level
             product.is_low_stock = inventory.current_stock > 0 and inventory.current_stock <= inventory.alert_level
@@ -1124,18 +1369,29 @@ def products(request):
             product.current_stock = None
             product.alert_level = None
             product.is_low_stock = False
+        except Inventory.MultipleObjectsReturned:
+            # If there are still multiple inventories, take the first one
+            inventory = Inventory.objects.filter(product=product, user=product.user).first()
+            if inventory:
+                product.current_stock = inventory.current_stock
+                product.alert_level = inventory.alert_level
+                product.is_low_stock = inventory.current_stock > 0 and inventory.current_stock <= inventory.alert_level
+            else:
+                product.current_stock = None
+                product.alert_level = None
+                product.is_low_stock = False
         
         # Calculate price breakdown for discounted products
         if product.product_discount > 0:
             # Calculate base price (remove GST from product_rate_with_gst)
-            gst_multiplier = 1 + (product.product_gst_percentage / 100)
-            product.base_price = product.product_rate_with_gst / gst_multiplier
+            product.base_price = product.product_rate_with_gst
             
             # Calculate discounted base price
             discount_multiplier = 1 - (product.product_discount / 100)
             product.discounted_base_price = product.base_price * discount_multiplier
             
             # Calculate final price with GST
+            gst_multiplier = 1 + (product.product_gst_percentage / 100)
             product.final_price_with_gst = product.discounted_base_price * gst_multiplier
     
     # Get stats
@@ -1144,6 +1400,32 @@ def products(request):
     low_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock__gt=0, current_stock__lte=F('alert_level')).count()
     out_of_stock_count = Inventory.objects.filter(product__id__in=product_ids, current_stock=0).count()
     with_discount_count = Product.objects.filter(id__in=product_ids, product_discount__gt=0).count()
+    
+    # Get category hierarchy for filters
+    from ...models import ProductCategory
+    from collections import defaultdict
+    
+    category_hierarchy = defaultdict(list)
+    if users_filter:
+        categories = ProductCategory.objects.filter(
+            parent_category__isnull=False,
+            product__user__id__in=user_ids
+        ).select_related('parent_category').distinct()
+    elif user_id:
+        categories = ProductCategory.objects.filter(
+            parent_category__isnull=False,
+            product__user__id=user_id
+        ).select_related('parent_category').distinct()
+    else:
+        categories = ProductCategory.objects.filter(
+            parent_category__isnull=False
+        ).select_related('parent_category').distinct()
+    
+    for category in categories:
+        parent_name = category.parent_category.category_name
+        child_name = category.category_name
+        if child_name not in category_hierarchy[parent_name]:
+            category_hierarchy[parent_name].append(child_name)
     
     context = {
         'users': users,
@@ -1159,6 +1441,9 @@ def products(request):
         'current_stock_filter': stock_filter,
         'current_discount_filter': discount_filter,
         'current_hsn_filter': hsn_filter,
+        'current_parent_category': parent_category_filter,
+        'current_child_category': child_category_filter,
+        'category_hierarchy': dict(category_hierarchy),
         'users_filter': users_filter,
     }
     
@@ -1226,8 +1511,8 @@ def home(request):
     
     # Current month book log totals
     current_book_stats = current_month_books.aggregate(
-        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        purchases=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
     )
     current_month_purchases_amount = abs(current_book_stats['purchases'] or 0)
     current_month_payments_amount = abs(current_book_stats['payments'] or 0)
@@ -1261,8 +1546,8 @@ def home(request):
     
     # Last month book log totals
     last_book_stats = last_month_books.aggregate(
-        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+        purchases=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
     )
     last_month_purchases_amount = abs(last_book_stats['purchases'] or 0)
     last_month_payments_amount = abs(last_book_stats['payments'] or 0)
@@ -1283,16 +1568,16 @@ def home(request):
     
     # Total book logs
     all_book_stats = BookLog.objects.aggregate(
-        purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-        payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        purchases=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
         returns=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
         others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
     )
 
     if users_filter:
         all_book_stats = BookLog.objects.filter(parent_book__user__id__in=user_ids).aggregate(
-            purchases=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
-            payments=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+            purchases=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+            payments=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
             returns=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
             others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
         )
@@ -1301,7 +1586,7 @@ def home(request):
     total_payments = abs(all_book_stats['payments'] or 0)
     total_returns = abs(all_book_stats['returns'] or 0)
     total_others = abs(all_book_stats['others'] or 0)
-    total_balance = total_purchases - total_payments
+    total_balance = total_purchases - (total_payments + total_returns + total_others)
     
     # Total expenses
     total_expenses = ExpenseTracker.objects.aggregate(total=Sum('amount'))['total'] or 0
@@ -1398,6 +1683,200 @@ def home(request):
         # Recent activity
         'recent_invoices': recent_invoices,
         'recent_expenses': recent_expenses,
+
+        # Brands
+        'users': users,
+        'users_filter': users_filter,
     })
     
     return render(request, 'mobile_v1/home.html', context)
+
+def product_inventory_stock_add(request):
+    brand = request.GET.get('brand')
+    product_id = request.GET.get('product_id')
+    if not brand or not product_id:
+        return JsonResponse({'status': 'error', 'message': 'Try again later.'})
+    try:
+        inventory = get_object_or_404(Inventory, product__id=product_id, user__id=brand)
+    except Inventory.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Inventory not found.'})
+    except Inventory.MultipleObjectsReturned:
+        return JsonResponse({'status': 'error', 'message': 'Multiple inventory records found. Please contact support.'})
+    if request.method == 'POST':
+        added_stock = request.POST.get('added_stock', '0').strip()
+        stock_alert = request.POST.get('stock_alert', '0').strip()
+        title = request.POST.get('title', '').strip()
+        only_alert = request.POST.get('only_alert')
+        only_alert = True if only_alert == 'true' else False
+        reduce_stock = request.POST.get('reduce_stock')
+        reduce_stock = True if reduce_stock == 'true' else False
+        description = title if title else 'Admin'
+        description += ' via Mobile App'
+        try:
+            if stock_alert.isdigit():
+                inventory.alert_level = int(stock_alert)
+            if only_alert:
+                inventory.save()
+                return JsonResponse({'status': 'success', 'message': 'Alert level updated successfully.'})
+            added_stock = int(added_stock)
+            if reduce_stock:
+                added_stock = -added_stock
+            if added_stock == 0:
+                return JsonResponse({'status': 'error', 'message': 'Invalid stock quantity.'})
+            inventory.current_stock += added_stock
+            inventory.save()
+            # Log the inventory addition
+            log_entry = InventoryLog(
+                user = inventory.user,
+                product = inventory.product,
+                change = added_stock,
+                description = description
+            )
+            log_entry.save()
+
+            return JsonResponse({'status': 'success', 'message': 'Stock added successfully.'})
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid stock quantity.'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+
+# ================= Notifications =============================
+def notifications(request):
+    """Mobile notifications page for employees"""
+    notification_type = request.GET.get('type', '')
+    context = {
+        'notification_type': notification_type,
+    }
+    
+    u = request.GET.get('u')
+    users_filter = request.GET.get('users_filter', '')
+    page_number = request.GET.get('page')
+    
+    if not u:
+        return render(request, 'mobile_v1/notifications.html', context)
+    
+    try:
+        user = get_object_or_404(UserProfile, user__id=u)
+        context['users'] = user
+        
+        # Get notifications for this user
+        notifications_qs = Notification.objects.filter(
+            user=user.user,
+            is_deleted=False
+        )
+        
+        # Filter by type if specified
+        if notification_type:
+            notifications_qs = notifications_qs.filter(notification_type=notification_type)
+        
+        notifications_qs = notifications_qs.order_by('-created_at')
+        
+        paginator = Paginator(notifications_qs, 10)
+        notifications = paginator.get_page(page_number)
+        
+        context.update({
+            'notifications': notifications,
+            'notifications_count': paginator.count,
+            'notification_type': notification_type,
+        })
+        
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            html = render_to_string(
+                'mobile_v1/partials/notification_list.html',
+                context,
+                request=request
+            )
+            return JsonResponse({'html': html})
+        
+        return render(request, 'mobile_v1/notifications.html', context)
+    except:
+        context['notification_type'] = notification_type
+        return render(request, 'mobile_v1/notifications.html', context)
+
+def customer_notifications(request):
+    """Mobile notifications page for customers"""
+    notification_type = request.GET.get('type', '')
+    context = {
+        'notification_type': notification_type,
+    }
+    
+    cid = request.GET.get('cid')
+    page_number = request.GET.get('page')
+    
+    if not cid:
+        return render(request, 'mobile_v1/customer/notifications.html', context)
+    
+    cid_data = parse_code_GS(cid)
+    if not cid_data:
+        return render(request, 'mobile_v1/customer/notifications.html', context)
+    
+    customer_id = cid_data.get('C')
+    user_id = cid_data.get('GS')
+    
+    try:
+        user = get_object_or_404(UserProfile, user__id=user_id)
+        customer = get_object_or_404(Customer, user__id=user_id, id=customer_id)
+        
+        # Get notifications for this user
+        notifications_qs = Notification.objects.filter(
+            user=user.user,
+            is_deleted=False
+        )
+        
+        # Filter by type if specified
+        if notification_type:
+            notifications_qs = notifications_qs.filter(notification_type=notification_type)
+        
+        notifications_qs = notifications_qs.order_by('-created_at')
+        
+        paginator = Paginator(notifications_qs, 10)
+        notifications = paginator.get_page(page_number)
+        
+        context.update({
+            'users': user,
+            'customer': customer,
+            'notifications': notifications,
+            'notifications_count': paginator.count,
+            'notification_type': notification_type,
+        })
+        
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            html = render_to_string(
+                'mobile_v1/customer/partials/notification_list.html',
+                context,
+                request=request
+            )
+            return JsonResponse({'html': html})
+        
+        return render(request, 'mobile_v1/customer/notifications.html', context)
+    except:
+        context['notification_type'] = notification_type
+        return render(request, 'mobile_v1/customer/notifications.html', context)
+
+def notifications_count_api(request):
+    """API to get unread notification count"""
+    try:
+        user_id = request.GET.get('user_id')
+        if user_id:
+            count = Notification.objects.filter(
+                user__id=user_id,
+                is_read=False,
+                is_deleted=False
+            ).count()
+            return JsonResponse({'count': count})
+        return JsonResponse({'count': 0})
+    except:
+        return JsonResponse({'count': 0})
+
+def notification_mark_read_api(request):
+    """API to mark notification as read"""
+    try:
+        notification_id = request.POST.get('notification_id')
+        if notification_id:
+            notification = Notification.objects.get(id=notification_id)
+            notification.mark_as_read()
+            return JsonResponse({'status': 'success'})
+        return JsonResponse({'status': 'error', 'message': 'No notification ID provided'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+    

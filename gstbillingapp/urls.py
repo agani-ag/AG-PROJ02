@@ -6,7 +6,9 @@ from .views import (
     auth, profile, invoices, customers,
     books, products, inventory, purchases,
     vendor_purchase, features, views,
-    expense_tracker, bank_details, graphs
+    expense_tracker, bank_details, graphs,
+    quotation, notifications, reports,
+    location
 )
 
 urlpatterns = [
@@ -26,11 +28,24 @@ urlpatterns = [
     # Invoice URLs
     path('invoices', invoices.invoices, name='invoices'),
     path('invoices/ajax', invoices.invoices_ajax, name='invoices_ajax'),
-    path('invoices/nongst', invoices.non_gst_invoices, name='non_gst_invoices'),
     path('invoices/new', invoices.invoice_create, name='invoice_create'),
-    path('invoice/<int:invoice_id>', invoices.invoice_viewer, name='invoice_viewer'),
+    path('invoice/<int:invoice_id>/', invoices.invoice_viewer, name='invoice_viewer'),
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),
+    path('invoices/push-to-books/<int:invoice_id>', invoices.invoice_push_to_books, name='invoice_push_to_books'),
     path('api/customer-invoice-filter/', invoices.customerInvoiceFilter, name='customer_invoice_filter'),
+
+    # Quotation URLs
+    path('quotations/', quotation.quotations, name='quotations'),
+    path('quotations/ajax/', quotation.quotations_ajax, name='quotations_ajax'),
+    path('quotations/new/', quotation.quotation_create, name='quotation_create'),
+    path('quotation/<int:quotation_id>/', quotation.quotation_viewer, name='quotation_viewer'),
+    path('quotation/edit/<int:quotation_id>', quotation.quotation_edit, name='quotation_edit'),
+    path('quotation/delete/<int:quotation_id>', quotation.quotation_delete, name='quotation_delete'),
+    path('quotation/convert/<int:quotation_id>', quotation.quotation_convert_to_invoice, name='quotation_convert_to_invoice'),
+    path('quotation/reconvert/<int:quotation_id>', quotation.quotation_reconvert_to_invoice, name='quotation_reconvert_to_invoice'),
+    path('quotation/approve/<int:quotation_id>', quotation.quotation_approve, name='quotation_approve'),
+    path('quotation/update-customer/<int:quotation_id>', quotation.quotation_update_customer, name='quotation_update_customer'),
+    path('quotation/update-status/<int:quotation_id>', quotation.quotation_update_status, name='quotation_update_status'),
 
     # Customer URLs
     path('customers', customers.customers, name='customers'),
@@ -42,6 +57,7 @@ urlpatterns = [
     path('customers/api/add', customers.customer_api_add, name='customer_api_add'),
     path('customers/api/default_password', customers.customer_default_password, name='customer_default_password'),
     path('customers/api/all_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
+    path('customers/api/is_mobile_user', customers.customer_is_mobile_user, name='customer_is_mobile_user'),
 
     # Book URLs
     path('books', books.books, name='books'),
@@ -60,12 +76,18 @@ urlpatterns = [
 
     # Product URLs
     path('products', products.products, name='products'),
+    path('products/aggrid', products.products_aggrid, name='products_aggrid'),
     path('products/add', products.product_add, name='product_add'),
     path('products/edit/<int:product_id>', products.product_edit, name='product_edit'),
     path('products/delete', products.product_delete, name='product_delete'),
     path('productsjson', products.productsjson, name='productsjson'),
+    # Product Category URLs
+    path('product-categories', products.product_category_list, name='product_category_list'),
+    path('product-categories/save', products.product_category_save, name='product_category_save'),
+    path('product-categories/delete/<int:pk>', products.product_category_delete, name='product_category_delete'),
     # API Endpoints
     path('products/api/add', products.product_api_add, name='product_api_add'),
+    path('products/api/aggrid-update', products.product_aggrid_update, name='product_aggrid_update'),
 
     # Inventory URLs
     path('inventory', inventory.inventory, name='inventory'),
@@ -84,6 +106,9 @@ urlpatterns = [
     path('purchases_logs', purchases.purchases_logs, name='purchases_logs'),
     path('purchases_logs/add', purchases.purchases_logs_add, name='purchases_logs_add'),
     path('purchases_logs/delete/<int:pid>', purchases.purchases_logs_delete, name='purchases_logs_delete'),
+    # Overdue Purchases
+    path('purchases_logs/overdue', purchases.purchases_logs_overdue, name='purchases_logs_overdue'),
+    path('purchases_logs/overdue/api', purchases.purchases_logs_overdue_api, name='purchases_logs_overdue_api'),
 
     # Vendor Purchase URLs
     path('purchases/vendors', vendor_purchase.vendors_purchase, name='vendors_purchase'),
@@ -109,6 +134,9 @@ urlpatterns = [
     path('api/passkey-auth', auth.passkey_auth, name='passkey_auth'),
     path('download/sqlite', features.download_sqlite, name='download_sqlite'),
 
+    # Reports URLs
+    path('reports/sales', reports.sales_report_pdf, name='sales_report'),
+
     # Graphs and Analytics URLs
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
     path('graphs/books', graphs.customer_books_graph, name='customer_books_graph'),
@@ -116,4 +144,23 @@ urlpatterns = [
     path('graphs/purchase-log', graphs.purchase_log_graph, name='purchase_log_graph'),
     path('graphs/expense-tracker', graphs.expense_tracker_graph, name='expense_tracker_graph'),
     path('graphs/customer-location-map', graphs.customer_location_map, name='customer_location_map'),
+    
+    # Notification URLs
+    path('notifications/', notifications.notifications_page, name='notifications_page'),
+    path('notifications/api/', notifications.notifications_api, name='notifications_api'),
+    path('notifications/api/count/', notifications.notification_count_api, name='notification_count_api'),
+    path('notifications/<int:notification_id>/mark-read/', notifications.notification_mark_read, name='notification_mark_read'),
+    path('notifications/mark-all-read/', notifications.notification_mark_all_read, name='notification_mark_all_read'),
+    path('notifications/<int:notification_id>/delete/', notifications.notification_delete, name='notification_delete'),
+    path('notifications/delete-all-read/', notifications.notification_delete_all_read, name='notification_delete_all_read'),
+
+    # Location Tracking URLs
+    path("dashboard/customer/", location.customer_dashboard),
+    path("dashboard/employee/", location.employee_dashboard),
+    path("dashboard/admin/", location.admin_dashboard),
+
+    path("api/location/push/", location.push_location),
+    path("api/location/poll/", location.poll_locations),
+    path("api/location/history/", location.route_history),
+    path("api/location/geofence/", location.geofence_events),
 ]

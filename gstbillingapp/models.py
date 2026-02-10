@@ -113,6 +113,114 @@ class Invoice(models.Model):
         return str(self.invoice_number) + " | " + str(self.invoice_date)
 
 
+class Quotation(models.Model):
+    """
+    Quotation Model - Draft invoice that doesn't affect inventory or books.
+    Can be converted to Invoice when approved.
+    """
+    STATUS_CHOICES = [
+        ('DRAFT', 'Draft'),
+        ('APPROVED', 'Approved'),
+        ('PROCESSING', 'Processing'),
+        ('PACKED', 'Packed'),
+        ('SHIPPED', 'Shipped'),
+        ('OUT_FOR_DELIVERY', 'Out for Delivery'),
+        ('DELIVERED', 'Delivered'),
+        ('CONVERTED', 'Converted to Invoice'),
+    ]
+    
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    quotation_number = models.IntegerField()
+    quotation_date = models.DateField()
+    valid_until = models.DateField(null=True, blank=True)
+    quotation_customer = models.ForeignKey(
+        'Customer',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='quotations'
+    )
+    quotation_json = models.TextField()
+    is_gst = models.BooleanField(default=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='DRAFT')
+    customer_details_modified = models.BooleanField(default=False)  # Track if JSON customer differs from FK customer
+    
+    # Conversion tracking
+    converted_invoice = models.ForeignKey(
+        'Invoice',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='source_quotation'
+    )
+    converted_at = models.DateTimeField(null=True, blank=True)
+    converted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='converted_quotations'
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by_customer = models.BooleanField(default=False)  # For customer self-orders
+    notes = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        ordering = ['-quotation_date', '-id']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['quotation_customer', 'status']),
+            models.Index(fields=['status', 'quotation_date']),
+        ]
+    
+    def __str__(self):
+        return f"QT-{self.quotation_number} | {self.quotation_date} | {self.status}"
+    
+    def can_be_edited(self):
+        """Check if quotation can be edited - only DRAFT orders can be edited"""
+        return self.status == 'DRAFT'
+    
+    def can_be_converted(self):
+        """Check if quotation can be converted to invoice"""
+        return self.status in ['DRAFT', 'APPROVED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY'] and self.converted_invoice is None
+    
+    def can_be_deleted(self):
+        """Check if quotation can be deleted"""
+        # Can delete if not converted, or if converted but invoice was deleted
+        if self.status == 'CONVERTED' and self.converted_invoice is None:
+            return True  # Invoice was deleted, allow deletion
+        return self.status != 'CONVERTED'
+
+class ProductCategory(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    category_name = models.CharField(max_length=100)
+    parent_category = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='subcategories')
+
+    class Meta:
+        verbose_name_plural = "Product Categories"
+        ordering = ['parent_category__category_name', 'category_name']
+
+    def save(self, *args, **kwargs):
+        if self.category_name:
+            self.category_name = self.category_name.upper()
+        
+        super().save(*args, **kwargs)
+    
+    def is_parent(self):
+        """Check if this is a parent category (has no parent)"""
+        return self.parent_category is None
+    
+    def get_full_path(self):
+        """Return full category path (e.g., 'ORGANIC > FRUITS')"""
+        if self.parent_category:
+            return f"{self.parent_category.category_name} > {self.category_name}"
+        return self.category_name
+
+    def __str__(self):
+        return self.get_full_path()
+
 class Product(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     model_no = models.CharField(max_length=200)
@@ -121,6 +229,14 @@ class Product(models.Model):
     product_discount = models.FloatField(default=0)
     product_gst_percentage = models.FloatField(default=18)
     product_rate_with_gst = models.FloatField(default=0)
+    product_image_url = models.TextField(max_length=600, blank=True, null=True)
+    product_category = models.ForeignKey(ProductCategory, null=True, blank=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        unique_together = [['user', 'model_no']]
+        indexes = [
+            models.Index(fields=['user', 'model_no']),
+        ]
 
     def save(self, *args, **kwargs):
         if self.model_no:
@@ -205,8 +321,9 @@ class PurchaseLog(models.Model):
     vendor = models.ForeignKey("VendorPurchase", null=True, blank=True, on_delete=models.SET_NULL)
     date = models.DateTimeField(default=datetime.now, blank=True, null=True)
     CHANGE_TYPES = [
-        (0, 'Purchase'),
-        (1, 'Paid'),
+        (0, 'Paid'),
+        (1, 'Purchase'),
+        (2, 'Return'),
         (3, 'Others'),
     ]
     change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)
@@ -310,3 +427,133 @@ class BankDetails(models.Model):
     
     def __str__(self):
         return self.account_number + " - " + self.account_name
+
+
+# ======================= Notification System =================================
+
+class Notification(models.Model):
+    """
+    Notification Model - Stores user notifications with navigation links
+    """
+    NOTIFICATION_TYPES = [
+        ('INFO', 'Information'),
+        ('SUCCESS', 'Success'),
+        ('WARNING', 'Warning'),
+        ('ERROR', 'Error'),
+        ('INVOICE', 'Invoice'),
+        ('QUOTATION', 'Quotation'),
+        ('ORDER', 'Order'),
+        ('CUSTOMER', 'Customer'),
+        ('PRODUCT', 'Product'),
+        ('PAYMENT', 'Payment'),
+        ('SYSTEM', 'System'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES, default='INFO')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    
+    # Navigation
+    link_url = models.CharField(max_length=500, blank=True, null=True, help_text="URL to navigate when clicked")
+    link_text = models.CharField(max_length=100, blank=True, null=True, help_text="Text for the link button")
+    
+    # Status
+    is_read = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)  # Soft delete
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    
+    # Optional: Link to specific objects
+    related_object_type = models.CharField(max_length=50, blank=True, null=True, 
+                                          help_text="Model name: Invoice, Quotation, Customer, etc.")
+    related_object_id = models.IntegerField(blank=True, null=True, 
+                                           help_text="ID of the related object")
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read', 'is_deleted']),
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['notification_type', 'is_read']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.title} ({self.notification_type})"
+    
+    def mark_as_read(self):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = datetime.now()
+            self.save()
+    
+    def get_icon_class(self):
+        """Return Bootstrap icon class based on notification type"""
+        icon_map = {
+            'INFO': 'bi-info-circle-fill text-info',
+            'SUCCESS': 'bi-check-circle-fill text-success',
+            'WARNING': 'bi-exclamation-triangle-fill text-warning',
+            'ERROR': 'bi-x-circle-fill text-danger',
+            'INVOICE': 'bi-receipt text-primary',
+            'QUOTATION': 'bi-file-text text-secondary',
+            'ORDER': 'bi-cart-fill text-primary',
+            'CUSTOMER': 'bi-person-fill text-info',
+            'PRODUCT': 'bi-box-seam text-warning',
+            'PAYMENT': 'bi-currency-rupee text-success',
+            'SYSTEM': 'bi-gear-fill text-secondary',
+        }
+        return icon_map.get(self.notification_type, 'bi-bell-fill text-info')
+    
+    def get_badge_class(self):
+        """Return Bootstrap badge class based on notification type"""
+        badge_map = {
+            'INFO': 'badge-info',
+            'SUCCESS': 'badge-success',
+            'WARNING': 'badge-warning',
+            'ERROR': 'badge-danger',
+            'INVOICE': 'badge-primary',
+            'QUOTATION': 'badge-secondary',
+            'ORDER': 'badge-primary',
+            'CUSTOMER': 'badge-info',
+            'PRODUCT': 'badge-warning',
+            'PAYMENT': 'badge-success',
+            'SYSTEM': 'badge-dark',
+        }
+        return badge_map.get(self.notification_type, 'badge-info')
+    
+# ======================= Live Location Tracking =================================
+class LiveLocation(models.Model):
+    USER_TYPES = (
+        ("customer", "Customer"),
+        ("employee", "Employee"),
+    )
+
+    user_id = models.CharField(max_length=100)
+    user_type = models.CharField(max_length=20, choices=USER_TYPES)
+    room = models.CharField(max_length=100, db_index=True)
+    lat = models.FloatField()
+    lng = models.FloatField()
+    accuracy = models.CharField(max_length=20, default="gps")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+
+class GeoFence(models.Model):
+    name = models.CharField(max_length=100)
+    center_lat = models.FloatField()
+    center_lng = models.FloatField()
+    radius_meters = models.IntegerField()
+    active = models.BooleanField(default=True)
+
+
+class GeoFenceEvent(models.Model):
+    user_id = models.CharField(max_length=100)
+    user_type = models.CharField(max_length=20)
+    fence = models.ForeignKey(GeoFence, on_delete=models.CASCADE)
+    event_type = models.CharField(max_length=10)  # enter / exit
+    created_at = models.DateTimeField(auto_now_add=True)

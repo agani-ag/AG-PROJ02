@@ -1,6 +1,5 @@
 {% extends "invoices/print_base.html" %}
-
-
+{% load static %}
 {% block content %}
 
 	<div class="card">
@@ -16,7 +15,7 @@
 				{% if invoice.is_gst %}
 					{{invoice.invoice_number}}
 				{% else %}
-					NG{{invoice.invoice_number}}
+					INV-{{invoice.invoice_number}}
 				{% endif %}
 			</strong></div>
 			</div>
@@ -194,7 +193,21 @@
 							{% if user_profile.bankdetails.upi_id %}
 								<tr>
 									<td colspan="2" class="text-center">
-                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am={{invoice_data.invoice_total_amt_with_gst|floatformat:2 }}"></div>
+										<div style="display:flex; align-items:center; justify-content:center;">
+
+											<div id="upi_qr_new"
+												style="margin-top:10px; padding-right:20px;"
+												data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}">
+											</div>
+
+											<div style="width:1px; height:180px; background:#ccc;"></div>
+
+											<div id="upi_qr"
+												style="margin-top:10px; padding-left:20px;"
+												data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am={{ invoice_data.invoice_total_amt_with_gst|floatformat:2 }}">
+											</div>
+
+										</div>
 									</td>
 								</tr>
 								<!-- <tr>
@@ -257,29 +270,41 @@
 		</div>
 	</div>
 	<div class="text-right" style="margin-right: 5px;">
-		<button onclick="window.print();" 
+		<button onclick="window.print();" title="Print Invoice"
 			class="btn btn-primary btn-curve d-print-none">
 			<i class="fas fa-print"></i>
 		</button>
-		{% if invoice.is_gst %}
-			<a href="{% url 'invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
-		{% else %}
-			<a href="{% url 'non_gst_invoices' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
-		{% endif %}
+		<a href="{% url 'invoices' %}" class="btn btn-danger" title="Cancel Invoice"><i class="fas fa-cancel"></i></a>
 	</div>
 
 {% endblock %}
 {% block includejs %}
 <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
 <script>
+	// UPI QR Code Generation
     const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
     const qr = new QRCodeStyling({
         width: 100,
         height: 100,
         data: upiQR,
+		image: "{% static 'gstbillingapp/images/MS-exact.jpg' %}",
+		imageOptions: {
+			crossOrigin: "anonymous",
+			margin: 1,
+			imageSize: 0.5
+		},
         dotsOptions: { color: "#000", type: "rounded" }
     });
-
     qr.append(document.getElementById("upi_qr"));
+
+	// UPI QR Code Generation without amount
+    const upiQR_new = document.getElementById("upi_qr_new").getAttribute("data-upi_id");
+	const qr_new = new QRCodeStyling({
+		width: 100,
+		height: 100,
+		data: upiQR_new,
+		dotsOptions: { color: "#000", type: "rounded" }
+	});
+    qr_new.append(document.getElementById("upi_qr_new"));
 </script>
 {% endblock %}
