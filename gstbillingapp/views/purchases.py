@@ -63,15 +63,29 @@ def purchases_logs(request):
 
 @login_required
 def purchases_logs_overdue(request):
-    return render(request, 'purchases/purchases_overdue.html')
+    context = {}
+    context['vendor'] = VendorPurchase.objects.filter(user=request.user) \
+        .values_list('vendor_name', flat=True) \
+        .distinct() \
+        .exclude(vendor_name__isnull=True) \
+        .exclude(vendor_name__exact='')
+    return render(request, 'purchases/purchases_overdue.html', context)
 
 @login_required
 def purchases_logs_overdue_api(request):
-    purchases = (
-        PurchaseLog.objects
-        .filter(user=request.user)
-        .order_by('date')
-    )
+    vendor = request.GET.get('vendor')
+    if vendor:
+        purchases = (
+            PurchaseLog.objects
+            .filter(user=request.user, vendor__vendor_name=vendor, change_type=1)
+            .order_by('date')
+        )
+    else:
+        purchases = (
+            PurchaseLog.objects
+            .filter(user=request.user)
+            .order_by('date')
+        )
     totals = purchases.aggregate(
         total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
         total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
@@ -115,6 +129,7 @@ def purchases_logs_overdue_api(request):
             'category': log.category,
             'reference': log.reference,
             'amount': invoice_amount,
+            'vendor': log.vendor.vendor_name if log.vendor else '',
             'overdue_days': log.overdue_days,
             'payment_pending': log.payment_pending,
             'remaining_amount': log.remaining_amount if log.payment_pending else 0,

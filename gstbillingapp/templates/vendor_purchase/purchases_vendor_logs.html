@@ -65,7 +65,7 @@
 			</div>
 			<div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;gap: 5px;">
 				<button id="openPurchaseModal" class="btn btn-primary btn-sm btn-curve" title="Add New Purchase"><i class="fas fa-plus"></i></button>
-				<a href="{% url 'purchases_logs_overdue' %}" class="btn btn-warning btn-sm btn-curve" title="View Overdue Purchases">
+				<a href="{% url 'purchases_logs_overdue' %}?vendor={{ vendor.vendor_name }}" class="btn btn-warning btn-sm btn-curve" title="View Overdue Purchases">
 					<i class="fas fa-exclamation-triangle"></i></a>
 				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" title="Upload Purchases">
 					<i class="fas fa-file-excel"></i>
