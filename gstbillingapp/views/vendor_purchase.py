@@ -1,4 +1,5 @@
 # Django imports
+from django.utils import timezone
 from django.http import JsonResponse
 from django.db.models.functions import Abs, Cast
 from django.contrib.auth.decorators import login_required
@@ -67,6 +68,8 @@ def purchases_vendor_logs(request, vendor_purchase_id):
         log_obj = get_object_or_404(PurchaseLog, user=request.user, id=log_id)
         log_obj.delete()
     context = {}
+    today = timezone.now().date()
+    context['today'] = today
     vendor = get_object_or_404(VendorPurchase, user=request.user, id=vendor_purchase_id)
     context['vendor'] = vendor
     purchases_logs = PurchaseLog.objects.filter(user=request.user, vendor_id=vendor_purchase_id).order_by('-date')

@@ -177,7 +177,7 @@
     {% csrf_token %}
 
     <label>Date</label>
-    <input type="date" name="date" id="dateInput" required>
+    <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" required>
 
     <label>Change Type</label>
     <select name="change_type">
@@ -228,9 +228,6 @@
 		});
 	});
 
-/* Today */
-const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-document.getElementById('dateInput').value = today;
 /* Create modal */
 const modal = new tingle.modal({
   footer: false,
