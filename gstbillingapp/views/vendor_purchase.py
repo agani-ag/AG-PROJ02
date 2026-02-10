@@ -62,6 +62,10 @@ def vendor_purchase_delete(request):
 
 @login_required
 def purchases_vendor_logs(request, vendor_purchase_id):
+    if request.method == "POST":
+        log_id = request.POST.get("log_id")
+        log_obj = get_object_or_404(PurchaseLog, user=request.user, id=log_id)
+        log_obj.delete()
     context = {}
     context['vendor'] = get_object_or_404(VendorPurchase, user=request.user, id=vendor_purchase_id)
     purchases_logs = PurchaseLog.objects.filter(user=request.user, vendor_id=vendor_purchase_id).order_by('-date')
@@ -100,10 +104,10 @@ def purchases_vendor_logs(request, vendor_purchase_id):
 @login_required
 def purchases_logs_add_api(request):
     if request.method == "POST" and request.headers.get("x-requested-with") == "XMLHttpRequest":
-        form = PurchaseLogForm(request.POST.copy())
-
-        if form.data.get('vendor') == 'None':
-            form.data['vendor'] = ''
+        post_data = request.POST.copy()
+        if post_data.get('vendor') == 'None':
+            post_data['vendor'] = ''
+        form = PurchaseLogForm(request.POST)
 
         if form.is_valid():
             purchase = form.save(commit=False)

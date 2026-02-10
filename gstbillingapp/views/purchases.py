@@ -149,4 +149,6 @@ def purchases_logs_delete(request,pid):
     if pid:
         purchases_obj = get_object_or_404(PurchaseLog, user=request.user, id=pid)
         purchases_obj.delete()
+    if request.GET.get('vendor'):
+        return redirect('purchases_vendor_logs', vendor_purchase_id=request.GET.get('vendor'))
     return redirect('purchases_logs')

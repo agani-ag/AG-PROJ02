@@ -2,6 +2,52 @@
 {% load tz %}
 {% load static %}
 {% load humanize %}
+{% block title %}Vendor Purchases Logs{% endblock %}
+{% block includecss %}
+<style>
+	/* Fix Tingle z-index over Bootstrap & DataTables */
+	.tingle-modal {
+		z-index: 20000 !important;
+	}
+	.tingle-modal-box {
+		z-index: 20001 !important;
+	}
+	/* Soft blur overlay */
+	.tingle-modal.tingle-blur .tingle-modal-overlay {
+		background: rgba(255,255,255,0);       /* fully transparent overlay */
+		backdrop-filter: blur(2px);            /* softer blur */
+		-webkit-backdrop-filter: blur(2px);    /* Safari support */
+		transition: backdrop-filter 0.3s ease;
+	}
+	.tingle-modal.tingle-blur.tingle-open .tingle-modal-overlay {
+		backdrop-filter: blur(2px) brightness(1.05);
+		-webkit-backdrop-filter: blur(2px) brightness(1.05);
+	}
+	.custom-tingle .tingle-modal-box {
+	max-width: 420px;
+	}
+	.custom-tingle input,
+	.custom-tingle select {
+		width: 100%;
+		padding: 8px;
+		margin-bottom: 10px;
+		box-sizing: border-box;
+	}
+	.custom-tingle label {
+		font-weight: 600;
+		margin-top: 8px;
+		display: block;
+	}
+	.custom-tingle button[type="submit"] {
+		width: 100%;
+		padding: 10px;
+		background: #2563eb;
+		color: white;
+		border: none;
+		border-radius: 4px;
+	}
+</style>
+{% endblock %}
 {% block content %}
 	<h2>Vendor Details</h2>
 	<hr>
@@ -18,7 +64,7 @@
 				</p>
 			</div>
 			<div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;gap: 5px;">
-				<button id="addPurchaseBtn" class="btn btn-primary btn-sm btn-curve" title="Add New Purchase"><i class="fas fa-plus"></i></button>
+				<button id="openPurchaseModal" class="btn btn-primary btn-sm btn-curve" title="Add New Purchase"><i class="fas fa-plus"></i></button>
 				<a href="{% url 'purchases_logs_overdue' %}" class="btn btn-warning btn-sm btn-curve" title="View Overdue Purchases">
 					<i class="fas fa-exclamation-triangle"></i></a>
 				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" title="Upload Purchases">
@@ -116,7 +162,7 @@
 				</td>
 				<td>
 					<div class="btn-group" role="group" aria-label="Basic example">
-						<a href="{% url 'purchases_logs_delete' purchase.id %}" class="btn btn-danger btn-sm btn-curve" title="Delete Purchase"><i class="fas fa-trash"></i></a>
+						<a href="{% url 'purchases_logs_delete' purchase.id %}?vendor={{ vendor.id }}" class="btn btn-danger btn-sm btn-curve" title="Delete Purchase"><i class="fas fa-trash"></i></a>
 					</div>
 				</td>
 			</tr>
@@ -125,8 +171,38 @@
 	</table>
 {% endblock %}
 
-
 {% block includejs %}
+<script type="text/template" id="purchaseFormTemplate">
+  <form id="purchaseForm">
+    {% csrf_token %}
+
+    <label>Date</label>
+    <input type="date" name="date" required>
+
+    <label>Change Type</label>
+    <select name="change_type">
+      <option value="0">Paid</option>
+      <option value="1">Purchase</option>
+      <option value="2">Return</option>
+      <option value="3">Other</option>
+    </select>
+
+    <label>Amount</label>
+    <input type="number" name="change" required>
+
+    <input type="hidden" name="vendor" value="{{ vendor.id }}">
+
+    <label>Reference</label>
+    <input type="text" name="reference">
+
+    <label>Category</label>
+    <input type="text" name="category">
+
+    <button type="submit" style="margin-top:10px;">Save</button>
+
+    <div id="formErrors" style="color:red;margin-top:10px;"></div>
+  </form>
+</script>
 <script type="text/javascript">
 	$(document).ready( function () {
 		$('#purchase-table').DataTable({
@@ -140,88 +216,62 @@
 		});
 	});
 
-document.getElementById("addPurchaseBtn").addEventListener("click", async function() {
-    // Fetch categories & references from the server
-    const response = await fetch("{% url 'purchases_logs_add_api' %}");
-    const data = await response.json();
-
-    const categories = data.categories || [];
-    const references = data.references || [];
-
-    // Build HTML inputs
-    let html = `
-        <input type="date" id="date" class="swal2-input" placeholder="Date">
-
-        <select id="change_type" class="swal2-input">
-            <option value="0">Paid</option>
-            <option value="1">Purchase</option>
-            <option value="2">Return</option>
-            <option value="3">Others</option>
-        </select>
-
-        <input type="number" id="change" class="swal2-input" placeholder="Amount">
-
-        <!-- Reference dropdown + custom -->
-        <select id="reference_select" class="swal2-input">
-            <option value="">-- Select Reference --</option>
-            ${references.map(r => `<option value="${r}">${r}</option>`).join('')}
-        </select>
-        <input type="text" id="reference" class="swal2-input" placeholder="Or type new reference">
-
-        <!-- Category dropdown + custom -->
-        <select id="category_select" class="swal2-input">
-            <option value="">-- Select Category --</option>
-            ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
-        </select>
-        <input type="text" id="category" class="swal2-input" placeholder="Or type new category">
-    `;
-
-    const { value: formValues } = await Swal.fire({
-        title: 'Add Purchase',
-        html: html,
-        showCancelButton: true,
-        confirmButtonText: 'Save',
-        preConfirm: () => {
-            // Sync dropdown to text input if selected
-            const reference = document.getElementById("reference").value || document.getElementById("reference_select").value;
-            const category = document.getElementById("category").value || document.getElementById("category_select").value;
-            const date = document.getElementById("date").value;
-            const change_type = document.getElementById("change_type").value;
-            const change = document.getElementById("change").value;
-
-            if (!date || !change) {
-                Swal.showValidationMessage("Date and Amount are required!");
-                return;
-            }
-
-            return { date, change_type, change, reference, category };
-        }
-    });
-
-    if (formValues) {
-        // Send AJAX POST
-        const formData = new URLSearchParams(formValues);
-        const csrfToken = '{{ csrf_token }}';
-
-        const res = await fetch("{% url 'purchases_logs_add' %}", {
-            method: "POST",
-            headers: {
-                "X-CSRFToken": csrfToken,
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: formData
-        });
-
-        const result = await res.json();
-
-        if (result.success) {
-            Swal.fire('Saved!', 'Purchase added successfully', 'success')
-                .then(() => location.reload());
-        } else {
-            Swal.fire('Error', 'Please check your input', 'error');
-        }
-    }
+/* Create modal */
+const modal = new tingle.modal({
+  footer: false,
+  stickyFooter: false,
+  closeMethods: ['overlay', 'button', 'escape'],
+  closeLabel: "Close",
+  cssClass: ['custom-tingle', 'tingle-blur'],
 });
+
+/* Open modal */
+document.getElementById("openPurchaseModal").addEventListener("click", () => {
+  modal.setContent(
+    document.getElementById("purchaseFormTemplate").innerHTML
+  );
+  modal.open();
+
+  attachFormHandler();
+});
+
+/* Attach form submit AFTER modal opens */
+function attachFormHandler() {
+  const form = document.getElementById("purchaseForm");
+  const errorsDiv = document.getElementById("formErrors");
+
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    errorsDiv.innerHTML = "";
+
+    const formData = new FormData(form);
+
+    fetch("{% url 'purchases_logs_add_api' %}", {
+      method: "POST",
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": form.querySelector('[name=csrfmiddlewaretoken]').value
+      },
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        modal.close();
+  		location.reload(); // simplest & reliable
+      } else {
+        for (const field in data.errors) {
+          const p = document.createElement("p");
+          p.innerText = `${field}: ${data.errors[field].join(", ")}`;
+          errorsDiv.appendChild(p);
+        }
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      errorsDiv.innerText = "Something went wrong.";
+    });
+  };
+}
 </script>
 {% endblock %}
