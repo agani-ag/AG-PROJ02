@@ -56,11 +56,17 @@
 			<div class="col-md-6">
 				<h4>Vendor: <span class="text-primary">{{vendor.vendor_name}}</span></h4>
 				<p class="font-weight-bold">
-					<span>Current Balance:</span> 
-					<span class="text-danger">
-						<a href="?filter=balance" class="text-danger">
+					<span>Current Balance:</span>
+					{% if total_balance > 0 %} 
+						<span class="text-danger"><a href="?filter=balance" class="text-danger">
+					{% else %}	
+						<span class="text-success"><a href="?filter=balance" class="text-success">
+					{% endif %}
 						₹ {{ total_balance | default:0 | floatformat:2 | intcomma }} </a></span>
 					<span>({{ total_balance_word }})</span>
+					{% if balance_status %}
+						/ "<span class="text-violet"><i class="fas fa-exclamation-triangle text-danger"></i> {{ balance_status }}</span>"
+					{% endif %}
 				</p>
 			</div>
 			<div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;gap: 5px;">
@@ -119,8 +125,8 @@
 				<th>Date</th>
 				<th>Type</th>
 				<th>Amount</th>
+				<th>Category</th>
 				<th>Reference</th>
-				<th>Vendor</th>
 				<th>Actions</th>
 			</tr>
 		</thead>
@@ -143,23 +149,8 @@
 				</td>
 				<td>{{purchase.get_change_type_display }}</td>
 				<td>{% if purchase.change %}₹ {{purchase.change}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-				<td>
-					{% if purchase.reference %}
-						{{purchase.reference}}
-					{% else %}
-						<span class="text-danger">N/A</span>
-					{% endif %}
-					{% if purchase.change != 0 %}
-						<br><span class="text-muted">{{ purchase.category }}</span>
-					{% endif %}
-				</td>
-				<td>
-					{% if purchase.vendor %}
-						{{ purchase.vendor.vendor_name }}
-					{% else %}
-						<span class="text-danger">N/A</span>
-					{% endif %}
-				</td>
+				<td>{% if purchase.category %}{{purchase.category}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+				<td>{% if purchase.reference %}{{ purchase.reference }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 				<td>
 					<div class="btn-group" role="group" aria-label="Basic example">
 						<a href="{% url 'purchases_logs_delete' purchase.id %}?vendor={{ vendor.id }}" class="btn btn-danger btn-sm btn-curve" title="Delete Purchase"><i class="fas fa-trash"></i></a>

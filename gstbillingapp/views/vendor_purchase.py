@@ -87,6 +87,8 @@ def purchases_vendor_logs(request, vendor_purchase_id):
     total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
     # Calculate balance (absolute value if you want it always positive)
     context['total_balance'] = total_balance
+    if total_balance < 0:
+        context['balance_status'] = 'Excess Paid'
     context['total_balance_word'] = num2words.num2words(abs(int(context['total_balance'])), lang='en_IN').title()
     context['total_purchased'] = abs(total_purchased)
     context['total_paid'] = abs(total_paid)

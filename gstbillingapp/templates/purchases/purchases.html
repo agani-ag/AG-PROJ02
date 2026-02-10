@@ -62,10 +62,16 @@
 		</div>
 		<p class="font-weight-bold">
 			<span>Current Balance:</span> 
-			<span class="text-danger">
-				<a href="?filter=balance" class="text-danger">
+			{% if total_balance > 0 %} 
+				<span class="text-danger"><a href="?filter=balance" class="text-danger">
+			{% else %}	
+				<span class="text-success"><a href="?filter=balance" class="text-success">
+			{% endif %}
 				₹ {{ total_balance | default:0 | floatformat:2 | intcomma }} </a></span>
 			<span>({{ total_balance_word }})</span>
+			{% if balance_status %}
+				/ "<span class="text-violet"><i class="fas fa-exclamation-triangle text-danger"></i> {{ balance_status }}</span>"
+			{% endif %}
 		</p>
 	<table class="table table-hover font-weight-bold" id="purchase-table">
 		<thead class="thead-dark">
@@ -109,7 +115,7 @@
 				</td>
 				<td>
 					{% if purchase.vendor %}
-						{{ purchase.vendor.vendor_name }}
+						<a href="{% url 'purchases_vendor_logs' purchase.vendor.id %}" style="text-decoration: none;">{{ purchase.vendor.vendor_name }}</a>
 					{% else %}
 						<span class="text-danger">N/A</span>
 					{% endif %}
