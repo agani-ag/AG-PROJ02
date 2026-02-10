@@ -177,7 +177,7 @@
     {% csrf_token %}
 
     <label>Date</label>
-    <input type="date" name="date" required>
+    <input type="date" name="date" id="dateInput" required>
 
     <label>Change Type</label>
     <select name="change_type">
@@ -193,10 +193,22 @@
     <input type="hidden" name="vendor" value="{{ vendor.id }}">
 
     <label>Reference</label>
-    <input type="text" name="reference">
+    <input type="text" name="reference1" placeholder="Enter reference">
+    <select name="reference2">
+	  <option value="">-- Select Reference --</option>
+	  {% for ref in references %}
+		<option value="{{ ref }}">{{ ref }}</option>
+	  {% endfor %}
+	</select>
 
     <label>Category</label>
-    <input type="text" name="category">
+    <input type="text" name="category1" placeholder="Enter category">
+	<select name="category2">
+	  <option value="">-- Select Category --</option>
+	  {% for category in categories %}
+		<option value="{{ category }}">{{ category }}</option>
+	  {% endfor %}
+	</select>
 
     <button type="submit" style="margin-top:10px;">Save</button>
 
@@ -216,6 +228,9 @@
 		});
 	});
 
+/* Today */
+const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+document.getElementById('dateInput').value = today;
 /* Create modal */
 const modal = new tingle.modal({
   footer: false,

@@ -67,7 +67,8 @@ def purchases_vendor_logs(request, vendor_purchase_id):
         log_obj = get_object_or_404(PurchaseLog, user=request.user, id=log_id)
         log_obj.delete()
     context = {}
-    context['vendor'] = get_object_or_404(VendorPurchase, user=request.user, id=vendor_purchase_id)
+    vendor = get_object_or_404(VendorPurchase, user=request.user, id=vendor_purchase_id)
+    context['vendor'] = vendor
     purchases_logs = PurchaseLog.objects.filter(user=request.user, vendor_id=vendor_purchase_id).order_by('-date')
     totals = purchases_logs.aggregate(
         total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
@@ -98,16 +99,52 @@ def purchases_vendor_logs(request, vendor_purchase_id):
         purchases_logs = purchases_logs.filter(change_type=3)
     else:
         purchases_logs = purchases_logs.filter(Q(change_type=0) | Q(change_type=1) | Q(change_type=2) | Q(change_type=3))
-    context['purchases'] = purchases_logs    
+    context['purchases'] = purchases_logs
+    # If GET, return dropdown data
+    categories = (PurchaseLog.objects.filter(vendor=vendor).exclude(category__isnull=True).exclude(category__exact='')
+        .values_list('category', flat=True).distinct()
+    )
+    context['categories'] = list(categories)
+    references = (PurchaseLog.objects.filter(vendor=vendor).exclude(reference__isnull=True).exclude(reference__exact='')
+        .values_list('reference', flat=True).distinct()
+    )
+    context['references'] = list(references)
     return render(request, 'vendor_purchase/purchases_vendor_logs.html', context)
 
 @login_required
 def purchases_logs_add_api(request):
     if request.method == "POST" and request.headers.get("x-requested-with") == "XMLHttpRequest":
         post_data = request.POST.copy()
+        
+        # Reference
+        reference1 = post_data.get('reference1', '').strip()
+        reference2 = post_data.get('reference2', '').strip()
+        # Fallback logic
+        if reference1:  # If reference1 has data
+            post_data['reference'] = reference1
+        elif reference2:  # If reference1 empty, use reference2
+            post_data['reference'] = reference2
+        else:
+            return JsonResponse({"success": False, "errors": {"Reference": ["This field is required."]}})
+        
+        # Category
+        category1 = post_data.get('category1', '').strip()
+        category2 = post_data.get('category2', '').strip()
+        # Fallback logic
+        if category1:  # If category1 has data
+            post_data['category'] = category1
+        elif category2:  # If category1 empty, use category2
+            post_data['category'] = category2
+        else:
+            return JsonResponse({"success": False, "errors": {"Category": ["This field is required."]}})
+        if post_data.get('category2') != '':
+            post_data['category'] = post_data.get('category2')
+        
+        # Vendor
         if post_data.get('vendor') == 'None':
             post_data['vendor'] = ''
-        form = PurchaseLogForm(request.POST)
+        
+        form = PurchaseLogForm(post_data)
 
         if form.is_valid():
             purchase = form.save(commit=False)
@@ -121,24 +158,6 @@ def purchases_logs_add_api(request):
 
         # Return validation errors
         return JsonResponse({"success": False, "errors": form.errors})
-
-    # If GET, return dropdown data
-    categories = list(PurchaseLog.objects.filter(user=request.user)
-                      .values_list('category', flat=True)
-                      .distinct()
-                      .exclude(category__isnull=True)
-                      .exclude(category__exact=''))
-
-    references = list(PurchaseLog.objects.filter(user=request.user)
-                      .values_list('reference', flat=True)
-                      .distinct()
-                      .exclude(reference__isnull=True)
-                      .exclude(reference__exact=''))
-
-    return JsonResponse({
-        "categories": categories,
-        "references": references,
-    })
 
 # ================= API ====================================
 @login_required
