@@ -118,6 +118,7 @@ urlpatterns = [
     path('purchases/vendor/logs/<int:vendor_purchase_id>', vendor_purchase.purchases_vendor_logs, name='purchases_vendor_logs'),
     # API Endpoints
     path('purchases/vendor/filter/', vendor_purchase.vendorPurchaseFilter, name='vendor_purchase_filter'),
+    path('purchases/vendor/logs/add/', vendor_purchase.purchases_logs_add_api, name='purchases_logs_add_api'),
     
     # Expense Tracker URLs
     path('expensetracker', expense_tracker.expense_tracker, name='expense_tracker'),

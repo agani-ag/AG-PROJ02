@@ -11,11 +11,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from ..models import (
     PurchaseLog, VendorPurchase
 )
-
-# Forms
 from ..forms import (
     PurchaseLogForm
 )
+from ..utils import (
+    get_change_type_change,
+    get_vendor_instance
+)
+
 # Third-party libraries
 import num2words
 import json
@@ -147,19 +150,3 @@ def purchases_logs_delete(request,pid):
         purchases_obj = get_object_or_404(PurchaseLog, user=request.user, id=pid)
         purchases_obj.delete()
     return redirect('purchases_logs')
-
-# ================= Utilities ====================================
-def get_change_type_change(change_type, change):
-    if change_type == '1':  # Purchased
-        if int(change) > 0:
-            change = -int(change)
-    else:
-        change = abs(int(change))
-    return change
-
-def get_vendor_instance(vendor, request):
-    if vendor == '':
-        vendor_instance = None
-    else:
-        vendor_instance = VendorPurchase.objects.get(user=request.user, id=vendor)
-    return vendor_instance

@@ -8,15 +8,12 @@ import re
 import json
 import datetime
 
-
 # Model imports
-from .models import Product
-from .models import Inventory
-from .models import InventoryLog
-from .models import Book
-from .models import BookLog
-from .models import Customer
-
+from .models import (
+    Product, VendorPurchase,
+    Inventory, InventoryLog,
+    Book, BookLog, Customer
+)
 
 #  ================= Invoice Methods ====================
 def invoice_data_validator(invoice_data):
@@ -532,3 +529,19 @@ def distance_meters(lat1, lng1, lat2, lng2):
 
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+# ================= Purchases Log Utilities ====================================
+def get_change_type_change(change_type, change):
+    if change_type == '1':  # Purchased
+        if int(change) > 0:
+            change = -int(change)
+    else:
+        change = abs(int(change))
+    return change
+
+def get_vendor_instance(vendor, request):
+    if vendor == '':
+        vendor_instance = None
+    else:
+        vendor_instance = VendorPurchase.objects.get(user=request.user, id=vendor)
+    return vendor_instance

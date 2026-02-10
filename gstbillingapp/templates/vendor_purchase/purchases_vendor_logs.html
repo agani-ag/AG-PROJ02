@@ -18,9 +18,7 @@
 				</p>
 			</div>
 			<div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;gap: 5px;">
-				<a href="{% url 'purchases_logs_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add New Purchase">
-					<i class="fas fa-plus"></i>
-				</a>
+				<button id="addPurchaseBtn" class="btn btn-primary btn-sm btn-curve" title="Add New Purchase"><i class="fas fa-plus"></i></button>
 				<a href="{% url 'purchases_logs_overdue' %}" class="btn btn-warning btn-sm btn-curve" title="View Overdue Purchases">
 					<i class="fas fa-exclamation-triangle"></i></a>
 				<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" title="Upload Purchases">
@@ -141,5 +139,89 @@
 			"paging": true
 		});
 	});
+
+document.getElementById("addPurchaseBtn").addEventListener("click", async function() {
+    // Fetch categories & references from the server
+    const response = await fetch("{% url 'purchases_logs_add_api' %}");
+    const data = await response.json();
+
+    const categories = data.categories || [];
+    const references = data.references || [];
+
+    // Build HTML inputs
+    let html = `
+        <input type="date" id="date" class="swal2-input" placeholder="Date">
+
+        <select id="change_type" class="swal2-input">
+            <option value="0">Paid</option>
+            <option value="1">Purchase</option>
+            <option value="2">Return</option>
+            <option value="3">Others</option>
+        </select>
+
+        <input type="number" id="change" class="swal2-input" placeholder="Amount">
+
+        <!-- Reference dropdown + custom -->
+        <select id="reference_select" class="swal2-input">
+            <option value="">-- Select Reference --</option>
+            ${references.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+        <input type="text" id="reference" class="swal2-input" placeholder="Or type new reference">
+
+        <!-- Category dropdown + custom -->
+        <select id="category_select" class="swal2-input">
+            <option value="">-- Select Category --</option>
+            ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+        <input type="text" id="category" class="swal2-input" placeholder="Or type new category">
+    `;
+
+    const { value: formValues } = await Swal.fire({
+        title: 'Add Purchase',
+        html: html,
+        showCancelButton: true,
+        confirmButtonText: 'Save',
+        preConfirm: () => {
+            // Sync dropdown to text input if selected
+            const reference = document.getElementById("reference").value || document.getElementById("reference_select").value;
+            const category = document.getElementById("category").value || document.getElementById("category_select").value;
+            const date = document.getElementById("date").value;
+            const change_type = document.getElementById("change_type").value;
+            const change = document.getElementById("change").value;
+
+            if (!date || !change) {
+                Swal.showValidationMessage("Date and Amount are required!");
+                return;
+            }
+
+            return { date, change_type, change, reference, category };
+        }
+    });
+
+    if (formValues) {
+        // Send AJAX POST
+        const formData = new URLSearchParams(formValues);
+        const csrfToken = '{{ csrf_token }}';
+
+        const res = await fetch("{% url 'purchases_logs_add' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": csrfToken,
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: formData
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+            Swal.fire('Saved!', 'Purchase added successfully', 'success')
+                .then(() => location.reload());
+        } else {
+            Swal.fire('Error', 'Please check your input', 'error');
+        }
+    }
+});
 </script>
 {% endblock %}

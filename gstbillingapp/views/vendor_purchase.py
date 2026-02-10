@@ -7,7 +7,11 @@ from django.db.models import Sum, Case, When, FloatField, F, Q
 
 # Models
 from ..models import VendorPurchase, PurchaseLog
-from ..forms import VendorPurchaseForm
+from ..forms import VendorPurchaseForm, PurchaseLogForm
+from ..utils import (
+    get_change_type_change,
+    get_vendor_instance
+)
 import num2words
 
 # ================= Vendor Purchase Views ==============================
@@ -92,6 +96,45 @@ def purchases_vendor_logs(request, vendor_purchase_id):
         purchases_logs = purchases_logs.filter(Q(change_type=0) | Q(change_type=1) | Q(change_type=2) | Q(change_type=3))
     context['purchases'] = purchases_logs    
     return render(request, 'vendor_purchase/purchases_vendor_logs.html', context)
+
+@login_required
+def purchases_logs_add_api(request):
+    if request.method == "POST" and request.headers.get("x-requested-with") == "XMLHttpRequest":
+        form = PurchaseLogForm(request.POST.copy())
+
+        if form.data.get('vendor') == 'None':
+            form.data['vendor'] = ''
+
+        if form.is_valid():
+            purchase = form.save(commit=False)
+            purchase.user = request.user
+            purchase.change = get_change_type_change(
+                request.POST.get('change_type'),
+                request.POST.get('change')
+            )
+            purchase.save()
+            return JsonResponse({"success": True})
+
+        # Return validation errors
+        return JsonResponse({"success": False, "errors": form.errors})
+
+    # If GET, return dropdown data
+    categories = list(PurchaseLog.objects.filter(user=request.user)
+                      .values_list('category', flat=True)
+                      .distinct()
+                      .exclude(category__isnull=True)
+                      .exclude(category__exact=''))
+
+    references = list(PurchaseLog.objects.filter(user=request.user)
+                      .values_list('reference', flat=True)
+                      .distinct()
+                      .exclude(reference__isnull=True)
+                      .exclude(reference__exact=''))
+
+    return JsonResponse({
+        "categories": categories,
+        "references": references,
+    })
 
 # ================= API ====================================
 @login_required
