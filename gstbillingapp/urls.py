@@ -115,6 +115,7 @@ urlpatterns = [
     path('purchases/vendor/add', vendor_purchase.vendor_purchase_add, name='vendor_purchase_add'),
     path('purchases/vendor/edit/<int:vendor_purchase_id>', vendor_purchase.vendor_purchase_edit, name='vendor_purchase_edit'),
     path('purchases/vendor/delete', vendor_purchase.vendor_purchase_delete, name='vendor_purchase_delete'),
+    path('purchases/vendor/logs/<int:vendor_purchase_id>', vendor_purchase.purchases_vendor_logs, name='purchases_vendor_logs'),
     # API Endpoints
     path('purchases/vendor/filter/', vendor_purchase.vendorPurchaseFilter, name='vendor_purchase_filter'),
     
