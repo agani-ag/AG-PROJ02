@@ -162,6 +162,7 @@ function customer_result_click() {
     $('#customer-address-input').val(customer_data_json['customer_address']);
     $('#customer-phone-input').val(customer_data_json['customer_phone']);
     $('#customer-gst-input').val(customer_data_json['customer_gst']);
+    $('#customer-id-input').val(customer_data_json['id']);
 }
 
 function initialize_fuse_customers_search_bar() {

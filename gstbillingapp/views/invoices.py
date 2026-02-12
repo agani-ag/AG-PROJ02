@@ -82,14 +82,17 @@ def invoice_create(request):
         invoice_data_processed = invoice_data_processor(invoice_data)
         # save customer
         customer = None
-
+        customer_id = invoice_data.get('customer-id')
         try:
-            customer = Customer.objects.get(user=request.user,
-                        customer_name=invoice_data['customer-name'],
-                        customer_address=invoice_data['customer-address'],
-                        customer_phone=invoice_data['customer-phone'],
-                        customer_gst=invoice_data['customer-gst'])
-        except:
+            if customer_id and customer_id.isdigit():
+                customer = Customer.objects.filter(user=request.user, id=int(customer_id)).first()
+            else:
+                customer = Customer.objects.filter(user=request.user,
+                            customer_name=invoice_data['customer-name'],
+                            customer_address=invoice_data['customer-address'],
+                            customer_phone=invoice_data['customer-phone'],
+                            customer_gst=invoice_data['customer-gst']).first()
+        except Exception as e:
             pass
         
         if not customer:
