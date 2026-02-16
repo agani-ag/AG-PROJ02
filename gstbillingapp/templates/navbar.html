@@ -138,6 +138,7 @@
           </a>
           <div class="dropdown-menu dropdown-menu-right" aria-labelledby="profileDropdown">
             <a class="dropdown-item" href="{% url 'user_profile' %}">{{ user | upper }}</a>
+            <a class="dropdown-item" href="#" onclick="passSwitchkey()">Switch User</a>
             <a class="dropdown-item" href="{% url 'logout_view' %}">Logout</a>
           </div>
         </li>
@@ -288,4 +289,88 @@
       clearInterval(reconnectInterval);
     }
   });
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+
+  function passSwitchkey() {
+		Swal.fire({
+			title: 'Passkey Authentication',
+			html: `
+				<p>Please enter your 5-digit alphanumeric PIN</p>
+				<div style="display: flex; justify-content: center; gap: 10px; margin: 20px 0;">
+					<input type="password" id="pin1" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+					<input type="password" id="pin2" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+					<input type="password" id="pin3" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+					<input type="password" id="pin4" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+					<input type="password" id="pin5" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+				</div>
+			`,
+			icon: 'warning',
+			showCancelButton: true,
+			showConfirmButton: false,
+			cancelButtonText: 'Cancel',
+			didOpen: () => {
+				const inputs = ['pin1', 'pin2', 'pin3', 'pin4', 'pin5'];
+				
+				const authenticatePin = () => {
+					const passkey = inputs.map(id => document.getElementById(id).value).join('');
+					
+					if (passkey.length === 5 && /^[A-Z0-9]{5}$/.test(passkey)) {
+                    fetch('/api/passkey-auth', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        body: JSON.stringify({ passkey: passkey })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            Swal.fire('Error', data.error, 'error');
+                        } else {
+                            Swal.fire('Success!', data.message, 'success')
+                                .then(() => window.location.reload());
+                        }
+                    })
+                    .catch(error => {
+                        Swal.fire('Error', 'Authentication failed: ' + error.message, 'error');
+                    });
+                }
+            };
+				
+				inputs.forEach((id, index) => {
+					const input = document.getElementById(id);
+					input.addEventListener('input', (e) => {
+						e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+						if (e.target.value && index < 4) {
+							document.getElementById(inputs[index + 1]).focus();
+						} else if (e.target.value && index === 4) {
+							authenticatePin();
+						}
+					});
+					input.addEventListener('keydown', (e) => {
+						if (e.key === 'Backspace' && !e.target.value && index > 0) {
+							document.getElementById(inputs[index - 1]).focus();
+						}
+					});
+				});
+				document.getElementById('pin1').focus();
+			}
+		});
+	};
 </script>
