@@ -37,6 +37,7 @@ def book_logs(request, book_id):
     book = get_object_or_404(Book, id=book_id, user=request.user)
     book_logs = BookLog.objects.filter(parent_book=book).order_by('-date')
     context['book'] = book
+    context['user_profile'] = get_object_or_404(UserProfile, user=request.user)
     context['book_logs'] = book_logs
     context['nav_hide'] = request.GET.get('nav') or ''
 
