@@ -833,6 +833,9 @@ def customersapi(request):
         userid = customer['name']
         brand_name = customer['brand_name']
 
+        if not gst:
+            continue
+
         link_obj = {
             "name": brand_name,
             "link": f"/mobile/v1/customer/home?cid={userid}"

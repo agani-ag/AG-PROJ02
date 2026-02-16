@@ -1,4 +1,5 @@
 # Django imports
+from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
@@ -49,6 +50,16 @@ def product_edit(request, product_id):
 @login_required
 def product_add(request):
     if request.method == "POST":
+        # Check for duplicate model_no for the same user
+        if Product.objects.filter(user=request.user, model_no=request.POST.get('model_no').upper()).exists():
+            context = {}
+            messages.warning(request, "Model No already exists. Please use a different Model No.")
+            context['product_form'] = ProductForm(request.POST, user=request.user)
+            context['product_category_list'] = ProductCategory.objects.filter(
+                user=request.user, parent_category__isnull=False
+            ).select_related('parent_category').values('id', 'category_name', 'parent_category__category_name')
+            return render(request, 'products/product_edit.html', context)
+        # Save new product
         product_form = ProductForm(request.POST, user=request.user)
         if product_form.is_valid():
             new_product = product_form.save(commit=False)
