@@ -6,10 +6,10 @@
 	<div class="card">
 		<div class="card-header">
 			<div class="row">
-			<div class="col-sm-12 text-center"><h4><strong>QUOTATION</strong></h4></div>
+			<div class="col-sm-12 text-center hide-on-toggle"><h4><strong>QUOTATION</strong></h4></div>
 			<div class="col-sm-6 col-6">&nbsp;</div>
 			<div class="col-sm-6 text-right">
-				<strong>
+				<strong class="hide-on-toggle">
 					{% if quotation.status == 'DRAFT' %}
 						<span class="badge badge-warning">DRAFT</span>
 					{% elif quotation.status == 'APPROVED' %}
@@ -31,14 +31,16 @@
 			</div> 
 			<div class="col-sm-6 col-6">&nbsp;</div>
 			<div class="col-sm-6 col-6">&nbsp;</div>
-			<div class="col-sm-6 col-6"><strong>Quotation Date: {{quotation.quotation_date}}</strong></div>
-			<div class="col-sm-6 text-right"><strong>Valid Until: {{quotation.valid_until}}</strong></div> 
-			<div class="col-sm-6 col-6"><strong>Quotation No:
-				{% if quotation.is_gst %}
-					{{quotation.quotation_number}}
-				{% else %}
-					QUO-{{quotation.quotation_number}}
-				{% endif %}
+			<div class="col-sm-6 col-6"><strong><span class="hide-on-toggle">Quotation</span> Date: {{quotation.quotation_date}}</strong></div>
+			<div class="col-sm-6 text-right"><strong class="hide-on-toggle">Valid Until: {{quotation.valid_until}}</strong></div> 
+			<div class="col-sm-6 col-6"><strong><span class="hide-on-toggle">Quotation</span> No:
+				<span contenteditable="true" style="outline:none; cursor:text;">
+					{% if quotation.is_gst %}
+						{{quotation.quotation_number}}
+					{% else %}
+						QUO-{{quotation.quotation_number}}
+					{% endif %}
+				</span>
 			</strong></div>
 			</div>
 		</div>
@@ -65,7 +67,7 @@
 				</div>
 
 				<div class="col-sm-6 col-md-6 col-lg-6 col-6">
-					<h6 class="mb-3">
+					<h6 class="mb-3 hide-on-toggle">
 						Quotation For:
 						{% if quotation.customer_details_modified %}
 						<span class="badge badge-warning ml-1" title="Customer details in this quotation differ from master record">Modified</span>
@@ -166,7 +168,7 @@
 			<div class="row">
 
 
-				<div class="col-sm-6 col-lg-6 col-md-6">
+				<div class="col-sm-6 col-lg-6 col-md-6 hide-on-toggle">
 					{% if user_profile.bankdetails %}
 						<table class="table table-bordered font-weight-bold">
 							<tr><th colspan="2" class="text-center">Bank Details</th></tr>
@@ -194,7 +196,7 @@
 								<td>Bank Name</td>
 								<td>
 									{% if user_profile.bankdetails.bank_name %}
-										{{ user_profile.bankdetails.bank_name %}
+										{{ user_profile.bankdetails.bank_name }}
 									{% else %}
 										-
 									{% endif %}
@@ -204,7 +206,7 @@
 								<td>IFSC Code</td>
 								<td>
 									{% if user_profile.bankdetails.ifsc_code %}
-										{{ user_profile.bankdetails.ifsc_code %}
+										{{ user_profile.bankdetails.ifsc_code }}
 									{% else %}
 										-
 									{% endif %}
@@ -214,7 +216,7 @@
 								<td>Branch</td>
 								<td>
 									{% if user_profile.bankdetails.branch_name %}
-										{{ user_profile.bankdetails.branch_name %}
+										{{ user_profile.bankdetails.branch_name }}
 									{% else %}
 										-
 									{% endif %}
@@ -307,7 +309,13 @@
 
 		</div>
 	</div>
-	<div class="text-right" style="margin-right: 5px;">
+	<div class="text-right d-print-none" style="margin-right: 5px;">
+		<!-- Hide Elements Toggle 'hide-on-toggle' -->
+		<label class="mr-2">
+			<input type="checkbox" id="toggleElements" onchange="toggleElementsVisibility()">
+			Hide Extra Details
+		</label>
+
 		<button onclick="window.print();" title="Print Quotation"
 			class="btn btn-primary btn-curve d-print-none">
 			<i class="fas fa-print"></i>
@@ -393,6 +401,21 @@
 
 {% endblock %}
 {% block includejs %}
+<script>
+function toggleElementsVisibility() {
+    const isChecked = document.getElementById("toggleElements").checked;
+    const elements = document.querySelectorAll(".hide-on-toggle");
+
+    elements.forEach(function(el) {
+        if (isChecked) {
+            el.style.display = "none";
+        } else {
+            el.style.display = "";
+        }
+    });
+}
+</script>
+
 <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
