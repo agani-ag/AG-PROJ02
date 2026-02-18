@@ -168,9 +168,9 @@
 			<div class="row">
 
 
-				<div class="col-sm-6 col-lg-6 col-md-6 hide-on-toggle">
+				<div class="col-sm-6 col-lg-6 col-md-6">
 					{% if user_profile.bankdetails %}
-						<table class="table table-bordered font-weight-bold">
+						<table class="table table-bordered font-weight-bold hide-on-toggle">
 							<tr><th colspan="2" class="text-center">Bank Details</th></tr>
 							<tr>
 								<td>Account Name</td>
@@ -281,7 +281,7 @@
 			</div>
 
 			{% if quotation.notes %}
-			<div class="row mt-3">
+			<div class="row mt-3 hide-on-toggle">
 				<div class="col-sm-12">
 					<div class="alert alert-info">
 						<strong>Notes:</strong> {{ quotation.notes }}
@@ -291,7 +291,7 @@
 			{% endif %}
 
 {% if quotation.status == 'CONVERTED' %}
-		<div class="row mt-3">
+		<div class="row mt-3 hide-on-toggle">
 			<div class="col-sm-12">
 				{% if quotation.converted_invoice %}
 					<div class="alert alert-success">
@@ -311,10 +311,9 @@
 	</div>
 	<div class="text-right d-print-none" style="margin-right: 5px;">
 		<!-- Hide Elements Toggle 'hide-on-toggle' -->
-		<label class="mr-2">
-			<input type="checkbox" id="toggleElements" onchange="toggleElementsVisibility()">
-			Hide Extra Details
-		</label>
+		<button id="toggleBtn" onclick="toggleElementsVisibility();" class="btn btn-secondary btn-curve">
+			Hide
+		</button>
 
 		<button onclick="window.print();" title="Print Quotation"
 			class="btn btn-primary btn-curve d-print-none">
@@ -402,19 +401,24 @@
 {% endblock %}
 {% block includejs %}
 <script>
+let isHidden = false;
+
 function toggleElementsVisibility() {
-    const isChecked = document.getElementById("toggleElements").checked;
     const elements = document.querySelectorAll(".hide-on-toggle");
+    const button = document.getElementById("toggleBtn");
+
+    isHidden = !isHidden;
 
     elements.forEach(function(el) {
-        if (isChecked) {
-            el.style.display = "none";
-        } else {
-            el.style.display = "";
-        }
+        el.style.display = isHidden ? "none" : "";
     });
+
+    button.innerText = isHidden 
+        ? "Show" 
+        : "Hide";
 }
 </script>
+
 
 <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
