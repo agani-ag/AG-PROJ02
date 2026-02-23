@@ -90,6 +90,10 @@ def productsjson(request):
     products = list(Product.objects.filter(user=request.user).values())
     return JsonResponse(products, safe=False)
 
+@login_required
+def categoriesjson(request):
+    categories = list(ProductCategory.objects.filter(user=request.user).values())
+    return JsonResponse(categories, safe=False)
 
 @csrf_exempt
 def product_api_add(request):

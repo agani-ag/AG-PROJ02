@@ -46,6 +46,7 @@ urlpatterns = [
     path('quotation/approve/<int:quotation_id>', quotation.quotation_approve, name='quotation_approve'),
     path('quotation/update-customer/<int:quotation_id>', quotation.quotation_update_customer, name='quotation_update_customer'),
     path('quotation/update-status/<int:quotation_id>', quotation.quotation_update_status, name='quotation_update_status'),
+    path('quotation/cart', quotation.quotation_cart, name='quotation_cart'),
 
     # Customer URLs
     path('customers', customers.customers, name='customers'),
@@ -81,6 +82,7 @@ urlpatterns = [
     path('products/edit/<int:product_id>', products.product_edit, name='product_edit'),
     path('products/delete', products.product_delete, name='product_delete'),
     path('productsjson', products.productsjson, name='productsjson'),
+    path('categoriesjson', products.categoriesjson, name='categoriesjson'),
     # Product Category URLs
     path('product-categories', products.product_category_list, name='product_category_list'),
     path('product-categories/save', products.product_category_save, name='product_category_save'),

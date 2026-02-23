@@ -809,3 +809,6 @@ def quotation_update_status(request, quotation_id):
             'success': False,
             'message': str(e)
         }, status=400)
+
+def quotation_cart(request):
+    return render(request, 'quotations/quotation_cart.html')
