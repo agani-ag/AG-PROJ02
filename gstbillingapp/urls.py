@@ -140,6 +140,8 @@ urlpatterns = [
 
     # Reports URLs
     path('reports/sales', reports.sales_report_pdf, name='sales_report'),
+    path('reports/bi-dashboard', reports.bi_dashboard, name='bi_dashboard'),
+    path('reports/inventory-dashboard', reports.inventory_dashboard, name='inventory_dashboard'),
 
     # Graphs and Analytics URLs
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
