@@ -19,6 +19,9 @@
 			<i class="fas fa-plus"></i></a>
 		<a href="{% url 'books' %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-reply"></i></a>
 		<a href="{% url 'customer_edit' book.customer.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
+        {% if book.current_balance >= -10 and book.current_balance <= 10 %}
+            <a href="#" class="btn btn-info btn-sm btn-curve" onclick="roundOff({{ book.id }})"><i class="fas fa-calculator"></i></a>
+        {% endif %}
 	</div>
 </div>
 <hr>
@@ -337,5 +340,45 @@ function markAsActive(booklogId, change) {
         }
     }
 </script>
-
+<script>
+    function roundOff(bookId) {
+        Swal.fire({
+            title: 'Round Off Balance',
+            text: "This will round off the current balance to the nearest whole number.",
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, Round Off!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Make AJAX call to round off balance
+                $.ajax({
+                    url: '/books/api/roundoff',
+                    method: 'POST',
+                    data: { book_id: bookId },
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        Swal.fire(
+                            'Rounded Off!',
+                            response.message,
+                            'success'
+                        ).then(() => {
+                            location.reload();
+                        });
+                    },
+                    error: function() {
+                        Swal.fire(
+                            'Error!',
+                            'There was an error rounding off the balance.',
+                            'error'
+                        );
+                    }
+                });
+            }
+        });
+    }
+</script>
 {% endblock %}

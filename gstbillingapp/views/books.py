@@ -453,3 +453,24 @@ def book_logs_pending(request):
         recalculate_book_current_balance(booklog.parent_book)
         return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog_id} processed successfully.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add products alert stock.'})
+
+@csrf_exempt
+def book_logs_api_roundoff(request):
+    if request.method == "POST":
+        book_id = request.POST["book_id"]
+        book = get_object_or_404(Book, id=book_id)
+        current_balance = book.current_balance
+        if current_balance >= -10 and current_balance <= 10:
+            roundoff_change = - current_balance
+        else:
+            return JsonResponse({'status': 'error', 'message': 'Round-off can only be applied for balances between -10 and 10.'})
+        booklog = BookLog(
+            parent_book = book,
+            change_type = 3,
+            change = roundoff_change,
+            description = "Round-off adjustment"
+        )
+        booklog.save()
+        recalculate_book_current_balance(book)
+        return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog.id} Round-off added successfully.'})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to add products alert stock.'})
