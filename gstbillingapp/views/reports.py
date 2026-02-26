@@ -988,3 +988,410 @@ def credit_aging_report(request):
     }
 
     return render(request, 'reports/credit_aging_report.html', context)
+
+
+# =============================================================================
+# Customer Intelligence Analysis
+# =============================================================================
+@login_required
+def customer_analysis(request):
+    """
+    Comprehensive Customer Intelligence & Analysis Dashboard.
+    Uses RFM (Recency, Frequency, Monetary) framework enhanced with
+    payment behavior scoring to rank every customer on a 0-100 Health Score.
+    """
+    import statistics
+
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    customers = Customer.objects.filter(user=user).order_by('customer_name')
+    books = Book.objects.filter(user=user).select_related('customer')
+    invoices = Invoice.objects.filter(user=user).select_related('invoice_customer')
+
+    # ---- Build per-customer invoice map ----
+    customer_invoices = {}  # customer_id -> list of invoice dicts
+    for inv in invoices:
+        if not inv.invoice_customer_id:
+            continue
+        cid = inv.invoice_customer_id
+        try:
+            inv_data = json.loads(inv.invoice_json)
+            amount = float(inv_data.get('invoice_total_amt_with_gst', 0) or inv_data.get('grand_total', 0) or 0)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            amount = 0
+        customer_invoices.setdefault(cid, []).append({
+            'date': inv.invoice_date,
+            'amount': abs(amount),
+        })
+
+    # ---- Analyse each customer ----
+    customer_rows = []
+    all_monetary = []  # for percentile calc
+    all_frequency_rate = []  # invoices per month
+
+    for customer in customers:
+        book = books.filter(customer=customer).first()
+
+        # -- Invoice metrics --
+        inv_list = customer_invoices.get(customer.id, [])
+        inv_list_sorted = sorted(inv_list, key=lambda x: x['date']) if inv_list else []
+        invoice_count = len(inv_list_sorted)
+        total_invoice_value = sum(i['amount'] for i in inv_list_sorted)
+
+        if inv_list_sorted:
+            first_invoice_date = inv_list_sorted[0]['date']
+            last_invoice_date = inv_list_sorted[-1]['date']
+            days_since_last = (today - last_invoice_date).days
+            customer_lifetime_days = max((today - first_invoice_date).days, 1)
+            customer_lifetime_months = max(customer_lifetime_days / 30.0, 1)
+        else:
+            first_invoice_date = None
+            last_invoice_date = None
+            days_since_last = 9999
+            customer_lifetime_days = 0
+            customer_lifetime_months = 1
+
+        invoices_per_month = round(invoice_count / customer_lifetime_months, 2) if customer_lifetime_months > 0 else 0
+
+        # avg invoice value
+        avg_invoice_value = round(total_invoice_value / invoice_count, 2) if invoice_count > 0 else 0
+
+        # -- Invoice gaps for consistency --
+        gaps = []
+        for i in range(1, len(inv_list_sorted)):
+            gap = (inv_list_sorted[i]['date'] - inv_list_sorted[i - 1]['date']).days
+            gaps.append(gap)
+        avg_gap = round(statistics.mean(gaps), 1) if gaps else 0
+        gap_std = round(statistics.stdev(gaps), 1) if len(gaps) >= 2 else 0
+
+        # -- Frequency pattern --
+        if invoice_count <= 1:
+            frequency_pattern = 'One-Time'
+        elif avg_gap <= 10:
+            frequency_pattern = 'Weekly'
+        elif avg_gap <= 18:
+            frequency_pattern = 'Bi-Weekly'
+        elif avg_gap <= 45:
+            frequency_pattern = 'Monthly'
+        elif avg_gap <= 120:
+            frequency_pattern = 'Quarterly'
+        else:
+            frequency_pattern = 'Sporadic'
+
+        # -- Activity status --
+        if invoice_count == 0:
+            activity_status = 'No Invoices'
+        elif days_since_last <= 30:
+            activity_status = 'Active'
+        elif days_since_last <= 90:
+            activity_status = 'Semi-Active'
+        elif days_since_last <= 180:
+            activity_status = 'Dormant'
+        else:
+            activity_status = 'Inactive'
+
+        # -- Invoice trend (last 90 days vs prior 90 days) --
+        cutoff_recent = today - timedelta(days=90)
+        cutoff_prior = today - timedelta(days=180)
+        recent_invoices = [i for i in inv_list_sorted if i['date'] >= cutoff_recent]
+        prior_invoices = [i for i in inv_list_sorted if cutoff_prior <= i['date'] < cutoff_recent]
+        recent_count = len(recent_invoices)
+        prior_count = len(prior_invoices)
+        recent_value = sum(i['amount'] for i in recent_invoices)
+        prior_value = sum(i['amount'] for i in prior_invoices)
+
+        if recent_count > prior_count:
+            invoice_trend = 'Growing'
+        elif recent_count == prior_count:
+            invoice_trend = 'Stable'
+        else:
+            invoice_trend = 'Declining'
+
+        if invoice_count <= 1:
+            invoice_trend = 'New/One-Time'
+
+        # -- Book / Payment metrics --
+        total_purchased = 0
+        total_paid = 0
+        total_returned = 0
+        total_other = 0
+        total_pending = 0
+        outstanding = 0
+        payment_dates = []  # (purchase_date, payment_date) pairs for speed calc
+
+        if book:
+            logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
+            for log in logs:
+                amt = abs(log.change)
+                if log.change_type == 1:
+                    total_purchased += amt
+                elif log.change_type == 0:
+                    total_paid += amt
+                    if log.date:
+                        payment_dates.append(log.date)
+                elif log.change_type == 2:
+                    total_returned += amt
+                elif log.change_type == 3:
+                    total_other += amt
+                elif log.change_type == 4:
+                    total_pending += amt
+
+            outstanding = total_purchased - (total_paid + total_returned + total_other)
+            outstanding = max(outstanding, 0)
+
+        # Payment ratio
+        payment_ratio = round((total_paid + total_returned + total_other) / total_purchased * 100, 1) if total_purchased > 0 else 100
+        outstanding_ratio = round(outstanding / total_purchased * 100, 1) if total_purchased > 0 else 0
+
+        # -- Payment behavior label --
+        if outstanding_ratio <= 5:
+            payment_behavior = 'Excellent'
+        elif outstanding_ratio <= 15:
+            payment_behavior = 'Good'
+        elif outstanding_ratio <= 35:
+            payment_behavior = 'Fair'
+        elif outstanding_ratio <= 60:
+            payment_behavior = 'Poor'
+        else:
+            payment_behavior = 'Critical'
+
+        # =============================================
+        # HEALTH SCORE CALCULATION (0 – 100)
+        # =============================================
+
+        # 1. Recency Score (0-25)
+        if days_since_last <= 7:
+            recency_score = 25
+        elif days_since_last <= 15:
+            recency_score = 22
+        elif days_since_last <= 30:
+            recency_score = 18
+        elif days_since_last <= 60:
+            recency_score = 12
+        elif days_since_last <= 90:
+            recency_score = 6
+        elif days_since_last <= 180:
+            recency_score = 2
+        else:
+            recency_score = 0
+
+        # 2. Frequency Score (0-25) — based on invoices/month
+        if invoices_per_month >= 4:
+            frequency_score = 25
+        elif invoices_per_month >= 2:
+            frequency_score = 22
+        elif invoices_per_month >= 1:
+            frequency_score = 18
+        elif invoices_per_month >= 0.5:
+            frequency_score = 13
+        elif invoices_per_month >= 0.25:
+            frequency_score = 8
+        elif invoice_count >= 1:
+            frequency_score = 3
+        else:
+            frequency_score = 0
+
+        # 3. Monetary Score (0-25) — computed later via percentile
+        monetary_raw = total_invoice_value  # placeholder, scored after loop
+
+        # 4. Payment Score (0-25)
+        if total_purchased == 0:
+            payment_score = 12  # neutral, no data
+        else:
+            # Base: payment ratio contribution (0-15)
+            payment_score = min(round(payment_ratio / 100 * 15), 15)
+            # Bonus: low outstanding (0-5)
+            if outstanding_ratio <= 5:
+                payment_score += 5
+            elif outstanding_ratio <= 15:
+                payment_score += 3
+            elif outstanding_ratio <= 35:
+                payment_score += 1
+            # Bonus: consistency — low gap std deviation (0-5)
+            if gap_std <= 5 and invoice_count >= 3:
+                payment_score += 5
+            elif gap_std <= 15 and invoice_count >= 3:
+                payment_score += 3
+            elif gap_std <= 30 and invoice_count >= 2:
+                payment_score += 1
+
+        payment_score = min(payment_score, 25)
+
+        all_monetary.append(monetary_raw)
+        all_frequency_rate.append(invoices_per_month)
+
+        customer_rows.append({
+            'id': customer.id,
+            'name': customer.customer_name,
+            'phone': customer.customer_phone or '',
+            # Invoice metrics
+            'invoice_count': invoice_count,
+            'total_invoice_value': round(total_invoice_value, 2),
+            'avg_invoice_value': avg_invoice_value,
+            'first_invoice': first_invoice_date,
+            'last_invoice': last_invoice_date,
+            'days_since_last': days_since_last if days_since_last != 9999 else None,
+            'invoices_per_month': invoices_per_month,
+            'avg_gap_days': avg_gap,
+            'gap_std': gap_std,
+            'frequency_pattern': frequency_pattern,
+            'activity_status': activity_status,
+            'invoice_trend': invoice_trend,
+            'recent_count': recent_count,
+            'prior_count': prior_count,
+            'recent_value': round(recent_value, 2),
+            'prior_value': round(prior_value, 2),
+            # Payment metrics
+            'total_purchased': round(total_purchased, 2),
+            'total_paid': round(total_paid, 2),
+            'total_returned': round(total_returned, 2),
+            'outstanding': round(outstanding, 2),
+            'payment_ratio': payment_ratio,
+            'outstanding_ratio': outstanding_ratio,
+            'payment_behavior': payment_behavior,
+            # Scores
+            'recency_score': recency_score,
+            'frequency_score': frequency_score,
+            'monetary_raw': monetary_raw,
+            'payment_score': payment_score,
+            # Will be set after percentile calc:
+            'monetary_score': 0,
+            'health_score': 0,
+            'segment': '',
+            'rank': 0,
+        })
+
+    # ---- Compute Monetary Score via percentile ----
+    sorted_monetary = sorted(all_monetary)
+    for row in customer_rows:
+        if not sorted_monetary or row['monetary_raw'] == 0:
+            row['monetary_score'] = 0
+        else:
+            # percentile rank
+            rank_pos = sorted_monetary.index(row['monetary_raw'])
+            percentile = rank_pos / len(sorted_monetary) * 100
+            if percentile >= 90:
+                row['monetary_score'] = 25
+            elif percentile >= 75:
+                row['monetary_score'] = 21
+            elif percentile >= 50:
+                row['monetary_score'] = 16
+            elif percentile >= 25:
+                row['monetary_score'] = 10
+            elif row['monetary_raw'] > 0:
+                row['monetary_score'] = 4
+            else:
+                row['monetary_score'] = 0
+
+        # Total Health Score
+        row['health_score'] = (
+            row['recency_score'] +
+            row['frequency_score'] +
+            row['monetary_score'] +
+            row['payment_score']
+        )
+
+        # Segment assignment
+        hs = row['health_score']
+        if hs >= 80:
+            row['segment'] = 'Star'
+        elif hs >= 60:
+            row['segment'] = 'Loyal'
+        elif hs >= 40:
+            row['segment'] = 'Promising'
+        elif hs >= 20:
+            row['segment'] = 'At Risk'
+        else:
+            row['segment'] = 'Critical'
+
+    # ---- Rank customers by health score desc ----
+    customer_rows.sort(key=lambda x: x['health_score'], reverse=True)
+    for idx, row in enumerate(customer_rows, 1):
+        row['rank'] = idx
+
+    # ---- Summary KPIs ----
+    total_customers = len(customer_rows)
+    active_count = sum(1 for c in customer_rows if c['activity_status'] == 'Active')
+    semi_active_count = sum(1 for c in customer_rows if c['activity_status'] == 'Semi-Active')
+    dormant_count = sum(1 for c in customer_rows if c['activity_status'] == 'Dormant')
+    inactive_count = sum(1 for c in customer_rows if c['activity_status'] in ('Inactive', 'No Invoices'))
+    one_timer_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'One-Time')
+
+    star_count = sum(1 for c in customer_rows if c['segment'] == 'Star')
+    loyal_count = sum(1 for c in customer_rows if c['segment'] == 'Loyal')
+    promising_count = sum(1 for c in customer_rows if c['segment'] == 'Promising')
+    at_risk_count = sum(1 for c in customer_rows if c['segment'] == 'At Risk')
+    critical_count = sum(1 for c in customer_rows if c['segment'] == 'Critical')
+
+    # Frequency pattern counts
+    weekly_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Weekly')
+    biweekly_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Bi-Weekly')
+    monthly_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Monthly')
+    quarterly_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Quarterly')
+    sporadic_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Sporadic')
+
+    # Payment behavior counts
+    excellent_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Excellent')
+    good_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Good')
+    fair_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Fair')
+    poor_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Poor')
+    critical_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Critical')
+
+    # Trend counts
+    growing_count = sum(1 for c in customer_rows if c['invoice_trend'] == 'Growing')
+    stable_count = sum(1 for c in customer_rows if c['invoice_trend'] == 'Stable')
+    declining_count = sum(1 for c in customer_rows if c['invoice_trend'] == 'Declining')
+
+    avg_health = round(statistics.mean([c['health_score'] for c in customer_rows]), 1) if customer_rows else 0
+    total_outstanding = sum(c['outstanding'] for c in customer_rows)
+    total_revenue = sum(c['total_invoice_value'] for c in customer_rows)
+
+    # Top 10 & Bottom 10
+    top_10 = customer_rows[:10]
+    bottom_10 = list(reversed(customer_rows[-10:])) if len(customer_rows) >= 10 else list(reversed(customer_rows))
+
+    context = {
+        'user_profile': user_profile,
+        'report_date': today,
+        'customer_rows': customer_rows,
+        'total_customers': total_customers,
+        # Activity
+        'active_count': active_count,
+        'semi_active_count': semi_active_count,
+        'dormant_count': dormant_count,
+        'inactive_count': inactive_count,
+        'one_timer_count': one_timer_count,
+        # Segments
+        'star_count': star_count,
+        'loyal_count': loyal_count,
+        'promising_count': promising_count,
+        'at_risk_count': at_risk_count,
+        'critical_count': critical_count,
+        # Frequency
+        'weekly_count': weekly_count,
+        'biweekly_count': biweekly_count,
+        'monthly_count': monthly_count,
+        'quarterly_count': quarterly_count,
+        'sporadic_count': sporadic_count,
+        # Payment
+        'excellent_pmt': excellent_pmt,
+        'good_pmt': good_pmt,
+        'fair_pmt': fair_pmt,
+        'poor_pmt': poor_pmt,
+        'critical_pmt': critical_pmt,
+        # Trends
+        'growing_count': growing_count,
+        'stable_count': stable_count,
+        'declining_count': declining_count,
+        # Summary
+        'avg_health': avg_health,
+        'total_outstanding': round(total_outstanding, 2),
+        'total_revenue': round(total_revenue, 2),
+        # Top / Bottom
+        'top_10': top_10,
+        'bottom_10': bottom_10,
+    }
+
+    return render(request, 'reports/customer_analysis.html', context)

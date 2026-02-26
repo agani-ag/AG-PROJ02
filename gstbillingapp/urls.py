@@ -145,6 +145,7 @@ urlpatterns = [
     path('reports/inventory-dashboard', reports.inventory_dashboard, name='inventory_dashboard'),
     path('reports/ar-aging', reports.ar_aging_report, name='ar_aging_report'),
     path('reports/credit-aging', reports.credit_aging_report, name='credit_aging_report'),
+    path('reports/customer-analysis', reports.customer_analysis, name='customer_analysis'),
 
     # Graphs and Analytics URLs
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
