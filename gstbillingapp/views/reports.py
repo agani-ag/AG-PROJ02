@@ -635,3 +635,356 @@ def inventory_dashboard(request):
 
     return render(request, 'reports/inventory_dashboard.html', context)
 
+
+@login_required
+def ar_aging_report(request):
+    """
+    Accounts Receivable (AR) Aging Report
+    Outstanding receivables grouped by aging buckets (0-15, 15-30, ... up to 435-450 days)
+    Customer-wise exposure with outstanding amounts in each bucket.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # Define aging buckets (label, min_days, max_days)
+    aging_buckets = []
+    step = 15
+    for start in range(0, 450, step):
+        end = start + step
+        aging_buckets.append({
+            'label': f'{start}-{end}',
+            'min_days': start,
+            'max_days': end,
+        })
+
+    books = Book.objects.filter(user=user).select_related('customer')
+
+    # Summary KPIs
+    total_outstanding = 0.0
+    total_overdue = 0.0   # > 30 days
+    total_customers_with_outstanding = 0
+    total_critical_overdue = 0.0  # > 90 days
+    bucket_totals = [0.0] * len(aging_buckets)
+
+    customer_rows = []
+
+    for book in books:
+        if not book.customer:
+            continue
+
+        logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
+
+        # Calculate total purchased and total settled
+        total_purchased = 0.0
+        total_settled = 0.0
+        for log in logs:
+            if log.change_type == 1:  # Purchased
+                total_purchased += abs(log.change)
+            elif log.change_type in [0, 2, 3]:  # Paid, Returned, Other
+                total_settled += abs(log.change)
+
+        outstanding = total_purchased - total_settled
+        if outstanding <= 0.01:
+            continue  # No outstanding for this customer
+
+        total_outstanding += outstanding
+        total_customers_with_outstanding += 1
+
+        # Distribute outstanding across aging buckets based on invoice dates
+        # Collect purchase logs with their ages
+        purchase_entries = []
+        for log in logs:
+            if log.change_type == 1 and log.date:  # Purchased Items
+                age_days = (today - log.date.date()).days
+                purchase_entries.append({
+                    'amount': abs(log.change),
+                    'age_days': max(age_days, 0),
+                })
+
+        # Sort oldest first and distribute outstanding
+        purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
+
+        # Allocate outstanding to oldest entries first (FIFO-like)
+        remaining = outstanding
+        bucket_amounts = [0.0] * len(aging_buckets)
+
+        for entry in purchase_entries:
+            if remaining <= 0:
+                break
+            alloc = min(entry['amount'], remaining)
+            remaining -= alloc
+
+            # Find which bucket this belongs to
+            for i, bucket in enumerate(aging_buckets):
+                if bucket['min_days'] <= entry['age_days'] < bucket['max_days']:
+                    bucket_amounts[i] += alloc
+                    break
+            else:
+                # Beyond 450 days, put in last bucket
+                bucket_amounts[-1] += alloc
+
+        # If remaining (unassigned), put in first bucket
+        if remaining > 0:
+            bucket_amounts[0] += remaining
+
+        # Update totals
+        for i in range(len(aging_buckets)):
+            bucket_totals[i] += bucket_amounts[i]
+
+        # Overdue = anything beyond 30 days
+        overdue_amount = sum(bucket_amounts[2:])  # from 30-45 onwards
+        total_overdue += overdue_amount
+
+        # Critical = beyond 90 days
+        critical_amount = sum(bucket_amounts[6:])  # from 90-120 onwards
+        total_critical_overdue += critical_amount
+
+        # Determine max age bucket for risk level
+        max_bucket_idx = 0
+        for i in range(len(bucket_amounts) - 1, -1, -1):
+            if bucket_amounts[i] > 0:
+                max_bucket_idx = i
+                break
+
+        if max_bucket_idx >= 6:  # 90+ days
+            risk_level = "High"
+        elif max_bucket_idx >= 2:  # 30-89 days
+            risk_level = "Medium"
+        else:
+            risk_level = "Low"
+
+        customer_rows.append({
+            'book_id': book.id,
+            'name': book.customer.customer_name,
+            'phone': book.customer.customer_phone or '-',
+            'total_outstanding': round(outstanding, 2),
+            'bucket_amounts': [round(b, 2) for b in bucket_amounts],
+            'risk_level': risk_level,
+            'overdue_amount': round(overdue_amount, 2),
+        })
+
+    # Sort by total outstanding descending
+    customer_rows.sort(key=lambda x: x['total_outstanding'], reverse=True)
+
+    # Risk distribution
+    high_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'High')
+    medium_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'Medium')
+    low_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'Low')
+
+    context = {
+        'user_profile': user_profile,
+        'aging_buckets': aging_buckets,
+        'customer_rows': customer_rows,
+        'bucket_totals': [round(b, 2) for b in bucket_totals],
+        'total_outstanding': round(total_outstanding, 2),
+        'total_overdue': round(total_overdue, 2),
+        'total_critical_overdue': round(total_critical_overdue, 2),
+        'total_customers_with_outstanding': total_customers_with_outstanding,
+        'high_risk_count': high_risk_count,
+        'medium_risk_count': medium_risk_count,
+        'low_risk_count': low_risk_count,
+        'report_date': today,
+    }
+
+    return render(request, 'reports/ar_aging_report.html', context)
+
+
+@login_required
+def credit_aging_report(request):
+    """
+    Credit Aging Report
+    Credit limit utilization, overdue beyond allowed credit period,
+    aging buckets 0-15, 15-30, ... up to 435-450 days.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # Default credit limit (can be customized per customer if field added)
+    DEFAULT_CREDIT_LIMIT = 50000.0
+    DEFAULT_CREDIT_PERIOD_DAYS = 30  # Days allowed for payment
+
+    # Aging buckets
+    aging_buckets = []
+    step = 15
+    for start in range(0, 450, step):
+        end = start + step
+        aging_buckets.append({
+            'label': f'{start}-{end}',
+            'min_days': start,
+            'max_days': end,
+        })
+
+    books = Book.objects.filter(user=user).select_related('customer')
+
+    # KPIs
+    total_credit_limit = 0.0
+    total_utilized = 0.0
+    total_overdue_beyond_credit = 0.0
+    total_bad_debt_risk = 0.0  # Outstanding > 180 days
+    total_customers = 0
+    bucket_totals = [0.0] * len(aging_buckets)
+
+    customer_rows = []
+
+    for book in books:
+        if not book.customer:
+            continue
+
+        logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
+
+        total_purchased = 0.0
+        total_settled = 0.0
+        for log in logs:
+            if log.change_type == 1:
+                total_purchased += abs(log.change)
+            elif log.change_type in [0, 2, 3]:
+                total_settled += abs(log.change)
+
+        outstanding = total_purchased - total_settled
+        if outstanding <= 0.01 and total_purchased <= 0:
+            continue
+
+        total_customers += 1
+        credit_limit = DEFAULT_CREDIT_LIMIT
+        total_credit_limit += credit_limit
+
+        utilized = max(outstanding, 0)
+        total_utilized += utilized
+
+        utilization_pct = round((utilized / credit_limit * 100), 1) if credit_limit > 0 else 0
+
+        # Collect purchase entries with age
+        purchase_entries = []
+        for log in logs:
+            if log.change_type == 1 and log.date:
+                age_days = (today - log.date.date()).days
+                purchase_entries.append({
+                    'amount': abs(log.change),
+                    'age_days': max(age_days, 0),
+                })
+
+        purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
+
+        # Distribute outstanding to aging buckets (oldest first)
+        remaining = max(outstanding, 0)
+        bucket_amounts = [0.0] * len(aging_buckets)
+
+        for entry in purchase_entries:
+            if remaining <= 0:
+                break
+            alloc = min(entry['amount'], remaining)
+            remaining -= alloc
+
+            for i, bucket in enumerate(aging_buckets):
+                if bucket['min_days'] <= entry['age_days'] < bucket['max_days']:
+                    bucket_amounts[i] += alloc
+                    break
+            else:
+                bucket_amounts[-1] += alloc
+
+        if remaining > 0:
+            bucket_amounts[0] += remaining
+
+        for i in range(len(aging_buckets)):
+            bucket_totals[i] += bucket_amounts[i]
+
+        # Overdue beyond credit period (> DEFAULT_CREDIT_PERIOD_DAYS)
+        overdue_beyond_credit = 0.0
+        credit_bucket_idx = DEFAULT_CREDIT_PERIOD_DAYS // step  # Which bucket credit period falls into
+        for i in range(credit_bucket_idx, len(bucket_amounts)):
+            overdue_beyond_credit += bucket_amounts[i]
+        total_overdue_beyond_credit += overdue_beyond_credit
+
+        # Bad debt risk = outstanding > 180 days
+        bad_debt_amount = sum(bucket_amounts[12:])  # From 180-195 onwards
+        total_bad_debt_risk += bad_debt_amount
+
+        # Find max age of any outstanding
+        max_age_days = 0
+        for entry in purchase_entries:
+            if entry['age_days'] > max_age_days:
+                max_age_days = entry['age_days']
+
+        # Credit status
+        if utilization_pct > 100:
+            credit_status = "Over Limit"
+        elif utilization_pct > 80:
+            credit_status = "Near Limit"
+        elif utilization_pct > 50:
+            credit_status = "Moderate"
+        else:
+            credit_status = "Healthy"
+
+        # Risk assessment based on aging + utilization
+        if bad_debt_amount > 0 or max_age_days > 180:
+            risk_level = "Critical"
+        elif overdue_beyond_credit > 0 and utilization_pct > 80:
+            risk_level = "High"
+        elif overdue_beyond_credit > 0:
+            risk_level = "Medium"
+        else:
+            risk_level = "Low"
+
+        # Payment behavior - avg days to pay
+        payment_entries = []
+        for log in logs:
+            if log.change_type == 0 and log.date:  # Paid
+                payment_entries.append(log.date.date())
+
+        avg_payment_days = 0
+        if payment_entries and purchase_entries:
+            first_purchase = min(e['age_days'] for e in purchase_entries) if purchase_entries else 0
+            avg_payment_days = max_age_days // 2 if max_age_days > 0 else 0
+
+        customer_rows.append({
+            'book_id': book.id,
+            'name': book.customer.customer_name,
+            'phone': book.customer.customer_phone or '-',
+            'credit_limit': round(credit_limit, 2),
+            'total_outstanding': round(max(outstanding, 0), 2),
+            'utilization_pct': utilization_pct,
+            'credit_status': credit_status,
+            'overdue_beyond_credit': round(overdue_beyond_credit, 2),
+            'bad_debt_amount': round(bad_debt_amount, 2),
+            'max_age_days': max_age_days,
+            'avg_payment_days': avg_payment_days,
+            'risk_level': risk_level,
+            'bucket_amounts': [round(b, 2) for b in bucket_amounts],
+        })
+
+    customer_rows.sort(key=lambda x: x['total_outstanding'], reverse=True)
+
+    # Risk counts
+    critical_count = sum(1 for c in customer_rows if c['risk_level'] == 'Critical')
+    high_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'High')
+    medium_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'Medium')
+    low_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'Low')
+
+    # Utilization summary
+    avg_utilization = round(total_utilized / total_credit_limit * 100, 1) if total_credit_limit > 0 else 0
+    over_limit_count = sum(1 for c in customer_rows if c['credit_status'] == 'Over Limit')
+
+    context = {
+        'user_profile': user_profile,
+        'aging_buckets': aging_buckets,
+        'customer_rows': customer_rows,
+        'bucket_totals': [round(b, 2) for b in bucket_totals],
+        'total_credit_limit': round(total_credit_limit, 2),
+        'total_utilized': round(total_utilized, 2),
+        'avg_utilization': avg_utilization,
+        'total_overdue_beyond_credit': round(total_overdue_beyond_credit, 2),
+        'total_bad_debt_risk': round(total_bad_debt_risk, 2),
+        'total_customers': total_customers,
+        'over_limit_count': over_limit_count,
+        'critical_count': critical_count,
+        'high_risk_count': high_risk_count,
+        'medium_risk_count': medium_risk_count,
+        'low_risk_count': low_risk_count,
+        'report_date': today,
+        'default_credit_limit': DEFAULT_CREDIT_LIMIT,
+        'default_credit_period': DEFAULT_CREDIT_PERIOD_DAYS,
+    }
+
+    return render(request, 'reports/credit_aging_report.html', context)
