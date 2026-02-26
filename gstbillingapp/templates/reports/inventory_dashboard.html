@@ -4,11 +4,110 @@
 
 {% block title %}Product & Inventory Intelligence Dashboard - GST Sync{% endblock %}
 
+{% block includecss %}
+<style>
+    /* ===== Inventory Dashboard Responsive Styles ===== */
+    .inv-dashboard .card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        overflow: hidden;
+    }
+    .inv-dashboard .card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+    }
+    .inv-dashboard .card-body {
+        padding: 1.1rem;
+    }
+    .inv-dashboard .card-body h3 {
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+    .inv-dashboard .kpi-col {
+        margin-bottom: 1rem;
+    }
+    .inv-dashboard .section-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    .inv-dashboard .section-title i {
+        margin-right: 6px;
+    }
+    .inv-dashboard .table-responsive {
+        border-radius: 8px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .inv-dashboard .table {
+        margin-bottom: 0;
+    }
+    .inv-dashboard .table th,
+    .inv-dashboard .table td {
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    /* ===== Mobile: < 576px ===== */
+    @media (max-width: 575.98px) {
+        .inv-dashboard .page-header h2 {
+            font-size: 1.15rem;
+        }
+        .inv-dashboard .page-header p {
+            font-size: 0.8rem;
+        }
+        .inv-dashboard .section-title {
+            font-size: 1rem;
+        }
+        .inv-dashboard .card-body {
+            padding: 0.75rem;
+        }
+        .inv-dashboard .card-body h6 {
+            font-size: 0.72rem;
+        }
+        .inv-dashboard .card-body h3 {
+            font-size: 1.05rem;
+        }
+        .inv-dashboard .card-body small {
+            font-size: 0.65rem;
+        }
+        .inv-dashboard .badge {
+            font-size: 0.55rem;
+            padding: 2px 4px;
+        }
+        .inv-dashboard .table {
+            font-size: 0.78rem;
+        }
+        .inv-dashboard .sub-title {
+            font-size: 0.95rem;
+        }
+    }
+
+    /* ===== Tablet: 576px - 767px ===== */
+    @media (min-width: 576px) and (max-width: 767.98px) {
+        .inv-dashboard .page-header h2 {
+            font-size: 1.35rem;
+        }
+        .inv-dashboard .card-body h3 {
+            font-size: 1.2rem;
+        }
+        .inv-dashboard .card-body h6 {
+            font-size: 0.78rem;
+        }
+        .inv-dashboard .table {
+            font-size: 0.85rem;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
+<div class="inv-dashboard">
 
 <!-- Page Header -->
 <div class="row mb-3">
-    <div class="col">
+    <div class="col page-header">
         <h2><i class="fas fa-boxes"></i> Product & Inventory Intelligence Dashboard</h2>
         <p class="text-muted mb-0">Comprehensive overview of products, inventory health and stock analytics</p>
     </div>
@@ -19,12 +118,12 @@
 <!-- ==================== 1. INVENTORY KPIs SECTION ==================== -->
 <div class="row mb-2">
     <div class="col">
-        <h4><i class="fas fa-warehouse"></i> Inventory KPIs</h4>
+        <h4 class="section-title"><i class="fas fa-warehouse"></i> Inventory KPIs</h4>
     </div>
 </div>
 <div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card bg-primary text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-primary text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-cubes"></i> Total Products</h6>
                 <h3>{{ total_products|default:0|intcomma }}</h3>
@@ -32,8 +131,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-success text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-rupee-sign"></i> Total Stock Value</h6>
                 <h3>₹ {{ total_stock_value|default:0|floatformat:2|intcomma }}</h3>
@@ -41,8 +140,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-warning text-dark">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-warning text-dark h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-exclamation-triangle"></i> Low Stock Alerts</h6>
                 <h3>{{ low_stock_count|default:0|intcomma }}</h3>
@@ -50,8 +149,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-danger text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-times-circle"></i> Out of Stock</h6>
                 <h3>{{ out_of_stock_count|default:0|intcomma }}</h3>
@@ -64,12 +163,12 @@
 <!-- ==================== 2. PRODUCT CATEGORY ANALYSIS SECTION ==================== -->
 <div class="row mb-2">
     <div class="col">
-        <h4><i class="fas fa-tags"></i> Product Category Analysis</h4>
+        <h4 class="section-title"><i class="fas fa-tags"></i> Product Category Analysis</h4>
     </div>
 </div>
 <div class="row mb-3">
-    <div class="col-md-4">
-        <div class="card bg-primary text-white">
+    <div class="col-6 col-sm-6 col-md-4 kpi-col">
+        <div class="card bg-primary text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-layer-group"></i> Total Categories</h6>
                 <h3>{{ total_categories|default:0|intcomma }}</h3>
@@ -77,8 +176,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-violet text-white">
+    <div class="col-6 col-sm-6 col-md-4 kpi-col">
+        <div class="card bg-violet text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-sitemap"></i> Parent Categories</h6>
                 <h3>{{ parent_categories|default:0|intcomma }}</h3>
@@ -86,8 +185,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-orange text-white">
+    <div class="col-6 col-sm-6 col-md-4 kpi-col">
+        <div class="card bg-orange text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-project-diagram"></i> Sub Categories</h6>
                 <h3>{{ sub_categories|default:0|intcomma }}</h3>
@@ -100,61 +199,63 @@
 <!-- Category Breakdown Table -->
 <div class="row mb-2">
     <div class="col">
-        <h5><i class="fas fa-list"></i> Category-wise Product Distribution</h5>
+        <h5 class="sub-title"><i class="fas fa-list"></i> Category-wise Product Distribution</h5>
     </div>
 </div>
 <div class="row mb-4">
     <div class="col">
-        <table class="table table-hover font-weight-bold">
-            <thead class="thead-dark">
-                <tr>
-                    <th>#</th>
-                    <th>Category</th>
-                    <th class="text-right">Products</th>
-                    <th class="text-right">Total Stock</th>
-                    <th class="text-right">Stock Value</th>
-                    <th>Stock Health</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for cat in category_breakdown %}
-                <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ cat.name }}</td>
-                    <td class="text-right">{{ cat.product_count|intcomma }}</td>
-                    <td class="text-right">{{ cat.total_stock|intcomma }}</td>
-                    <td class="text-right">₹ {{ cat.stock_value|default:0|floatformat:2|intcomma }}</td>
-                    <td>
-                        {% if cat.health == "Critical" %}
-                            <span class="badge badge-danger">Critical</span>
-                        {% elif cat.health == "Warning" %}
-                            <span class="badge badge-warning">Warning</span>
-                        {% elif cat.health == "Healthy" %}
-                            <span class="badge badge-success">Healthy</span>
-                        {% else %}
-                            <span class="badge badge-secondary">{{ cat.health|default:"N/A" }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" class="text-center text-muted">No category data available</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover font-weight-bold">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Category</th>
+                        <th class="text-right">Products</th>
+                        <th class="text-right">Total Stock</th>
+                        <th class="text-right">Stock Value</th>
+                        <th>Stock Health</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cat in category_breakdown %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ cat.name }}</td>
+                        <td class="text-right">{{ cat.product_count|intcomma }}</td>
+                        <td class="text-right">{{ cat.total_stock|intcomma }}</td>
+                        <td class="text-right">₹ {{ cat.stock_value|default:0|floatformat:2|intcomma }}</td>
+                        <td>
+                            {% if cat.health == "Critical" %}
+                                <span class="badge badge-danger">Critical</span>
+                            {% elif cat.health == "Warning" %}
+                                <span class="badge badge-warning">Warning</span>
+                            {% elif cat.health == "Healthy" %}
+                                <span class="badge badge-success">Healthy</span>
+                            {% else %}
+                                <span class="badge badge-secondary">{{ cat.health|default:"N/A" }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No category data available</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <!-- ==================== 3. INVENTORY HEALTH SECTION ==================== -->
 <div class="row mb-2">
     <div class="col">
-        <h4><i class="fas fa-heartbeat"></i> Inventory Health</h4>
+        <h4 class="section-title"><i class="fas fa-heartbeat"></i> Inventory Health</h4>
     </div>
 </div>
 <div class="row mb-3">
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-success text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-check-circle"></i> Healthy Stock</h6>
                 <h3>{{ healthy_stock_count|default:0|intcomma }}</h3>
@@ -162,8 +263,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-warning text-dark">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-warning text-dark h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-exclamation-circle"></i> Warning Stock</h6>
                 <h3>{{ warning_stock_count|default:0|intcomma }}</h3>
@@ -171,8 +272,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-danger text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-arrow-down"></i> Critical Stock</h6>
                 <h3>{{ critical_stock_count|default:0|intcomma }}</h3>
@@ -180,8 +281,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-violet text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-violet text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-box"></i> Total Stock Units</h6>
                 <h3>{{ total_stock_units|default:0|intcomma }}</h3>
@@ -194,71 +295,73 @@
 <!-- Low Stock Products Table -->
 <div class="row mb-2">
     <div class="col">
-        <h5><i class="fas fa-exclamation-triangle text-warning"></i> Low Stock & Critical Products</h5>
+        <h5 class="sub-title"><i class="fas fa-exclamation-triangle text-warning"></i> Low Stock & Critical Products</h5>
     </div>
 </div>
 <div class="row mb-4">
     <div class="col">
-        <table class="table table-hover font-weight-bold">
-            <thead class="thead-dark">
-                <tr>
-                    <th>#</th>
-                    <th>Product</th>
-                    <th>Category</th>
-                    <th class="text-right">Current Stock</th>
-                    <th class="text-right">Alert Level</th>
-                    <th class="text-right">Deficit</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for product in low_stock_products %}
-                <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ product.name }}</td>
-                    <td>{{ product.category|default:"-" }}</td>
-                    <td class="text-right">
-                        {% if product.current_stock <= 0 %}
-                            <span class="text-danger">{{ product.current_stock }}</span>
-                        {% else %}
-                            {{ product.current_stock }}
-                        {% endif %}
-                    </td>
-                    <td class="text-right">{{ product.alert_level }}</td>
-                    <td class="text-right">
-                        <span class="text-danger">{{ product.deficit }}</span>
-                    </td>
-                    <td>
-                        {% if product.status == "Out of Stock" %}
-                            <span class="badge badge-danger">Out of Stock</span>
-                        {% elif product.status == "Critical" %}
-                            <span class="badge badge-danger">Critical</span>
-                        {% elif product.status == "Warning" %}
-                            <span class="badge badge-warning">Warning</span>
-                        {% else %}
-                            <span class="badge badge-secondary">{{ product.status }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="7" class="text-center text-muted">All products are well-stocked</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover font-weight-bold">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th class="text-right">Current Stock</th>
+                        <th class="text-right">Alert Level</th>
+                        <th class="text-right">Deficit</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in low_stock_products %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.category|default:"-" }}</td>
+                        <td class="text-right">
+                            {% if product.current_stock <= 0 %}
+                                <span class="text-danger">{{ product.current_stock }}</span>
+                            {% else %}
+                                {{ product.current_stock }}
+                            {% endif %}
+                        </td>
+                        <td class="text-right">{{ product.alert_level }}</td>
+                        <td class="text-right">
+                            <span class="text-danger">{{ product.deficit }}</span>
+                        </td>
+                        <td>
+                            {% if product.status == "Out of Stock" %}
+                                <span class="badge badge-danger">Out of Stock</span>
+                            {% elif product.status == "Critical" %}
+                                <span class="badge badge-danger">Critical</span>
+                            {% elif product.status == "Warning" %}
+                                <span class="badge badge-warning">Warning</span>
+                            {% else %}
+                                <span class="badge badge-secondary">{{ product.status }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">All products are well-stocked</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <!-- ==================== 4. PRODUCT PERFORMANCE SECTION ==================== -->
 <div class="row mb-2">
     <div class="col">
-        <h4><i class="fas fa-chart-bar"></i> Product Performance</h4>
+        <h4 class="section-title"><i class="fas fa-chart-bar"></i> Product Performance</h4>
     </div>
 </div>
 <div class="row mb-3">
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-success text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-fire"></i> Top Selling Product</h6>
                 <h3>{{ top_selling_product|default:"N/A" }}</h3>
@@ -266,8 +369,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-danger text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-undo"></i> Most Returned Product</h6>
                 <h3>{{ most_returned_product|default:"N/A" }}</h3>
@@ -275,8 +378,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-primary text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-primary text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-shopping-cart"></i> Total Units Sold</h6>
                 <h3>{{ total_units_sold|default:0|intcomma }}</h3>
@@ -284,8 +387,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-orange text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-orange text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-exchange-alt"></i> Total Stock Movements</h6>
                 <h3>{{ total_stock_movements|default:0|intcomma }}</h3>
@@ -298,59 +401,61 @@
 <!-- Top Selling Products Table -->
 <div class="row mb-2">
     <div class="col">
-        <h5><i class="fas fa-trophy"></i> Top 10 Products by Sales Volume</h5>
+        <h5 class="sub-title"><i class="fas fa-trophy"></i> Top 10 Products by Sales Volume</h5>
     </div>
 </div>
 <div class="row mb-4">
     <div class="col">
-        <table class="table table-hover font-weight-bold">
-            <thead class="thead-dark">
-                <tr>
-                    <th>#</th>
-                    <th>Product</th>
-                    <th>Category</th>
-                    <th class="text-right">Units Sold</th>
-                    <th class="text-right">Units Returned</th>
-                    <th class="text-right">Net Sales</th>
-                    <th class="text-right">Current Stock</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for product in top_selling_products %}
-                <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ product.name }}</td>
-                    <td>{{ product.category|default:"-" }}</td>
-                    <td class="text-right">{{ product.units_sold|intcomma }}</td>
-                    <td class="text-right">{{ product.units_returned|intcomma }}</td>
-                    <td class="text-right">{{ product.net_sales|intcomma }}</td>
-                    <td class="text-right">
-                        {% if product.current_stock <= 0 %}
-                            <span class="text-danger">{{ product.current_stock }}</span>
-                        {% else %}
-                            {{ product.current_stock }}
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="7" class="text-center text-muted">No sales data available</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover font-weight-bold">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th class="text-right">Units Sold</th>
+                        <th class="text-right">Units Returned</th>
+                        <th class="text-right">Net Sales</th>
+                        <th class="text-right">Current Stock</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in top_selling_products %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.category|default:"-" }}</td>
+                        <td class="text-right">{{ product.units_sold|intcomma }}</td>
+                        <td class="text-right">{{ product.units_returned|intcomma }}</td>
+                        <td class="text-right">{{ product.net_sales|intcomma }}</td>
+                        <td class="text-right">
+                            {% if product.current_stock <= 0 %}
+                                <span class="text-danger">{{ product.current_stock }}</span>
+                            {% else %}
+                                {{ product.current_stock }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">No sales data available</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <!-- ==================== 5. STOCK MOVEMENT TRENDS SECTION ==================== -->
 <div class="row mb-2">
     <div class="col">
-        <h4><i class="fas fa-exchange-alt"></i> Stock Movement Trends</h4>
+        <h4 class="section-title"><i class="fas fa-exchange-alt"></i> Stock Movement Trends</h4>
     </div>
 </div>
 <div class="row mb-3">
-    <div class="col-md-3">
-        <div class="card bg-primary text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-primary text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-arrow-circle-down"></i> Total Purchased</h6>
                 <h3>{{ total_purchased_units|default:0|intcomma }}</h3>
@@ -358,8 +463,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-success text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-industry"></i> Total Produced</h6>
                 <h3>{{ total_produced_units|default:0|intcomma }}</h3>
@@ -367,8 +472,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-danger text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-arrow-circle-up"></i> Total Sold</h6>
                 <h3>{{ total_sold_units|default:0|intcomma }}</h3>
@@ -376,8 +481,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-orange text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-orange text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-undo-alt"></i> Total Returned</h6>
                 <h3>{{ total_returned_units|default:0|intcomma }}</h3>
@@ -390,59 +495,61 @@
 <!-- Monthly Stock Movement Table -->
 <div class="row mb-2">
     <div class="col">
-        <h5><i class="fas fa-calendar-alt"></i> Monthly Stock Movement</h5>
+        <h5 class="sub-title"><i class="fas fa-calendar-alt"></i> Monthly Stock Movement</h5>
     </div>
 </div>
 <div class="row mb-4">
     <div class="col">
-        <table class="table table-hover font-weight-bold">
-            <thead class="thead-dark">
-                <tr>
-                    <th>#</th>
-                    <th>Month</th>
-                    <th class="text-right">Purchased</th>
-                    <th class="text-right">Produced</th>
-                    <th class="text-right">Sold</th>
-                    <th class="text-right">Returned</th>
-                    <th class="text-right">Net Change</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for month in monthly_stock_trend %}
-                <tr>
-                    <td>{{ forloop.counter }}</td>
-                    <td>{{ month.name }}</td>
-                    <td class="text-right">{{ month.purchased|intcomma }}</td>
-                    <td class="text-right">{{ month.produced|intcomma }}</td>
-                    <td class="text-right">{{ month.sold|intcomma }}</td>
-                    <td class="text-right">{{ month.returned|intcomma }}</td>
-                    <td class="text-right">
-                        {% if month.net_change >= 0 %}
-                            <span class="text-success">+{{ month.net_change|intcomma }}</span>
-                        {% else %}
-                            <span class="text-danger">{{ month.net_change|intcomma }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="7" class="text-center text-muted">No movement data available</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover font-weight-bold">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Month</th>
+                        <th class="text-right">Purchased</th>
+                        <th class="text-right">Produced</th>
+                        <th class="text-right">Sold</th>
+                        <th class="text-right">Returned</th>
+                        <th class="text-right">Net Change</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for month in monthly_stock_trend %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ month.name }}</td>
+                        <td class="text-right">{{ month.purchased|intcomma }}</td>
+                        <td class="text-right">{{ month.produced|intcomma }}</td>
+                        <td class="text-right">{{ month.sold|intcomma }}</td>
+                        <td class="text-right">{{ month.returned|intcomma }}</td>
+                        <td class="text-right">
+                            {% if month.net_change >= 0 %}
+                                <span class="text-success">+{{ month.net_change|intcomma }}</span>
+                            {% else %}
+                                <span class="text-danger">{{ month.net_change|intcomma }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">No movement data available</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <!-- ==================== 6. PRODUCT VALUATION SECTION ==================== -->
 <div class="row mb-2">
     <div class="col">
-        <h4><i class="fas fa-money-bill-wave"></i> Product Valuation</h4>
+        <h4 class="section-title"><i class="fas fa-money-bill-wave"></i> Product Valuation</h4>
     </div>
 </div>
 <div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-success text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-arrow-up"></i> Highest Value Product</h6>
                 <h3>{{ highest_value_product|default:"N/A" }}</h3>
@@ -450,8 +557,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-violet text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-violet text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-calculator"></i> Average Product Rate</h6>
                 <h3>₹ {{ avg_product_rate|default:0|floatformat:2|intcomma }}</h3>
@@ -459,8 +566,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-primary text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-primary text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-percent"></i> Average GST %</h6>
                 <h3>{{ avg_gst_percentage|default:0|floatformat:1 }}%</h3>
@@ -468,8 +575,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-orange text-white">
+    <div class="col-6 col-sm-6 col-md-3 kpi-col">
+        <div class="card bg-orange text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-tag"></i> Average Discount</h6>
                 <h3>{{ avg_discount|default:0|floatformat:1 }}%</h3>
@@ -479,4 +586,5 @@
     </div>
 </div>
 
+</div><!-- /.inv-dashboard -->
 {% endblock %}
