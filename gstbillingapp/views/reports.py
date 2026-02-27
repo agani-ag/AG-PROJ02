@@ -1282,47 +1282,53 @@ def overdue_report_api(request):
     markdown_text = None
     if include_markdown:
         lines = []
-        lines.append(f'📋 *Overdue Report*')
-        lines.append(f'📅 Date: `{today.strftime("%Y-%m-%d")}`')
-        lines.append(f'⏳ Overdue Threshold: `{selected_days} days`')
-        lines.append('')
-        lines.append(f'💰 *Grand Total Overdue:* `₹{grand_total_overdue:,.2f}`')
-        lines.append(f'👥 Total Customers: `{grand_actual_total_customers}`')
-        lines.append(f'⚠️ Overdue Customers: `{grand_total_customers}`')
-        lines.append(f'🏢 Users: `{len(results)}`')
+        # ── Header ──
+        lines.append('📋  *OVERDUE REPORT*')
+        lines.append(f'📅  {_escape_md(today.strftime("%d %b %Y"))} \\| ⏳ {selected_days} Days')
         lines.append('')
 
         if not_found_ids:
-            lines.append(f'❌ Not Found User IDs: `{", ".join(str(i) for i in not_found_ids)}`')
+            lines.append(f'❌  Not Found IDs: {_escape_md(", ".join(str(i) for i in not_found_ids))}')
             lines.append('')
 
+        # ── Per-User Sections ──
         for r in results:
             u = r['user']
             biz_title = u.get('business_title', '') or u.get('username', '')
-            lines.append(f'━━━━━━━━━━━━━━━━━━━━━━━━')
-            lines.append(f'🏢 *{_escape_md(biz_title)}*')
+            lines.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
+            lines.append(f'🏢  *{_escape_md(biz_title)}*')
             if u.get('business_phone'):
-                lines.append(f'📞 `{u["business_phone"]}`')
+                lines.append(f'📞  {_escape_md(u["business_phone"])}')
             if u.get('business_gst'):
-                lines.append(f'🔖 GST: `{u["business_gst"]}`')
-            lines.append(f'👥 Total Customers: `{r["actual_total_customers"]}`')
-            lines.append(f'⚠️ Overdue Customers: `{r["overdue_customers"]}`')
-            lines.append(f'💰 Total Overdue: `₹{r["total_overdue"]:,.2f}`')
+                lines.append(f'🔖  {_escape_md(u["business_gst"])}')
+
+            user_overdue_str = _escape_md(f'{r["total_overdue"]:,.2f}')           
+            lines.append(f'👥  Total Customers: *{r["actual_total_customers"]}*')
+            lines.append(f'⚠️  Overdue Customers: *{r["overdue_customers"]}*')
+            lines.append(f'💰  Total Overdue: *Rs\\.{user_overdue_str}*')
+            lines.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
             lines.append('')
 
             if r['customers']:
                 for idx, c in enumerate(r['customers'], 1):
                     cname = _escape_md(c['customer_name'])
-                    amt = f'₹{c["overdue_amount"]:,.2f}'
-                    lines.append(f'{idx}\\. *{cname}*')
-                    lines.append(f'   📞 `{c.get("phone", "") or "-"}`  💰 `{amt}`')
+                    phone = c.get('phone', False)
+                    amt = f'Rs.{c["overdue_amount"]:,.2f}'
+                    lines.append(f'{_escape_md(str(idx))}\\. *{cname}*')
+                    if phone:
+                        lines.append(f'    📞  *{_escape_md(phone)}*')
+                    lines.append(f'    💰  *{_escape_md(amt)}*')
+                    lines.append('')
+            else:
+                lines.append('✅ _No overdue customers_')
                 lines.append('')
 
-        lines.append(f'━━━━━━━━━━━━━━━━━━━━━━━━')
-        lines.append(f'📊 *Summary*')
-        lines.append(f'Grand Total Overdue: `₹{grand_total_overdue:,.2f}`')
-        lines.append(f'Total Customers: `{grand_actual_total_customers}`')
-        lines.append(f'Overdue Customers: `{grand_total_customers}`')
+            lines.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
+            lines.append(f'💰  Total Overdue: *Rs\\.{user_overdue_str}*')
+            lines.append('')
+
+        # ── Footer ──
+        lines.append(f'🦀  _Crab AI \\| {_escape_md(today.strftime("%d %b %Y"))}_')
 
         markdown_text = '\n'.join(lines)
 
