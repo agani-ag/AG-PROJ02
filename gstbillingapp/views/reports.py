@@ -1106,6 +1106,17 @@ def overdue_report(request):
     return render(request, 'reports/overdue_report.html', context)
 
 
+def _escape_md(text):
+    """Escape special characters for Telegram MarkdownV2 format."""
+    if not text:
+        return ''
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    escaped = str(text)
+    for ch in special_chars:
+        escaped = escaped.replace(ch, f'\\{ch}')
+    return escaped
+
+
 @csrf_exempt
 def overdue_report_api(request):
     """
@@ -1153,6 +1164,18 @@ def overdue_report_api(request):
 
     if selected_days not in day_options:
         selected_days = 90
+
+    # --- Parse markdown flag ---
+    include_markdown = False
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            include_markdown = bool(body.get('markdown', False))
+        except (json.JSONDecodeError, ValueError):
+            pass
+    else:
+        md_raw = request.GET.get('markdown', '').lower()
+        include_markdown = md_raw in ('true', '1', 'yes')
 
     # --- Fetch valid users ---
     users = User.objects.filter(pk__in=user_ids)
@@ -1255,7 +1278,55 @@ def overdue_report_api(request):
             'customers': customer_rows,
         })
 
-    return JsonResponse({
+    # --- Build Telegram Markdown if requested ---
+    markdown_text = None
+    if include_markdown:
+        lines = []
+        lines.append(f'📋 *Overdue Report*')
+        lines.append(f'📅 Date: `{today.strftime("%Y-%m-%d")}`')
+        lines.append(f'⏳ Overdue Threshold: `{selected_days} days`')
+        lines.append('')
+        lines.append(f'💰 *Grand Total Overdue:* `₹{grand_total_overdue:,.2f}`')
+        lines.append(f'👥 Total Customers: `{grand_actual_total_customers}`')
+        lines.append(f'⚠️ Overdue Customers: `{grand_total_customers}`')
+        lines.append(f'🏢 Users: `{len(results)}`')
+        lines.append('')
+
+        if not_found_ids:
+            lines.append(f'❌ Not Found User IDs: `{", ".join(str(i) for i in not_found_ids)}`')
+            lines.append('')
+
+        for r in results:
+            u = r['user']
+            biz_title = u.get('business_title', '') or u.get('username', '')
+            lines.append(f'━━━━━━━━━━━━━━━━━━━━━━━━')
+            lines.append(f'🏢 *{_escape_md(biz_title)}*')
+            if u.get('business_phone'):
+                lines.append(f'📞 `{u["business_phone"]}`')
+            if u.get('business_gst'):
+                lines.append(f'🔖 GST: `{u["business_gst"]}`')
+            lines.append(f'👥 Total Customers: `{r["actual_total_customers"]}`')
+            lines.append(f'⚠️ Overdue Customers: `{r["overdue_customers"]}`')
+            lines.append(f'💰 Total Overdue: `₹{r["total_overdue"]:,.2f}`')
+            lines.append('')
+
+            if r['customers']:
+                for idx, c in enumerate(r['customers'], 1):
+                    cname = _escape_md(c['customer_name'])
+                    amt = f'₹{c["overdue_amount"]:,.2f}'
+                    lines.append(f'{idx}\\. *{cname}*')
+                    lines.append(f'   📞 `{c.get("phone", "") or "-"}`  💰 `{amt}`')
+                lines.append('')
+
+        lines.append(f'━━━━━━━━━━━━━━━━━━━━━━━━')
+        lines.append(f'📊 *Summary*')
+        lines.append(f'Grand Total Overdue: `₹{grand_total_overdue:,.2f}`')
+        lines.append(f'Total Customers: `{grand_actual_total_customers}`')
+        lines.append(f'Overdue Customers: `{grand_total_customers}`')
+
+        markdown_text = '\n'.join(lines)
+
+    response_data = {
         'status': 'success',
         'report_date': today.strftime('%Y-%m-%d'),
         'selected_days': selected_days,
@@ -1266,7 +1337,12 @@ def overdue_report_api(request):
         'users_count': len(results),
         'not_found_user_ids': not_found_ids,
         'results': results,
-    })
+    }
+
+    if include_markdown:
+        return JsonResponse({'status': 'success', 'markdown': markdown_text})
+
+    return JsonResponse(response_data)
 
 
 # =============================================================================
