@@ -409,7 +409,10 @@
     </div>
 
     <!-- =============== ROW 7: Full Customer Table =============== -->
-    <p class="section-title"><i class="fas fa-table mr-1"></i> Complete Customer Analysis (Ranked by Health Score)</p>
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-1">
+        <p class="section-title mb-0"><i class="fas fa-table mr-1"></i> Complete Customer Analysis (Ranked by Health Score)</p>
+        <button class="btn btn-sm btn-outline-dark" onclick="printTable('customerTable','Customer Intelligence Analysis')"><i class="fas fa-print mr-1"></i>Print</button>
+    </div>
 
     <!-- Filter Bar -->
     <div class="filter-bar d-flex flex-wrap align-items-center">
@@ -571,6 +574,7 @@
 
 {% block includejs %}
 <script>
+var _rptDate = '{{ report_date|date:"d M Y" }}';
 (function() {
     const searchInput = document.getElementById('searchInput');
     const filterSegment = document.getElementById('filterSegment');
@@ -612,5 +616,57 @@
         applyFilters();
     };
 })();
+
+function printTable(tableId, title) {
+    var reportDate = _rptDate;
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var clone = table.cloneNode(true);
+    // Remove hidden (filtered) rows from print & reset sticky
+    clone.querySelectorAll('tr[style*="display: none"]').forEach(function(r){ r.remove(); });
+    clone.querySelectorAll('.sticky-col, .sticky-col-2').forEach(function(el) {
+        el.style.position = 'static';
+    });
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>' + title + '</title>');
+    win.document.write('<style>');
+    win.document.write('body{font-family:Arial,Helvetica,sans-serif;margin:20px;color:#333;}');
+    win.document.write('.print-header{text-align:center;margin-bottom:18px;}');
+    win.document.write('.print-header h2{margin:0 0 4px;font-size:1.3rem;}');
+    win.document.write('.print-header p{margin:0;font-size:.82rem;color:#666;}');
+    win.document.write('table{width:100%;border-collapse:collapse;font-size:.72rem;}');
+    win.document.write('th,td{border:1px solid #aaa;padding:3px 5px;text-align:right;white-space:nowrap;}');
+    win.document.write('th{background:#343a40;color:#fff;font-size:.68rem;text-transform:uppercase;}');
+    win.document.write('td:nth-child(2){text-align:left;}');
+    win.document.write('th:nth-child(2){text-align:left;}');
+    win.document.write('tr:nth-child(even){background:#f9f9f9;}');
+    win.document.write('.badge{padding:2px 6px;border-radius:3px;font-size:.6rem;font-weight:600;color:#fff;}');
+    win.document.write('.badge-star{background:#ffc107;color:#333;}');
+    win.document.write('.badge-loyal{background:#28a745;}');
+    win.document.write('.badge-promising{background:#17a2b8;}');
+    win.document.write('.badge-atrisk{background:#fd7e14;}');
+    win.document.write('.badge-critical{background:#dc3545;}');
+    win.document.write('.text-danger{color:#dc3545;}');
+    win.document.write('.text-success{color:#28a745;}');
+    win.document.write('.font-weight-bold{font-weight:700;}');
+    win.document.write('.health-bar{height:6px;border-radius:3px;background:#ddd;overflow:hidden;min-width:50px;}');
+    win.document.write('.health-fill{height:100%;border-radius:3px;}');
+    win.document.write('.hf-star{background:#ffc107;}.hf-loyal{background:#28a745;}.hf-promising{background:#17a2b8;}.hf-atrisk{background:#fd7e14;}.hf-critical{background:#dc3545;}');
+    win.document.write('.score-pill{display:inline-block;padding:1px 4px;border-radius:8px;font-size:.58rem;font-weight:600;}');
+    win.document.write('.sp-r{background:#e3f2fd;color:#1565c0;}.sp-f{background:#e8f5e9;color:#2e7d32;}.sp-m{background:#fff8e1;color:#f57f17;}.sp-p{background:#fce4ec;color:#c62828;}');
+    win.document.write('.act-active{color:#28a745;font-weight:700;}.act-semi{color:#17a2b8;}.act-dormant{color:#fd7e14;}.act-inactive{color:#dc3545;}');
+    win.document.write('.trend-growing{color:#28a745;}.trend-stable{color:#6c757d;}.trend-declining{color:#dc3545;}');
+    win.document.write('.pmt-excellent{color:#28a745;}.pmt-good{color:#20c997;}.pmt-fair{color:#ffc107;}.pmt-poor{color:#fd7e14;}.pmt-critical{color:#dc3545;}');
+    win.document.write('@media print{body{margin:10px;}}');
+    win.document.write('</style></head><body>');
+    win.document.write('<div class="print-header">');
+    win.document.write('<h2>' + title + '</h2>');
+    win.document.write('<p>Report Date: ' + reportDate + '</p>');
+    win.document.write('</div>');
+    win.document.write(clone.outerHTML);
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 300);
+}
 </script>
 {% endblock %}
