@@ -702,38 +702,41 @@ def ar_aging_report(request):
                     'age_days': max(age_days, 0),
                 })
 
-        # Sort oldest first and distribute outstanding
+        # FIFO: payments settle oldest invoices first
+        # Sort oldest first, then apply settlements to oldest purchases
         purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
 
-        # Allocate outstanding to oldest entries first (FIFO-like)
-        remaining = outstanding
+        remaining_to_settle = total_settled
         bucket_amounts = [0.0] * len(aging_buckets)
 
         for entry in purchase_entries:
-            if remaining <= 0:
-                break
-            alloc = min(entry['amount'], remaining)
-            remaining -= alloc
+            if remaining_to_settle >= entry['amount']:
+                # This purchase is fully paid off
+                remaining_to_settle -= entry['amount']
+                continue
+            elif remaining_to_settle > 0:
+                # Partially paid — only the unpaid portion goes into bucket
+                unpaid = entry['amount'] - remaining_to_settle
+                remaining_to_settle = 0
+            else:
+                # Fully unpaid
+                unpaid = entry['amount']
 
-            # Find which bucket this belongs to
+            # Place unpaid amount in the correct aging bucket
             for i, bucket in enumerate(aging_buckets):
                 if bucket['min_days'] <= entry['age_days'] < bucket['max_days']:
-                    bucket_amounts[i] += alloc
+                    bucket_amounts[i] += unpaid
                     break
             else:
                 # Beyond 450 days, put in last bucket
-                bucket_amounts[-1] += alloc
-
-        # If remaining (unassigned), put in first bucket
-        if remaining > 0:
-            bucket_amounts[0] += remaining
+                bucket_amounts[-1] += unpaid
 
         # Update totals
         for i in range(len(aging_buckets)):
             bucket_totals[i] += bucket_amounts[i]
 
-        # Overdue = anything beyond 30 days
-        overdue_amount = sum(bucket_amounts[2:])  # from 30-45 onwards
+        # Overdue = anything beyond 90 days
+        overdue_amount = sum(bucket_amounts[6:])  # from 90-105 onwards
         total_overdue += overdue_amount
 
         # Critical = beyond 90 days
@@ -801,9 +804,9 @@ def credit_aging_report(request):
     user_profile = UserProfile.objects.filter(user=user).first()
     today = date.today()
 
-    # Default credit limit (can be customized per customer if field added)
+    # Default credit limit & credit period (change these values as needed)
     DEFAULT_CREDIT_LIMIT = 50000.0
-    DEFAULT_CREDIT_PERIOD_DAYS = 30  # Days allowed for payment
+    DEFAULT_CREDIT_PERIOD_DAYS = 90  # Days allowed for payment
 
     # Aging buckets
     aging_buckets = []
@@ -865,45 +868,48 @@ def credit_aging_report(request):
                     'age_days': max(age_days, 0),
                 })
 
+        # FIFO: payments settle oldest invoices first
         purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
 
-        # Distribute outstanding to aging buckets (oldest first)
-        remaining = max(outstanding, 0)
+        remaining_to_settle = total_settled
         bucket_amounts = [0.0] * len(aging_buckets)
+        unpaid_entries = []  # Track entries that still have unpaid amounts
 
         for entry in purchase_entries:
-            if remaining <= 0:
-                break
-            alloc = min(entry['amount'], remaining)
-            remaining -= alloc
+            if remaining_to_settle >= entry['amount']:
+                remaining_to_settle -= entry['amount']
+                continue
+            elif remaining_to_settle > 0:
+                unpaid = entry['amount'] - remaining_to_settle
+                remaining_to_settle = 0
+            else:
+                unpaid = entry['amount']
+
+            unpaid_entries.append({'amount': unpaid, 'age_days': entry['age_days']})
 
             for i, bucket in enumerate(aging_buckets):
                 if bucket['min_days'] <= entry['age_days'] < bucket['max_days']:
-                    bucket_amounts[i] += alloc
+                    bucket_amounts[i] += unpaid
                     break
             else:
-                bucket_amounts[-1] += alloc
-
-        if remaining > 0:
-            bucket_amounts[0] += remaining
+                bucket_amounts[-1] += unpaid
 
         for i in range(len(aging_buckets)):
             bucket_totals[i] += bucket_amounts[i]
 
-        # Overdue beyond credit period (> DEFAULT_CREDIT_PERIOD_DAYS)
-        overdue_beyond_credit = 0.0
-        credit_bucket_idx = DEFAULT_CREDIT_PERIOD_DAYS // step  # Which bucket credit period falls into
-        for i in range(credit_bucket_idx, len(bucket_amounts)):
-            overdue_beyond_credit += bucket_amounts[i]
+        # Overdue = outstanding beyond credit period
+        overdue_bucket_idx = DEFAULT_CREDIT_PERIOD_DAYS // step
+        overdue_beyond_credit = sum(bucket_amounts[overdue_bucket_idx:])
         total_overdue_beyond_credit += overdue_beyond_credit
 
-        # Bad debt risk = outstanding > 180 days
-        bad_debt_amount = sum(bucket_amounts[12:])  # From 180-195 onwards
+        # Bad debt risk = outstanding > 2x credit period
+        bad_debt_bucket_idx = (DEFAULT_CREDIT_PERIOD_DAYS * 2) // step
+        bad_debt_amount = sum(bucket_amounts[bad_debt_bucket_idx:])
         total_bad_debt_risk += bad_debt_amount
 
-        # Find max age of any outstanding
+        # Find max age of any unpaid outstanding entry
         max_age_days = 0
-        for entry in purchase_entries:
+        for entry in unpaid_entries:
             if entry['age_days'] > max_age_days:
                 max_age_days = entry['age_days']
 
@@ -918,7 +924,7 @@ def credit_aging_report(request):
             credit_status = "Healthy"
 
         # Risk assessment based on aging + utilization
-        if bad_debt_amount > 0 or max_age_days > 180:
+        if bad_debt_amount > 0 or max_age_days > (DEFAULT_CREDIT_PERIOD_DAYS * 2):
             risk_level = "Critical"
         elif overdue_beyond_credit > 0 and utilization_pct > 80:
             risk_level = "High"

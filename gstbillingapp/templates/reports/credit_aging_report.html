@@ -416,6 +416,7 @@
                         {% for bucket in aging_buckets %}
                         <th style="min-width:80px;">{{ bucket.label }}</th>
                         {% endfor %}
+                        <th style="min-width:90px;">Overdue</th>
                         <th style="min-width:80px;">Risk</th>
                     </tr>
                 </thead>
@@ -434,6 +435,9 @@
                             {% if amount > 0 %}₹ {{ amount|floatformat:0|intcomma }}{% else %}-{% endif %}
                         </td>
                         {% endfor %}
+                        <td class="text-danger font-weight-bold">
+                            {% if customer.overdue_beyond_credit > 0 %}₹ {{ customer.overdue_beyond_credit|floatformat:2|intcomma }}{% else %}-{% endif %}
+                        </td>
                         <td class="text-center">
                             {% if customer.risk_level == "Critical" %}
                                 <span class="badge badge-danger">Critical</span>
@@ -448,7 +452,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{{ aging_buckets|length|add:4 }}" class="text-center text-muted">No credit aging data available</td>
+                        <td colspan="{{ aging_buckets|length|add:5 }}" class="text-center text-muted">No credit aging data available</td>
                     </tr>
                     {% endfor %}
 
@@ -463,6 +467,7 @@
                             {% if total > 0 %}₹ {{ total|floatformat:0|intcomma }}{% else %}-{% endif %}
                         </td>
                         {% endfor %}
+                        <td class="text-danger font-weight-bold">₹ {{ total_overdue_beyond_credit|floatformat:2|intcomma }}</td>
                         <td></td>
                     </tr>
                     {% endif %}
@@ -526,7 +531,7 @@ function printTable(tableId, title) {
     // creditAgingTable layout: [#, Customer, Total O/S, ...30 buckets..., Risk]
     // We treat first 3 as frozen, last 1 (Risk) as frozen, middle ones are bucket cols
     var FROZEN_LEFT = 3;  // #, Customer, Total O/S
-    var FROZEN_RIGHT = 1; // Risk
+    var FROZEN_RIGHT = 2; // Overdue, Risk
     var bucketCount = totalCols - FROZEN_LEFT - FROZEN_RIGHT;
 
     if (tableId === 'creditAgingTable' && bucketCount > 12) {
@@ -561,9 +566,11 @@ function printTable(tableId, title) {
             for (var b = startBkt; b < endBkt; b++) {
                 win.document.write('<th>' + headerRow.children[FROZEN_LEFT + b].innerHTML + '</th>');
             }
-            // Risk column on last page
+            // Overdue + Risk columns on last page
             if (isLastPage) {
-                win.document.write('<th>' + headerRow.children[totalCols - 1].innerHTML + '</th>');
+                for (var r = 0; r < FROZEN_RIGHT; r++) {
+                    win.document.write('<th>' + headerRow.children[totalCols - FROZEN_RIGHT + r].innerHTML + '</th>');
+                }
             }
             win.document.write('</tr></thead><tbody>');
 
@@ -582,10 +589,12 @@ function printTable(tableId, title) {
                     var cls = cell ? cell.className : '';
                     win.document.write('<td class="' + cls + '">' + (cell ? cell.innerHTML : '-') + '</td>');
                 }
-                // Risk column on last page
+                // Overdue + Risk columns on last page
                 if (isLastPage) {
-                    var riskCell = cells[totalCols - 1];
-                    win.document.write('<td>' + (riskCell ? riskCell.innerHTML : '') + '</td>');
+                    for (var r = 0; r < FROZEN_RIGHT; r++) {
+                        var rCell = cells[totalCols - FROZEN_RIGHT + r];
+                        win.document.write('<td>' + (rCell ? rCell.innerHTML : '') + '</td>');
+                    }
                 }
                 win.document.write('</tr>');
             });
