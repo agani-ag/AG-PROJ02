@@ -38,7 +38,6 @@ def book_logs(request, book_id):
     book_logs = BookLog.objects.filter(parent_book=book).order_by('-date')
     context['book'] = book
     context['user_profile'] = get_object_or_404(UserProfile, user=request.user)
-    context['book_logs'] = book_logs
     context['nav_hide'] = request.GET.get('nav') or ''
 
     totals = book_logs.aggregate(
@@ -60,7 +59,17 @@ def book_logs(request, book_id):
     context['total_paid'] = abs(total_paid)
     context['total_returned'] = abs(total_returned)
     context['total_others'] = abs(total_others)
-
+    if request.GET.get('filter') == 'paid':
+        book_logs = book_logs.filter(change_type=0)
+    elif request.GET.get('filter') == 'purchased':
+        book_logs = book_logs.filter(change_type=1)
+    elif request.GET.get('filter') == 'returned':
+        book_logs = book_logs.filter(change_type=2)
+    elif request.GET.get('filter') == 'others':
+        book_logs = book_logs.filter(change_type=3)
+    else:
+        book_logs = book_logs.filter(Q(change_type=0) | Q(change_type=1) | Q(change_type=2) | Q(change_type=3))
+    context['book_logs'] = book_logs
     return render(request, 'books/book_logs.html', context)
 
 

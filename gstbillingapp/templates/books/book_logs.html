@@ -10,8 +10,8 @@
 	<div class="col">
 		<h3>Customer: <span class="text-primary">{{book.customer.customer_name}}</span></h3>
         <h3>Current Balance: {% if book.current_balance > 0 %}
-            <span class="text-success">{{ book.current_balance|floatformat:2 }}</span>
-            {% else %}<span class="text-danger">{{ book.current_balance|floatformat:2 }}</span>{% endif %}</h3>
+            <a class="text-success" href="?filter=balance">{{ book.current_balance|floatformat:2 }}</a>
+            {% else %}<a class="text-danger" href="?filter=balance">{{ book.current_balance|floatformat:2 }}</a>{% endif %}</h3>
 
 	</div>
 	<div class="col text-right">
@@ -32,6 +32,7 @@
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-receipt"></i> Total Sales</h6>
                 <h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
+                <a href="?filter=purchased" class="stretched-link"></a>
             </div>
         </div>
     </div>
@@ -40,6 +41,7 @@
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-circle-check"></i> Total Paid</h6>
                 <h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
+                <a href="?filter=paid" class="stretched-link"></a>
             </div>
         </div>
     </div>
@@ -48,6 +50,7 @@
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
                 <h3>₹ {{ total_returned | default:0 | floatformat:2 | intcomma }}</h3>
+                <a href="?filter=returned" class="stretched-link"></a>
             </div>
         </div>
     </div>
@@ -56,6 +59,7 @@
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
                 <h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
+                <a href="?filter=others" class="stretched-link"></a>
             </div>
         </div>
     </div>
@@ -87,7 +91,9 @@
                 <tr class="table-secondary">
             {% endif %}
 
-			<td>{{item.date|localtime|date:"M d, Y h:i A"}}</td>
+			<td>{{item.date|localtime|date:"M d, Y h:i A"}}
+                <br><small class="text-muted">{{ item.date|naturaltime }}</small>
+            </td>
 			<td>{{item.get_change_type_display}}</td>
 			<td>{{item.change}}</td>
 			<td>{{item.description}}</td>
