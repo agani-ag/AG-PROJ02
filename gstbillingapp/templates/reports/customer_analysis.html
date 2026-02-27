@@ -69,9 +69,13 @@
 .cust-analysis .table-sm th, .cust-analysis .table-sm td { padding: .35rem .45rem; font-size: .78rem; vertical-align: middle; white-space: nowrap; }
 .cust-analysis .table thead th { background: #343a40; color: #fff; position: sticky; top: 0; z-index: 2; border: none; font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
 .cust-analysis .rank-col { width: 36px; text-align: center; font-weight: 700; }
-.cust-analysis .sticky-col { position: sticky; left: 0; z-index: 1; background: inherit; }
-.cust-analysis .sticky-col-2 { position: sticky; left: 36px; z-index: 1; background: inherit; }
-.cust-analysis thead .sticky-col, .cust-analysis thead .sticky-col-2 { z-index: 3; }
+.cust-analysis .sticky-col { position: sticky; left: 0; z-index: 1; background: #fff; }
+.cust-analysis .sticky-col-2 { position: sticky; left: 36px; z-index: 1; background: #fff; }
+.cust-analysis thead .sticky-col, .cust-analysis thead .sticky-col-2 { z-index: 3; background: #343a40; }
+.cust-analysis .table-hover tbody tr:nth-child(even) .sticky-col,
+.cust-analysis .table-hover tbody tr:nth-child(even) .sticky-col-2 { background: #f8f9fa; }
+.cust-analysis .table-hover tbody tr:hover .sticky-col,
+.cust-analysis .table-hover tbody tr:hover .sticky-col-2 { background: #e9ecef; }
 
 /* Segment summary cards */
 .cust-analysis .seg-card { text-align: center; padding: .6rem; border-radius: .5rem; }
