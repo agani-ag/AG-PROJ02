@@ -398,38 +398,126 @@ function printTable(tableId, title) {
     clone.querySelectorAll('.sticky-col, .sticky-col-2').forEach(function(el) {
         el.style.position = 'static';
     });
+
+    /* --- Shared CSS --- */
+    var css = '';
+    css += '@page{size:A4 landscape;margin:6mm;}';
+    css += 'body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:6px;color:#333;}';
+    css += '.print-header{text-align:center;margin-bottom:6px;}';
+    css += '.print-header h2{margin:0 0 2px;font-size:1rem;}';
+    css += '.print-header p{margin:0;font-size:.7rem;color:#666;}';
+    css += '.page-section{page-break-after:always;}';
+    css += '.page-section:last-child{page-break-after:auto;}';
+    css += '.chunk-title{font-size:.75rem;font-weight:700;margin:6px 0 4px;color:#495057;}';
+    css += 'table{width:100%;border-collapse:collapse;font-size:.7rem;}';
+    css += 'th,td{border:1px solid #aaa;padding:3px 5px;text-align:right;white-space:nowrap;}';
+    css += 'th{background:#343a40;color:#fff;font-size:.65rem;text-transform:uppercase;}';
+    css += 'td:nth-child(2){text-align:left;}';
+    css += 'th:nth-child(2){text-align:left;}';
+    css += 'tr:nth-child(even){background:#f9f9f9;}';
+    css += '.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}';
+    css += '.badge{padding:1px 4px;border-radius:3px;font-size:.55rem;font-weight:600;}';
+    css += '.badge-danger{background:#dc3545;color:#fff;}';
+    css += '.badge-warning{background:#ffc107;color:#333;}';
+    css += '.badge-success{background:#28a745;color:#fff;}';
+    css += '.badge-primary{background:#007bff;color:#fff;}';
+    css += '.text-danger{color:#dc3545;}';
+    css += '.text-muted{color:#999;font-size:.55rem;}';
+    css += '.font-weight-bold{font-weight:700;}';
+    css += '@media print{@page{size:A4 landscape;margin:6mm;}body{margin:0;padding:4px;}}';
+
     var win = window.open('', '_blank');
     win.document.write('<html><head><title>' + title + '</title>');
-    win.document.write('<style>');
-    win.document.write('body{font-family:Arial,Helvetica,sans-serif;margin:20px;color:#333;}');
-    win.document.write('.print-header{text-align:center;margin-bottom:18px;}');
-    win.document.write('.print-header h2{margin:0 0 4px;font-size:1.3rem;}');
-    win.document.write('.print-header p{margin:0;font-size:.82rem;color:#666;}');
-    win.document.write('table{width:100%;border-collapse:collapse;font-size:.75rem;}');
-    win.document.write('th,td{border:1px solid #aaa;padding:4px 6px;text-align:right;}');
-    win.document.write('th{background:#343a40;color:#fff;font-size:.7rem;text-transform:uppercase;}');
-    win.document.write('td:nth-child(2){text-align:left;}');
-    win.document.write('th:nth-child(2){text-align:left;}');
-    win.document.write('tr:nth-child(even){background:#f9f9f9;}');
-    win.document.write('.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
-    win.document.write('.badge{padding:2px 6px;border-radius:3px;font-size:.65rem;font-weight:600;}');
-    win.document.write('.badge-danger{background:#dc3545;color:#fff;}');
-    win.document.write('.badge-warning{background:#ffc107;color:#333;}');
-    win.document.write('.badge-success{background:#28a745;color:#fff;}');
-    win.document.write('.badge-primary{background:#007bff;color:#fff;}');
-    win.document.write('.text-danger{color:#dc3545;}');
-    win.document.write('.text-muted{color:#999;font-size:.65rem;}');
-    win.document.write('.font-weight-bold{font-weight:700;}');
-    win.document.write('@media print{body{margin:10px;}}');
-    win.document.write('</style></head><body>');
-    win.document.write('<div class="print-header">');
-    win.document.write('<h2>' + title + '</h2>');
-    win.document.write('<p>Report Date: ' + reportDate + '</p>');
-    win.document.write('</div>');
-    win.document.write(clone.outerHTML);
+    win.document.write('<style>' + css + '</style></head><body>');
+
+    /* --- Detect wide aging table and split into multi-page chunks --- */
+    var headerRow = clone.querySelector('thead tr');
+    var totalCols = headerRow ? headerRow.children.length : 0;
+
+    // arAgingTable layout: [#, Customer, Total O/S, ...30 buckets..., Overdue, Risk]
+    var FROZEN_LEFT = 3;  // #, Customer, Total O/S
+    var FROZEN_RIGHT = 2; // Overdue, Risk
+    var bucketCount = totalCols - FROZEN_LEFT - FROZEN_RIGHT;
+
+    if (tableId === 'arAgingTable' && bucketCount > 12) {
+        /* ===== MULTI-PAGE CHUNKED PRINT ===== */
+        var COLS_PER_PAGE = 10;
+        var totalPages = Math.ceil(bucketCount / COLS_PER_PAGE);
+        var allRows = clone.querySelectorAll('tbody tr');
+
+        for (var pg = 0; pg < totalPages; pg++) {
+            var startBkt = pg * COLS_PER_PAGE;
+            var endBkt = Math.min(startBkt + COLS_PER_PAGE, bucketCount);
+            var startLabel = headerRow.children[FROZEN_LEFT + startBkt].textContent.trim().split('-')[0];
+            var endLabel = headerRow.children[FROZEN_LEFT + endBkt - 1].textContent.trim().split('-')[1] || headerRow.children[FROZEN_LEFT + endBkt - 1].textContent.trim();
+            var isLastPage = (pg === totalPages - 1);
+
+            win.document.write('<div class="page-section">');
+            if (pg === 0) {
+                win.document.write('<div class="print-header">');
+                win.document.write('<h2>' + title + '</h2>');
+                win.document.write('<p>Report Date: ' + reportDate + '</p>');
+                win.document.write('</div>');
+            }
+            win.document.write('<p class="chunk-title">Aging Days: ' + startLabel + ' \u2013 ' + endLabel + ' &nbsp;&bull;&nbsp; Page ' + (pg + 1) + ' of ' + totalPages + '</p>');
+
+            /* Build chunk table */
+            win.document.write('<table><thead><tr>');
+            // Frozen left headers
+            for (var f = 0; f < FROZEN_LEFT; f++) {
+                win.document.write('<th>' + headerRow.children[f].innerHTML + '</th>');
+            }
+            // Bucket headers for this chunk
+            for (var b = startBkt; b < endBkt; b++) {
+                win.document.write('<th>' + headerRow.children[FROZEN_LEFT + b].innerHTML + '</th>');
+            }
+            // Overdue + Risk columns on last page
+            if (isLastPage) {
+                for (var r = 0; r < FROZEN_RIGHT; r++) {
+                    win.document.write('<th>' + headerRow.children[totalCols - FROZEN_RIGHT + r].innerHTML + '</th>');
+                }
+            }
+            win.document.write('</tr></thead><tbody>');
+
+            // Data rows
+            allRows.forEach(function(row) {
+                var cells = row.children;
+                var trClass = row.classList.contains('total-row') ? ' class="total-row"' : '';
+                win.document.write('<tr' + trClass + '>');
+                // Frozen left cells
+                for (var f = 0; f < FROZEN_LEFT; f++) {
+                    win.document.write('<td>' + cells[f].innerHTML + '</td>');
+                }
+                // Bucket cells for this chunk
+                for (var b = startBkt; b < endBkt; b++) {
+                    var cell = cells[FROZEN_LEFT + b];
+                    var cls = cell ? cell.className : '';
+                    win.document.write('<td class="' + cls + '">' + (cell ? cell.innerHTML : '-') + '</td>');
+                }
+                // Overdue + Risk columns on last page
+                if (isLastPage) {
+                    for (var r = 0; r < FROZEN_RIGHT; r++) {
+                        var rCell = cells[totalCols - FROZEN_RIGHT + r];
+                        win.document.write('<td>' + (rCell ? rCell.innerHTML : '') + '</td>');
+                    }
+                }
+                win.document.write('</tr>');
+            });
+
+            win.document.write('</tbody></table></div>');
+        }
+    } else {
+        /* ===== NORMAL PRINT (Collection Priority or small tables) ===== */
+        win.document.write('<div class="print-header">');
+        win.document.write('<h2>' + title + '</h2>');
+        win.document.write('<p>Report Date: ' + reportDate + '</p>');
+        win.document.write('</div>');
+        win.document.write(clone.outerHTML);
+    }
+
     win.document.write('</body></html>');
     win.document.close();
-    setTimeout(function(){ win.print(); }, 300);
+    setTimeout(function(){ win.print(); }, 400);
 }
 </script>
 {% endblock %}

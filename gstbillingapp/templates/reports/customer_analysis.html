@@ -627,46 +627,110 @@ function printTable(tableId, title) {
     clone.querySelectorAll('.sticky-col, .sticky-col-2').forEach(function(el) {
         el.style.position = 'static';
     });
+
+    /* --- Shared CSS --- */
+    var css = '';
+    css += '@page{size:A4 landscape;margin:6mm;}';
+    css += 'body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:6px;color:#333;}';
+    css += '.print-header{text-align:center;margin-bottom:6px;}';
+    css += '.print-header h2{margin:0 0 2px;font-size:1rem;}';
+    css += '.print-header p{margin:0;font-size:.7rem;color:#666;}';
+    css += '.page-section{page-break-after:always;}';
+    css += '.page-section:last-child{page-break-after:auto;}';
+    css += '.chunk-title{font-size:.75rem;font-weight:700;margin:6px 0 4px;color:#495057;}';
+    css += 'table{width:100%;border-collapse:collapse;font-size:.7rem;}';
+    css += 'th,td{border:1px solid #aaa;padding:3px 5px;text-align:right;white-space:nowrap;}';
+    css += 'th{background:#343a40;color:#fff;font-size:.65rem;text-transform:uppercase;}';
+    css += 'td:nth-child(2){text-align:left;}';
+    css += 'th:nth-child(2){text-align:left;}';
+    css += 'tr:nth-child(even){background:#f9f9f9;}';
+    css += '.badge{padding:1px 5px;border-radius:3px;font-size:.55rem;font-weight:600;color:#fff;}';
+    css += '.badge-star{background:#ffc107;color:#333;}';
+    css += '.badge-loyal{background:#28a745;}';
+    css += '.badge-promising{background:#17a2b8;}';
+    css += '.badge-atrisk{background:#fd7e14;}';
+    css += '.badge-critical{background:#dc3545;}';
+    css += '.text-danger{color:#dc3545;}';
+    css += '.text-success{color:#28a745;}';
+    css += '.font-weight-bold{font-weight:700;}';
+    css += '.health-bar{height:5px;border-radius:3px;background:#ddd;overflow:hidden;min-width:40px;}';
+    css += '.health-fill{height:100%;border-radius:3px;}';
+    css += '.hf-star{background:#ffc107;}.hf-loyal{background:#28a745;}.hf-promising{background:#17a2b8;}.hf-atrisk{background:#fd7e14;}.hf-critical{background:#dc3545;}';
+    css += '.score-pill{display:inline-block;padding:1px 4px;border-radius:8px;font-size:.55rem;font-weight:600;}';
+    css += '.sp-r{background:#e3f2fd;color:#1565c0;}.sp-f{background:#e8f5e9;color:#2e7d32;}.sp-m{background:#fff8e1;color:#f57f17;}.sp-p{background:#fce4ec;color:#c62828;}';
+    css += '.act-active{color:#28a745;font-weight:700;}.act-semi{color:#17a2b8;}.act-dormant{color:#fd7e14;}.act-inactive{color:#dc3545;}';
+    css += '.trend-growing{color:#28a745;}.trend-stable{color:#6c757d;}.trend-declining{color:#dc3545;}';
+    css += '.pmt-excellent{color:#28a745;}.pmt-good{color:#20c997;}.pmt-fair{color:#ffc107;}.pmt-poor{color:#fd7e14;}.pmt-critical{color:#dc3545;}';
+    css += '@media print{@page{size:A4 landscape;margin:6mm;}body{margin:0;padding:4px;}}';
+
     var win = window.open('', '_blank');
     win.document.write('<html><head><title>' + title + '</title>');
-    win.document.write('<style>');
-    win.document.write('body{font-family:Arial,Helvetica,sans-serif;margin:20px;color:#333;}');
-    win.document.write('.print-header{text-align:center;margin-bottom:18px;}');
-    win.document.write('.print-header h2{margin:0 0 4px;font-size:1.3rem;}');
-    win.document.write('.print-header p{margin:0;font-size:.82rem;color:#666;}');
-    win.document.write('table{width:100%;border-collapse:collapse;font-size:.72rem;}');
-    win.document.write('th,td{border:1px solid #aaa;padding:3px 5px;text-align:right;white-space:nowrap;}');
-    win.document.write('th{background:#343a40;color:#fff;font-size:.68rem;text-transform:uppercase;}');
-    win.document.write('td:nth-child(2){text-align:left;}');
-    win.document.write('th:nth-child(2){text-align:left;}');
-    win.document.write('tr:nth-child(even){background:#f9f9f9;}');
-    win.document.write('.badge{padding:2px 6px;border-radius:3px;font-size:.6rem;font-weight:600;color:#fff;}');
-    win.document.write('.badge-star{background:#ffc107;color:#333;}');
-    win.document.write('.badge-loyal{background:#28a745;}');
-    win.document.write('.badge-promising{background:#17a2b8;}');
-    win.document.write('.badge-atrisk{background:#fd7e14;}');
-    win.document.write('.badge-critical{background:#dc3545;}');
-    win.document.write('.text-danger{color:#dc3545;}');
-    win.document.write('.text-success{color:#28a745;}');
-    win.document.write('.font-weight-bold{font-weight:700;}');
-    win.document.write('.health-bar{height:6px;border-radius:3px;background:#ddd;overflow:hidden;min-width:50px;}');
-    win.document.write('.health-fill{height:100%;border-radius:3px;}');
-    win.document.write('.hf-star{background:#ffc107;}.hf-loyal{background:#28a745;}.hf-promising{background:#17a2b8;}.hf-atrisk{background:#fd7e14;}.hf-critical{background:#dc3545;}');
-    win.document.write('.score-pill{display:inline-block;padding:1px 4px;border-radius:8px;font-size:.58rem;font-weight:600;}');
-    win.document.write('.sp-r{background:#e3f2fd;color:#1565c0;}.sp-f{background:#e8f5e9;color:#2e7d32;}.sp-m{background:#fff8e1;color:#f57f17;}.sp-p{background:#fce4ec;color:#c62828;}');
-    win.document.write('.act-active{color:#28a745;font-weight:700;}.act-semi{color:#17a2b8;}.act-dormant{color:#fd7e14;}.act-inactive{color:#dc3545;}');
-    win.document.write('.trend-growing{color:#28a745;}.trend-stable{color:#6c757d;}.trend-declining{color:#dc3545;}');
-    win.document.write('.pmt-excellent{color:#28a745;}.pmt-good{color:#20c997;}.pmt-fair{color:#ffc107;}.pmt-poor{color:#fd7e14;}.pmt-critical{color:#dc3545;}');
-    win.document.write('@media print{body{margin:10px;}}');
-    win.document.write('</style></head><body>');
-    win.document.write('<div class="print-header">');
-    win.document.write('<h2>' + title + '</h2>');
-    win.document.write('<p>Report Date: ' + reportDate + '</p>');
-    win.document.write('</div>');
-    win.document.write(clone.outerHTML);
+    win.document.write('<style>' + css + '</style></head><body>');
+
+    var headerRow = clone.querySelector('thead tr');
+    var allRows = clone.querySelectorAll('tbody tr');
+    var totalCols = headerRow ? headerRow.children.length : 0;
+
+    // 25 columns: #(0) Customer(1) Score(2) Segment(3) R(4) F(5) M(6) P(7)
+    // Activity(8) Frequency(9) Trend(10) Invoices(11) Inv/Month(12)
+    // Last Invoice(13) Days Since(14) Total Value(15) Avg Invoice(16)
+    // Purchased(17) Paid(18) Outstanding(19) Pay%(20) Payment(21)
+    // Avg Gap(22) Recent 90d(23) Prior 90d(24)
+
+    if (tableId === 'customerTable' && totalCols >= 25) {
+        /* ===== MULTI-PAGE LOGICAL GROUPS ===== */
+        var FROZEN = [0, 1]; // #, Customer — always repeated
+        var pages = [
+            { label: 'Health Score & Segment Analysis', cols: [2,3,4,5,6,7,8,9,10] },
+            { label: 'Invoice & Transaction Details',   cols: [11,12,13,14,15,16] },
+            { label: 'Payment & Financial Overview',    cols: [17,18,19,20,21,22,23,24] }
+        ];
+        var totalPages = pages.length;
+
+        for (var pg = 0; pg < totalPages; pg++) {
+            var pageCols = FROZEN.concat(pages[pg].cols);
+
+            win.document.write('<div class="page-section">');
+            if (pg === 0) {
+                win.document.write('<div class="print-header">');
+                win.document.write('<h2>' + title + '</h2>');
+                win.document.write('<p>Report Date: ' + reportDate + '</p>');
+                win.document.write('</div>');
+            }
+            win.document.write('<p class="chunk-title">' + pages[pg].label + ' &nbsp;&bull;&nbsp; Page ' + (pg + 1) + ' of ' + totalPages + '</p>');
+
+            /* Build chunk table */
+            win.document.write('<table><thead><tr>');
+            for (var h = 0; h < pageCols.length; h++) {
+                win.document.write('<th>' + headerRow.children[pageCols[h]].innerHTML + '</th>');
+            }
+            win.document.write('</tr></thead><tbody>');
+
+            allRows.forEach(function(row) {
+                var cells = row.children;
+                win.document.write('<tr>');
+                for (var c = 0; c < pageCols.length; c++) {
+                    var cell = cells[pageCols[c]];
+                    var cls = cell ? cell.className : '';
+                    win.document.write('<td class="' + cls + '">' + (cell ? cell.innerHTML : '') + '</td>');
+                }
+                win.document.write('</tr>');
+            });
+
+            win.document.write('</tbody></table></div>');
+        }
+    } else {
+        /* ===== FALLBACK: single-page print ===== */
+        win.document.write('<div class="print-header">');
+        win.document.write('<h2>' + title + '</h2>');
+        win.document.write('<p>Report Date: ' + reportDate + '</p>');
+        win.document.write('</div>');
+        win.document.write(clone.outerHTML);
+    }
+
     win.document.write('</body></html>');
     win.document.close();
-    setTimeout(function(){ win.print(); }, 300);
+    setTimeout(function(){ win.print(); }, 400);
 }
 </script>
 {% endblock %}
