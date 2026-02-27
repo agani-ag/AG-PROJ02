@@ -1128,6 +1128,8 @@ def overdue_report_api(request):
     """
     today = date.today()
     day_options = list(range(15, 465, 15))
+    # Ignore overdue amounts less than this threshold
+    IGNORE_SMALL_OVERDUE = 10.0
 
     # --- Parse user_ids ---
     user_ids = []
@@ -1198,6 +1200,7 @@ def overdue_report_api(request):
             'business_title': user_profile.business_title or '' if user_profile else '',
             'business_phone': user_profile.business_phone or '' if user_profile else '',
             'business_gst': user_profile.business_gst or '' if user_profile else '',
+            'business_brand': user_profile.business_brand or '' if user_profile else '',
         }
 
         # Total customer count for this user
@@ -1255,6 +1258,10 @@ def overdue_report_api(request):
             if overdue_amount <= 0:
                 continue
 
+            # Ignore very small overdue amounts
+            if overdue_amount < IGNORE_SMALL_OVERDUE:
+                continue
+
             user_total_overdue += overdue_amount
 
             customer_rows.append({
@@ -1301,6 +1308,8 @@ def overdue_report_api(request):
                 lines.append(f'📞  {_escape_md(u["business_phone"])}')
             if u.get('business_gst'):
                 lines.append(f'🔖  {_escape_md(u["business_gst"])}')
+            if u.get('business_brand'):
+                lines.append(f'🏷️  {_escape_md(u["business_brand"])}')
 
             user_overdue_str = _escape_md(f'{r["total_overdue"]:,.2f}')           
             lines.append(f'👥  Total Customers: *{r["actual_total_customers"]}*')
