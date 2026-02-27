@@ -1,6 +1,7 @@
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum, Count, Avg, F, Q, Case, When, FloatField
 from django.db.models.functions import ExtractMonth, ExtractYear
 from reportlab.lib.pagesizes import A4
@@ -11,6 +12,9 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from datetime import date, datetime, timedelta
 import json
 import calendar
+
+from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
 
 from ..models import (
     UserProfile, Customer, Invoice, Book, BookLog,
@@ -994,6 +998,275 @@ def credit_aging_report(request):
     }
 
     return render(request, 'reports/credit_aging_report.html', context)
+
+
+# =============================================================================
+# Overdue Report (Simple)
+# =============================================================================
+@login_required
+def overdue_report(request):
+    """
+    Simple Overdue Report — shows customers with outstanding amounts
+    older than the selected overdue threshold (days).
+    Uses FIFO: payments settle oldest invoices first.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # Overdue day options: 15, 30, 45, ... 450
+    day_options = list(range(15, 465, 15))
+
+    # Get selected days from query param (default 90)
+    selected_days = request.GET.get('days', '90')
+    try:
+        selected_days = int(selected_days)
+        if selected_days not in day_options:
+            selected_days = 90
+    except (ValueError, TypeError):
+        selected_days = 90
+
+    books = Book.objects.filter(user=user).select_related('customer')
+
+    customer_rows = []
+    total_overdue = 0.0
+
+    for book in books:
+        if not book.customer:
+            continue
+
+        logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
+
+        total_purchased = 0.0
+        total_settled = 0.0
+        for log in logs:
+            if log.change_type == 1:  # Purchased
+                total_purchased += abs(log.change)
+            elif log.change_type in [0, 2, 3]:  # Paid, Returned, Other
+                total_settled += abs(log.change)
+
+        outstanding = total_purchased - total_settled
+        if outstanding <= 0.01:
+            continue
+
+        # Collect purchase entries with age
+        purchase_entries = []
+        for log in logs:
+            if log.change_type == 1 and log.date:
+                age_days = (today - log.date.date()).days
+                purchase_entries.append({
+                    'amount': abs(log.change),
+                    'age_days': max(age_days, 0),
+                })
+
+        # FIFO: settle oldest first, find unpaid amounts
+        purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
+        remaining_to_settle = total_settled
+        overdue_amount = 0.0
+
+        for entry in purchase_entries:
+            if remaining_to_settle >= entry['amount']:
+                remaining_to_settle -= entry['amount']
+                continue
+            elif remaining_to_settle > 0:
+                unpaid = entry['amount'] - remaining_to_settle
+                remaining_to_settle = 0
+            else:
+                unpaid = entry['amount']
+
+            # Only count if this entry's age exceeds the threshold
+            if entry['age_days'] >= selected_days:
+                overdue_amount += unpaid
+
+        if overdue_amount <= 0:
+            continue
+
+        total_overdue += overdue_amount
+
+        customer_rows.append({
+            'book_id': book.id,
+            'name': book.customer.customer_name,
+            'phone': book.customer.customer_phone or '-',
+            'overdue_amount': round(overdue_amount, 2),
+        })
+
+    # Sort by overdue amount descending
+    customer_rows.sort(key=lambda x: x['overdue_amount'], reverse=True)
+
+    context = {
+        'user_profile': user_profile,
+        'customer_rows': customer_rows,
+        'total_overdue': round(total_overdue, 2),
+        'selected_days': selected_days,
+        'day_options': day_options,
+        'total_customers': len(customer_rows),
+        'report_date': today,
+    }
+
+    return render(request, 'reports/overdue_report.html', context)
+
+
+@csrf_exempt
+def overdue_report_api(request):
+    """
+    API endpoint for Overdue Report (multi-user).
+    Accepts POST with JSON body: {"user_ids": [1, 2, 3]}
+    Or GET with query param: ?user_ids=1,2,3
+    Query param: ?days=90 (default 90, options: 15,30,45,...450)
+    Returns user-wise grouped overdue data with user details.
+    """
+    today = date.today()
+    day_options = list(range(15, 465, 15))
+
+    # --- Parse user_ids ---
+    user_ids = []
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            user_ids = body.get('user_ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON body.'}, status=400)
+    else:
+        raw = request.GET.get('user_ids', '')
+        if raw:
+            try:
+                user_ids = [int(uid.strip()) for uid in raw.split(',') if uid.strip()]
+            except ValueError:
+                return JsonResponse({'status': 'error', 'message': 'user_ids must be comma-separated integers.'}, status=400)
+
+    if not user_ids:
+        return JsonResponse({'status': 'error', 'message': 'user_ids is required (non-empty array).'}, status=400)
+
+    # --- Parse days ---
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            selected_days = int(body.get('days', 90))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            selected_days = 90
+    else:
+        selected_days = request.GET.get('days', '90')
+        try:
+            selected_days = int(selected_days)
+        except (ValueError, TypeError):
+            selected_days = 90
+
+    if selected_days not in day_options:
+        selected_days = 90
+
+    # --- Fetch valid users ---
+    users = User.objects.filter(pk__in=user_ids)
+    found_ids = set(users.values_list('pk', flat=True))
+    not_found_ids = [uid for uid in user_ids if uid not in found_ids]
+
+    # --- Build per-user overdue data ---
+    results = []
+    grand_total_overdue = 0.0
+    grand_total_customers = 0
+    grand_actual_total_customers = 0
+
+    for user in users:
+        # User details
+        user_profile = UserProfile.objects.filter(user=user).first()
+        user_info = {
+            'user_id': user.id,
+            'username': user.username,
+            'email': user.email or '',
+            'business_title': user_profile.business_title or '' if user_profile else '',
+            'business_phone': user_profile.business_phone or '' if user_profile else '',
+            'business_gst': user_profile.business_gst or '' if user_profile else '',
+        }
+
+        # Total customer count for this user
+        actual_total_customers = Customer.objects.filter(user=user).count()
+
+        books = Book.objects.filter(user=user).select_related('customer')
+
+        customer_rows = []
+        user_total_overdue = 0.0
+
+        for book in books:
+            if not book.customer:
+                continue
+
+            logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
+
+            total_purchased = 0.0
+            total_settled = 0.0
+            for log in logs:
+                if log.change_type == 1:
+                    total_purchased += abs(log.change)
+                elif log.change_type in [0, 2, 3]:
+                    total_settled += abs(log.change)
+
+            outstanding = total_purchased - total_settled
+            if outstanding <= 0.01:
+                continue
+
+            purchase_entries = []
+            for log in logs:
+                if log.change_type == 1 and log.date:
+                    age_days = (today - log.date.date()).days
+                    purchase_entries.append({
+                        'amount': abs(log.change),
+                        'age_days': max(age_days, 0),
+                    })
+
+            purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
+            remaining_to_settle = total_settled
+            overdue_amount = 0.0
+
+            for entry in purchase_entries:
+                if remaining_to_settle >= entry['amount']:
+                    remaining_to_settle -= entry['amount']
+                    continue
+                elif remaining_to_settle > 0:
+                    unpaid = entry['amount'] - remaining_to_settle
+                    remaining_to_settle = 0
+                else:
+                    unpaid = entry['amount']
+
+                if entry['age_days'] >= selected_days:
+                    overdue_amount += unpaid
+
+            if overdue_amount <= 0:
+                continue
+
+            user_total_overdue += overdue_amount
+
+            customer_rows.append({
+                'customer_id': book.customer.id,
+                'customer_name': book.customer.customer_name,
+                'phone': book.customer.customer_phone or '',
+                'overdue_amount': round(overdue_amount, 2),
+            })
+
+        customer_rows.sort(key=lambda x: x['overdue_amount'], reverse=True)
+
+        grand_total_overdue += user_total_overdue
+        grand_total_customers += len(customer_rows)
+        grand_actual_total_customers += actual_total_customers
+
+        results.append({
+            'user': user_info,
+            'actual_total_customers': actual_total_customers,
+            'total_overdue': round(user_total_overdue, 2),
+            'overdue_customers': len(customer_rows),
+            'customers': customer_rows,
+        })
+
+    return JsonResponse({
+        'status': 'success',
+        'report_date': today.strftime('%Y-%m-%d'),
+        'selected_days': selected_days,
+        'day_options': day_options,
+        'grand_total_overdue': round(grand_total_overdue, 2),
+        'grand_actual_total_customers': grand_actual_total_customers,
+        'grand_overdue_customers': grand_total_customers,
+        'users_count': len(results),
+        'not_found_user_ids': not_found_ids,
+        'results': results,
+    })
 
 
 # =============================================================================

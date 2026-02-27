@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Overdue Report - GST Sync{% endblock %}
+
+{% block includecss %}
+<style>
+/* ===== Overdue Report Styles ===== */
+.overdue-report .card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    overflow: hidden;
+}
+.overdue-report .section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #343a40;
+    margin-bottom: 0;
+}
+.overdue-report .kpi-card {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease;
+}
+.overdue-report .kpi-card:hover {
+    transform: translateY(-2px);
+}
+.overdue-report .kpi-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+}
+.overdue-report .kpi-label {
+    font-size: .75rem;
+    text-transform: uppercase;
+    color: #6c757d;
+    letter-spacing: .04em;
+}
+.overdue-report .table th {
+    background: #343a40;
+    color: #fff;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    border: none;
+}
+.overdue-report .table td {
+    vertical-align: middle;
+    font-size: .85rem;
+}
+.overdue-report .days-selector {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.overdue-report .days-selector select {
+    font-weight: 700;
+    font-size: .95rem;
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 2px solid #dc3545;
+    color: #dc3545;
+    cursor: pointer;
+}
+.overdue-report .total-row td {
+    font-weight: 700;
+    background: #f8f9fa !important;
+    border-top: 2px solid #343a40;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3 overdue-report">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="font-weight-bold mb-0"><i class="fas fa-exclamation-triangle text-danger"></i> Overdue Report</h4>
+            <small class="text-muted">Report Date: {{ report_date|date:"d M Y" }}</small>
+        </div>
+        <div>
+            <a href="{% url 'bi_dashboard' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left mr-1"></i>Back to BI</a>
+        </div>
+    </div>
+
+    <!-- Days Selector -->
+    <div class="card mb-3">
+        <div class="card-body py-2 d-flex flex-wrap align-items-center justify-content-between">
+            <div class="days-selector">
+                <label class="mb-0 font-weight-bold" for="daysSelect"><i class="fas fa-calendar-alt text-danger mr-1"></i> Overdue Threshold:</label>
+                <select id="daysSelect" onchange="window.location.href='?days='+this.value">
+                    {% for d in day_options %}
+                    <option value="{{ d }}" {% if d == selected_days %}selected{% endif %}>{{ d }} Days</option>
+                    {% endfor %}
+                </select>
+                <span class="text-muted" style="font-size:.82rem;">Showing outstanding older than <strong class="text-danger">{{ selected_days }} days</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row mb-3">
+        <div class="col-6 col-md-3 mb-2">
+            <div class="kpi-card">
+                <div class="kpi-value text-danger">₹ {{ total_overdue|floatformat:2|intcomma }}</div>
+                <div class="kpi-label">Total Overdue ({{ selected_days }}+ days)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-2">
+            <div class="kpi-card">
+                <div class="kpi-value text-primary">{{ total_customers }}</div>
+                <div class="kpi-label">Customers with Overdue</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-2">
+            <div class="kpi-card">
+                <div class="kpi-value text-warning">
+                    {% if total_customers > 0 %}
+                        ₹ {{ total_overdue|floatformat:0|intcomma }}
+                    {% else %}
+                        ₹ 0
+                    {% endif %}
+                </div>
+                <div class="kpi-label">
+                    Avg Overdue / Customer
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-2">
+            <div class="kpi-card">
+                <div class="kpi-value {% if total_customers > 0 %}text-danger{% else %}text-success{% endif %}">
+                    {% if total_customers > 0 %}
+                        <i class="fas fa-exclamation-circle"></i>
+                    {% else %}
+                        <i class="fas fa-check-circle"></i>
+                    {% endif %}
+                </div>
+                <div class="kpi-label">
+                    {% if total_customers > 0 %}Action Required{% else %}All Clear{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Section -->
+    <div class="card">
+        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center py-2">
+            <div>
+                <h5 class="section-title mb-0"><i class="fas fa-table"></i> Customers Overdue Beyond {{ selected_days }} Days</h5>
+            </div>
+            <button class="btn btn-sm btn-outline-dark mt-1" onclick="printTable('overdueTable','Overdue Report ({{ selected_days }}+ Days)')"><i class="fas fa-print mr-1"></i>Print</button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered mb-0" id="overdueTable">
+                    <thead>
+                        <tr>
+                            <th style="width:50px;" class="text-center">#</th>
+                            <th>Customer Name</th>
+                            <th style="width:160px;" class="text-right">Overdue Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for customer in customer_rows %}
+                        <tr>
+                            <td class="text-center font-weight-bold">{{ forloop.counter }}</td>
+                            <td>
+                                <a href="{% url 'book_logs' customer.book_id %}" style="text-decoration:none;color:#333;">
+                                    <strong>{{ customer.name }}</strong>
+                                </a>
+                                <br><small class="text-muted">{{ customer.phone }}</small>
+                            </td>
+                            <td class="text-right text-danger font-weight-bold" style="font-size:.95rem;">₹ {{ customer.overdue_amount|floatformat:2|intcomma }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">
+                                <i class="fas fa-check-circle text-success fa-2x mb-2 d-block"></i>
+                                No customers have overdue amounts beyond {{ selected_days }} days
+                            </td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if customer_rows %}
+                        <tr class="total-row">
+                            <td></td>
+                            <td class="font-weight-bold">TOTAL ({{ total_customers }} customers)</td>
+                            <td class="text-right text-danger font-weight-bold" style="font-size:1rem;">₹ {{ total_overdue|floatformat:2|intcomma }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+var _rptDate = '{{ report_date|date:"d M Y" }}';
+function printTable(tableId, title) {
+    var reportDate = _rptDate;
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var clone = table.cloneNode(true);
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>' + title + '</title>');
+    win.document.write('<style>');
+    win.document.write('@page{size:A4 portrait;margin:10mm;}');
+    win.document.write('body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:10px;color:#333;}');
+    win.document.write('.print-header{text-align:center;margin-bottom:14px;}');
+    win.document.write('.print-header h2{margin:0 0 4px;font-size:1.2rem;}');
+    win.document.write('.print-header p{margin:0;font-size:.8rem;color:#666;}');
+    win.document.write('table{width:100%;border-collapse:collapse;font-size:.85rem;}');
+    win.document.write('th,td{border:1px solid #aaa;padding:6px 10px;}');
+    win.document.write('th{background:#343a40;color:#fff;font-size:.8rem;text-transform:uppercase;}');
+    win.document.write('td:first-child{text-align:center;width:50px;}');
+    win.document.write('td:last-child{text-align:right;}');
+    win.document.write('th:last-child{text-align:right;}');
+    win.document.write('tr:nth-child(even){background:#f9f9f9;}');
+    win.document.write('.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
+    win.document.write('.text-danger{color:#dc3545;}');
+    win.document.write('.text-muted{color:#999;font-size:.7rem;}');
+    win.document.write('.font-weight-bold{font-weight:700;}');
+    win.document.write('@media print{@page{size:A4 portrait;margin:10mm;}body{margin:0;padding:8px;}}');
+    win.document.write('</style></head><body>');
+    win.document.write('<div class="print-header">');
+    win.document.write('<h2>' + title + '</h2>');
+    win.document.write('<p>Report Date: ' + reportDate + '</p>');
+    win.document.write('</div>');
+    win.document.write(clone.outerHTML);
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 300);
+}
+</script>
+{% endblock %}
