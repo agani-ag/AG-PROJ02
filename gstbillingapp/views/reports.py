@@ -1765,3 +1765,103 @@ def customer_analysis(request):
     }
 
     return render(request, 'reports/customer_analysis.html', context)
+
+
+# =============================================================================
+# Transaction Report (Customer-wise)
+# =============================================================================
+@login_required
+def transaction_report(request):
+    """
+    Transaction Report — Customer Name & Amount filtered by transaction type
+    (Purchased, Paid, Returned, Others) with custom date range.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # --- Parse filters ---
+    txn_type = request.GET.get('type', 'all')  # all, purchased, paid, returned, others
+    date_from = request.GET.get('from', '')
+    date_to = request.GET.get('to', '')
+
+    # Validate txn_type
+    valid_types = ['all', 'purchased', 'paid', 'returned', 'others']
+    if txn_type not in valid_types:
+        txn_type = 'all'
+
+    # Parse dates
+    try:
+        start_date = datetime.strptime(date_from, '%Y-%m-%d').date() if date_from else None
+    except ValueError:
+        start_date = None
+
+    try:
+        end_date = datetime.strptime(date_to, '%Y-%m-%d').date() if date_to else None
+    except ValueError:
+        end_date = None
+
+    # Map txn_type to BookLog change_type
+    type_map = {
+        'purchased': [1],
+        'paid': [0],
+        'returned': [2],
+        'others': [3],
+        'all': [0, 1, 2, 3],
+    }
+    change_types = type_map.get(txn_type, [0, 1, 2, 3])
+
+    type_labels = {
+        'all': 'All Transactions',
+        'purchased': 'Purchases',
+        'paid': 'Payments',
+        'returned': 'Returns',
+        'others': 'Others',
+    }
+
+    # --- Query ---
+    books = Book.objects.filter(user=user).select_related('customer')
+
+    customer_rows = []
+    grand_total = 0.0
+
+    for book in books:
+        if not book.customer:
+            continue
+
+        log_filter = Q(parent_book=book, is_active=True, change_type__in=change_types)
+        if start_date:
+            log_filter &= Q(date__date__gte=start_date)
+        if end_date:
+            log_filter &= Q(date__date__lte=end_date)
+
+        logs = BookLog.objects.filter(log_filter)
+        total_amount = sum(abs(log.change) for log in logs)
+
+        if total_amount <= 0:
+            continue
+
+        grand_total += total_amount
+
+        customer_rows.append({
+            'book_id': book.id,
+            'name': book.customer.customer_name,
+            'phone': book.customer.customer_phone or '-',
+            'amount': round(total_amount, 2),
+        })
+
+    customer_rows.sort(key=lambda x: x['amount'], reverse=True)
+
+    context = {
+        'user_profile': user_profile,
+        'customer_rows': customer_rows,
+        'grand_total': round(grand_total, 2),
+        'total_customers': len(customer_rows),
+        'txn_type': txn_type,
+        'type_label': type_labels.get(txn_type, 'All Transactions'),
+        'date_from': date_from,
+        'date_to': date_to,
+        'report_date': today,
+    }
+
+    return render(request, 'reports/transaction_report.html', context)
