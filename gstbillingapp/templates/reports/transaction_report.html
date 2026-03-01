@@ -95,7 +95,6 @@
 .badge-type-paid { background: #28a745; color: #fff; }
 .badge-type-returned { background: #ffc107; color: #333; }
 .badge-type-others { background: #6c757d; color: #fff; }
-.badge-type-all { background: #007bff; color: #fff; }
 </style>
 {% endblock %}
 
@@ -116,10 +115,9 @@
     <!-- Filter Bar -->
     <div class="card mb-3">
         <div class="card-body py-2">
-            <form method="get" class="filter-bar">
+            <form method="get" class="filter-bar" id="filterForm">
                 <label for="typeSelect"><i class="fas fa-filter text-primary mr-1"></i>Type:</label>
-                <select id="typeSelect" name="type">
-                    <option value="all" {% if txn_type == 'all' %}selected{% endif %}>All Transactions</option>
+                <select id="typeSelect" name="type" onchange="document.getElementById('filterForm').submit()">
                     <option value="purchased" {% if txn_type == 'purchased' %}selected{% endif %}>Purchases</option>
                     <option value="paid" {% if txn_type == 'paid' %}selected{% endif %}>Payments</option>
                     <option value="returned" {% if txn_type == 'returned' %}selected{% endif %}>Returns</option>
@@ -127,12 +125,11 @@
                 </select>
 
                 <label for="dateFrom"><i class="fas fa-calendar mr-1"></i>From:</label>
-                <input type="date" id="dateFrom" name="from" value="{{ date_from }}">
+                <input type="date" id="dateFrom" name="from" value="{{ date_from }}" onchange="document.getElementById('filterForm').submit()">
 
                 <label for="dateTo">To:</label>
-                <input type="date" id="dateTo" name="to" value="{{ date_to }}">
+                <input type="date" id="dateTo" name="to" value="{{ date_to }}" onchange="document.getElementById('filterForm').submit()">
 
-                <button type="submit" class="btn btn-sm btn-primary btn-apply"><i class="fas fa-search mr-1"></i>Apply</button>
                 <a href="{% url 'transaction_report' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
             </form>
         </div>

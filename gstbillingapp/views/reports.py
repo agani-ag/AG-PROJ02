@@ -1781,14 +1781,14 @@ def transaction_report(request):
     today = date.today()
 
     # --- Parse filters ---
-    txn_type = request.GET.get('type', 'all')  # all, purchased, paid, returned, others
+    txn_type = request.GET.get('type', 'purchased')  # purchased, paid, returned, others
     date_from = request.GET.get('from', '')
     date_to = request.GET.get('to', '')
 
     # Validate txn_type
-    valid_types = ['all', 'purchased', 'paid', 'returned', 'others']
+    valid_types = ['purchased', 'paid', 'returned', 'others']
     if txn_type not in valid_types:
-        txn_type = 'all'
+        txn_type = 'purchased'
 
     # Parse dates
     try:
@@ -1807,12 +1807,10 @@ def transaction_report(request):
         'paid': [0],
         'returned': [2],
         'others': [3],
-        'all': [0, 1, 2, 3],
     }
-    change_types = type_map.get(txn_type, [0, 1, 2, 3])
+    change_types = type_map.get(txn_type, [1])
 
     type_labels = {
-        'all': 'All Transactions',
         'purchased': 'Purchases',
         'paid': 'Payments',
         'returned': 'Returns',
