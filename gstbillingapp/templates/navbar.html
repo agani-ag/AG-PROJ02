@@ -135,26 +135,23 @@
           </div>
         </li>
 
-        <!-- Notifications -->
-        <li class="nav-item">
-          <a class="nav-link position-relative" href="{% url 'notifications_page' %}" id="notificationsLink">
-            <i class="bi bi-bell-fill"></i> Notifications
-            <span class="badge badge-danger badge-pill position-absolute" 
-                  id="notification-count-badge" 
-                  style="top: 5px; right: -5px; display: none; font-size: 0.65rem;">0</span>
-          </a>
-        </li>
-
         <!-- Profile Dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" id="profileDropdown" role="button" data-toggle="dropdown"
-            aria-haspopup="true" aria-expanded="false">
-            Profile
+            aria-haspopup="true" aria-expanded="false">Settings
+            <span class="badge badge-danger badge-pill position-absolute notification-count-badge" 
+                style="top: 5px; right: -5px; display: none; font-size: 0.65rem;">0</span>
           </a>
           <div class="dropdown-menu dropdown-menu-right" aria-labelledby="profileDropdown">
-            <a class="dropdown-item" href="{% url 'user_profile' %}">{{ user | upper }}</a>
+            <a class="dropdown-item" href="{% url 'user_profile' %}">Profile</a>
             <a class="dropdown-item" href="#" onclick="passSwitchkey()">Switch User</a>
             <a class="dropdown-item" href="{% url 'logout_view' %}">Logout</a>
+            <div class="dropdown-divider"></div>
+            <h6 class="dropdown-header">Features</h6>
+            <a class="dropdown-item" href="{% url 'liveshare_page' %}">LiveShare</a>
+            <a class="dropdown-item" href="{% url 'notifications_page' %}">Notifications
+              <span class="badge badge-danger badge-pill notification-count-badge">0</span>
+            </a>
           </div>
         </li>
 
@@ -236,27 +233,35 @@
   }
   
   function updateNotificationBadge(count) {
-    const badge = document.getElementById('notification-count-badge');
-    if (badge) {
-      if (count === null) {
-        // Fetch current count
-        fetch('/notifications/api/count/')
-          .then(response => response.json())
-          .then(data => {
-            if (data.success && data.unread_count > 0) {
-              badge.textContent = data.unread_count;
-              badge.style.display = 'inline-block';
-            } else {
-              badge.style.display = 'none';
-            }
-          })
-          .catch(error => console.error('Error fetching notification count:', error));
-      } else if (count > 0) {
-        badge.textContent = count;
-        badge.style.display = 'inline-block';
-      } else {
-        badge.style.display = 'none';
-      }
+    const badges = document.querySelectorAll('.notification-count-badge');
+
+    function applyCount(value) {
+      badges.forEach(badge => {
+        if (value > 0) {
+          badge.textContent = value;
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      });
+    }
+
+    if (count === null) {
+      fetch('/notifications/api/count/')
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            applyCount(data.unread_count);
+          } else {
+            applyCount(0);
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching notification count:', error);
+          applyCount(0);
+        });
+    } else {
+      applyCount(count);
     }
   }
   

@@ -1,0 +1,523 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}LiveShare - GST Sync{% endblock %}
+
+{% block includecss %}
+<link rel="stylesheet" href="{% static 'gstbillingapp/liveshare.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="ls-page">
+
+    <!-- ════════════════ HOME / LOBBY ════════════════ -->
+    <div id="ls-home">
+        <div class="ls-home-card">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white text-center">
+                    <h5 class="mb-0"><i class="fas fa-broadcast-tower"></i> LiveShare</h5>
+                    <small class="text-light">Screen Sharing &amp; Video Communication</small>
+                </div>
+                <div class="card-body">
+
+                    <!-- Join by Code -->
+                    <h6 class="text-muted mb-2"><i class="fas fa-sign-in-alt"></i> Join a Session</h6>
+                    <p class="small text-muted">Enter the 6-character Room Code to join someone's session.</p>
+                    <div class="form-group">
+                        <input type="text" id="ls-code-input" class="form-control ls-room-code-input"
+                            maxlength="6" placeholder="ENTER CODE" autocomplete="off">
+                    </div>
+                    <button class="btn btn-success btn-block" id="ls-join-btn" onclick="doJoinRoom()" disabled>
+                        <i class="fas fa-sign-in-alt"></i> Join Session
+                    </button>
+
+                    <div class="ls-or-divider"><span>OR</span></div>
+
+                    <!-- Create New Room -->
+                    <h6 class="text-muted mb-2"><i class="fas fa-plus-circle"></i> Start a New Session</h6>
+                    <p class="small text-muted">Share your screen with camera &amp; microphone. You'll get a Room Code to share.</p>
+                    
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="ls-cam-toggle" checked>
+                                <label class="custom-control-label" for="ls-cam-toggle">
+                                    <i class="fas fa-video"></i> Camera
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="ls-mic-toggle" checked>
+                                <label class="custom-control-label" for="ls-mic-toggle">
+                                    <i class="fas fa-microphone"></i> Microphone
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <input type="text" id="ls-name-input" class="form-control" placeholder="Your Display Name (optional)"
+                            value="{{ user.get_full_name|default:user.username }}">
+                    </div>
+
+                    <button class="btn btn-primary btn-block" onclick="doCreateRoom()">
+                        <i class="fas fa-desktop"></i> Start Sharing
+                    </button>
+
+                    <!-- Active Sessions -->
+                    <div id="ls-active-rooms" style="display:none;">
+                        <hr>
+                        <h6 class="text-muted mb-2"><i class="fas fa-wifi"></i> Available Sessions</h6>
+                        <div id="ls-rooms-list" class="list-group">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="text-center mt-2">
+                <small class="text-muted">
+                    <i class="fas fa-lock"></i> Peer-to-peer encrypted. No data stored on servers.
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════ SESSION VIEW ════════════════ -->
+    <div id="ls-session" class="ls-session">
+
+        <!-- Room Info Bar -->
+        <div class="ls-room-info">
+            <div>
+                <i class="fas fa-broadcast-tower text-success"></i>
+                <strong>Room:</strong>
+                <span class="ls-room-code-display" id="ls-display-code" onclick="copyCode()" title="Click to copy"></span>
+                <button class="btn btn-sm btn-outline-secondary ml-1" onclick="copyCode()" title="Copy Room Code">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+            <div>
+                <span class="badge badge-success" id="ls-role-badge">HOST</span>
+                <span class="badge badge-pill badge-info ml-1" id="ls-peer-count">
+                    <i class="fas fa-users"></i> <span id="ls-peer-num">1</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="ls-status-bar info" id="ls-status-bar">
+            <i class="fas fa-info-circle"></i> <span id="ls-status-text">Initializing...</span>
+        </div>
+
+        <!-- Screen Share Area -->
+        <div class="ls-screen-area" id="ls-screen-area">
+            <video id="ls-screen-video" class="ls-screen-video" playsinline autoplay style="display:none;"></video>
+            <div id="ls-screen-placeholder" class="ls-screen-placeholder">
+                <i class="fas fa-desktop"></i>
+                <div id="ls-screen-placeholder-text">No screen is being shared</div>
+            </div>
+        </div>
+
+        <!-- Camera Feeds Strip -->
+        <div class="ls-cam-strip" id="ls-cam-strip">
+            <!-- Local cam -->
+            <div class="ls-cam-box" id="ls-local-cam-box">
+                <video id="ls-local-cam" playsinline autoplay muted></video>
+                <div class="ls-cam-label" id="ls-local-label">You</div>
+            </div>
+            <!-- Remote cams added dynamically here -->
+        </div>
+
+        <!-- Controls Bar -->
+        <div class="ls-controls">
+            <button class="ls-ctrl-btn on" id="ls-btn-mic" onclick="toggleMic()" title="Toggle Microphone">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="ls-ctrl-btn on" id="ls-btn-cam" onclick="toggleCam()" title="Toggle Camera">
+                <i class="fas fa-video"></i>
+            </button>
+            <button class="ls-ctrl-btn screen-btn" id="ls-btn-screen" onclick="toggleScreen()" title="Share/Stop Screen" style="display:none;">
+                <i class="fas fa-desktop"></i>
+            </button>
+            <button class="ls-ctrl-btn end-btn" onclick="endSession()" title="Leave/End Session">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+
+        <!-- Participants (collapsible) -->
+        <div class="text-center mt-2">
+            <a data-toggle="collapse" href="#ls-participants-panel" class="text-muted small">
+                <i class="fas fa-users"></i> Participants
+            </a>
+        </div>
+        <div class="collapse" id="ls-participants-panel">
+            <div class="card card-body mt-2 ls-participants" id="ls-participants-list">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<!-- PeerJS CDN -->
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<!-- LiveShare Module -->
+<script src="{% static 'gstbillingapp/js/liveshare.js' %}"></script>
+
+<script>
+// ─── DOM refs ────────────────────────────────────────
+const codeInput    = document.getElementById('ls-code-input');
+const joinBtn      = document.getElementById('ls-join-btn');
+const homeDiv      = document.getElementById('ls-home');
+const sessionDiv   = document.getElementById('ls-session');
+const screenVideo  = document.getElementById('ls-screen-video');
+const screenPlaceholder = document.getElementById('ls-screen-placeholder');
+const localCamVideo = document.getElementById('ls-local-cam');
+const statusBar    = document.getElementById('ls-status-bar');
+const statusText   = document.getElementById('ls-status-text');
+const displayCode  = document.getElementById('ls-display-code');
+const roleBadge    = document.getElementById('ls-role-badge');
+const peerNum      = document.getElementById('ls-peer-num');
+const camStrip     = document.getElementById('ls-cam-strip');
+const participantsList = document.getElementById('ls-participants-list');
+
+let micOn = true;
+let camOn = true;
+let screenOn = false;
+let participants = {}; // peerId -> name
+let localScreenStream = null;
+
+// ─── Enable join button when code is 6 chars ──────────
+codeInput.addEventListener('input', function () {
+    this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    joinBtn.disabled = this.value.length !== 6;
+});
+codeInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && this.value.length === 6) doJoinRoom();
+});
+
+// ─── Register LiveShare callbacks ─────────────────────
+LiveShare.onStatusChange((status, msg) => {
+    console.log('[LiveShare]', status, msg);
+    setStatus(msg, statusClassFromType(status));
+});
+
+LiveShare.onRemoteScreen((stream) => {
+    if (stream) {
+        screenVideo.srcObject = stream;
+        screenVideo.style.display = '';
+        screenPlaceholder.style.display = 'none';
+        screenVideo.play().catch(() => {});
+    } else {
+        screenVideo.style.display = 'none';
+        screenVideo.srcObject = null;
+        screenPlaceholder.style.display = '';
+        document.getElementById('ls-screen-placeholder-text').textContent = 'Screen sharing ended';
+    }
+});
+
+LiveShare.onRemoteCam((peerId, stream, name) => {
+    addRemoteCam(peerId, stream, name);
+});
+
+LiveShare.onRemoteCamRemoved((peerId) => {
+    removeRemoteCam(peerId);
+});
+
+LiveShare.onPeerJoined((peerId, name) => {
+    participants[peerId] = name;
+    updateParticipants();
+    updatePeerCount();
+});
+
+LiveShare.onPeerLeft((peerId, name) => {
+    delete participants[peerId];
+    removeRemoteCam(peerId);
+    updateParticipants();
+    updatePeerCount();
+});
+
+LiveShare.onError((msg) => {
+    setStatus(msg, 'error');
+    Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonColor: '#dc3545' });
+});
+
+// ─── Create Room (Host) ──────────────────────────────
+async function doCreateRoom() {
+    const userName = document.getElementById('ls-name-input').value.trim() || 'Host';
+    const wantCam = document.getElementById('ls-cam-toggle').checked;
+    const wantMic = document.getElementById('ls-mic-toggle').checked;
+
+    try {
+        const result = await LiveShare.createRoom({
+            userName,
+            video: wantCam,
+            audio: wantMic,
+        });
+
+        // Switch to session view
+        showSession(result.roomId, true);
+
+        // Show local cam
+        if (result.camStream) {
+            localCamVideo.srcObject = result.camStream;
+            localCamVideo.play().catch(() => {});
+        }
+        document.getElementById('ls-local-label').textContent = userName + ' (You)';
+
+        // Show local screen in the main area
+        if (result.screenStream) {
+            screenVideo.srcObject = result.screenStream;
+            screenVideo.style.display = '';
+            screenPlaceholder.style.display = 'none';
+            screenVideo.play().catch(() => {});
+            screenOn = true;
+            updateScreenBtn();
+        }
+
+        // Show screen share button for host
+        document.getElementById('ls-btn-screen').style.display = '';
+
+        // Set initial button states
+        camOn = wantCam;
+        micOn = wantMic;
+        updateCamBtn();
+        updateMicBtn();
+
+    } catch (err) {
+        console.error('Create room error:', err);
+    }
+}
+
+// ─── Join Room (Viewer) ───────────────────────────────
+async function doJoinRoom() {
+    const code = codeInput.value.trim();
+    if (code.length !== 6) return;
+    const userName = document.getElementById('ls-name-input')?.value.trim() || 'Viewer';
+    const wantCam = document.getElementById('ls-cam-toggle')?.checked ?? true;
+    const wantMic = document.getElementById('ls-mic-toggle')?.checked ?? true;
+
+    joinBtn.disabled = true;
+    joinBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+
+    try {
+        const result = await LiveShare.joinRoom(code, {
+            userName,
+            video: wantCam,
+            audio: wantMic,
+        });
+
+        showSession(result.roomId, false);
+
+        if (result.camStream) {
+            localCamVideo.srcObject = result.camStream;
+            localCamVideo.play().catch(() => {});
+        }
+        document.getElementById('ls-local-label').textContent = userName + ' (You)';
+
+        camOn = wantCam;
+        micOn = wantMic;
+        updateCamBtn();
+        updateMicBtn();
+
+    } catch (err) {
+        console.error('Join room error:', err);
+        joinBtn.disabled = false;
+        joinBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Join Session';
+    }
+}
+
+// ─── Show Session UI ──────────────────────────────────
+function showSession(code, hosting) {
+    homeDiv.style.display = 'none';
+    sessionDiv.classList.add('active');
+    displayCode.textContent = code;
+    roleBadge.textContent = hosting ? 'HOST' : 'VIEWER';
+    roleBadge.className = hosting ? 'badge badge-success' : 'badge badge-primary';
+    peerNum.textContent = '1';
+    participants = {};
+    updateParticipants();
+}
+
+// ─── End Session ──────────────────────────────────────
+function endSession() {
+    Swal.fire({
+        title: 'Leave Session?',
+        text: LiveShare.isHosting() ? 'This will end the session for all viewers.' : 'You will disconnect from the session.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        confirmButtonText: 'Leave',
+    }).then((result) => {
+        if (result.isConfirmed) {
+            LiveShare.leaveRoom();
+            screenVideo.srcObject = null;
+            screenVideo.style.display = 'none';
+            screenPlaceholder.style.display = '';
+            localCamVideo.srcObject = null;
+            // Remove all remote cams
+            document.querySelectorAll('.ls-remote-cam').forEach(el => el.remove());
+            // Reset UI
+            sessionDiv.classList.remove('active');
+            homeDiv.style.display = '';
+            joinBtn.disabled = false;
+            joinBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Join Session';
+            codeInput.value = '';
+            screenOn = false;
+            document.getElementById('ls-btn-screen').style.display = 'none';
+        }
+    });
+}
+
+// ─── Controls ─────────────────────────────────────────
+function toggleMic() {
+    micOn = !micOn;
+    LiveShare.toggleMic(micOn);
+    updateMicBtn();
+}
+
+function toggleCam() {
+    camOn = !camOn;
+    LiveShare.toggleCamera(camOn);
+    updateCamBtn();
+    // Show/hide local cam video
+    if (!camOn) {
+        localCamVideo.style.display = 'none';
+        document.getElementById('ls-local-cam-box').classList.add('no-video');
+    } else {
+        localCamVideo.style.display = '';
+        document.getElementById('ls-local-cam-box').classList.remove('no-video');
+    }
+}
+
+async function toggleScreen() {
+    if (!screenOn) {
+        const stream = await LiveShare.startScreenShare();
+        if (stream) {
+            screenVideo.srcObject = stream;
+            screenVideo.style.display = '';
+            screenPlaceholder.style.display = 'none';
+            screenVideo.play().catch(() => {});
+            screenOn = true;
+            localScreenStream = stream;
+            // Detect browser stop
+            stream.getVideoTracks()[0].onended = () => {
+                screenOn = false;
+                screenVideo.style.display = 'none';
+                screenPlaceholder.style.display = '';
+                localScreenStream = null;
+                updateScreenBtn();
+            };
+        }
+    } else {
+        LiveShare.stopScreenShare();
+        screenVideo.srcObject = null;
+        screenVideo.style.display = 'none';
+        screenPlaceholder.style.display = '';
+        screenOn = false;
+        localScreenStream = null;
+    }
+    updateScreenBtn();
+}
+
+// ─── Button state helpers ───────────────────────────
+function updateMicBtn() {
+    const btn = document.getElementById('ls-btn-mic');
+    btn.className = micOn ? 'ls-ctrl-btn on' : 'ls-ctrl-btn off';
+    btn.innerHTML = micOn ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+}
+function updateCamBtn() {
+    const btn = document.getElementById('ls-btn-cam');
+    btn.className = camOn ? 'ls-ctrl-btn on' : 'ls-ctrl-btn off';
+    btn.innerHTML = camOn ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+}
+function updateScreenBtn() {
+    const btn = document.getElementById('ls-btn-screen');
+    btn.className = screenOn ? 'ls-ctrl-btn screen-btn' : 'ls-ctrl-btn screen-btn off';
+}
+
+// ─── Remote cam management ──────────────────────────
+function addRemoteCam(peerId, stream, name) {
+    // Remove existing if any
+    removeRemoteCam(peerId);
+
+    const box = document.createElement('div');
+    box.className = 'ls-cam-box ls-remote-cam';
+    box.id = 'ls-cam-' + peerId;
+    box.innerHTML = `
+        <video playsinline autoplay></video>
+        <div class="ls-cam-label">${escapeHtml(name)}</div>
+    `;
+    camStrip.appendChild(box);
+
+    const video = box.querySelector('video');
+    video.srcObject = stream;
+    video.play().catch(() => {});
+}
+
+function removeRemoteCam(peerId) {
+    const el = document.getElementById('ls-cam-' + peerId);
+    if (el) el.remove();
+}
+
+// ─── Participants list ──────────────────────────────
+function updateParticipants() {
+    let html = `<div class="ls-participant-item"><div class="ls-participant-dot"></div> You (${escapeHtml(document.getElementById('ls-local-label').textContent)})</div>`;
+    Object.entries(participants).forEach(([pid, name]) => {
+        html += `<div class="ls-participant-item"><div class="ls-participant-dot"></div> ${escapeHtml(name)}</div>`;
+    });
+    participantsList.innerHTML = html;
+}
+
+function updatePeerCount() {
+    peerNum.textContent = Object.keys(participants).length + 1;
+}
+
+// ─── Status bar ─────────────────────────────────────
+function setStatus(msg, cls) {
+    statusText.textContent = msg;
+    statusBar.className = 'ls-status-bar ' + cls;
+}
+
+function statusClassFromType(type) {
+    const map = {
+        'initializing': 'info', 'room-created': 'success', 'waiting': 'info',
+        'no-screen': 'warning', 'connecting': 'info', 'connected': 'success',
+        'viewer-joined': 'success', 'viewer-left': 'warning', 'host-left': 'error',
+        'screen-sharing': 'success', 'screen-stopped': 'warning',
+        'reconnecting': 'warning', 'left': 'info', 'error': 'error',
+    };
+    return map[type] || 'info';
+}
+
+// ─── Utility ────────────────────────────────────────
+function copyCode() {
+    const code = displayCode.textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Room Code copied!', showConfirmButton: false, timer: 1200 });
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ─── URL param auto-join ────────────────────────────
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('code')) {
+    codeInput.value = urlParams.get('code').toUpperCase();
+    joinBtn.disabled = codeInput.value.length !== 6;
+}
+
+// ─── Cleanup on page leave ──────────────────────────
+window.addEventListener('beforeunload', () => {
+    LiveShare.leaveRoom();
+});
+</script>
+{% endblock %}

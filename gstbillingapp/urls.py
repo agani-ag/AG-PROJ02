@@ -20,6 +20,7 @@ urlpatterns = [
     path('signup', auth.signup_view, name='signup_view'),
     path('logout', auth.logout_view, name='logout_view'),
     path('accounts/', include('django.contrib.auth.urls')),
+    path('api/passkey-auth', auth.passkey_auth, name='passkey_auth'),
 
     # Profile URLs
     path('profile', profile.user_profile, name='user_profile'),
@@ -135,8 +136,8 @@ urlpatterns = [
     path('bank_details/delete/<int:pk>', bank_details.bank_details_delete, name='bank_details_delete'),
 
     # Features URLs
+    path('liveshare', features.liveshare_page, name='liveshare_page'),
     path('feature/upload', features.excel_upload, name='feature_upload'),
-    path('api/passkey-auth', auth.passkey_auth, name='passkey_auth'),
     path('download/sqlite', features.download_sqlite, name='download_sqlite'),
 
     # Reports URLs

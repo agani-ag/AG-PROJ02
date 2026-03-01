@@ -85,3 +85,9 @@ def download_sqlite(request):
             return response
     else:
         return HttpResponse("Database file not found", status=404)
+    
+@login_required
+def liveshare_page(request):
+    """LiveShare - Bi-directional screen sharing, video & audio communication page."""
+    context = {}
+    return render(request, 'features/liveshare.html', context)
