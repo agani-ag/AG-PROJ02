@@ -1,0 +1,106 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.installed.cfg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ========================
+# Virtual Environment
+# ========================
+venv/
+env/
+ENV/
+.venv/
+
+# ========================
+# Django
+# ========================
+gstbillingdb.sqlite3
+db.sqlite3
+*.sqlite3
+local_settings.py
+/staticfiles/
+/media/
+*.log
+*.pot
+migrations/
+__pycache__/
+
+# ========================
+# Environment Variables
+# ========================
+.env
+.env.local
+.env.*.local
+
+# ========================
+# Distribution / Build
+# ========================
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+
+# ========================
+# Testing & Coverage
+# ========================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage.xml
+*.cover
+nosetests.xml
+
+# ========================
+# IDE & Editors
+# ========================
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
+
+# ========================
+# OS Files
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ========================
+# Channels / Daphne / Redis
+# ========================
+channels.log
+daphne.log
+
+# ========================
+# ReportLab (PDF Generation)
+# ========================
+*.pdf.tmp
+
+# ========================
+# Misc
+# ========================
+*.bak
+*.tmp
+*.temp

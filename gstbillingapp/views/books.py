@@ -68,7 +68,7 @@ def book_logs(request, book_id):
     elif request.GET.get('filter') == 'others':
         book_logs = book_logs.filter(change_type=3)
     else:
-        book_logs = book_logs.filter(Q(change_type=0) | Q(change_type=1) | Q(change_type=2) | Q(change_type=3))
+        book_logs = book_logs.all()
     context['book_logs'] = book_logs
     return render(request, 'books/book_logs.html', context)
 
@@ -123,6 +123,7 @@ def book_logs_del(request, booklog_id):
     book.current_balance = new_total
     book.last_log = new_last_log
     book.save()
+    recalculate_book_current_balance(book)
     return redirect('book_logs', book.id)
 
 # ================= Full Books Views ===========================
@@ -483,3 +484,19 @@ def book_logs_api_roundoff(request):
         recalculate_book_current_balance(book)
         return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog.id} Round-off added successfully.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add products alert stock.'})
+
+@csrf_exempt
+def book_logs_recalculate(request):
+    if request.method == "POST":
+        book_id = request.POST["book_id"]
+        book = get_object_or_404(Book, id=book_id)
+        recalculate_book_current_balance(book)
+        return JsonResponse({'status': 'success', 'message': f'Book ID {book_id} balance recalculated successfully.'})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to recalculate book balance.'})
+
+@csrf_exempt
+def book_logs_recalculate_all(request):
+    books = Book.objects.filter(user=request.user)
+    for book in books:
+        recalculate_book_current_balance(book)
+    return JsonResponse({'status': 'success', 'message': f'All book balances recalculated successfully.'})

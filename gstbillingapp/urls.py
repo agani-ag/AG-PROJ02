@@ -76,6 +76,8 @@ urlpatterns = [
     path('customer/book/filter/', books.customerBookFilter, name='customer_book_filter'),
     path('customer/book/pending-logs', books.book_logs_pending, name='book_logs_pending'),
     path('books/api/roundoff', books.book_logs_api_roundoff, name='book_logs_api_roundoff'),
+    path('books/api/recalculate', books.book_logs_recalculate, name='book_logs_api_recalculate'),
+    path('books/api/recalculate-all', books.book_logs_recalculate_all, name='book_logs_api_recalculate_all'),
 
     # Product URLs
     path('products', products.products, name='products'),
