@@ -1863,3 +1863,146 @@ def transaction_report(request):
     }
 
     return render(request, 'reports/transaction_report.html', context)
+
+
+# =============================================================================
+# Inventory Transaction Report (Product-wise)
+# =============================================================================
+@login_required
+def inventory_transaction_report(request):
+    """
+    Inventory Transaction Report — Product Name & Quantity filtered by
+    inventory log type (Purchase, Production, Return, Sales, Other)
+    with custom date range.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # --- Parse filters ---
+    txn_type = request.GET.get('type', 'all')
+    date_from = request.GET.get('from', '')
+    date_to = request.GET.get('to', '')
+    sort_by = request.GET.get('sort', 'stock_desc')
+    hide_zero = request.GET.get('hide_zero', '1')
+
+    valid_types = ['all', 'purchase', 'production', 'return', 'sales', 'other']
+    if txn_type not in valid_types:
+        txn_type = 'all'
+
+    valid_sorts = [
+        'model_no_asc', 'model_no_desc',
+        'name_asc', 'name_desc',
+        'stock_asc', 'stock_desc',
+        'price_asc', 'price_desc',
+        'amount_asc', 'amount_desc',
+    ]
+    if sort_by not in valid_sorts:
+        sort_by = 'stock_desc'
+
+    # Parse dates
+    try:
+        start_date = datetime.strptime(date_from, '%Y-%m-%d').date() if date_from else None
+    except ValueError:
+        start_date = None
+
+    try:
+        end_date = datetime.strptime(date_to, '%Y-%m-%d').date() if date_to else None
+    except ValueError:
+        end_date = None
+
+    # Map txn_type to InventoryLog change_type
+    type_map = {
+        'all': [0, 1, 2, 3, 4],
+        'other': [0],
+        'purchase': [1],
+        'production': [2],
+        'return': [3],
+        'sales': [4],
+    }
+    change_types = type_map.get(txn_type, [0, 1, 2, 3, 4])
+
+    type_labels = {
+        'all': 'All Transactions',
+        'purchase': 'Purchases',
+        'production': 'Production',
+        'return': 'Returns',
+        'sales': 'Sales',
+        'other': 'Others',
+    }
+
+    # --- Query ---
+    log_filter = Q(user=user, change_type__in=change_types)
+    if start_date:
+        log_filter &= Q(date__date__gte=start_date)
+    if end_date:
+        log_filter &= Q(date__date__lte=end_date)
+
+    logs = InventoryLog.objects.filter(log_filter).select_related('product')
+
+    # Aggregate per product
+    product_totals = {}
+    for log in logs:
+        if not log.product:
+            continue
+        pid = log.product.id
+        if pid not in product_totals:
+            product_totals[pid] = {
+                'product_id': pid,
+                'model_no': log.product.model_no,
+                'name': log.product.product_name or '-',
+                'price': log.product.product_rate_with_gst,
+                'quantity': 0,
+            }
+        product_totals[pid]['quantity'] += abs(log.change)
+
+    product_rows = [v for v in product_totals.values() if v['quantity'] > 0]
+
+    grand_total = sum(r['quantity'] for r in product_rows)
+
+    # Get current stock for each product in the results
+    inventory_map = {}
+    if product_rows:
+        product_ids = [r['product_id'] for r in product_rows]
+        inventories = Inventory.objects.filter(user=user, product_id__in=product_ids)
+        for inv in inventories:
+            inventory_map[inv.product_id] = inv.current_stock
+
+    for row in product_rows:
+        row['current_stock'] = inventory_map.get(row['product_id'], 0)
+        row['total_amount'] = round(row['current_stock'] * row['price'], 2)
+
+    # Filter out zero/negative stock if checkbox enabled
+    if hide_zero == '1':
+        product_rows = [r for r in product_rows if r['current_stock'] > 0]
+
+    grand_total_amount = round(sum(r['total_amount'] for r in product_rows), 2)
+
+    # --- Sort ---
+    sort_key_map = {
+        'model_no': 'model_no',
+        'name': 'name',
+        'stock': 'current_stock',
+        'price': 'price',
+        'amount': 'total_amount',
+    }
+    sort_field, sort_dir = sort_by.rsplit('_', 1)
+    key_name = sort_key_map.get(sort_field, 'quantity')
+    product_rows.sort(key=lambda x: x[key_name], reverse=(sort_dir == 'desc'))
+
+    context = {
+        'user_profile': user_profile,
+        'product_rows': product_rows,
+        'grand_total': grand_total,
+        'grand_total_amount': grand_total_amount,
+        'total_products': len(product_rows),
+        'txn_type': txn_type,
+        'type_label': type_labels.get(txn_type, 'All Transactions'),
+        'date_from': date_from,
+        'date_to': date_to,
+        'sort_by': sort_by,
+        'hide_zero': hide_zero,
+        'report_date': today,
+    }
+
+    return render(request, 'reports/inventory_transaction_report.html', context)

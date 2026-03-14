@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Inventory Transaction Report - GST Sync{% endblock %}
+
+{% block includecss %}
+<style>
+/* ===== Inventory Transaction Report Styles ===== */
+.txn-report .card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    overflow: hidden;
+}
+.txn-report .section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #343a40;
+    margin-bottom: 0;
+}
+.txn-report .kpi-card {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease;
+}
+.txn-report .kpi-card:hover {
+    transform: translateY(-2px);
+}
+.txn-report .kpi-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+}
+.txn-report .kpi-label {
+    font-size: .75rem;
+    text-transform: uppercase;
+    color: #6c757d;
+    letter-spacing: .04em;
+}
+.txn-report .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+.txn-report .filter-bar label {
+    font-weight: 600;
+    font-size: .85rem;
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+.txn-report .filter-bar select,
+.txn-report .filter-bar input[type="date"] {
+    font-weight: 600;
+    font-size: .88rem;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 2px solid #495057;
+    cursor: pointer;
+}
+.txn-report .filter-bar select:focus,
+.txn-report .filter-bar input:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0,123,255,.15);
+}
+.txn-report .filter-bar .btn-apply {
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 5px 18px;
+}
+.txn-report .table th {
+    background: #343a40;
+    color: #fff;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    border: none;
+}
+.txn-report .table td {
+    vertical-align: middle;
+    font-size: .85rem;
+}
+.txn-report .total-row td {
+    font-weight: 700;
+    background: #f8f9fa !important;
+    border-top: 2px solid #343a40;
+}
+
+/* Type badge colors */
+.badge-type-all { background: #17a2b8; color: #fff; }
+.badge-type-purchase { background: #007bff; color: #fff; }
+.badge-type-production { background: #28a745; color: #fff; }
+.badge-type-return { background: #ffc107; color: #333; }
+.badge-type-sales { background: #dc3545; color: #fff; }
+.badge-type-other { background: #6c757d; color: #fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3 txn-report">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="font-weight-bold mb-0"><i class="fas fa-boxes text-primary"></i> Inventory Transaction Report</h4>
+            <small class="text-muted">Report Date: {{ report_date|date:"d M Y" }}</small>
+        </div>
+        <div>
+            <a href="{% url 'inventory_dashboard' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left mr-1"></i>Back to Inventory</a>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <form method="get" class="filter-bar" id="filterForm">
+                <label for="typeSelect"><i class="fas fa-filter text-primary mr-1"></i>Type:</label>
+                <select id="typeSelect" name="type" onchange="document.getElementById('filterForm').submit()">
+                    <option value="all" {% if txn_type == 'all' %}selected{% endif %}>All</option>
+                    <option value="purchase" {% if txn_type == 'purchase' %}selected{% endif %}>Purchases</option>
+                    <option value="production" {% if txn_type == 'production' %}selected{% endif %}>Production</option>
+                    <option value="return" {% if txn_type == 'return' %}selected{% endif %}>Returns</option>
+                    <option value="sales" {% if txn_type == 'sales' %}selected{% endif %}>Sales</option>
+                    <option value="other" {% if txn_type == 'other' %}selected{% endif %}>Others</option>
+                </select>
+
+                <label for="dateFrom"><i class="fas fa-calendar mr-1"></i>From:</label>
+                <input type="date" id="dateFrom" name="from" value="{{ date_from }}" onchange="document.getElementById('filterForm').submit()">
+
+                <label for="dateTo">To:</label>
+                <input type="date" id="dateTo" name="to" value="{{ date_to }}" onchange="document.getElementById('filterForm').submit()">
+
+                <label for="sortSelect"><i class="fas fa-sort text-primary mr-1"></i>Sort:</label>
+                <select id="sortSelect" name="sort" onchange="document.getElementById('filterForm').submit()">
+                    <option value="model_no_asc" {% if sort_by == 'model_no_asc' %}selected{% endif %}>Model No (A-Z)</option>
+                    <option value="model_no_desc" {% if sort_by == 'model_no_desc' %}selected{% endif %}>Model No (Z-A)</option>
+                    <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>Name (A-Z)</option>
+                    <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>Name (Z-A)</option>
+                    <option value="stock_desc" {% if sort_by == 'stock_desc' %}selected{% endif %}>Stock (High-Low)</option>
+                    <option value="stock_asc" {% if sort_by == 'stock_asc' %}selected{% endif %}>Stock (Low-High)</option>
+                    <option value="price_desc" {% if sort_by == 'price_desc' %}selected{% endif %}>Price (High-Low)</option>
+                    <option value="price_asc" {% if sort_by == 'price_asc' %}selected{% endif %}>Price (Low-High)</option>
+                    <option value="amount_desc" {% if sort_by == 'amount_desc' %}selected{% endif %}>Amount (High-Low)</option>
+                    <option value="amount_asc" {% if sort_by == 'amount_asc' %}selected{% endif %}>Amount (Low-High)</option>
+                </select>
+
+                <div class="d-flex align-items-center">
+                    <input type="hidden" name="hide_zero" value="0">
+                    <input type="checkbox" id="hideZero" name="hide_zero" value="1" {% if hide_zero == '1' %}checked{% endif %} onchange="document.getElementById('filterForm').submit()" style="width:18px;height:18px;cursor:pointer;">
+                    <label for="hideZero" class="ml-1 mb-0" style="font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap;">Only Positive</label>
+                </div>
+
+                <a href="{% url 'inventory_transaction_report' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+            </form>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row mb-3">
+        <div class="col-6 col-md-3 mb-2">
+            <div class="kpi-card">
+                <div class="kpi-value text-primary">{{ grand_total|intcomma }}</div>
+                <div class="kpi-label">Total Quantity</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-2">
+            <div class="kpi-card">
+                <div class="kpi-value text-success">₹ {{ grand_total_amount|floatformat:2|intcomma }}</div>
+                <div class="kpi-label">Total Amount</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-2">
+            <div class="kpi-card">
+                <div class="kpi-value text-dark">{{ total_products }}</div>
+                <div class="kpi-label">Products</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-2">
+            <div class="kpi-card">
+                <div class="kpi-value">
+                    <span class="badge badge-type-{{ txn_type }}" style="font-size:.95rem;padding:6px 16px;">{{ type_label }}</span>
+                </div>
+                <div class="kpi-label">Transaction Type</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Section -->
+    <div class="card">
+        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center py-2">
+            <div>
+                <h5 class="section-title mb-0"><i class="fas fa-table mr-1"></i>{{ type_label }}
+                    {% if date_from and date_to %}
+                        <small class="text-muted ml-2">({{ date_from }} to {{ date_to }})</small>
+                    {% elif date_from %}
+                        <small class="text-muted ml-2">(From {{ date_from }})</small>
+                    {% elif date_to %}
+                        <small class="text-muted ml-2">(Up to {{ date_to }})</small>
+                    {% endif %}
+                </h5>
+            </div>
+            <button class="btn btn-sm btn-outline-dark mt-1" onclick="printReport()"><i class="fas fa-print mr-1"></i>Print</button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered mb-0" id="txnTable">
+                    <thead>
+                        <tr>
+                            <th style="width:50px;" class="text-center">#</th>
+                            <th>Model No</th>
+                            <th>Product Name</th>
+                            <th style="width:120px;" class="text-right">Current Stock</th>
+                            <th style="width:120px;" class="text-right">Price (₹)</th>
+                            <th style="width:150px;" class="text-right">Total Amount (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in product_rows %}
+                        <tr>
+                            <td class="text-center font-weight-bold">{{ forloop.counter }}</td>
+                            <td>
+                                <strong>{{ p.model_no }}</strong>
+                            </td>
+                            <td class="text-muted">{{ p.name }}</td>
+                            <td class="text-right">{{ p.current_stock|intcomma }}</td>
+                            <td class="text-right">₹ {{ p.price|floatformat:2|intcomma }}</td>
+                            <td class="text-right font-weight-bold" style="font-size:.95rem;">₹ {{ p.total_amount|floatformat:2|intcomma }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-2x mb-2 d-block text-secondary"></i>
+                                No inventory transactions found for the selected filters
+                            </td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if product_rows %}
+                        <tr class="total-row">
+                            <td></td>
+                            <td colspan="4" class="font-weight-bold">TOTAL ({{ total_products }} products)</td>
+                            <td class="text-right font-weight-bold" style="font-size:1rem;">₹ {{ grand_total_amount|floatformat:2|intcomma }}</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+function printReport() {
+    var table = document.getElementById('txnTable');
+    if (!table) return;
+    var clone = table.cloneNode(true);
+
+    /* Business details from Django context */
+    var bizName   = '{{ user_profile.business_title|escapejs }}';
+    var bizAddr   = '{{ user_profile.business_address|escapejs }}';
+    var bizPhone  = '{{ user_profile.business_phone|escapejs }}';
+    var bizGst    = '{{ user_profile.business_gst|escapejs }}';
+    var rptDate   = '{{ report_date|date:"d M Y" }}';
+    var typeLabel = '{{ type_label|escapejs }}';
+    var dateFrom  = '{{ date_from|escapejs }}';
+    var dateTo    = '{{ date_to|escapejs }}';
+
+    var dateRange = '';
+    if (dateFrom && dateTo) dateRange = dateFrom + '  to  ' + dateTo;
+    else if (dateFrom) dateRange = 'From ' + dateFrom;
+    else if (dateTo) dateRange = 'Up to ' + dateTo;
+    else dateRange = 'All Time';
+
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>Inventory Transaction Report</title>');
+    win.document.write('<style>');
+    win.document.write('@page{size:A4 portrait;margin:12mm;}');
+    win.document.write('body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:10px;color:#333;}');
+    /* Header */
+    win.document.write('.print-header{text-align:center;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px;}');
+    win.document.write('.print-header h1{margin:0 0 2px;font-size:1.4rem;text-transform:uppercase;letter-spacing:.04em;}');
+    win.document.write('.print-header .addr{margin:0;font-size:.82rem;color:#555;}');
+    win.document.write('.print-header .contact{margin:4px 0 0;font-size:.82rem;color:#555;}');
+    /* Sub header */
+    win.document.write('.sub-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:.85rem;}');
+    win.document.write('.sub-header .badge{display:inline-block;padding:3px 12px;border-radius:4px;background:#007bff;color:#fff;font-weight:700;font-size:.82rem;}');
+    /* Table */
+    win.document.write('table{width:100%;border-collapse:collapse;font-size:.85rem;}');
+    win.document.write('th,td{border:1px solid #aaa;padding:6px 10px;}');
+    win.document.write('th{background:#343a40;color:#fff;font-size:.78rem;text-transform:uppercase;}');
+    win.document.write('td:first-child{text-align:center;width:40px;}');
+    win.document.write('td:last-child,th:last-child{text-align:right;}');
+    win.document.write('tr:nth-child(even){background:#f9f9f9;}');
+    win.document.write('.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
+    win.document.write('.font-weight-bold{font-weight:700;}');
+    /* Footer */
+    win.document.write('.print-footer{text-align:center;margin-top:20px;font-size:.72rem;color:#999;border-top:1px solid #ccc;padding-top:6px;}');
+    win.document.write('@media print{@page{size:A4 portrait;margin:12mm;}body{margin:0;padding:8px;}}');
+    win.document.write('</style></head><body>');
+
+    /* === Header === */
+    win.document.write('<div class="print-header">');
+    win.document.write('<h1>' + bizName + '</h1>');
+    if (bizAddr) win.document.write('<p class="addr">' + bizAddr + '</p>');
+    var contactParts = [];
+    if (bizPhone) contactParts.push('Phone: ' + bizPhone);
+    if (bizGst) contactParts.push('GST: ' + bizGst);
+    if (contactParts.length) win.document.write('<p class="contact">' + contactParts.join('  |  ') + '</p>');
+    win.document.write('</div>');
+
+    /* === Sub Header === */
+    win.document.write('<div class="sub-header">');
+    win.document.write('<div><strong>Inventory Transaction Report</strong> &mdash; <span class="badge">' + typeLabel + '</span></div>');
+    win.document.write('<div>Period: <strong>' + dateRange + '</strong> &nbsp;|&nbsp; Date: <strong>' + rptDate + '</strong></div>');
+    win.document.write('</div>');
+
+    /* === Table === */
+    win.document.write(clone.outerHTML);
+
+    /* === Footer === */
+    win.document.write('<div class="print-footer">This is a computer-generated report. &mdash; ' + bizName + '</div>');
+
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 300);
+}
+</script>
+{% endblock %}

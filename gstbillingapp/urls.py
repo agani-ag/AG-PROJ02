@@ -151,6 +151,7 @@ urlpatterns = [
     path('reports/customer-analysis', reports.customer_analysis, name='customer_analysis'),
     path('reports/overdue', reports.overdue_report, name='overdue_report'),
     path('reports/transactions', reports.transaction_report, name='transaction_report'),
+    path('reports/inventory-transactions', reports.inventory_transaction_report, name='inventory_transaction_report'),
     path('api/reports/overdue', reports.overdue_report_api, name='overdue_report_api'),
 
     # Graphs and Analytics URLs
