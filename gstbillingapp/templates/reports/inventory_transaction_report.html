@@ -223,7 +223,7 @@
                         <tr>
                             <td class="text-center font-weight-bold">{{ forloop.counter }}</td>
                             <td>
-                                <strong>{{ p.model_no }}</strong>
+                                <strong><a href="{% url 'inventory_logs' p.product_id %}" style="text-decoration:none;color:black;">{{ p.model_no }}</a></strong>
                             </td>
                             <td class="text-muted">{{ p.name }}</td>
                             <td class="text-right">{{ p.current_stock|intcomma }}</td>

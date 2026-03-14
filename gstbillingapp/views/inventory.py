@@ -37,6 +37,11 @@ def inventory_logs(request, inventory_id):
     context = {}
     inventory = get_object_or_404(Inventory, id=inventory_id, user=request.user)
     inventory_logs = InventoryLog.objects.filter(user=request.user, product=inventory.product).order_by('-id')
+    price = inventory.product.product_rate_with_gst if inventory.product.product_rate_with_gst else 0
+    discount = inventory.product.product_discount if inventory.product.product_discount else 0
+    gst = inventory.product.product_gst_percentage if inventory.product.product_gst_percentage else 0
+    sales_price = price * (1 - discount / 100) * (1 + gst / 100)
+    context['sales_price'] = sales_price
     context['inventory'] = inventory
     context['inventory_logs'] = inventory_logs
     context['nav_hide'] = request.GET.get('nav') or ''

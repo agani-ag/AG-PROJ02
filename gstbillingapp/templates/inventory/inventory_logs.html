@@ -32,19 +32,34 @@
 			{% else %}
 				<b class="text-danger">N/A</b>
 			{% endif %}
-			</h6>
-		<h6>
-			<span style="cursor:pointer;" onclick="alert_levelupdate({{ inventory.id }}, {{ inventory.alert_level }})" title="Update Stock Alert Level">
-				Stock Alert Level : <span class="text-primary font-weight-bold">{{ inventory.alert_level }}</span>
-			</span>
 		</h6>
-		<h4>
-			Current Stock: 
-			<b>{% if inventory.current_stock > 0 %}
-				<span class="text-success">{{ inventory.current_stock }}</span>
+		<h6>
+			Price: 
+			{% if inventory.product.product_rate_with_gst %}
+				<b>{{inventory.product.product_rate_with_gst}}</b>
+				{% if sales_price != inventory.product.product_rate_with_gst %}
+					<small class="text-muted font-weight-bold">({{ sales_price|floatformat:2 }})</small>
+				{% endif %}
 			{% else %}
-				<span class="text-danger">{{ inventory.current_stock }}</span>
-			{% endif %}</b>
+				<b class="text-danger">N/A</b>
+			{% endif %}
+		</h6>
+		<h4 class="d-flex align-items-center gap-2">
+			<span class="fw-semibold">Current Stock:</span>
+			{% if inventory.current_stock > 0 %}
+				<span class="badge rounded-pill bg-success px-3 py-2 fs-6">
+					{{ inventory.current_stock }}
+				</span>
+			{% else %}
+				<span class="badge rounded-pill bg-danger px-3 py-2 fs-6">
+					{{ inventory.current_stock }}
+				</span>
+			{% endif %}
+			<span class="text-muted">|</span>
+			<span class="badge rounded-pill bg-warning text-dark px-3 py-2" style="cursor:pointer;"
+				onclick="alert_levelupdate({{ inventory.id }}, {{ inventory.alert_level }})" title="Update Stock Alert Level">{{ inventory.alert_level }}
+			</span>
+
 		</h4>
 	</div>
 	<div class="col text-right">

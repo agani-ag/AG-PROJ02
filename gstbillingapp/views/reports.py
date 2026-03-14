@@ -1947,11 +1947,15 @@ def inventory_transaction_report(request):
             continue
         pid = log.product.id
         if pid not in product_totals:
+            discount = log.product.product_discount if log.product.product_discount is not None else 0
+            gst = log.product.product_gst_percentage if log.product.product_gst_percentage is not None else 0
+            price = log.product.product_rate_with_gst if log.product.product_rate_with_gst is not None else 0
+            sale_price = price * (1 - discount / 100) * (1 + gst / 100)
             product_totals[pid] = {
                 'product_id': pid,
                 'model_no': log.product.model_no,
                 'name': log.product.product_name or '-',
-                'price': log.product.product_rate_with_gst,
+                'price': sale_price,
                 'quantity': 0,
             }
         product_totals[pid]['quantity'] += abs(log.change)
