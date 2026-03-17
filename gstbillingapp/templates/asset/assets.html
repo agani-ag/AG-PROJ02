@@ -31,7 +31,8 @@
 	 				<td>{% if asset.date %}{{asset.date}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 	 				<td>
 						 <div class="btn-group" role="group" aria-label="Basic example">
-							<a href="{% url 'asset_edit' asset.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Asset"><i class="fas fa-edit"></i></a>
+							 <a href="{% url 'asset_edit' asset.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Asset"><i class="fas fa-edit"></i></a>
+							 <a href="{% url 'asset_log' asset.id %}" class="btn btn-warning btn-sm btn-curve" title="View Logs"><i class="fas fa-history"></i></a>
 							<a href="{% url 'asset_delete' asset.id %}" class="btn btn-danger btn-sm btn-curve" title="Delete Asset"><i class="fas fa-trash"></i></a>
 						</div>
 					</td>

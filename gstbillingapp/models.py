@@ -576,3 +576,27 @@ class Asset(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.type})" if self.type else self.name
+
+class AssetLog(models.Model):
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name='logs')
+    date = models.DateTimeField(default=datetime.now)
+    CHANGE_TYPES = [
+        (0, 'Credit'),
+        (1, 'Debit'),
+    ]
+    change_type = models.IntegerField(choices=CHANGE_TYPES, default=0)
+    change = models.DecimalField(max_digits=15, decimal_places=2)
+    category = models.CharField(max_length=100, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if self.category:
+            self.category = self.category.upper()
+        if self.change_type == 1:
+            self.change = -abs(self.change)
+        else:
+            self.change = abs(self.change)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.asset.name} | {self.get_change_type_display()} | {self.change} | {self.date}"

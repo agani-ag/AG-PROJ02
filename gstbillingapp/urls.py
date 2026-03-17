@@ -136,6 +136,10 @@ urlpatterns = [
     path('asset/add', asset.asset_add, name='asset_add'),
     path('asset/edit/<int:asset_id>', asset.asset_edit, name='asset_edit'),
     path('asset/delete/<int:asset_id>', asset.asset_delete, name='asset_delete'),
+    # Asset Log URLs
+    path('asset/log/<int:asset_id>', asset.asset_log, name='asset_log'),
+    path('asset/log/add/<int:asset_id>', asset.asset_log_add, name='asset_log_add'),
+    path('asset/log/delete/<int:log_id>', asset.asset_log_delete, name='asset_log_delete'),
 
     # Bank Details URLs
     path('bank_details', bank_details.bank_details, name='bank_details'),

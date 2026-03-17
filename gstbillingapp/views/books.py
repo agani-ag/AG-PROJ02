@@ -96,7 +96,6 @@ def book_logs_add(request, book_id):
                 context['form'] = book_log_form
                 return render(request, 'books/book_logs_add.html', context)
 
-
         book_log = book_log_form.save(commit=False)
         book_log.parent_book = book
         if invoice:
