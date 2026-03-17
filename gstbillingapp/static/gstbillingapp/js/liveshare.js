@@ -99,24 +99,43 @@ const LiveShare = (() => {
 
         emit(_onStatusChange, 'initializing', 'Setting up room...');
 
+        // Get media streams FIRST (while still in user gesture context)
+        // getDisplayMedia MUST be called from a direct user gesture
+        const screenStream = await getScreenStream();
+        if (!screenStream) {
+            emit(_onStatusChange, 'no-screen', 'Screen sharing was cancelled. Room is still active for cam/mic.');
+        }
+
+        const camStream = await getCameraAndMic(
+            options.video !== false,
+            options.audio !== false
+        );
+
         return new Promise((resolve, reject) => {
-            peer = new Peer(peerId, { debug: options.debug || 0 });
-
-            peer.on('open', async () => {
-                emit(_onStatusChange, 'room-created', `Room ${roomId} created.`);
-
-                // Get screen share
-                const screenStream = await getScreenStream();
-                if (!screenStream) {
-                    emit(_onStatusChange, 'no-screen', 'Screen sharing was cancelled. Room is still active for cam/mic.');
+            const peerConfig = {
+                debug: options.debug || 0,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' },
+                    ]
                 }
+            };
+            peer = new Peer(peerId, peerConfig);
 
-                // Get camera & mic
-                const camStream = await getCameraAndMic(
-                    options.video !== false,
-                    options.audio !== false
-                );
+            // Timeout if PeerJS server is unreachable
+            const openTimeout = setTimeout(() => {
+                if (peer && !peer.open) {
+                    emit(_onError, 'Could not connect to signaling server. Please try again.');
+                    cleanup();
+                    reject(new Error('PeerJS connection timeout'));
+                }
+            }, 15000);
 
+            peer.on('open', () => {
+                clearTimeout(openTimeout);
+                emit(_onStatusChange, 'room-created', `Room ${roomId} created.`);
                 emit(_onStatusChange, 'waiting', 'Waiting for viewers to join...');
                 resolve({ roomId, screenStream, camStream });
             });
@@ -133,6 +152,7 @@ const LiveShare = (() => {
 
             peer.on('error', (err) => {
                 console.error('Host PeerJS error:', err);
+                clearTimeout(openTimeout);
                 if (err.type === 'unavailable-id') {
                     // Room ID conflict, regenerate
                     roomId = generateRoomId();
@@ -140,7 +160,7 @@ const LiveShare = (() => {
                     peer.destroy();
                     createRoom(options).then(resolve).catch(reject);
                 } else {
-                    emit(_onError, err.message);
+                    emit(_onError, err.message || 'Connection failed. Please try again.');
                     reject(err);
                 }
             });
@@ -221,7 +241,6 @@ const LiveShare = (() => {
         roomId = code.toUpperCase().trim();
         userName = options.userName || 'Viewer';
         hostPeerId = makePeerId('host', roomId);
-        const viewerPeerId = makePeerId('viewer', roomId, Date.now().toString());
 
         emit(_onStatusChange, 'connecting', 'Connecting to room...');
 
@@ -231,14 +250,74 @@ const LiveShare = (() => {
             options.audio !== false
         );
 
+        const maxRetries = 4;
+        const retryDelay = 3000; // 3 seconds between retries
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const result = await _attemptJoin(camStream, options, attempt);
+                return result;
+            } catch (err) {
+                console.warn(`Join attempt ${attempt}/${maxRetries} failed:`, err.message);
+                // If it's the last attempt, throw the error
+                if (attempt === maxRetries) {
+                    emit(_onError, 'Could not connect after multiple attempts. Make sure the host has started sharing and the Room Code is correct.');
+                    throw err;
+                }
+                // Otherwise retry after a delay
+                emit(_onStatusChange, 'connecting', `Retrying connection... (attempt ${attempt + 1}/${maxRetries})`);
+                // Clean up the failed peer before retrying
+                if (peer) { peer.destroy(); peer = null; }
+                connections = {};
+                await new Promise(r => setTimeout(r, retryDelay));
+            }
+        }
+    }
+
+    function _attemptJoin(camStream, options, attempt) {
+        const viewerPeerId = makePeerId('viewer', roomId, Date.now().toString());
+
         return new Promise((resolve, reject) => {
-            peer = new Peer(viewerPeerId, { debug: options.debug || 0 });
+            const peerConfig = {
+                debug: options.debug || 0,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' },
+                    ]
+                }
+            };
+            peer = new Peer(viewerPeerId, peerConfig);
+            let settled = false;
+
+            const fail = (msg) => {
+                if (settled) return;
+                settled = true;
+                reject(new Error(msg));
+            };
+
+            const openTimeout = setTimeout(() => {
+                fail('Signaling server timeout');
+            }, 15000);
 
             peer.on('open', () => {
+                clearTimeout(openTimeout);
+                emit(_onStatusChange, 'connecting', `Connecting to host... (attempt ${attempt})`);
+
                 // Data connection to host
                 const dataConn = peer.connect(hostPeerId, { reliable: true });
 
+                const connTimeout = setTimeout(() => {
+                    if (!dataConn.open) {
+                        fail('Host connection timeout');
+                    }
+                }, 15000);
+
                 dataConn.on('open', () => {
+                    clearTimeout(connTimeout);
+                    if (settled) return;
+                    settled = true;
                     dataConn.send({ type: 'viewer-info', name: userName });
                     connections[hostPeerId] = { dataConn };
                     emit(_onStatusChange, 'connected', 'Connected to room!');
@@ -255,7 +334,9 @@ const LiveShare = (() => {
 
                 dataConn.on('data', (data) => {
                     if (data.type === 'room-info') {
-                        connections[hostPeerId].hostName = data.hostName;
+                        if (connections[hostPeerId]) {
+                            connections[hostPeerId].hostName = data.hostName;
+                        }
                     }
                 });
 
@@ -266,17 +347,9 @@ const LiveShare = (() => {
                 });
 
                 dataConn.on('error', (err) => {
-                    emit(_onError, 'Connection error: ' + err.message);
+                    clearTimeout(connTimeout);
+                    fail('Data connection error: ' + err.message);
                 });
-
-                // Timeout
-                setTimeout(() => {
-                    if (!dataConn.open) {
-                        emit(_onError, 'Could not connect. Check the Room Code.');
-                        cleanup();
-                        reject(new Error('Connection timeout'));
-                    }
-                }, 12000);
             });
 
             // Receive calls from host (screen share + cam/mic)
@@ -303,12 +376,10 @@ const LiveShare = (() => {
 
             peer.on('error', (err) => {
                 console.error('Viewer PeerJS error:', err);
-                if (err.type === 'peer-unavailable') {
-                    emit(_onError, 'Room not found. Check the code and ensure the host is sharing.');
-                } else {
-                    emit(_onError, err.message);
-                }
-                reject(err);
+                clearTimeout(openTimeout);
+                fail(err.type === 'peer-unavailable'
+                    ? 'Host not found on signaling server'
+                    : (err.message || 'PeerJS error'));
             });
         });
     }

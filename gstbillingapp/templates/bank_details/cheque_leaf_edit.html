@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+
+<h2>Edit Cheque Leaf</h2>
+<form method="POST">
+	{% csrf_token %}
+	<table class="table">
+		<tbody class="two-col-form">
+			<tr>
+				<th scope="row" class="text-right">Cheque Number:</th>
+				<th><label>{{ cheque_leaf_form.cheque_number }}</label></th>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Leaf Number:</th>
+				<th><label>{{ cheque_leaf_form.leaf_number }}</label></th>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Payee Name:</th>
+				<th><label>{{ cheque_leaf_form.payee_name }}</label></th>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Amount (₹):</th>
+				<th><label>{{ cheque_leaf_form.amount }}</label></th>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Issue Date:</th>
+				<th>
+					<input type="date" name="issue_date" value="{{ cheque_leaf_form.issue_date.value|date:'Y-m-d' }}" required>
+				</th>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Clearance Date:</th>
+				<th>
+					<input type="date" name="clearance_date" value="{{ cheque_leaf_form.clearance_date.value|date:'Y-m-d' }}" required>
+				</th>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Bank:</th>
+				<td>
+					<select id="bankSelect" style="width: 200px;" onchange="toggleBankTextbox()">
+						{% for bank in banks %}
+							<option value="{{ bank }}" {% if cheque_leaf_form.bank.value == bank %}selected{% endif %}>{{ bank }}</option>
+						{% endfor %}
+						<option value="">Other (Please specify)</option>
+					</select>
+				</td>
+			</tr>
+			<tr id="customBankRow" style="display: none;">
+				<th scope="row" class="text-right">New Bank:</th>
+				<td>
+					<input type="text" id="customBank" style="width: 200px;" placeholder="Enter New Bank" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Branch:</th>
+				<td>
+					<select id="branchSelect" style="width: 200px;" onchange="toggleBranchTextbox()">
+						{% for branch in branches %}
+							<option value="{{ branch }}" {% if cheque_leaf_form.branch.value == branch %}selected{% endif %}>{{ branch }}</option>
+						{% endfor %}
+						<option value="">Other (Please specify)</option>
+					</select>
+				</td>
+			</tr>
+			<tr id="customBranchRow" style="display: none;">
+				<th scope="row" class="text-right">New Branch:</th>
+				<td>
+					<input type="text" id="customBranch" style="width: 200px;" placeholder="Enter New Branch" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Account Number:</th>
+				<td>
+					<select id="accountNumberSelect" style="width: 200px;" onchange="toggleAccountNumberTextbox()">
+						{% for account_number in account_numbers %}
+							<option value="{{ account_number }}" {% if cheque_leaf_form.account_number.value == account_number %}selected{% endif %}>{{ account_number }}</option>
+						{% endfor %}
+						<option value="">Other (Please specify)</option>
+					</select>
+				</td>
+			</tr>
+			<tr id="customAccountNumberRow" style="display: none;">
+				<th scope="row" class="text-right">New Account Number:</th>
+				<td>
+					<input type="text" id="customAccountNumber" style="width: 200px;" placeholder="Enter New Account Number" />
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Status:</th>
+				<td class="form-input-td">{{ cheque_leaf_form.status }}</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Remarks:</th>
+				<td class="form-input-td">{{ cheque_leaf_form.remarks }}</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<div class="form-group text-right">
+		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+</form>
+		<a class="btn btn-danger" href="{% url 'cheque_leafs' %}"><i class="fas fa-cancel"></i></a>
+	</div>
+
+<script>
+function toggleBankTextbox() {
+    var bankSelect = document.getElementById('bankSelect');
+    var customBankRow = document.getElementById('customBankRow');
+    var customBankInput = document.getElementById('customBank');
+    
+    // Show or hide the custom bank input field based on selection
+    if (bankSelect.value === "") {
+        customBankRow.style.display = 'table-row';
+		customBankInput.required = true;
+		customBankInput.setAttribute('name', 'bank');
+		bankSelect.removeAttribute('name');
+    } else {
+        customBankRow.style.display = 'none';
+        // Ensure that the custom bank input is cleared if it's hidden
+        customBankInput.value = '';
+		customBankInput.required = false;
+		bankSelect.setAttribute('name', 'bank');
+		customBankInput.removeAttribute('name');
+    }
+}
+
+function toggleBranchTextbox() {
+	var branchSelect = document.getElementById('branchSelect');
+	var customBranchRow = document.getElementById('customBranchRow');
+	var customBranchInput = document.getElementById('customBranch');
+	
+	// Show or hide the custom branch input field based on selection
+	if (branchSelect.value === "") {
+		customBranchRow.style.display = 'table-row';
+		customBranchInput.required = true;
+		customBranchInput.setAttribute('name', 'branch');
+		branchSelect.removeAttribute('name');
+	} else {
+		customBranchRow.style.display = 'none';
+		// Ensure that the custom branch input is cleared if it's hidden
+		customBranchInput.value = '';
+		customBranchInput.required = false;
+		branchSelect.setAttribute('name', 'branch');
+		customBranchInput.removeAttribute('name');
+	}
+}
+
+function toggleAccountNumberTextbox() {
+	var accountNumberSelect = document.getElementById('accountNumberSelect');
+	var customAccountNumberRow = document.getElementById('customAccountNumberRow');
+	var customAccountNumberInput = document.getElementById('customAccountNumber');
+	
+	// Show or hide the custom account number input field based on selection
+	if (accountNumberSelect.value === "") {
+		customAccountNumberRow.style.display = 'table-row';
+		customAccountNumberInput.required = true;
+		customAccountNumberInput.setAttribute('name', 'account_number');
+		accountNumberSelect.removeAttribute('name');
+	} else {
+		customAccountNumberRow.style.display = 'none';
+		// Ensure that the custom account number input is cleared if it's hidden
+		customAccountNumberInput.value = '';
+		customAccountNumberInput.required = false;
+		accountNumberSelect.setAttribute('name', 'account_number');
+		customAccountNumberInput.removeAttribute('name');
+	}
+}
+
+// Trigger toggleBankTextbox, toggleBranchTextbox, and toggleAccountNumberTextbox on page load to ensure they work with the current selection
+document.addEventListener('DOMContentLoaded', function() {
+    toggleBankTextbox();
+    toggleBranchTextbox();
+    toggleAccountNumberTextbox();
+});
+</script>
+{% endblock %}

@@ -90,6 +90,7 @@ def asset_log(request, asset_id):
         asset_logs = asset_logs
     if request.GET.get('category'):
         asset_logs = asset_logs.filter(category=request.GET.get('category'))
+        context['selected_category'] = request.GET.get('category')
         context['total_transactions'] = asset_logs.aggregate(total=Sum('change'))['total'] or 0
     context['logs'] = asset_logs.order_by('-date')
     return render(request, 'asset/asset_log.html', context)

@@ -146,6 +146,12 @@ urlpatterns = [
     path('bank_details/add', bank_details.bank_details_add, name='bank_details_add'),
     path('bank_details/edit/<int:pk>', bank_details.bank_details_edit, name='bank_details_edit'),
     path('bank_details/delete/<int:pk>', bank_details.bank_details_delete, name='bank_details_delete'),
+    # Cheque Leaf URLs
+    path('cheque_leafs', bank_details.cheque_leafs, name='cheque_leafs'),
+    path('cheque_leaf/add', bank_details.cheque_leaf_add, name='cheque_leaf_add'),
+    path('cheque_leaf/edit/<int:pk>', bank_details.cheque_leaf_edit, name='cheque_leaf_edit'),
+    path('cheque_leaf/delete/<int:pk>', bank_details.cheque_leaf_delete, name='cheque_leaf_delete'),
+    path('api/cheque_leaf_reminder', bank_details.cheque_leaf_reminder_api, name='cheque_leaf_reminder_api'),
 
     # Features URLs
     path('liveshare', features.liveshare_page, name='liveshare_page'),

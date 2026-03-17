@@ -166,7 +166,7 @@
 <!-- PeerJS CDN -->
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <!-- LiveShare Module -->
-<script src="{% static 'gstbillingapp/js/liveshare.js' %}"></script>
+<script src="{% static 'gstbillingapp/js/liveshare.js' %}?v=2"></script>
 
 <script>
 // ─── DOM refs ────────────────────────────────────────
@@ -251,6 +251,11 @@ async function doCreateRoom() {
     const userName = document.getElementById('ls-name-input').value.trim() || 'Host';
     const wantCam = document.getElementById('ls-cam-toggle').checked;
     const wantMic = document.getElementById('ls-mic-toggle').checked;
+    const createBtn = document.querySelector('[onclick="doCreateRoom()"]');
+
+    // Disable button and show loading
+    createBtn.disabled = true;
+    createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
 
     try {
         const result = await LiveShare.createRoom({
@@ -290,6 +295,10 @@ async function doCreateRoom() {
 
     } catch (err) {
         console.error('Create room error:', err);
+    } finally {
+        // Restore button
+        createBtn.disabled = false;
+        createBtn.innerHTML = '<i class="fas fa-desktop"></i> Start Sharing';
     }
 }
 

@@ -16,16 +16,69 @@ import calendar
 # ================= Expense Tracker =============================
 @login_required
 def expense_tracker(request):
+    user = request.user
+    now = timezone.now()
+
+    current_year = now.year
+    current_month = now.month
+
+    # Last month logic
+    if current_month == 1:
+        last_month = 12
+        last_month_year = current_year - 1
+    else:
+        last_month = current_month - 1
+        last_month_year = current_year
+    
     context = {}
-    context['total_current_year'] = ExpenseTracker.objects.filter(user=request.user, date__year=timezone.now().year).aggregate(Sum('amount'))['amount__sum']
-    context['total_current_month'] = ExpenseTracker.objects.filter(user=request.user, date__year=timezone.now().year, date__month=timezone.now().month).aggregate(Sum('amount'))['amount__sum']
-    context['total_last_month'] = ExpenseTracker.objects.filter(user=request.user, date__year=timezone.now().year, date__month=timezone.now().month-1).aggregate(Sum('amount'))['amount__sum']
-    context['total_expenses'] = ExpenseTracker.objects.filter(user=request.user).aggregate(Sum('amount'))['amount__sum']
-    context['total_last_month_name'] = calendar.month_name[timezone.now().month - 1 if timezone.now().month > 1 else 12]
-    years = ExpenseTracker.objects.filter(user=request.user).aggregate(min_year=Min('date__year'),max_year=Max('date__year'))
-    context['start_end_year'] = f"{years['min_year']} - {years['max_year']}"
-    context['expenses'] = ExpenseTracker.objects.filter(user=request.user).order_by('-date')
-    return render(request, 'expense_tracker/expense_tracker.html', context)
+    
+    # Base queryset
+    expenses = ExpenseTracker.objects.filter(user=user)
+
+    # Apply filters at the beginning
+    reference = request.GET.get("reference")
+    category = request.GET.get("category")
+
+    if reference:
+        expenses = expenses.filter(reference=reference)
+        context["selected_reference"] = reference
+
+    if category:
+        expenses = expenses.filter(category=category)
+        context["selected_category"] = category
+
+    # Distinct values (from unfiltered queryset if you want all options)
+    base_qs = ExpenseTracker.objects.filter(user=user)
+
+    context["categories"] = base_qs.values_list("category", flat=True).distinct()
+    context["references"] = base_qs.values_list("reference", flat=True).distinct()
+
+    # Totals based on filtered data
+    context["total_current_year"] = (
+        expenses.filter(date__year=current_year).aggregate(total=Sum("amount"))["total"] or 0
+    )
+
+    context["total_current_month"] = (
+        expenses.filter(date__year=current_year, date__month=current_month)
+        .aggregate(total=Sum("amount"))["total"] or 0
+    )
+
+    context["total_last_month"] = (
+        expenses.filter(date__year=last_month_year, date__month=last_month)
+        .aggregate(total=Sum("amount"))["total"] or 0
+    )
+
+    context["total_expenses"] = expenses.aggregate(total=Sum("amount"))["total"] or 0
+
+    context["total_last_month_name"] = calendar.month_name[last_month]
+
+    # Year range
+    years = expenses.aggregate(min_year=Min("date__year"), max_year=Max("date__year"))
+    context["start_end_year"] = f"{years['min_year']} - {years['max_year']}"
+
+    context["expenses"] = expenses.order_by("-date")
+
+    return render(request, "expense_tracker/expense_tracker.html", context)
 
 @login_required
 def expense_tracker_add(request):

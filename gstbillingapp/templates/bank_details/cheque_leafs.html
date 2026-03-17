@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% load static %}
+{% load humanize %}
+{% block content %}
+
+    <div class="row">
+        <div class="col">
+            <h3>Cheque Leaf</h3>
+        </div>
+
+        <div class="col text-right" style="padding-top: 0.5%;">
+            <a href="{% url 'cheque_leaf_add' %}" class="btn btn-primary btn-sm btn-curve">
+                <i class="fas fa-plus"></i>
+            </a>
+            <a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve">
+                <i class="fas fa-file-excel"></i>
+            </a>
+        </div>
+    </div>
+    <!-- <hr> -->
+
+    <table class="table table-hover font-weight-bold" id="purchase-table">
+        <thead class="thead-dark">
+            <tr>
+                <th>Cheque Number</th>
+                <th>Payee Name</th>
+                <th>Amount</th>
+                <th>Clearance Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody class="two-col-form">
+            {% for cheque in cheque_leafs %}
+            {% if cheque.status == 'CLEARED' %}
+                <tr class="table-success">
+            {% elif cheque.status == 'ISSUED' or cheque.status == 'PRESENTED' %}
+                <tr class="table-info">
+            {% elif cheque.status == 'CANCELLED' or cheque.status == 'UNUSED' or cheque.status == 'STOPPED' %}
+                <tr class="table-danger">
+            {% else %}
+                <tr class="table-warning">
+            {% endif %}
+
+                <td>{{cheque.cheque_number}}</td>
+                <td>{{cheque.payee_name }}</td>
+                <td>{{cheque.amount}}</td>
+                <td>{% if cheque.clearance_date %}{{cheque.clearance_date}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+                <td>{{cheque.get_status_display}}</td>
+                <td>
+                    <div class="btn-group" role="group" aria-label="Basic example">
+                        <a href="{% url 'cheque_leaf_edit' cheque.pk %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
+                        <button onclick="deleteChequeLeaf({{ cheque.pk }}, '{{ cheque.payee_name }}', '{{ cheque.cheque_number }}')" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
+
+
+{% block includejs %}
+<script type="text/javascript">
+	$(document).ready( function () {
+		$('#purchase-table').DataTable({
+			"order": [],
+			"columnDefs": [ {
+				"targets": 3,
+				"sortable": false,
+				"searchable": false
+			} ],
+			"paging": true
+		});
+	});
+
+    function deleteChequeLeaf(chequeLeafId,PayeeName,ChequeNumber) {
+		swal.fire({
+			title: 'Delete Cheque Leaf',
+            html: '<b>Are you sure you want to delete the cheque leaf for ' + PayeeName + ' with cheque number ' + ChequeNumber + '?</b>',
+			icon: 'warning',
+			confirmButtonText: 'OK'
+		}).then((result) => {
+			if (result.isConfirmed) {
+				window.location.href = "/cheque_leaf/delete/" + chequeLeafId;
+			}
+		});
+	};
+</script>
+{% endblock %}

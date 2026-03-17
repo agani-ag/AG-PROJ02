@@ -600,3 +600,47 @@ class AssetLog(models.Model):
 
     def __str__(self):
         return f"{self.asset.name} | {self.get_change_type_display()} | {self.change} | {self.date}"
+
+# ======================= Cheque Management =================================
+class ChequeLeaf(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    cheque_number = models.CharField(max_length=30, unique=True)
+    leaf_number = models.IntegerField(null=True, blank=True)
+    bank = models.CharField(max_length=100, null=True, blank=True)
+    branch = models.CharField(max_length=100, null=True, blank=True)
+    account_number = models.CharField(max_length=50, null=True, blank=True)
+    STATUS_CHOICES = [
+        ('UNUSED', 'Unused'),
+        ('ISSUED', 'Issued'),
+        ('PRESENTED', 'Presented'),
+        ('CLEARED', 'Cleared'),
+        ('BOUNCED', 'Bounced'),
+        ('CANCELLED', 'Cancelled'),
+        ('STOPPED', 'Stopped'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='UNUSED')
+    amount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    payee_name = models.CharField(max_length=200, null=True, blank=True)
+    issue_date = models.DateField(default=datetime.now)
+    clearance_date = models.DateField(default=datetime.now)
+    remarks = models.TextField(max_length=500, null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.payee_name:
+            self.payee_name = self.payee_name.upper()
+        if self.remarks:
+            self.remarks = self.remarks.upper()
+        if self.bank:
+            self.bank = self.bank.upper()
+        if self.branch:
+            self.branch = self.branch.upper()
+        if self.amount:
+            self.amount = round(self.amount, 2)
+        if self.cheque_number:
+            self.cheque_number = self.cheque_number.upper()
+        if self.account_number:
+            self.account_number = self.account_number.upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Cheque {self.cheque_number}"

@@ -19,13 +19,6 @@
         </div>
     </div>
     <!-- Summary Card -->
-    <!-- <div class="card bg-danger text-white mb-3">
-        <div class="card-body">
-            <h5>Total Expenses Spent</h5>
-            <h3>₹{{ total_exp|floatformat:2|intcomma }}</h3>
-        </div>
-    </div> -->
-    <!-- <hr> -->
      <div class="row mb-3">
         <div class="col-md-3">
             <div class="card bg-danger text-white">
@@ -63,8 +56,31 @@
                 </div>
             </div>
         </div>
+        <div class="col-md-3 mt-1">
+            <dropdown class="mb-3">
+                <button class="btn btn-secondary dropdown-toggle" type="button" id="filterDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Filter by Reference {% if selected_reference %}({{ selected_reference }}){% endif %}
+                </button>
+                <div class="dropdown-menu" aria-labelledby="filterDropdown">
+                    {% for reference in references %}
+                    <a class="dropdown-item" href="?reference={{ reference }}">{{ reference }}</a>
+                    {% endfor %}
+                </div>
+            </dropdown>
+        </div>
+        <div class="col-md-3 mt-1 text-right ml-auto">
+            <dropdown class="mb-3">
+                <button class="btn btn-secondary dropdown-toggle" type="button" id="filterDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    Filter by Category {% if selected_category %}({{ selected_category }}){% endif %}
+                </button>
+                <div class="dropdown-menu" aria-labelledby="filterDropdown">
+                    {% for category in categories %}
+                    <a class="dropdown-item" href="?category={{ category }}">{{ category }}</a>
+                    {% endfor %}
+                </div>
+            </dropdown>
+        </div>
     </div>
-
     <table class="table table-hover font-weight-bold" id="purchase-table">
         <thead class="thead-dark">
             <tr>

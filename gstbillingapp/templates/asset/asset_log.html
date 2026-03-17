@@ -6,11 +6,16 @@
 
 	<div class="row mb-3">
 		<div class="col-md-6">
-			<h2>Asset Logs - <span class="text-primary">{{ asset.name }}</span></h2>
+			<h2>Asset Logs - <span class="text-primary">{{ asset.name }}</span>
+			<small class="text-muted">({{ asset.category }})</small></h2>
+			</h2>
 		</div>
 		<div class="col-md-6 text-right" style="margin-top: auto;">
 			<a href="{% url 'asset_log_add' asset.id %}" class="btn btn-primary btn-sm btn-curve" title="Add New Asset Log">
 				<i class="fas fa-plus"></i>
+			</a>
+			<a href="{% url 'assets' %}" class="btn btn-danger btn-sm btn-curve" title="View All Assets">
+				<i class="fas fa-reply"></i>
 			</a>
 		</div>
 	</div>
@@ -52,7 +57,7 @@
 					<h6 class="card-title"><i class="fas fa-recycle"></i> Select Category</h6>
 					<div class="dropdown mt-auto">
 						<button class="btn btn-light btn-sm dropdown-toggle" type="button" id="categoryDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-							Filter by Category
+							Filter by Category {% if selected_category %}({{ selected_category }}){% endif %}
 						</button>
 						<div class="dropdown-menu" aria-labelledby="categoryDropdown">
 							<a class="dropdown-item" href="?">All Categories</a>

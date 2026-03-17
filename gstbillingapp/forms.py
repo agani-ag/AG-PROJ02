@@ -3,7 +3,8 @@ from .models import (
     Customer, Product, UserProfile,
     InventoryLog, Book, BookLog,
     ExpenseTracker, BankDetails, VendorPurchase,
-    PurchaseLog, ProductCategory, Asset, AssetLog
+    PurchaseLog, ProductCategory, Asset, AssetLog,
+    ChequeLeaf
 )
 
 
@@ -118,4 +119,14 @@ class AssetForm(ModelForm):
 class AssetLogForm(ModelForm):
     class Meta:
         model = AssetLog
-        fields = ['date', 'change_type', 'change', 'category', 'description']   
+        fields = ['date', 'change_type', 'change', 'category', 'description']
+
+class ChequeLeafForm(ModelForm):
+    class Meta:
+        model = ChequeLeaf
+        fields = ['cheque_number', 'leaf_number', 'status', 'amount', 'payee_name', 
+                  'issue_date', 'clearance_date', 'remarks', 'bank', 'branch', 'account_number']
+    
+    def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.fields['amount'].required = True
