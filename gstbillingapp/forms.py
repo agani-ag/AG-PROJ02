@@ -3,7 +3,7 @@ from .models import (
     Customer, Product, UserProfile,
     InventoryLog, Book, BookLog,
     ExpenseTracker, BankDetails, VendorPurchase,
-    PurchaseLog, ProductCategory
+    PurchaseLog, ProductCategory, Asset
 )
 
 
@@ -109,3 +109,8 @@ class PurchaseLogForm(ModelForm):
     class Meta:
         model = PurchaseLog
         fields = ['date', 'change_type', 'change', 'vendor', 'reference', 'category']
+
+class AssetForm(ModelForm):
+    class Meta:
+        model = Asset
+        fields = ['name', 'category', 'value', 'date', 'description']

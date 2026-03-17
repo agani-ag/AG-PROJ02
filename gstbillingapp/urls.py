@@ -8,7 +8,7 @@ from .views import (
     vendor_purchase, features, views,
     expense_tracker, bank_details, graphs,
     quotation, notifications, reports,
-    location
+    location, asset
 )
 
 urlpatterns = [
@@ -130,6 +130,12 @@ urlpatterns = [
     path('expensetracker', expense_tracker.expense_tracker, name='expense_tracker'),
     path('expensetracker/add', expense_tracker.expense_tracker_add, name='expense_tracker_add'),
     path('expensetracker/delete/<int:expense_id>', expense_tracker.expense_tracker_delete, name='expense_tracker_delete'),
+
+    # Asset URLs
+    path('assets', asset.assets, name='assets'),
+    path('asset/add', asset.asset_add, name='asset_add'),
+    path('asset/edit/<int:asset_id>', asset.asset_edit, name='asset_edit'),
+    path('asset/delete/<int:asset_id>', asset.asset_delete, name='asset_delete'),
 
     # Bank Details URLs
     path('bank_details', bank_details.bank_details, name='bank_details'),

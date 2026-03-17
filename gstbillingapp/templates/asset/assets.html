@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+		<div class="row">
+			<div class="col">
+				<h2>Asset Management</h2>
+			</div>
+			<div class="col text-right" style="padding-top: 0.5%;">
+				<a href="{% url 'asset_add' %}" class="btn btn-primary btn-sm btn-curve">
+					<i class="fas fa-plus"></i>
+				</a>
+			</div>
+		</div>
+
+		<table class="table table-bordered" id="asset-table">
+			<thead class="thead-dark">
+				<tr>
+					<th>Name</th>
+					<th>Category</th>
+					<th>Value (₹)</th>
+					<th>Date</th>
+					<th>Actions</th>
+				</tr>
+			</thead>
+			<tbody class="two-col-form">
+				{% for asset in assets %}
+				<tr>
+	 				<td>{{asset.name}}</td>
+	 				<td>{% if asset.category %}{{asset.category}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+	 				<td>{% if asset.value %}{{asset.value}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+	 				<td>{% if asset.date %}{{asset.date}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+	 				<td>
+						 <div class="btn-group" role="group" aria-label="Basic example">
+							<a href="{% url 'asset_edit' asset.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Asset"><i class="fas fa-edit"></i></a>
+							<a href="{% url 'asset_delete' asset.id %}" class="btn btn-danger btn-sm btn-curve" title="Delete Asset"><i class="fas fa-trash"></i></a>
+						</div>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+{% endblock %}
+
+
+{% block includejs %}
+<script type="text/javascript">
+$(document).ready( function () {
+	$('#asset-table').DataTable({
+		"order": [],
+		"columnDefs": [ {
+			"targets": 4,
+			"sortable": false,
+			"searchable": false
+		}],
+		"paging": true,
+		dom: 'Bfrtip',
+        buttons: [
+            {
+                extend: 'excelHtml5',
+                text: '<i class="fas fa-file-excel"></i> Excel',
+                className: 'btn btn-success btn-sm btn-curve'
+            },
+            {
+                extend: 'pdfHtml5',
+                text: '<i class="fas fa-file-pdf"></i> PDF',
+                className: 'btn btn-danger btn-sm btn-curve'
+            },
+            {
+                extend: 'print',
+                text: '<i class="fas fa-print"></i> Print',
+                className: 'btn btn-warning btn-sm btn-curve'
+            }
+        ]
+	});
+});
+
+</script>
+{% endblock %}

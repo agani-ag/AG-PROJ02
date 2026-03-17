@@ -6,7 +6,7 @@ from .models import (
     BillingProfile, Inventory, InventoryLog, 
     BookLog, Book, PurchaseLog, VendorPurchase,
     ExpenseTracker, BankDetails, Notification,
-    ProductCategory, Quotation
+    ProductCategory, Quotation, Asset
 )
 
 # User and Billing Profile
@@ -15,13 +15,18 @@ admin.site.register(BillingProfile)
 
 # Core Models
 admin.site.register(Book)
+admin.site.register(Asset)
 admin.site.register(BookLog)
 admin.site.register(Invoice)
 admin.site.register(Product)
 admin.site.register(Customer)
 admin.site.register(Inventory)
-admin.site.register(PurchaseLog)
 admin.site.register(BankDetails)
+admin.site.register(PurchaseLog)
+admin.site.register(InventoryLog)
+admin.site.register(VendorPurchase)
+admin.site.register(ExpenseTracker)
+admin.site.register(ProductCategory)
 
 # Quotation with custom admin
 @admin.register(Quotation)
@@ -87,11 +92,6 @@ class QuotationAdmin(admin.ModelAdmin):
         updated = queryset.update(status='DELIVERED')
         self.message_user(request, f'{updated} order(s) marked as Delivered.')
     mark_as_delivered.short_description = "Mark selected orders as Delivered"
-
-admin.site.register(InventoryLog)
-admin.site.register(VendorPurchase)
-admin.site.register(ExpenseTracker)
-admin.site.register(ProductCategory)
 
 # Notification System
 @admin.register(Notification)

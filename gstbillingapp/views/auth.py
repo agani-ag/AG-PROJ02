@@ -94,7 +94,7 @@ def passkey_auth(request):
             user_id = passkeys.get(passkey)
 
             if not user_id:
-                return JsonResponse({"error": "Invalid passkey"}, status=400)
+                return JsonResponse({"error": "User not found"}, status=400)
 
             # Look up the user profile using the user_id
             user_profile = get_object_or_404(UserProfile, user__id=user_id)
