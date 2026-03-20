@@ -79,9 +79,6 @@ def asset_log(request, asset_id):
     context['total_debit'] = abs(totals['total_debit'] or 0)
     total_transactions = abs(context['total_credit']) - abs(context['total_debit'])
     context['total_transactions'] = total_transactions
-    if total_transactions < 0:
-        context['transactions_status'] = 'Excess Paid'
-    context['total_transactions_word'] = num2words.num2words(abs(int(context['total_transactions'])), lang='en_IN').title()
     if request.GET.get('filter') == 'credit':
         asset_logs = asset_logs.filter(change_type=0)
     elif request.GET.get('filter') == 'debit':
@@ -92,6 +89,7 @@ def asset_log(request, asset_id):
         asset_logs = asset_logs.filter(category=request.GET.get('category'))
         context['selected_category'] = request.GET.get('category')
         context['total_transactions'] = asset_logs.aggregate(total=Sum('change'))['total'] or 0
+    context['total_transactions_word'] = num2words.num2words(abs(int(context['total_transactions'])), lang='en_IN').title()
     context['logs'] = asset_logs.order_by('-date')
     return render(request, 'asset/asset_log.html', context)
 

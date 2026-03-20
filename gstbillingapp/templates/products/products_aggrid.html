@@ -245,6 +245,7 @@
         },
         {
             headerName: 'Final MRP',
+            sortable: true,
             valueGetter: params => {
                 let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
                 let discount = parseFloat(params.data.product_discount) || 0;
@@ -256,6 +257,9 @@
                 let percent = mrp ? ((finalPrice - mrp) / mrp) * 100 : 0;
 
                 return { value: finalPrice, percent: percent };
+            },
+            comparator: (a, b) => {
+                return (a?.value || 0) - (b?.value || 0);
             },
             cellRenderer: params => {
                 let val = params.value?.value || 0;
@@ -276,6 +280,7 @@
         },
         {
             headerName: 'Profit',
+            sortable: true,
             valueGetter: params => {
                 let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
                 let discount = parseFloat(params.data.product_discount) || 0;
@@ -290,11 +295,23 @@
 
                 return { value: profit, percent: percent };
             },
+            comparator: (a, b) => {
+                return (a?.percent || 0) - (b?.percent || 0);
+            },
             cellRenderer: params => {
                 let val = params.value?.value || 0;
                 let percent = params.value?.percent || 0;
 
-                let color = val >= 0 ? '#28a745' : '#dc3545';
+                let color = '#28a745'; // default green
+                let icon = '';
+
+                if (val < 0) {
+                    color = '#dc3545'; // red
+                } else if (percent < 10) {
+                    color = '#dc3545'; // low profit
+                } else if (percent < 20) {
+                    color = '#ffc107'; // medium
+                }
 
                 return `
                     <div style="font-weight:bold; color:${color}">
@@ -328,6 +345,34 @@
                 }
                 return style;
             }
+        },
+        {
+            headerName: 'Total Profit',
+            valueGetter: params => {
+                let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
+                let discount = parseFloat(params.data.product_discount) || 0;
+                let gst = parseFloat(params.data.product_gst_percentage) || 0;
+                let purchase = parseFloat(params.data.product_purchase_rate) || 0;
+                let stock = parseFloat(params.data.current_stock) || 0;
+
+                let discounted = mrp - (mrp * discount / 100);
+                let finalPrice = discounted + (discounted * gst / 100);
+
+                let profit = finalPrice - purchase;
+
+                return profit * stock;
+            },
+            cellRenderer: params => {
+                let val = params.value || 0;
+                let color = val >= 0 ? '#28a745' : '#dc3545';
+
+                return `
+                    <div style="font-weight:bold; color:${color}">
+                        ₹${val.toFixed(2)}
+                    </div>
+                `;
+            },
+            width: 150
         },
         {
             headerName: 'Alert Level',
@@ -369,7 +414,25 @@
         stopEditingWhenCellsLoseFocus: true,
         singleClickEdit: false,
         enableCellTextSelection: true,
-        getRowId: params => params.data.id
+        getRowId: params => params.data.id,
+        getRowStyle: params => {
+            let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
+            let discount = parseFloat(params.data.product_discount) || 0;
+            let gst = parseFloat(params.data.product_gst_percentage) || 0;
+            let purchase = parseFloat(params.data.product_purchase_rate) || 0;
+
+            let discounted = mrp - (mrp * discount / 100);
+            let finalPrice = discounted + (discounted * gst / 100);
+
+            let profit = finalPrice - purchase;
+
+            if (profit < 0) {
+                return {
+                    backgroundColor: '#ffe6e6', // light red row
+                };
+            }
+            return null;
+        }
     };
     
     // Handle cell value changes
