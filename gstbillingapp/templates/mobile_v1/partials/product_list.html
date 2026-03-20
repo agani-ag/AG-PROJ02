@@ -21,7 +21,8 @@
                         <span class="product-price discount-price">₹{{ product.final_price_with_gst|floatformat:2|intcomma }}</span>
                         <span class="product-price-discount">₹{{ product.discounted_base_price|floatformat:2|intcomma }}</span>
                         {% else %}
-                        <span class="product-price">₹{{ product.product_rate_with_gst|floatformat:2|intcomma }}</span>
+                        <span class="product-price-original">₹{{ product.product_rate_with_gst|floatformat:2|intcomma }}</span>
+                        <span class="product-price discount-price">₹{{ product.sales_price|floatformat:2|intcomma }}</span>
                         {% endif %}
                     </div>
                 </div>
@@ -39,7 +40,9 @@
                     {% endif %}
                     {% if product.current_stock is not None %}
                     <span class="product-badge stock-badge {% if product.current_stock == 0 %}out-of-stock{% elif product.is_low_stock %}low-stock{% else %}in-stock{% endif %}" 
-                        onclick="addInventoryStock('{{ product.user.id }}', '{{ product.id }}', '{{ product.alert_level }}', '{{ product.current_stock }}', '{{ product.model_no }}')">
+                        {% if request.GET.admin == "true" %}
+                            onclick="addInventoryStock('{{ product.user.id }}', '{{ product.id }}', '{{ product.alert_level }}', '{{ product.current_stock }}', '{{ product.model_no }}')"
+                        {% endif %}>
                         <i class="bi bi-box"></i> Stock: {{ product.current_stock|intcomma }}
                         {% if product.alert_level %}
                         / Alert: {{ product.alert_level|intcomma }}
@@ -60,6 +63,11 @@
                     {% if product.product_discount > 0 %}
                     <span class="product-badge discount-badge">
                         <i class="bi bi-tag"></i> {{ product.product_discount }}% OFF
+                    </span>
+                    {% endif %}
+                    {% if product.product_purchase_rate and request.GET.admin == "true" %}
+                    <span class="product-badge purchase-price-badge">
+                        <i class="bi bi-currency-rupee"></i> {{ product.product_purchase_rate|floatformat:1|intcomma }} / {{ product.profit_margin|floatformat:1|intcomma }}
                     </span>
                     {% endif %}
                     {% if product.user %}

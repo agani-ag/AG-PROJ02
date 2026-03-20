@@ -206,6 +206,17 @@
             ])
         },
         {
+            headerName: 'Purchase Rate (₹)',
+            field: 'product_purchase_rate',
+            editable: true,
+            type: 'numericColumn',
+            cellStyle: editableCellStyle,
+            valueFormatter: params => params.value ? 
+                new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(params.value) 
+                : '₹0.00',
+            width: 140
+        },
+        {
             headerName: 'MRP (₹)',
             field: 'product_rate_with_gst',
             editable: true,
@@ -231,6 +242,50 @@
             type: 'numericColumn',
             valueFormatter: params => params.value ? `${params.value}%` : '0%',
             width: 100
+        },
+        {
+            headerName: 'Final MRP (₹)',
+            valueGetter: params => {
+                let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
+                let discount = parseFloat(params.data.product_discount) || 0;
+                let gst = parseFloat(params.data.product_gst_percentage) || 0;
+
+                let discounted = mrp - (mrp * discount / 100);
+                let finalPrice = discounted + (discounted * gst / 100);
+
+                return finalPrice;
+            },
+            valueFormatter: params => new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR'
+            }).format(params.value || 0),
+            width: 150
+        },
+        {
+            headerName: 'Profit (₹)',
+            valueGetter: params => {
+                let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
+                let discount = parseFloat(params.data.product_discount) || 0;
+                let gst = parseFloat(params.data.product_gst_percentage) || 0;
+                let purchase = parseFloat(params.data.product_purchase_rate) || 0;
+
+                let discounted = mrp - (mrp * discount / 100);
+                let finalPrice = discounted + (discounted * gst / 100);
+
+                return finalPrice - purchase;
+            },
+            valueFormatter: params => new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR'
+            }).format(params.value || 0),
+            cellStyle: params => {
+                let value = params.value || 0;
+                return {
+                    color: value >= 0 ? '#28a745' : '#dc3545',
+                    fontWeight: 'bold'
+                };
+            },
+            width: 140
         },
         {
             headerName: 'Current Stock',
@@ -306,7 +361,8 @@
         
         // Show loading
         event.node.setDataValue(event.column.colId, event.newValue);
-        
+        // Force refresh to show loading state
+        event.api.refreshCells({rowNodes: [event.node],force: true});
         // Send update to server
         fetch('{% url "product_aggrid_update" %}', {
             method: 'POST',

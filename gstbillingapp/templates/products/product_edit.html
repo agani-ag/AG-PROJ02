@@ -33,7 +33,15 @@
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">MRP:</th>
-				<td class="form-input-td">{{product_form.product_rate_with_gst}}</td>
+				<td class="form-input-td">{{product_form.product_rate_with_gst}}
+					<span class="text-muted" id="MRP">0</span>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Purchase Rate:</th>
+				<td class="form-input-td">{{product_form.product_purchase_rate}}
+					<span id="purchase_rate">0</span>
+				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Product Category:</th>
@@ -73,7 +81,7 @@
 	<div class="form-group text-right">
 		<button type="submit" class="btn btn-primary" title="Save Product"><i class="fas fa-save"></i></button>
 </form>
-		<a class="btn btn-danger" href="{% url 'products' %}" title="Cancel Product"><i class="fas fa-cancel"></i></a>
+		<a class="btn btn-danger" href="{% url 'products' %}" title="Cancel Product"><i class="fas fa-times"></i></a>
 		{% if id %}
 			<a class="btn btn-warning" href="#" onclick="popup_inventory()" title="View Inventory Logs"><i class="fas fa-file-lines"></i></a>
 		{% endif %}
@@ -193,6 +201,52 @@ function popup_inventory() {
 				});
 			});
 	}
-</script>
 
+function getValue(name) {
+    let el = document.querySelector(`[name="${name}"]`);
+    return el ? parseFloat(el.value) || 0 : 0;
+}
+
+// Indian Rupee formatting
+function formatINR(value) {
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR'
+    }).format(value);
+}
+
+function calculateValues() {
+    let discount = getValue("product_discount");
+    let gst = getValue("product_gst_percentage");
+    let mrp = getValue("product_rate_with_gst");
+    let purchaseRate = getValue("product_purchase_rate");
+
+    let discountedPrice = mrp - (mrp * discount / 100);
+    let finalPrice = discountedPrice + (discountedPrice * gst / 100);
+    let profit = finalPrice - purchaseRate;
+
+    // Update MRP
+    document.getElementById("MRP").innerText = formatINR(finalPrice);
+
+    // Update Profit (with color)
+    let profitEl = document.getElementById("purchase_rate");
+    profitEl.innerText = formatINR(profit);
+    profitEl.style.color = profit >= 0 ? "green" : "red";
+}
+
+// Listen for changes
+document.addEventListener("input", function(e) {
+    if (
+        e.target.name === "product_discount" ||
+        e.target.name === "product_gst_percentage" ||
+        e.target.name === "product_rate_with_gst" ||
+        e.target.name === "product_purchase_rate"
+    ) {
+        calculateValues();
+    }
+});
+
+// Run on page load
+window.onload = calculateValues;
+</script>
 {% endblock %}

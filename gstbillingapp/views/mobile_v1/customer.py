@@ -1396,6 +1396,13 @@ def products(request):
             # Calculate final price with GST
             gst_multiplier = 1 + (product.product_gst_percentage / 100)
             product.final_price_with_gst = product.discounted_base_price * gst_multiplier
+            product.profit_margin = product.final_price_with_gst - product.product_purchase_rate
+        else:
+            price = product.product_rate_with_gst if product.product_rate_with_gst else 0
+            discount = product.product_discount if product.product_discount else 0
+            gst = product.product_gst_percentage if product.product_gst_percentage else 0
+            product.sales_price = price * (1 - discount / 100) * (1 + gst / 100)
+            product.profit_margin = product.sales_price - product.product_purchase_rate
     
     # Get stats
     total_products = products_qs.count()

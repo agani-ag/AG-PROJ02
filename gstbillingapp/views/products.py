@@ -295,6 +295,7 @@ def products_aggrid(request):
             'product_discount': product.product_discount,
             'product_gst_percentage': product.product_gst_percentage,
             'product_rate_with_gst': product.product_rate_with_gst,
+            'product_purchase_rate': product.product_purchase_rate,
             'product_category_id': product.product_category.id if product.product_category else None,
             'product_category_name': product.product_category.get_full_path() if product.product_category else '',
             'parent_category': product.product_category.parent_category.category_name if product.product_category and product.product_category.parent_category else '',
@@ -364,6 +365,9 @@ def product_aggrid_update(request):
             
             if 'product_rate_with_gst' in data and data['product_rate_with_gst'] is not None:
                 product.product_rate_with_gst = float(data['product_rate_with_gst'])
+            
+            if 'product_purchase_rate' in data and data['product_purchase_rate'] is not None:
+                product.product_purchase_rate = float(data['product_purchase_rate'])
             
             if 'product_category_id' in data:
                 if data['product_category_id']:

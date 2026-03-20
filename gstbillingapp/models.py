@@ -229,6 +229,7 @@ class Product(models.Model):
     product_discount = models.FloatField(default=0)
     product_gst_percentage = models.FloatField(default=18)
     product_rate_with_gst = models.FloatField(default=0)
+    product_purchase_rate = models.FloatField(default=0)
     product_image_url = models.TextField(max_length=600, blank=True, null=True)
     product_category = models.ForeignKey(ProductCategory, null=True, blank=True, on_delete=models.SET_NULL)
 

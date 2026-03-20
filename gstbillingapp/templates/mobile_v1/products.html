@@ -410,6 +410,11 @@
         color: #5856d6;
     }
     
+    .purchase-price-badge {
+        background: #ff950015;
+        color: #ff9500;
+    }
+    
     /* Filter Tabs */
     .filter-tabs {
         display: flex;
@@ -648,12 +653,12 @@
     <div class="filter-section">
         <div class="filter-row">
             <div class="form-group">
-                <label class="form-label">User</label>
+                <label class="form-label">Brand</label>
                 <select class="form-select" id="userSelect">
-                    <option value="">All Users</option>
+                    <option value="">All Brands</option>
                     {% for user in users %}
                     <option value="{{ user.user.id }}" {% if current_user_id == user.user.id|stringformat:"s" %}selected{% endif %}>
-                        {{ user.business_title|default:user.user.username }}
+                        {{ user.business_brand|default:user.user.username }}
                     </option>
                     {% endfor %}
                 </select>
