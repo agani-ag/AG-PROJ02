@@ -225,12 +225,29 @@ function calculateValues() {
     let finalPrice = discountedPrice + (discountedPrice * gst / 100);
     let profit = finalPrice - purchaseRate;
 
-    // Update MRP
-    document.getElementById("MRP").innerText = formatINR(finalPrice);
+    // Percentage calculations
+    let mrpPercent = mrp ? ((finalPrice - mrp) / mrp) * 100 : 0;
+    let profitPercent = purchaseRate ? (profit / purchaseRate) * 100 : 0;
 
-    // Update Profit (with color)
+    // Update MRP with styled %
+    let mrpEl = document.getElementById("MRP");
+    mrpEl.innerHTML = `
+        ${formatINR(finalPrice)} 
+        <small style="color:${mrpPercent >= 0 ? 'green' : 'red'}">
+            (${mrpPercent.toFixed(2)}%)
+        </small>
+    `;
+
+    // Update Profit with styled %
     let profitEl = document.getElementById("purchase_rate");
-    profitEl.innerText = formatINR(profit);
+    profitEl.innerHTML = `
+        ${formatINR(profit)} 
+        <small style="color:${profit >= 0 ? 'green' : 'red'}">
+            (${profitPercent.toFixed(2)}%)
+        </small>
+    `;
+
+    // Main value color
     profitEl.style.color = profit >= 0 ? "green" : "red";
 }
 

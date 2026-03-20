@@ -244,7 +244,7 @@
             width: 100
         },
         {
-            headerName: 'Final MRP (₹)',
+            headerName: 'Final MRP',
             valueGetter: params => {
                 let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
                 let discount = parseFloat(params.data.product_discount) || 0;
@@ -253,16 +253,29 @@
                 let discounted = mrp - (mrp * discount / 100);
                 let finalPrice = discounted + (discounted * gst / 100);
 
-                return finalPrice;
+                let percent = mrp ? ((finalPrice - mrp) / mrp) * 100 : 0;
+
+                return { value: finalPrice, percent: percent };
             },
-            valueFormatter: params => new Intl.NumberFormat('en-IN', {
-                style: 'currency',
-                currency: 'INR'
-            }).format(params.value || 0),
+            cellRenderer: params => {
+                let val = params.value?.value || 0;
+                let percent = params.value?.percent || 0;
+
+                let color = percent >= 0 ? '#28a745' : '#dc3545';
+
+                return `
+                    <div>
+                        ₹${val.toFixed(2)}
+                        <small style="color:${color}">
+                            (${percent.toFixed(2)}%)
+                        </small>
+                    </div>
+                `;
+            },
             width: 150
         },
         {
-            headerName: 'Profit (₹)',
+            headerName: 'Profit',
             valueGetter: params => {
                 let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
                 let discount = parseFloat(params.data.product_discount) || 0;
@@ -272,18 +285,25 @@
                 let discounted = mrp - (mrp * discount / 100);
                 let finalPrice = discounted + (discounted * gst / 100);
 
-                return finalPrice - purchase;
+                let profit = finalPrice - purchase;
+                let percent = purchase ? (profit / purchase) * 100 : 0;
+
+                return { value: profit, percent: percent };
             },
-            valueFormatter: params => new Intl.NumberFormat('en-IN', {
-                style: 'currency',
-                currency: 'INR'
-            }).format(params.value || 0),
-            cellStyle: params => {
-                let value = params.value || 0;
-                return {
-                    color: value >= 0 ? '#28a745' : '#dc3545',
-                    fontWeight: 'bold'
-                };
+            cellRenderer: params => {
+                let val = params.value?.value || 0;
+                let percent = params.value?.percent || 0;
+
+                let color = val >= 0 ? '#28a745' : '#dc3545';
+
+                return `
+                    <div style="font-weight:bold; color:${color}">
+                        ₹${val.toFixed(2)}
+                        <small>
+                            (${percent.toFixed(2)}%)
+                        </small>
+                    </div>
+                `;
             },
             width: 140
         },

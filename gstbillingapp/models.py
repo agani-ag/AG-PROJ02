@@ -313,6 +313,19 @@ class BookLog(models.Model):
     createdby = models.CharField(max_length=100, blank=True, null=True, default='SYSTEM')
     is_active = models.BooleanField(default=True)
 
+    def save(self, *args, **kwargs):
+        if self.createdby:
+            self.createdby = self.createdby.upper()
+        if self.change:
+            # For 'Other' type, keep the sign as is (positive or negative)
+            if self.change_type == 3:
+                self.change = self.change
+            elif self.change_type == 1:
+                self.change = -abs(self.change)
+            else:                
+                self.change = abs(self.change)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.parent_book.customer.customer_name + " | " + str(self.change) + " | " + self.description + " | " + str(self.date)
 
