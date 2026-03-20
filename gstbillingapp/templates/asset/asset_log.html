@@ -72,10 +72,10 @@
 	</div>
 	<p class="font-weight-bold" style="margin-top: -2%;">
 		<span>Total Transactions:</span> 
-		{% if total_transactions > 0 %} 
-			<span class="text-danger"><a href="?filter=transactions" class="text-danger">
-		{% else %}	
+		{% if total_transactions > 0 %}
 			<span class="text-success"><a href="?filter=transactions" class="text-success">
+		{% else %}
+			<span class="text-danger"><a href="?filter=transactions" class="text-danger"></a>
 		{% endif %}
 			₹ {{ total_transactions | default:0 | floatformat:2 | intcomma }} </a></span>
 		<span>({{ total_transactions_word }})</span>

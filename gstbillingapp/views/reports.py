@@ -2010,3 +2010,115 @@ def inventory_transaction_report(request):
     }
 
     return render(request, 'reports/inventory_transaction_report.html', context)
+
+
+# =============================================================================
+# Inventory Margin Report (Product-wise)
+# =============================================================================
+@login_required
+def inventory_margin_report(request):
+    """
+    Inventory Margin Report — Per-product profit analysis based on
+    Sale Rate vs Purchase Rate with current stock valuation.
+
+    Sale Rate = (product_rate_with_gst - discount%) + GST%
+    Profit/Unit = Sale Rate - product_purchase_rate
+    Total Profit = Profit/Unit * current_stock
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # --- Parse filters ---
+    sort_by = request.GET.get('sort', 'profit_total_desc')
+    hide_zero = request.GET.get('hide_zero', '1')
+
+    valid_sorts = [
+        'model_no_asc', 'model_no_desc',
+        'name_asc', 'name_desc',
+        'stock_asc', 'stock_desc',
+        'purchase_rate_asc', 'purchase_rate_desc',
+        'sale_rate_asc', 'sale_rate_desc',
+        'profit_unit_asc', 'profit_unit_desc',
+        'profit_total_asc', 'profit_total_desc',
+        'margin_asc', 'margin_desc',
+    ]
+    if sort_by not in valid_sorts:
+        sort_by = 'profit_total_desc'
+
+    # --- Query all products with inventory ---
+    products = Product.objects.filter(user=user).select_related('product_category')
+    inventories = Inventory.objects.filter(user=user).select_related('product')
+    inventory_map = {inv.product_id: inv.current_stock for inv in inventories}
+
+    product_rows = []
+    for product in products:
+        current_stock = inventory_map.get(product.id, 0)
+
+        # Sale Rate calculation:
+        # discounted_price = product_rate_with_gst * (1 - discount/100)
+        # sale_rate = discounted_price * (1 + gst/100)
+        rate = product.product_rate_with_gst or 0
+        discount = product.product_discount or 0
+        gst = product.product_gst_percentage or 0
+        purchase_rate = product.product_purchase_rate or 0
+
+        discounted_price = rate * (1 - discount / 100)
+        sale_rate = round(discounted_price * (1 + gst / 100), 2)
+
+        profit_unit = round(sale_rate - purchase_rate, 2)
+        profit_total = round(profit_unit * current_stock, 2)
+        margin = round((profit_unit / sale_rate) * 100, 1) if sale_rate > 0 else 0
+
+        product_rows.append({
+            'product_id': product.id,
+            'model_no': product.model_no,
+            'name': product.product_name or '-',
+            'current_stock': current_stock,
+            'purchase_rate': round(purchase_rate, 2),
+            'sale_rate': sale_rate,
+            'profit_unit': profit_unit,
+            'profit_total': profit_total,
+            'margin': margin,
+        })
+
+    # Filter out zero/negative stock if checkbox enabled
+    if hide_zero == '1':
+        product_rows = [r for r in product_rows if r['current_stock'] > 0]
+
+    # --- KPIs ---
+    total_products = len(product_rows)
+    total_stock_value = round(sum(r['sale_rate'] * r['current_stock'] for r in product_rows), 2)
+    total_purchase_value = round(sum(r['purchase_rate'] * r['current_stock'] for r in product_rows), 2)
+    total_profit = round(sum(r['profit_total'] for r in product_rows), 2)
+    avg_margin = round(sum(r['margin'] for r in product_rows) / total_products, 1) if total_products > 0 else 0
+
+    # --- Sort ---
+    sort_key_map = {
+        'model_no': 'model_no',
+        'name': 'name',
+        'stock': 'current_stock',
+        'purchase_rate': 'purchase_rate',
+        'sale_rate': 'sale_rate',
+        'profit_unit': 'profit_unit',
+        'profit_total': 'profit_total',
+        'margin': 'margin',
+    }
+    sort_field, sort_dir = sort_by.rsplit('_', 1)
+    key_name = sort_key_map.get(sort_field, 'profit_total')
+    product_rows.sort(key=lambda x: x[key_name], reverse=(sort_dir == 'desc'))
+
+    context = {
+        'user_profile': user_profile,
+        'product_rows': product_rows,
+        'total_products': total_products,
+        'total_stock_value': total_stock_value,
+        'total_purchase_value': total_purchase_value,
+        'total_profit': total_profit,
+        'avg_margin': avg_margin,
+        'sort_by': sort_by,
+        'hide_zero': hide_zero,
+        'report_date': today,
+    }
+
+    return render(request, 'reports/inventory_margin_report.html', context)
