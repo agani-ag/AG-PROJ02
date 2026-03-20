@@ -6,9 +6,8 @@
 
 	<div class="row mb-3">
 		<div class="col-md-6">
-			<h2>Asset Logs - <span class="text-primary">{{ asset.name }}</span>
-			<small class="text-muted">({{ asset.category }})</small></h2>
-			</h2>
+			<h3>Asset Logs - <span class="text-primary">{{ asset.name }}</span>
+			<small class="text-muted">({{ asset.category }})</small></h3>
 		</div>
 		<div class="col-md-6 text-right" style="margin-top: auto;">
 			<a href="{% url 'asset_log_add' asset.id %}" class="btn btn-primary btn-sm btn-curve" title="Add New Asset Log">
@@ -75,7 +74,7 @@
 		{% if total_transactions > 0 %}
 			<span class="text-success"><a href="?filter=transactions" class="text-success">
 		{% else %}
-			<span class="text-danger"><a href="?filter=transactions" class="text-danger"></a>
+			<span class="text-danger"><a href="?filter=transactions" class="text-danger">
 		{% endif %}
 			₹ {{ total_transactions | default:0 | floatformat:2 | intcomma }} </a></span>
 		<span>({{ total_transactions_word }})</span>
@@ -108,6 +107,7 @@
 				<td>{% if log.category %}{{log.category}}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
 				<td>
 					<div class="btn-group" role="group" aria-label="Basic example">
+						<a href="javascript:void(0);" onclick="showDescription('{{ log.description|escapejs }}')" class="btn btn-primary btn-sm btn-curve" title="View Description"><i class="fas fa-info-circle"></i></a>
 						<a href="{% url 'asset_log_delete' log.id %}" class="btn btn-danger btn-sm btn-curve" title="Delete Asset Log"><i class="fas fa-trash"></i></a>
 					</div>
 				</td>
@@ -128,8 +128,88 @@
 				"sortable": false,
 				"searchable": false,
 			} ],
-			"paging": true
+			"paging": true,
+			dom: 'Bfrtip',
+			buttons: [
+				{
+					extend: 'excelHtml5',
+					text: '<i class="fas fa-file-excel"></i> Excel',
+					className: 'btn btn-success btn-sm btn-curve'
+				},
+				{
+					extend: 'pdfHtml5',
+					text: '<i class="fas fa-file-pdf"></i> PDF',
+					className: 'btn btn-danger btn-sm btn-curve'
+				},
+				{
+					extend: 'print',
+					text: '<i class="fas fa-print"></i> Print',
+					className: 'btn btn-warning btn-sm btn-curve',
+					title: '',
+					customize: function (win) {
+						var body = $(win.document.body);
+						body.css('font-family', 'Arial, sans-serif');
+
+						// Build header HTML
+						var header = '<div style="text-align:center; margin-bottom:20px;">' +
+							'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
+							'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
+							'<p style="margin:2px 0; color:#666; font-size:13px;">' +
+								'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
+								'{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
+							'</p>' +
+							'<hr style="margin:10px 0;">' +
+							'<h4 style="margin:0;">Asset Logs - {{ asset.name|escapejs }}</h4>' +
+							'<p style="margin:4px 0; color:#666;">Category: {{ asset.category|escapejs }}</p>' +
+							'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
+								'<span style="color:#dc3545;"><strong>Total Debit:</strong> ₹ {{ total_debit|default:0|floatformat:2 }}</span>' +
+								'<span style="color:#28a745;"><strong>Total Credit:</strong> ₹ {{ total_credit|default:0|floatformat:2 }}</span>' +
+								'<span><strong>Net:</strong> ₹ {{ total_transactions|default:0|floatformat:2 }}</span>' +
+							'</div>' +
+							'<hr style="margin-top:15px;">' +
+						'</div>';
+
+						body.find('table').before(header);
+
+						// Hide Actions column
+						body.find('table th:last-child, table td:last-child').hide();
+
+						// Add S.No column header
+						body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
+
+						// Add S.No to each row
+						body.find('table tbody tr').each(function(index) {
+							$(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
+						});
+
+						// Style the table
+						body.find('table')
+							.css('width', '100%')
+							.css('border-collapse', 'collapse')
+							.css('font-size', '13px');
+						body.find('table th, table td')
+							.css('border', '1px solid #ddd')
+							.css('padding', '8px');
+						body.find('table thead th')
+							.css('background-color', '#343a40')
+							.css('color', '#fff')
+							.css('text-align', 'left');
+					}
+				}
+			]
 		});
 	});
+
+	function showDescription(description) {
+        Swal.fire({
+            title: 'Transaction Description',
+            text: description || 'No description provided.',
+            icon: 'info',
+            confirmButtonText: 'Close',
+            customClass: {
+                popup: 'swal-wide'
+            }
+        });
+    }
 </script>
 {% endblock %}

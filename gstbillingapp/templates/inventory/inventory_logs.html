@@ -126,7 +126,56 @@ $(document).ready( function () {
             {
                 extend: 'print',
                 text: '<i class="fas fa-print"></i> Print',
-                className: 'btn btn-warning btn-sm btn-curve'
+                className: 'btn btn-warning btn-sm btn-curve',
+                title: '',
+                customize: function (win) {
+                    var body = $(win.document.body);
+                    body.css('font-family', 'Arial, sans-serif');
+
+                    // Build header
+                    var header = '<div style="text-align:center; margin-bottom:20px;">' +
+                        '<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
+                        '<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
+                        '<p style="margin:2px 0; color:#666; font-size:13px;">' +
+                            'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
+                            '{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
+							'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
+                        '</p>' +
+                        '<hr style="margin:10px 0;">' +
+                        '<h4 style="margin:0;">Inventory Logs - {{ inventory.product.model_no|escapejs }}</h4>' +
+                        '<p style="margin:4px 0; color:#666;">{{ inventory.product.product_name|escapejs }}</p>' +
+                        '<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
+                            '<span><strong>Price:</strong> ₹ {{ inventory.product.product_rate_with_gst }}</span>' +
+                            '<span><strong>Current Stock:</strong> {{ inventory.current_stock }}</span>' +
+                        '</div>' +
+                        '<hr style="margin-top:10px;">' +
+                    '</div>';
+                    body.find('table').before(header);
+
+                    // Hide Actions column
+                    body.find('table th:last-child, table td:last-child').hide();
+
+                    // Add S.No column header
+                    body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
+
+                    // Add S.No to each row
+                    body.find('table tbody tr').each(function(index) {
+                        $(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
+                    });
+
+                    // Style the table
+                    body.find('table')
+                        .css('width', '100%')
+                        .css('border-collapse', 'collapse')
+                        .css('font-size', '13px');
+                    body.find('table th, table td')
+                        .css('border', '1px solid #ddd')
+                        .css('padding', '8px');
+                    body.find('table thead th')
+                        .css('background-color', '#343a40')
+                        .css('color', '#fff')
+                        .css('text-align', 'left');
+                }
             }
         ]
 	});
