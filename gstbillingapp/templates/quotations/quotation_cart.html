@@ -1,76 +1,190 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Products Dashboard{% endblock %}
+{% block title %}Quotation Cart{% endblock %}
 
 {% block includecss %}
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <style>
-.header-card {
-    background: linear-gradient(135deg, #0d6efd, #6610f2);
-    color:white;
-    border-radius:15px;
-    padding:20px;
+/* Product Cards */
+.product-card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    transition: box-shadow 0.2s, transform 0.2s;
+    overflow: hidden;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
 }
-.product-img { height:180px; object-fit:cover; }
+.product-card:hover {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+.product-card .card-img-top {
+    height: 160px;
+    object-fit: cover;
+}
+.product-card .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+}
+.product-card .card-body .btn {
+    margin-top: auto;
+}
+
+/* Category Section */
+.category-section {
+    margin-bottom: 15px;
+}
+.category-header {
+    background: #343a40;
+    color: #fff;
+    padding: 8px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.category-header:hover {
+    background: #495057;
+}
+.category-body {
+    padding: 10px 0;
+}
+
+/* Cart Sidebar */
+.cart-sidebar {
+    position: sticky;
+    top: 70px;
+}
+.cart-item {
+    border-bottom: 1px solid #dee2e6;
+    padding: 10px 0;
+}
+.cart-item:last-of-type {
+    border-bottom: none;
+}
+.cart-item input.form-control {
+    font-size: 0.85em;
+    padding: 4px 6px;
+}
+.cart-summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 0.9em;
+}
+
+/* Badge on cart button */
+.cart-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    font-size: 0.7em;
+    padding: 3px 6px;
+    border-radius: 50%;
+}
+
+/* Responsive tweaks */
+@media (max-width: 767px) {
+    .product-card .card-img-top {
+        height: 120px;
+    }
+    .product-card .card-body {
+        padding: 8px;
+    }
+    .product-card .card-body h6 {
+        font-size: 0.85em;
+    }
+    .cart-sidebar {
+        position: static;
+    }
+}
 </style>
 {% endblock %}
 
 {% block content %}
 
-<div class="container-fluid p-3">
-
-    <div class="header-card mb-4 d-flex justify-content-between align-items-center">
-        <div>
-            <h3><i class="bi bi-box-seam"></i> Product Dashboard</h3>
-        </div>
-        <button class="btn btn-warning position-relative" onclick="openCart()">
-            <i class="bi bi-cart"></i> Cart
-            <span class="badge bg-danger position-absolute top-0 start-100 translate-middle"
-                  id="cartCount">0</span>
+<!-- Page Header -->
+<div class="row mb-3">
+    <div class="col">
+        <h3><i class="fas fa-shopping-cart"></i> Quotation Cart</h3>
+    </div>
+    <div class="col text-right" style="padding-top: 0.5%;">
+        <button class="btn btn-warning btn-sm btn-curve d-md-none position-relative" onclick="openCart()">
+            <i class="fas fa-shopping-bag"></i> Cart
+            <span class="badge badge-danger cart-badge" id="cartCountMobile">0</span>
         </button>
     </div>
+</div>
 
-    <!-- FILTER -->
-    <div class="card mb-3">
-        <div class="card-body row g-2">
-            <div class="col-md-4">
-                <input type="text" id="searchInput" class="form-control"
-                       placeholder="Search..." oninput="applyFilters()">
-            </div>
-            <div class="col-md-4">
-                <select id="categoryFilter" class="form-select"
-                        onchange="applyFilters()">
-                    <option value="">All Categories</option>
-                </select>
-            </div>
-            <div class="col-md-4 text-end">
-                <span class="badge bg-primary" id="totalCount">0 Products</span>
-            </div>
+<!-- Filter Row -->
+<div class="row mb-3">
+    <div class="col-md-4 col-6 mb-2">
+        <input type="text" id="searchInput" class="form-control" placeholder="Search products..." oninput="applyFilters()">
+    </div>
+    <div class="col-md-4 col-6 mb-2">
+        <select id="categoryFilter" class="form-control" onchange="applyFilters()">
+            <option value="">All Categories</option>
+        </select>
+    </div>
+    <div class="col-md-4 col-12 mb-2 d-flex align-items-center justify-content-between">
+        <span class="badge badge-primary" id="totalCount" style="font-size:0.9em;">0 Products</span>
+        <button class="btn btn-secondary btn-sm btn-curve" onclick="applyFilters()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<hr>
+
+<!-- Main Layout: Products + Cart Sidebar -->
+<div class="row">
+    <!-- Product Listing -->
+    <div class="col-md-8 col-lg-9" id="productSection">
+        <div id="productContainer"></div>
+        <div id="loadingIndicator" class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+            <p class="mt-2 text-muted">Loading products...</p>
         </div>
     </div>
 
-    <div id="productContainer" class="row g-3"></div>
-
-</div>
-
-<!-- CART MODAL -->
-<div class="modal fade" id="cartModal">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5>Cart</h5>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body" id="cartItems"></div>
-      <div class="modal-footer">
-        <h5 class="me-auto">Total ₹ <span id="cartTotal">0</span></h5>
-      </div>
+    <!-- Cart Sidebar (Desktop) -->
+    <div class="col-md-4 col-lg-3 d-none d-md-block">
+        <div class="cart-sidebar">
+            <div class="card">
+                <div class="card-header bg-dark text-white font-weight-bold">
+                    <i class="fas fa-shopping-bag"></i> Cart
+                    <span class="badge badge-warning float-right" id="cartCount" style="margin-top:2px;">0</span>
+                </div>
+                <div class="card-body p-2" id="cartItemsDesktop" style="max-height:60vh; overflow-y:auto;">
+                    <div class="text-muted text-center py-3">Cart is empty</div>
+                </div>
+                <div class="card-footer p-2" id="cartFooterDesktop"></div>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 
-<script>
+<!-- Cart Modal (Mobile) -->
+<div class="modal fade" id="cartModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-shopping-bag"></i> Cart</h5>
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body" id="cartItemsMobile"></div>
+            <div class="modal-footer" id="cartFooterMobile"></div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block includejs %}
+<script type="text/javascript">
 const PRODUCT_API = "{% url 'productsjson' %}";
 const CATEGORY_API = "{% url 'categoriesjson' %}";
 const CHECKOUT_API = "#";
@@ -80,253 +194,238 @@ let allCategories = [];
 let categoryMap = {};
 let cart = JSON.parse(localStorage.getItem("cart")) || [];
 
-/* ---------------- LOAD DATA ---------------- */
+/* ================== LOAD DATA ================== */
 
-async function loadData(){
-    const [pRes,cRes] = await Promise.all([
-        fetch(PRODUCT_API),
-        fetch(CATEGORY_API)
-    ]);
+async function loadData() {
+    try {
+        const [pRes, cRes] = await Promise.all([
+            fetch(PRODUCT_API),
+            fetch(CATEGORY_API)
+        ]);
+        allProducts = await pRes.json();
+        allCategories = await cRes.json();
 
-    allProducts = await pRes.json();
-    allCategories = await cRes.json();
-
-    buildCategoryMap();
-    buildCategoryDropdown();
-    applyFilters();
-    updateCartUI();
+        buildCategoryMap();
+        buildCategoryDropdown();
+        applyFilters();
+        updateCartUI();
+    } catch (err) {
+        console.error('Failed to load data:', err);
+        Swal.fire('Error', 'Failed to load products. Please refresh.', 'error');
+    } finally {
+        $('#loadingIndicator').hide();
+    }
 }
 
-/* ---------------- CATEGORY TREE ---------------- */
+/* ================== CATEGORY TREE ================== */
 
-function buildCategoryMap(){
+function buildCategoryMap() {
     categoryMap = {};
-    allCategories.forEach(cat=>{
+    allCategories.forEach(function(cat) {
         categoryMap[cat.id] = cat;
     });
 }
 
-function getCategoryFullPath(catId){
-    if(!catId) return "Uncategorized";
-    let path = [];
-    let current = categoryMap[catId];
-    while(current){
+function getCategoryFullPath(catId) {
+    if (!catId) return "Uncategorized";
+    var path = [];
+    var current = categoryMap[catId];
+    while (current) {
         path.unshift(current.category_name);
         current = categoryMap[current.parent_category_id];
     }
     return path.join(" > ");
 }
 
-function buildCategoryDropdown(){
-    const dropdown = document.getElementById("categoryFilter");
-    dropdown.innerHTML = `<option value="">All Categories</option>`;
-    allCategories.forEach(cat=>{
-        dropdown.innerHTML += `
-            <option value="${cat.id}">
-                ${getCategoryFullPath(cat.id)}
-            </option>
-        `;
+function buildCategoryDropdown() {
+    var dropdown = document.getElementById("categoryFilter");
+    dropdown.innerHTML = '<option value="">All Categories</option>';
+    allCategories.forEach(function(cat) {
+        var opt = document.createElement('option');
+        opt.value = cat.id;
+        opt.textContent = getCategoryFullPath(cat.id);
+        dropdown.appendChild(opt);
     });
 }
 
-/* ---------------- FILTER ---------------- */
+/* ================== FILTER ================== */
 
-function applyFilters(){
-    const search = document.getElementById("searchInput").value.toLowerCase();
-    const category = document.getElementById("categoryFilter").value;
+function applyFilters() {
+    var search = document.getElementById("searchInput").value.toLowerCase();
+    var category = document.getElementById("categoryFilter").value;
 
-    let filtered = allProducts.filter(p=>{
-        const matchSearch =
-            p.product_name.toLowerCase().includes(search) ||
-            p.model_no.toLowerCase().includes(search);
-
-        const matchCategory =
-            !category || p.product_category_id == category;
-
+    var filtered = allProducts.filter(function(p) {
+        var matchSearch =
+            p.product_name.toLowerCase().indexOf(search) !== -1 ||
+            p.model_no.toLowerCase().indexOf(search) !== -1;
+        var matchCategory = !category || p.product_category_id == category;
         return matchSearch && matchCategory;
     });
 
     renderProducts(filtered);
 }
 
-/* ---------------- RENDER ---------------- */
+/* ================== RENDER PRODUCTS ================== */
 
-function renderProducts(products){
-    const container = document.getElementById("productContainer");
+function renderProducts(products) {
+    var container = document.getElementById("productContainer");
     container.innerHTML = "";
 
-    const hasFilter = document.getElementById("searchInput").value.trim() !== "" ||
-                      document.getElementById("categoryFilter").value !== "";
+    var hasFilter = document.getElementById("searchInput").value.trim() !== "" ||
+                    document.getElementById("categoryFilter").value !== "";
 
-    if(products.length===0){
-        container.innerHTML =
-            `<div class="col-12 text-center text-muted">No Products</div>`;
+    if (products.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-box-open fa-3x mb-3"></i><p>No products found</p></div>';
+        document.getElementById("totalCount").innerText = "0 Products";
         return;
     }
 
-    const grouped = {};
-
-    /* -------- GROUP BY CATEGORY -------- */
-    products.forEach(p=>{
-        const categoryName = getCategoryFullPath(p.product_category_id);
-
-        if(!grouped[categoryName]){
+    /* Group by category */
+    var grouped = {};
+    products.forEach(function(p) {
+        var categoryName = getCategoryFullPath(p.product_category_id);
+        if (!grouped[categoryName]) {
             grouped[categoryName] = { withImage: [], withoutImage: [] };
         }
-
-        if(p.product_image_url){
+        if (p.product_image_url) {
             grouped[categoryName].withImage.push(p);
         } else {
             grouped[categoryName].withoutImage.push(p);
         }
     });
 
-    /* -------- SORT CATEGORY NAMES -------- */
-    Object.keys(grouped).sort().forEach((category, index) => {
-        const withImg = grouped[category].withImage;
-        const withoutImg = grouped[category].withoutImage;
-        const hasWith = withImg.length > 0;
-        const hasWithout = withoutImg.length > 0;
+    /* Sort and render categories */
+    var categoryNames = Object.keys(grouped).sort();
+    categoryNames.forEach(function(category, index) {
+        var withImg = grouped[category].withImage;
+        var withoutImg = grouped[category].withoutImage;
+        var collapseId = 'collapseCategory' + index;
+        var isOpen = hasFilter;
 
-        const collapseId = `collapseCategory${index}`;
+        var section = document.createElement('div');
+        section.className = 'category-section';
+        section.innerHTML =
+            '<div class="category-header" data-toggle="collapse" data-target="#' + collapseId + '">' +
+                '<span><i class="fas fa-folder-open mr-2"></i>' + category +
+                    ' <span class="badge badge-light">' + (withImg.length + withoutImg.length) + '</span>' +
+                '</span>' +
+                '<i class="fas ' + (isOpen ? 'fa-chevron-up' : 'fa-chevron-down') + '" id="icon-' + collapseId + '"></i>' +
+            '</div>' +
+            '<div class="collapse ' + (isOpen ? 'show' : '') + ' category-body" id="' + collapseId + '">' +
+                '<div class="row" id="' + collapseId + '-content"></div>' +
+            '</div>';
 
-        // Category header with collapse toggle
-        container.innerHTML += `
-            <div class="col-12 mb-3">
-                <div class="d-flex justify-content-between align-items-center border-bottom pb-2">
-                    <h4 class="text-primary m-0">${category}</h4>
-                    <button class="btn btn-sm btn-outline-secondary"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#${collapseId}"
-                            aria-expanded="${hasFilter ? "true" : "false"}"
-                            aria-controls="${collapseId}">
-                        <i class="bi ${hasFilter ? "bi-dash-lg" : "bi-plus-lg"}"></i>
-                    </button>
-                </div>
+        container.appendChild(section);
 
-                <div class="collapse ${hasFilter ? "show" : ""} mt-2" id="${collapseId}">
-                    <div class="row g-3" id="${collapseId}-content"></div>
-                </div>
-            </div>
-        `;
+        var contentDiv = document.getElementById(collapseId + '-content');
 
-        const contentDiv = document.getElementById(`${collapseId}-content`);
-
-        if(hasWith && hasWithout){
-            contentDiv.innerHTML += `<div class="col-12 text-success mt-2"><strong>With Image</strong></div>`;
-            withImg.forEach(p => contentDiv.appendChild(createCard(p)));
-
-            contentDiv.innerHTML += `<div class="col-12 text-secondary mt-3"><strong>Without Image</strong></div>`;
-            withoutImg.forEach(p => contentDiv.appendChild(createCard(p)));
-        } else if(hasWith){
-            withImg.forEach(p => contentDiv.appendChild(createCard(p)));
-        } else if(hasWithout){
-            withoutImg.forEach(p => contentDiv.appendChild(createCard(p)));
+        if (withImg.length > 0 && withoutImg.length > 0) {
+            contentDiv.innerHTML += '<div class="col-12 mb-2"><small class="text-success font-weight-bold"><i class="fas fa-image mr-1"></i>With Image</small></div>';
+            withImg.forEach(function(p) { contentDiv.appendChild(createCard(p)); });
+            contentDiv.innerHTML += '<div class="col-12 mb-2 mt-3"><small class="text-secondary font-weight-bold"><i class="fas fa-image mr-1"></i>Without Image</small></div>';
+            withoutImg.forEach(function(p) { contentDiv.appendChild(createCard(p)); });
+        } else if (withImg.length > 0) {
+            withImg.forEach(function(p) { contentDiv.appendChild(createCard(p)); });
+        } else {
+            withoutImg.forEach(function(p) { contentDiv.appendChild(createCard(p)); });
         }
+
+        /* Toggle chevron icon on collapse */
+        $('#' + collapseId).on('show.bs.collapse', function() {
+            $('#icon-' + collapseId).removeClass('fa-chevron-down').addClass('fa-chevron-up');
+        });
+        $('#' + collapseId).on('hide.bs.collapse', function() {
+            $('#icon-' + collapseId).removeClass('fa-chevron-up').addClass('fa-chevron-down');
+        });
     });
 
     document.getElementById("totalCount").innerText = products.length + " Products";
 }
-    
-    document.addEventListener("click", function(e){
-        const btn = e.target.closest('button[data-bs-toggle="collapse"]');
-        if(btn){
-            const icon = btn.querySelector('i');
-            const collapseDiv = document.querySelector(btn.dataset.bsTarget);
 
-            setTimeout(()=>{
-                if(collapseDiv.classList.contains('show')){
-                    icon.className = 'bi bi-dash-lg';  // Expanded
-                } else {
-                    icon.className = 'bi bi-plus-lg';  // Collapsed
-                }
-            }, 200);
-        }
-    });
+/* ================== PRODUCT CARD ================== */
 
-    // Optional: set initial icons to "+"
-    document.addEventListener("DOMContentLoaded", function(){
-        document.querySelectorAll('button[data-bs-toggle="collapse"]').forEach(btn=>{
-            const icon = btn.querySelector('i');
-            icon.className = 'bi bi-plus-lg'; // collapsed initially
-        });
-    });
-/* ---------------- PRODUCT CARD ---------------- */
+function createCard(product) {
+    var col = document.createElement("div");
+    col.className = "col-6 col-md-4 col-lg-3 mb-3";
 
-function createCard(product){
-    const col = document.createElement("div");
-    col.className="col-md-4 col-lg-3";
+    var cartItem = cart.find(function(c) { return c.id === product.id; });
+    var inCart = !!cartItem;
 
-    col.innerHTML = `
-        <div class="card shadow-sm h-100">
-            ${product.product_image_url ?
-                `<img src="${product.product_image_url}"
-                      class="card-img-top product-img">`
-            : ''
-            }
-            <div class="card-body d-flex flex-column">
-                <h6>${product.product_name}</h6>
-                <small class="text-muted">Model: ${product.model_no}</small>
-                <h6 class="text-success mt-2">
-                    ₹ ${product.product_rate_with_gst}
-                </h6>
+    col.innerHTML =
+        '<div class="product-card">' +
+            (product.product_image_url ?
+                '<img src="' + product.product_image_url + '" class="card-img-top" alt="' + product.product_name + '">'
+                : '<div class="card-img-top d-flex align-items-center justify-content-center" style="background:#f0f0f0;height:160px;"><i class="fas fa-box fa-3x text-muted"></i></div>'
+            ) +
+            '<div class="card-body">' +
+                '<h6 class="mb-1 font-weight-bold" style="font-size:0.85em;">' + product.product_name + '</h6>' +
+                '<small class="text-muted d-block mb-1">Model: ' + product.model_no + '</small>' +
+                '<span class="font-weight-bold text-success">₹ ' + product.product_rate_with_gst + '</span>' +
+                (inCart ?
+                    '<div class="mt-2 d-flex align-items-center">' +
+                        '<button class="btn btn-danger btn-sm btn-curve" onclick="updateQty(' + product.id + ',' + (cartItem.qty - 1) + ')"><i class="fas fa-minus"></i></button>' +
+                        '<span class="mx-2 font-weight-bold">' + cartItem.qty + '</span>' +
+                        '<button class="btn btn-success btn-sm btn-curve" onclick="addToCart(' + product.id + ')"><i class="fas fa-plus"></i></button>' +
+                    '</div>'
+                :
+                    '<button class="btn btn-primary btn-sm btn-curve mt-2 btn-block" onclick="addToCart(' + product.id + ')">' +
+                        '<i class="fas fa-cart-plus mr-1"></i>Add' +
+                    '</button>'
+                ) +
+            '</div>' +
+        '</div>';
 
-                <button class="btn btn-primary btn-sm mt-auto"
-                        onclick="addToCart(${product.id})">
-                    Add To Cart
-                </button>
-            </div>
-        </div>
-    `;
     return col;
 }
 
-/* ---------------- CART CORE ---------------- */
+/* ================== CART CORE ================== */
 
-function addToCart(id){
-    const product = allProducts.find(p=>p.id===id);
-    const existing = cart.find(p=>p.id===id);
+function addToCart(id) {
+    var product = allProducts.find(function(p) { return p.id === id; });
+    var existing = cart.find(function(p) { return p.id === id; });
 
-    if(existing){
+    if (existing) {
         existing.qty++;
     } else {
         cart.push({
-            ...product,
-            qty:1,
+            id: product.id,
+            product_name: product.product_name,
+            model_no: product.model_no,
+            product_rate_with_gst: product.product_rate_with_gst,
+            product_gst_percentage: product.product_gst_percentage,
+            product_image_url: product.product_image_url,
+            qty: 1,
             discount: product.product_discount || 0
         });
     }
 
     saveCart();
+    applyFilters(); // Re-render to show qty buttons
 }
 
-function saveCart(){
-    localStorage.setItem("cart",JSON.stringify(cart));
+function saveCart() {
+    localStorage.setItem("cart", JSON.stringify(cart));
     updateCartUI();
 }
 
-function updateCartUI(){
-    document.getElementById("cartCount").innerText =
-        cart.reduce((a,b)=>a+b.qty,0);
+function updateCartUI() {
+    var totalItems = cart.reduce(function(a, b) { return a + b.qty; }, 0);
+    $('#cartCount').text(totalItems);
+    $('#cartCountMobile').text(totalItems);
+    renderCartSidebar();
 }
 
-/* ---------------- CART CALCULATIONS ---------------- */
+/* ================== CART CALCULATIONS ================== */
 
-function calculateTotals(){
+function calculateTotals() {
+    var subtotal = 0, totalDiscount = 0, totalGST = 0;
 
-    let subtotal=0;
-    let totalDiscount=0;
-    let totalGST=0;
-
-    cart.forEach(item=>{
-
-        const price = item.product_rate_with_gst;
-        const discountAmount = (price * item.discount)/100;
-        const priceAfterDiscount = price - discountAmount;
-
-        const gstPercent = item.product_gst_percentage;
-        const gstAmount = (priceAfterDiscount * gstPercent)/100;
+    cart.forEach(function(item) {
+        var price = item.product_rate_with_gst;
+        var discountAmount = (price * item.discount) / 100;
+        var priceAfterDiscount = price - discountAmount;
+        var gstPercent = item.product_gst_percentage;
+        var gstAmount = (priceAfterDiscount * gstPercent) / 100;
 
         subtotal += priceAfterDiscount * item.qty;
         totalDiscount += discountAmount * item.qty;
@@ -334,210 +433,186 @@ function calculateTotals(){
     });
 
     return {
-        subtotal,
-        totalDiscount,
-        totalGST,
-        cgst: totalGST/2,
-        sgst: totalGST/2,
+        subtotal: subtotal,
+        totalDiscount: totalDiscount,
+        totalGST: totalGST,
+        cgst: totalGST / 2,
+        sgst: totalGST / 2,
         grandTotal: subtotal + totalGST
     };
 }
 
-/* ---------------- UPDATE QTY / DISCOUNT ---------------- */
+/* ================== RENDER CART SIDEBAR ================== */
 
-function updateQty(id,value){
-    const item = cart.find(p=>p.id===id);
-    if(!item) return;
+function renderCartSidebar() {
+    var html = '';
 
-    if(value <= 0){
-        cart = cart.filter(p=>p.id!==id);
+    if (cart.length === 0) {
+        html = '<div class="text-muted text-center py-3"><i class="fas fa-shopping-bag fa-2x mb-2 d-block"></i>Cart is empty</div>';
+        $('#cartItemsDesktop').html(html);
+        $('#cartItemsMobile').html(html);
+        $('#cartFooterDesktop').html('');
+        $('#cartFooterMobile').html('');
+        return;
+    }
+
+    cart.forEach(function(item) {
+        var price = item.product_rate_with_gst;
+        var discountAmount = (price * item.discount) / 100;
+        var priceAfterDiscount = price - discountAmount;
+        var gstAmount = (priceAfterDiscount * item.product_gst_percentage) / 100;
+        var total = (priceAfterDiscount + gstAmount) * item.qty;
+
+        html +=
+            '<div class="cart-item">' +
+                '<div class="d-flex justify-content-between align-items-start">' +
+                    '<strong style="font-size:0.85em;">' + item.product_name + '</strong>' +
+                    '<button class="btn btn-danger btn-sm" style="padding:0 5px;font-size:0.7em;" onclick="updateQty(' + item.id + ',0)"><i class="fas fa-times"></i></button>' +
+                '</div>' +
+                '<div class="row mt-1">' +
+                    '<div class="col-4 pr-1">' +
+                        '<label style="font-size:0.7em;">Qty</label>' +
+                        '<input type="number" min="1" value="' + item.qty + '" class="form-control" onchange="updateQty(' + item.id + ', this.value)">' +
+                    '</div>' +
+                    '<div class="col-4 px-1">' +
+                        '<label style="font-size:0.7em;">Disc %</label>' +
+                        '<input type="number" value="' + (item.discount || 0) + '" class="form-control" onchange="updateDiscount(' + item.id + ', this.value)">' +
+                    '</div>' +
+                    '<div class="col-4 pl-1">' +
+                        '<label style="font-size:0.7em;">Total</label>' +
+                        '<input type="text" value="₹' + total.toFixed(2) + '" class="form-control" readonly>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+    });
+
+    $('#cartItemsDesktop').html(html);
+    $('#cartItemsMobile').html(html);
+
+    /* Footer with totals */
+    var totals = calculateTotals();
+    var footerHtml =
+        '<div class="cart-summary-row"><span>Subtotal</span><span>₹ ' + totals.subtotal.toFixed(2) + '</span></div>' +
+        '<div class="cart-summary-row text-danger"><span>Discount</span><span>- ₹ ' + totals.totalDiscount.toFixed(2) + '</span></div>' +
+        '<div class="cart-summary-row"><span>CGST</span><span>₹ ' + totals.cgst.toFixed(2) + '</span></div>' +
+        '<div class="cart-summary-row"><span>SGST</span><span>₹ ' + totals.sgst.toFixed(2) + '</span></div>' +
+        '<hr style="margin:5px 0;">' +
+        '<div class="cart-summary-row font-weight-bold" style="font-size:1.1em;"><span>Grand Total</span><span class="text-success">₹ ' + totals.grandTotal.toFixed(2) + '</span></div>' +
+        '<div class="d-flex justify-content-between mt-2">' +
+            '<button class="btn btn-outline-danger btn-sm btn-curve" onclick="clearCart()"><i class="fas fa-trash mr-1"></i>Clear</button>' +
+            '<button class="btn btn-success btn-sm btn-curve" onclick="checkout()"><i class="fas fa-check mr-1"></i>Checkout</button>' +
+        '</div>';
+
+    $('#cartFooterDesktop').html(footerHtml);
+    $('#cartFooterMobile').html(footerHtml);
+}
+
+/* ================== UPDATE QTY / DISCOUNT ================== */
+
+function updateQty(id, value) {
+    var item = cart.find(function(p) { return p.id === id; });
+    if (!item) return;
+
+    if (value <= 0) {
+        cart = cart.filter(function(p) { return p.id !== id; });
     } else {
         item.qty = parseFloat(value);
     }
 
     saveCart();
-    openCart();
+    applyFilters(); // Re-render product cards to update qty display
 }
 
-function updateDiscount(id,value){
-    const item = cart.find(p=>p.id===id);
-    if(!item) return;
-
+function updateDiscount(id, value) {
+    var item = cart.find(function(p) { return p.id === id; });
+    if (!item) return;
     item.discount = parseFloat(value) || 0;
     saveCart();
-    openCart();
 }
 
-/* ---------------- CLEAR CART ---------------- */
+/* ================== CLEAR CART ================== */
 
-function clearCart(){
-    if(!confirm("Clear entire cart?")) return;
-    cart=[];
-    saveCart();
-    openCart();
-}
-
-/* ---------------- OPEN CART ---------------- */
-
-function openCart(){
-    const container = document.getElementById("cartItems");
-    container.innerHTML = "";
-
-    if(cart.length === 0){
-        container.innerHTML = "<div class='text-muted text-center'>Cart Empty</div>";
-    }
-
-    cart.forEach(item => {
-        const price = item.product_rate_with_gst;
-        const discountAmount = (price * item.discount) / 100;
-        const priceAfterDiscount = price - discountAmount;
-        const gstAmount = (priceAfterDiscount * item.product_gst_percentage) / 100;
-        const total = (priceAfterDiscount + gstAmount) * item.qty;
-
-        container.innerHTML += `
-        <div class="border-bottom py-3">
-
-            <div class="d-flex justify-content-between">
-                <strong>${item.product_name}</strong>
-                <button class="btn btn-sm btn-danger"
-                        onclick="updateQty(${item.id},0)">×</button>
-            </div>
-
-            <div class="row mt-2">
-
-                <div class="col-6 col-md-3">
-                    <label>Qty</label>
-                    <input type="number" min="1"
-                        value="${item.qty}"
-                        class="form-control"
-                        onchange="updateQty(${item.id}, this.value)">
-                </div>
-
-                <div class="col-6 col-md-3">
-                    <label>Discount %</label>
-                    <input type="number"
-                        value="${item.discount || 0}"
-                        class="form-control"
-                        onchange="updateDiscount(${item.id}, this.value)">
-                </div>
-
-                <div class="col-6 col-md-3 mt-2 mt-md-0">
-                    <label>GST %</label>
-                    <input type="text"
-                        value="${item.product_gst_percentage}%"
-                        class="form-control"
-                        disabled>
-                </div>
-
-                <div class="col-6 col-md-3 mt-2 mt-md-0">
-                    <label>Total</label>
-                    <input type="text"
-                        value="₹ ${total.toFixed(2)}"
-                        class="form-control"
-                        disabled>
-                </div>
-
-            </div>
-
-        </div>
-        `;
-    });
-
-    const totals = calculateTotals();
-
-    container.innerHTML += `
-        <div class="mt-4">
-
-            <div class="d-flex justify-content-between">
-                <span>Subtotal</span>
-                <span>₹ ${totals.subtotal.toFixed(2)}</span>
-            </div>
-
-            <div class="d-flex justify-content-between">
-                <span>Total Discount</span>
-                <span>₹ ${totals.totalDiscount.toFixed(2)}</span>
-            </div>
-
-            <div class="d-flex justify-content-between">
-                <span>CGST</span>
-                <span>₹ ${totals.cgst.toFixed(2)}</span>
-            </div>
-
-            <div class="d-flex justify-content-between">
-                <span>SGST</span>
-                <span>₹ ${totals.sgst.toFixed(2)}</span>
-            </div>
-
-            <hr>
-
-            <div class="d-flex justify-content-between fw-bold">
-                <span>Grand Total</span>
-                <span>₹ ${totals.grandTotal.toFixed(2)}</span>
-            </div>
-
-            <div class="d-flex justify-content-between mt-3">
-                <button class="btn btn-outline-danger"
-                        onclick="clearCart()">Clear Cart</button>
-
-                <button class="btn btn-success"
-                        onclick="checkout()">Checkout</button>
-            </div>
-
-        </div>
-    `;
-
-    // Ensure the modal is shown and handle closing properly
-    const modal = new bootstrap.Modal(document.getElementById("cartModal"));
-    modal.show();
-
-    // Make sure the close button is working
-    const closeButton = document.querySelector('.btn-close');
-    closeButton.addEventListener('click', () => {
-        modal.hide(); // Manually hide the modal when the close button is clicked
+function clearCart() {
+    Swal.fire({
+        title: 'Clear Cart?',
+        text: 'This will remove all items from your cart.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, Clear it!'
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            cart = [];
+            saveCart();
+            applyFilters();
+        }
     });
 }
 
-/* ---------------- CHECKOUT ---------------- */
+/* ================== OPEN CART (Mobile Modal) ================== */
 
-async function checkout(){
+function openCart() {
+    renderCartSidebar();
+    $('#cartModal').modal('show');
+}
 
-    if(cart.length===0){
-        alert("Cart is empty");
+/* ================== CHECKOUT ================== */
+
+function checkout() {
+    if (cart.length === 0) {
+        Swal.fire('Empty Cart', 'Add items before checkout.', 'info');
         return;
     }
 
-    if(!confirm("Confirm Checkout?")) return;
+    Swal.fire({
+        title: 'Confirm Checkout?',
+        text: 'Grand Total: ₹ ' + calculateTotals().grandTotal.toFixed(2),
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, Checkout!'
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            var payload = {
+                items: cart,
+                totals: calculateTotals()
+            };
 
-    const payload = {
-        items: cart,
-        totals: calculateTotals()
-    };
-
-    const response = await fetch(CHECKOUT_API,{
-        method:"POST",
-        headers:{
-            "Content-Type":"application/json",
-            "X-CSRFToken": getCSRFToken()
-        },
-        body: JSON.stringify(payload)
+            fetch(CHECKOUT_API, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCSRFToken()
+                },
+                body: JSON.stringify(payload)
+            }).then(function(response) {
+                if (response.ok) {
+                    Swal.fire('Success!', 'Order placed successfully!', 'success').then(function() {
+                        cart = [];
+                        saveCart();
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire('Error', 'Checkout failed. Please try again.', 'error');
+                }
+            }).catch(function() {
+                Swal.fire('Error', 'Network error. Please try again.', 'error');
+            });
+        }
     });
-
-    if(response.ok){
-        alert("Order placed successfully!");
-        cart=[];
-        saveCart();
-        location.reload();
-    } else {
-        alert("Checkout failed");
-    }
 }
 
-/* ---------------- CSRF ---------------- */
+/* ================== CSRF ================== */
 
-function getCSRFToken(){
-    return document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+function getCSRFToken() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
 }
 
-document.addEventListener("DOMContentLoaded",loadData);
+$(document).ready(function() {
+    loadData();
+});
 </script>
 {% endblock %}
