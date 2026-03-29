@@ -41,6 +41,10 @@
 							<a href="{% url 'vendor_purchase_edit' vendor.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Vendor"><i class="fas fa-pen-to-square"></i></a>
 							<a href="{% url 'purchases_vendor_logs' vendor.id %}" class="btn btn-warning btn-sm btn-curve" title="Vendor Purchase Logs"><i class="fas fa-history"></i></a>
 							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#vendorPurchaseDeleteModal" data-vendor-purchase-id="{{vendor.id}}" data-vendor-purchase-name="{{vendor.vendor_name}}" title="Delete Vendor"><i class="fas fa-trash"></i></button>
+							{% if vendor.vendor_latitude and vendor.vendor_longitude %}
+							<a href="#" class="btn btn-success btn-sm btn-curve" onclick="popup_Vendor_maps('{{ vendor.vendor_latitude }}', '{{ vendor.vendor_longitude }}', '{{ vendor.vendor_name }}')" title="View on Map">
+								<i class="fas fa-location-dot"></i></a>
+							{% endif %}
 						</div>
 					</td>
 				</tr>
@@ -166,6 +170,80 @@ $(document).ready( function () {
         ]
 	});
 });
+function popup_Vendor_maps(latitude, longitude, name) {
+    Swal.fire({
+        html: `<div id="map" style="height: 600px; width: 98%; border-radius: 10px;"></div>`,
+        width: '80%',
+        showCloseButton: true,
+        showConfirmButton: false,
+        didOpen: () => {
+			var map = L.map('map').setView([latitude, longitude], 13);
+			let cartoLayer = L.tileLayer(
+				'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+				{
+					attribution: '&copy; OpenStreetMap &copy; CartoDB'
+				}
+			);
+			let darkLayer = L.tileLayer(
+				'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+				{
+					attribution: '&copy; OpenStreetMap &copy; CartoDB'
+				}
+			);
+			let topoLayer = L.tileLayer(
+				'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+				{
+					attribution: '&copy; OpenTopoMap'
+				}
+			);
+			let osmLayer = L.tileLayer(
+				'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+				{
+					attribution: '&copy; OpenStreetMap'
+				}
+			);
+			let satelliteLayer = L.tileLayer(
+				'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+				{
+					attribution: '&copy; Google',
+					subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+				}
+			);
+			cartoLayer.addTo(map);
+			let baseMaps = {
+				"☀️ Light": cartoLayer,
+				"🌙 Dark": darkLayer,
+				"⛰️ Terrain": topoLayer,
+				"🗺️ OSM": osmLayer,
+				"🛰️ Satellite": satelliteLayer
+			};
+			L.control.layers(baseMaps).addTo(map);
+			let marker = L.marker([latitude, longitude]).addTo(map);
+			let locateControl = L.control({ position: 'topleft' });
+			locateControl.onAdd = function(map) {
+				let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+				div.style.backgroundColor = 'white';
+				div.style.width = '34px';
+				div.style.height = '34px';
+				div.style.cursor = 'pointer';
+				div.style.display = 'flex';
+				div.style.alignItems = 'center';
+				div.style.justifyContent = 'center';
+				div.title = "Lead Location";
+				div.innerHTML = '📍';
+				div.onclick = function(e) {
+					e.stopPropagation(); // Prevent map click events
+					map.setView([latitude, longitude], 15, { animate: true });
+				};
+				return div;
+			};
+			locateControl.addTo(map);
 
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 200);
+        }
+    });
+}
 </script>
 {% endblock %}

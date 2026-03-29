@@ -52,6 +52,11 @@
 				<th scope="row" class="text-right">Bank Details:</th>
 				<td class="form-input-td">{{vendor_purchase_form.bankdetails}}</td>
 			</tr>
+			<tr>
+				<td colspan="2">
+					<div id="map" style="height: 350px; width: 100%; border: 1px solid #ccc;"></div>
+				</td>
+			</tr>
 		</tbody>
 	</table>
 
@@ -61,4 +66,209 @@
 		<a class="btn btn-danger" href="{% url 'vendors_purchase' %}"><i class="fas fa-cancel"></i></a>
 	</div>
 
+{% endblock %}
+{% block includejs %}
+<script>
+let map;
+let marker;
+let geocoder;
+var editModeActive = false;
+
+// 🚀 Init map
+function initMap(lat = 12.602429, lng = 78.595726) { // Headquarters Location
+    map = L.map('map').setView([lat, lng], 13);
+
+    let cartoLayer = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        {
+            attribution: '&copy; OpenStreetMap &copy; CartoDB'
+        }
+    );
+
+    let topoLayer = L.tileLayer(
+        'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        {
+            attribution: '&copy; OpenTopoMap'
+        }
+    );
+
+    let darkLayer = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        {
+            attribution: '&copy; OpenStreetMap &copy; CartoDB'
+        }
+    );
+
+    let osmLayer = L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {
+            attribution: '&copy; OpenStreetMap'
+        }
+    );
+
+    let satelliteLayer = L.tileLayer(
+        'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        {
+            attribution: '&copy; Google',
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        }
+    );
+
+    // Default layer
+    cartoLayer.addTo(map);
+    // Layer control
+    let baseMaps = {
+        "☀️ Light": cartoLayer,
+        "🌙 Dark": darkLayer,
+        "⛰️ Terrain": topoLayer,
+        "🗺️ OSM": osmLayer,
+        "🛰️ Satellite": satelliteLayer
+    };
+    L.control.layers(baseMaps).addTo(map);
+    marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+
+    // 🔍 Search bar (Leaflet Geocoder)
+    geocoder = L.Control.geocoder({
+        defaultMarkGeocode: false
+    })
+    .on('markgeocode', function(e) {
+        let center = e.geocode.center;
+        map.setView(center, 15);
+        marker.setLatLng(center);
+        setLatLng(center.lat, center.lng);
+    })
+    .addTo(map);
+
+    // 📍 Add "Use Current Location" button on map
+    let locateControl = L.control({ position: 'topleft' });
+    locateControl.onAdd = function(map) {
+        let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+        div.style.backgroundColor = 'white';
+        div.style.width = '34px';
+        div.style.height = '34px';
+        div.style.cursor = 'pointer';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'center';
+        div.title = "Use Current Location";
+        div.innerHTML = '📍';
+        div.onclick = function(e) {
+            e.preventDefault();
+            getLiveLocation();
+        };
+        return div;
+    };
+    locateControl.addTo(map);
+
+	// 📍 Add "Edit Mode" button on map
+    let editModeControl = L.control({ position: 'topleft' });
+    editModeControl.onAdd = function(map) {
+        let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+        div.style.backgroundColor = 'white';
+        div.style.width = '34px';
+        div.style.height = '34px';
+        div.style.cursor = 'pointer';
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.justifyContent = 'center';
+        div.title = "Edit Mode";
+        div.innerHTML = '✏️';
+        div.onclick = function(e) {
+            e.preventDefault();
+            editMode();
+        };
+        return div;
+    };
+    editModeControl.addTo(map);
+
+    // 🖱 Drag marker
+    marker.on('dragend', function () {
+        if (editModeActive) {
+            let pos = marker.getLatLng();
+            setLatLng(pos.lat, pos.lng);
+        }
+    });
+
+    // 🖱 Click map
+    map.on('click', function (e) {
+        if (editModeActive) {
+            let lat = e.latlng.lat;
+            let lng = e.latlng.lng;
+            marker.setLatLng([lat, lng]);
+            setLatLng(lat, lng);
+        }
+    });
+}
+
+// 📍 Set lat/lng everywhere
+function setLatLng(lat, lng) {
+    document.getElementsByName("vendor_latitude")[0].value = lat.toFixed(6);
+    document.getElementsByName("vendor_longitude")[0].value = lng.toFixed(6);
+    if (map && marker) {
+        marker.setLatLng([lat, lng]);
+        map.setView([lat, lng], 15);
+    }
+}
+
+function editMode() {
+	editModeActive = !editModeActive;
+	if (editModeActive) {
+		swal.fire({
+			title: 'Edit Mode Activated',
+			text: 'You can now click on the map to set your location.',
+			icon: 'info'
+		});
+	} else {
+		swal.fire({
+			title: 'Edit Mode Deactivated',
+			text: 'Clicking on the map will no longer change your location.',
+			icon: 'info'
+		});
+	}
+}
+
+function getLiveLocation() {
+    if (!navigator.geolocation) {
+        swal.fire({
+            title: 'Error',
+            text: 'Geolocation is not supported by your browser.',
+            icon: 'error'
+        });
+        return;
+    }
+    swal.fire({
+        title: 'Fetching Location...',
+        text: 'Please allow location access',
+        allowOutsideClick: false,
+        didOpen: () => {
+            swal.showLoading();
+        }
+    });
+
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            let lat = position.coords.latitude;
+            let lng = position.coords.longitude;
+            setLatLng(lat, lng);
+            swal.close();
+        },
+        function(error) {
+            swal.fire({
+                title: 'Needed Permission',
+                text: 'Please allow location access to use this feature.',
+                icon: 'warning'
+            });
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000
+        }
+    );
+}
+
+// 🚀 Init on load
+document.addEventListener("DOMContentLoaded", function () {
+    initMap();
+});
+</script>
 {% endblock %}
