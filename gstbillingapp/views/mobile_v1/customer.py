@@ -3,6 +3,7 @@ from django.forms import FloatField
 from django.utils import timezone
 from django.http import JsonResponse
 from django.core.paginator import Paginator
+from django.views.decorators.csrf import csrf_exempt
 from django.template.loader import render_to_string
 from django.shortcuts import get_object_or_404, render
 from django.db.models import (
@@ -21,6 +22,7 @@ from ...models import (
 )
 
 # Python imports
+import re
 import json
 import num2words
 from urllib.parse import urlencode
@@ -864,6 +866,71 @@ def customersapi(request):
         }
 
     return JsonResponse(customers_dict, safe=False)
+
+@csrf_exempt
+def customerapi_syncup(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
+
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        # Dynamic field for username, phone number, or GST
+        try:
+            customer_input = data.get('authuser').lower()
+            password = data.get('password')
+            base_url = data.get('base_url')
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': 'Missing required fields.'})
+        urls = {}
+        passwords = []
+        
+        if not customer_input or not password or not base_url:
+            return JsonResponse({'status': 'error', 'message': 'Missing required fields.'})
+
+        if not base_url.startswith('http'):
+            return JsonResponse({'status': 'error', 'message': 'Invalid base URL.'})
+
+        # Check if customer_input is a phone number or GST
+        if re.match(r'^\d{10}$', customer_input):  
+            # Checking if it's a phone number (10 digits)
+            customers = Customer.objects.filter(customer_phone=customer_input, is_mobile_user=True)
+        elif re.match(r'^\d{15}$', customer_input):  
+            # GST is typically 15 characters
+            customers = Customer.objects.filter(customer_gst=customer_input, is_mobile_user=True)
+        else:
+            # Default assumption is username
+            customers = Customer.objects.filter(customer_userid=customer_input, is_mobile_user=True)
+
+        if not customers.exists():
+            return JsonResponse({'status': 'error', 'message': 'Invalid credentials.'})
+        
+        if customers.count() > 1:
+            for customer in customers:
+                urls[customer.user.userprofile.business_brand] = f'{base_url}/mobile/v1/customer/home?cid={customer.customer_userid}'
+                passwords.append(customer.customer_password)
+            if password not in passwords:
+                return JsonResponse({'status': 'error', 'message': 'Invalid credentials.'})
+            customer_obj = customers.first()
+            data = {
+                "username": customer_obj.customer_userid,
+                "business_name": customer_obj.user.userprofile.business_title,
+                "message": f"Welcome back, {customer_obj.customer_name}!",
+                "urls": urls,
+            }
+    
+        print(f"Total customers found: {customers.count()} for input: {customer_input}")
+        if customers.count() == 1:
+            customer_obj = customers.first()
+            if customer_obj.customer_password != password:
+                return JsonResponse({'status': 'error', 'message': 'Invalid credentials.'})
+            data = {
+                "username": customer_obj.customer_userid,
+                "business_name": customer_obj.user.userprofile.business_title,
+                "message": f"Welcome back, {customer_obj.customer_name}!",
+                "urls": urls,
+            }
+
+        return JsonResponse(data, safe=False)
 
 def customers_book_add_api(request):
     context = {}
