@@ -75,6 +75,17 @@ class Customer(models.Model):
     customer_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     customer_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     bankdetails = models.ForeignKey('BankDetails', blank=True, null=True, on_delete=models.SET_NULL)
+    DAYS = [
+        (0, 'SUNDAY'),
+        (1, 'MONDAY'),
+        (2, 'TUESDAY'),
+        (3, 'WEDNESDAY'),
+        (4, 'THURSDAY'),
+        (5, 'FRIDAY'),
+        (6, 'SATURDAY'),
+    ]
+    collection_day = models.IntegerField(choices=DAYS, default=0)
+    customer_place = models.CharField(max_length=25, blank=True, null=True)
 
     def save(self, *args, **kwargs):
         if self.customer_name:
@@ -85,6 +96,8 @@ class Customer(models.Model):
             self.customer_email = self.customer_email.lower()
         if self.customer_gst:
             self.customer_gst = self.customer_gst.upper()
+        if self.customer_place:
+            self.customer_place = self.customer_place.upper()
 
         super().save(*args, **kwargs)
     

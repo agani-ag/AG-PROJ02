@@ -9,7 +9,7 @@
 	<div class="col text-right" style="padding-top: 0.5%;">
 		
 		<a href="{% url 'customer_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Customer"><i class="fas fa-plus"></i></a>
-		<a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" title="Upload Features"><i class="fas fa-file-excel"></i></a>
+		<a href="{% url 'customers_collection_calendar' %}" class="btn btn-success btn-sm btn-curve" title="Collection Calendar"><i class="fas fa-calendar-alt"></i></a>
 		<button class="btn btn-warning btn-sm btn-curve" id="set-allcustomer-userid" title="Reset Customer User IDs"><i class="fas fa-refresh"></i></button>
 	</div>
 </div>
@@ -249,10 +249,17 @@ function popup_Customer_maps(latitude, longitude, name) {
 					attribution: '&copy; OpenStreetMap'
 				}
 			);
+			let googleLayer = L.tileLayer(
+				'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+				{ 
+					attribution: '&copy; Google Maps',
+					subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+				}
+			);
 			let satelliteLayer = L.tileLayer(
 				'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
 				{
-					attribution: '&copy; Google',
+					attribution: '&copy; Google Maps',
 					subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
 				}
 			);
@@ -260,6 +267,7 @@ function popup_Customer_maps(latitude, longitude, name) {
 			let baseMaps = {
 				"☀️ Light": cartoLayer,
 				"🌙 Dark": darkLayer,
+				"🗺️ Google": googleLayer,
 				"⛰️ Terrain": topoLayer,
 				"🗺️ OSM": osmLayer,
 				"🛰️ Satellite": satelliteLayer

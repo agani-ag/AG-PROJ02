@@ -101,11 +101,19 @@ function initMap(lat = 12.602429, lng = 78.595726) { // Headquarters Location
             attribution: '&copy; OpenStreetMap'
         }
     );
+    
+    let googleLayer = L.tileLayer(
+        'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        { 
+            attribution: '&copy; Google Maps',
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        }
+    );
 
     let satelliteLayer = L.tileLayer(
         'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
         {
-            attribution: '&copy; Google',
+            attribution: '&copy; Google Maps',
             subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
         }
     );
@@ -116,6 +124,7 @@ function initMap(lat = 12.602429, lng = 78.595726) { // Headquarters Location
     let baseMaps = {
         "☀️ Light": cartoLayer,
         "🌙 Dark": darkLayer,
+        "🗺️ Google": googleLayer,
         "⛰️ Terrain": topoLayer,
         "🗺️ OSM": osmLayer,
         "🛰️ Satellite": satelliteLayer

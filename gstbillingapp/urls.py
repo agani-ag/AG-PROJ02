@@ -55,6 +55,7 @@ urlpatterns = [
     path('customers/edit/<int:customer_id>', customers.customer_edit, name='customer_edit'),
     path('customers/delete', customers.customer_delete, name='customer_delete'),
     path('customersjson', customers.customersjson, name='customersjson'),
+    path('customers/collection-calendar', customers.customers_collection_calendar, name='customers_collection_calendar'),
     # API Endpoints
     path('customers/api/add', customers.customer_api_add, name='customer_api_add'),
     path('customers/api/all_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),

@@ -1,3 +1,4 @@
+from django import forms
 from django.forms import ModelForm
 from .models import (
     Customer, Product, UserProfile,
@@ -11,8 +12,11 @@ from .models import (
 class CustomerForm(ModelForm):
     class Meta:
         model = Customer
-        fields = ['customer_name', 'customer_address', 'customer_phone', 'customer_gst', 'customer_email'
-                   , 'customer_latitude', 'customer_longitude', 'bankdetails']
+        fields = ['customer_name', 'customer_address', 'customer_phone', 'customer_gst', 'customer_email',
+                   'customer_place', 'customer_latitude', 'customer_longitude', 'bankdetails', 'collection_day']
+        widgets = {
+            'customer_place': forms.TextInput(attrs={'placeholder': 'Enter Collection Place'}),
+        }
 
     def __init__(self, *args, **kwargs):
         super(CustomerForm, self).__init__(*args, **kwargs)

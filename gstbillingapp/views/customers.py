@@ -4,9 +4,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.hashers import make_password, check_password
 # Models
-from ..models import Customer, UserProfile
+from ..models import Book, Customer, UserProfile
 
 # Utility functions
 from ..utils import (
@@ -100,6 +99,19 @@ def customer_delete(request):
         customer_obj = get_object_or_404(Customer, user=request.user, id=customer_id)
         customer_obj.delete()
     return redirect('customers')
+
+
+@login_required
+def customers_collection_calendar(request):
+    context = {}
+    case_mapping = dict(Customer.DAYS)
+    filter_day = request.GET.get('filter')
+    queryset = Book.objects.filter(user=request.user).exclude(customer_id__isnull=True).order_by('customer__customer_name')
+    if filter_day:
+        queryset = queryset.filter(customer__collection_day=filter_day)
+        context['filter_day_display'] = case_mapping.get(int(filter_day))
+    context['books'] = queryset
+    return render(request, 'customers/collection_calendar.html', context)
 
 
 # ================= Customer API Views ===========================
