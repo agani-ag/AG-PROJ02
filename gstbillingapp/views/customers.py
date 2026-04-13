@@ -1,5 +1,6 @@
 # Django imports
 from gstbilling import settings
+from django.utils import timezone
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
@@ -170,6 +171,61 @@ def customer_is_mobile_user(request):
         except Customer.DoesNotExist:
             return JsonResponse({'status': 'error', 'message': 'Customer not found.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to check mobile user status.'})
+
+@csrf_exempt
+def customer_collection_day_update(request):
+    if request.method == "POST":
+        customer_id = request.POST.get("customer_id", None)
+        place = request.POST.get("customer_place", None)
+        day = request.POST.get("collection_day", 0)
+        if not customer_id:
+            return JsonResponse({'status': 'error', 'message': 'Customer ID is required.'})
+        try:
+            customer_obj = Customer.objects.get(id=customer_id)
+            if customer_obj:
+                customer_obj.collection_day = day
+                customer_obj.customer_place = place
+                customer_obj.save()
+                message = f'Customer collection day & place updated.'
+            return JsonResponse({'status': 'success', 'message': message})
+        except Customer.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Customer not found.'})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to update customer collection day.'})
+
+def show_customer_collection_api(request):
+    markdown = request.GET.get('markdown', 'false').lower() == 'true'
+    user_id = request.GET.get('user_id', None)
+    today = timezone.localdate().weekday()
+    collection_day = (today + 1) % 7
+    collection_day_name = Customer.DAYS[collection_day][1]
+    books = Book.objects.filter(user_id=user_id, customer__collection_day=collection_day)\
+        .exclude(customer_id__isnull=True)\
+        .order_by('current_balance')
+
+    data = []
+    markdown_blocks = []
+    markdown_blocks.append(f"*COLLECTION ROUTE* - *{collection_day_name}*")
+    for book in books:
+        customer = book.customer
+        current_balance = round(book.current_balance if book.current_balance else 0, 2)
+        data.append({
+            'current_balance': current_balance,
+            'customer_name': customer.customer_name,
+            'customer_place': customer.customer_place,
+            'collection_day': customer.collection_day,
+        })
+        markdown_blocks.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
+        markdown_blocks.append(f"*{customer.customer_name}*")
+        if customer.customer_place:
+            markdown_blocks.append(f"Place: {customer.customer_place}")
+        markdown_blocks.append(f"Current Balance: ₹{current_balance}")
+    # ── Footer ──
+    markdown_blocks.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
+    markdown_blocks.append(f'🦀  Crab AI')
+    markdown_formatted = '\n'.join(markdown_blocks)
+    if markdown:
+        return JsonResponse({'markdown': markdown_formatted}, safe=False)
+    return JsonResponse(data, safe=False)
 
 @csrf_exempt
 def customer_api_add(request):

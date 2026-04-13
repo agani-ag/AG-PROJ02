@@ -131,16 +131,17 @@ def cheque_leaf_reminder_api(request):
         return JsonResponse({'status': 'error', 'message': 'user_ids is required (non-empty array).'}, status=400)
     
     active_status = ['ISSUED', 'PRESENTED']
+    tommorrow = timezone.now().date() + timezone.timedelta(days=1)
     clearance_cheque_leafs = ChequeLeaf.objects.filter(
         user__id__in=user_ids,
-        clearance_date__gte=timezone.now().date(),
+        clearance_date=tommorrow,
         status__in=active_status
     )
 
     markdown = "*💰 Cheque Clearance Reminder*\n\n"
 
     if not clearance_cheque_leafs.exists():
-        markdown += "_No upcoming cheque clearances._"
+        markdown += f"_No upcoming cheque clearances for {tommorrow}._"
     else:
         for cheque in clearance_cheque_leafs:
             Brand = str(cheque.user if cheque.user else "N/A")

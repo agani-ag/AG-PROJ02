@@ -61,6 +61,8 @@ urlpatterns = [
     path('customers/api/all_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
     path('customers/api/is_mobile_user', customers.customer_is_mobile_user, name='customer_is_mobile_user'),
     path('customers/api/default_password', customers.customer_default_password, name='customer_default_password'),
+    path('customers/api/collection-day/show', customers.show_customer_collection_api, name='customer_collection_day_show'),
+    path('customers/api/collection-day/update', customers.customer_collection_day_update, name='customer_collection_day_update'),
 
     # Book URLs
     path('books', books.books, name='books'),
@@ -161,21 +163,21 @@ urlpatterns = [
 
     # Reports URLs
     path('reports/sales', reports.sales_report_pdf, name='sales_report'),
+    path('reports/overdue', reports.overdue_report, name='overdue_report'),
     path('reports/bi-dashboard', reports.bi_dashboard, name='bi_dashboard'),
-    path('reports/inventory-dashboard', reports.inventory_dashboard, name='inventory_dashboard'),
     path('reports/ar-aging', reports.ar_aging_report, name='ar_aging_report'),
+    path('api/reports/overdue', reports.overdue_report_api, name='overdue_report_api'),
+    path('reports/transactions', reports.transaction_report, name='transaction_report'),
     path('reports/credit-aging', reports.credit_aging_report, name='credit_aging_report'),
     path('reports/customer-analysis', reports.customer_analysis, name='customer_analysis'),
-    path('reports/overdue', reports.overdue_report, name='overdue_report'),
-    path('reports/transactions', reports.transaction_report, name='transaction_report'),
-    path('reports/inventory-transactions', reports.inventory_transaction_report, name='inventory_transaction_report'),
+    path('reports/inventory-dashboard', reports.inventory_dashboard, name='inventory_dashboard'),
     path('reports/inventory-margin', reports.inventory_margin_report, name='inventory_margin_report'),
-    path('api/reports/overdue', reports.overdue_report_api, name='overdue_report_api'),
+    path('reports/inventory-transactions', reports.inventory_transaction_report, name='inventory_transaction_report'),
 
     # Graphs and Analytics URLs
+    path('graphs/customer', graphs.customer_graph, name='customer_graph'),
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
     path('graphs/books', graphs.customer_books_graph, name='customer_books_graph'),
-    path('graphs/customer', graphs.customer_graph, name='customer_graph'),
     path('graphs/purchase-log', graphs.purchase_log_graph, name='purchase_log_graph'),
     path('graphs/expense-tracker', graphs.expense_tracker_graph, name='expense_tracker_graph'),
     path('graphs/customer-location-map', graphs.customer_location_map, name='customer_location_map'),
@@ -190,9 +192,9 @@ urlpatterns = [
     path('notifications/delete-all-read/', notifications.notification_delete_all_read, name='notification_delete_all_read'),
 
     # Location Tracking URLs
-    path("dashboard/customer/", location.customer_dashboard),
-    path("dashboard/employee/", location.employee_dashboard),
     path("dashboard/admin/", location.admin_dashboard),
+    path("dashboard/employee/", location.employee_dashboard),
+    path("dashboard/customer/", location.customer_dashboard),
 
     path("api/location/push/", location.push_location),
     path("api/location/poll/", location.poll_locations),

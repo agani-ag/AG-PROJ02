@@ -41,7 +41,15 @@
 		{% for book in books %}
 		<tr>
 			<td>{{book.customer.customer_name}}</td>
-			<td>{% if book.customer.customer_place %}{{book.customer.customer_place}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+			{% if book.customer.customer_latitude and book.customer.customer_longitude %}
+			<td onclick="popup_Customer_maps({{ book.customer.customer_latitude|default:0 }}, {{ book.customer.customer_longitude|default:0 }},
+				'{{ book.customer.customer_name|escapejs }}')" style="cursor: pointer;">
+			{% else %}
+			<td>{% endif %}
+				{% if book.customer.customer_place %}
+					{{book.customer.customer_place}}
+				{% else %}<span class="text-muted">N/A</span>{% endif %}
+			</td>
 			<td class="font-weight-bold">{% if book.current_balance >= -10 and book.current_balance <= 10 %}
                 <span class="text-warning">{{ book.current_balance|floatformat:2 }}</span>
 			{% elif book.current_balance > 0 %}
@@ -49,7 +57,10 @@
             {% else %}
 				<span class="text-danger">{{ book.current_balance|floatformat:2 }}</span>
             {% endif %}</td>
-			<td>{{book.customer.get_collection_day_display}}</td>
+			<td onclick="UpdateCollectionDay({{ book.customer.id }}, '{{ book.customer.collection_day }}',
+				 '{{ book.customer.customer_place|default_if_none:"" }}')" style="cursor: pointer;">
+				{{book.customer.get_collection_day_display}}
+			</td>
 		</tr>
 		{% endfor %}
 	</tbody>
@@ -177,11 +188,11 @@ function popup_Customer_maps(latitude, longitude, name) {
 					subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
 				}
 			);
-			cartoLayer.addTo(map);
+			googleLayer.addTo(map);
 			let baseMaps = {
+				"🗺️ Google": googleLayer,
 				"☀️ Light": cartoLayer,
 				"🌙 Dark": darkLayer,
-				"🗺️ Google": googleLayer,
 				"⛰️ Terrain": topoLayer,
 				"🗺️ OSM": osmLayer,
 				"🛰️ Satellite": satelliteLayer
@@ -211,6 +222,89 @@ function popup_Customer_maps(latitude, longitude, name) {
             setTimeout(() => {
                 map.invalidateSize();
             }, 200);
+        }
+    });
+}
+
+function UpdateCollectionDay(customerId, currentDay, currentPlace) {
+
+    Swal.fire({
+        title: 'Update Collection Details',
+        html: `
+            <div style="text-align:left;">
+                <label>Collection Day</label>
+                <select id="swal-day" class="swal2-input">
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="6">Saturday</option>
+                    <option value="0">Sunday</option>
+                </select>
+
+                <label>Place</label>
+                <input type="text" id="swal-place" class="swal2-input" placeholder="Enter place">
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'Update',
+
+        didOpen: () => {
+            // ✅ Prefill values
+            if (currentDay !== null && currentDay !== undefined) {
+                document.getElementById('swal-day').value = currentDay;
+            }
+
+            if (currentPlace) {
+                document.getElementById('swal-place').value = currentPlace;
+            }
+        },
+
+        preConfirm: () => {
+            const day = document.getElementById('swal-day').value;
+            const place = document.getElementById('swal-place').value.trim();
+
+            if (!day) {
+                Swal.showValidationMessage('Please select a collection day');
+                return false;
+            }
+
+            return { day: day, place: place };
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+
+            $.ajax({
+                url: "{% url 'customer_collection_day_update' %}",
+                type: "POST",
+                data: {
+                    customer_id: customerId,
+                    collection_day: result.value.day,
+                    customer_place: result.value.place,
+                    csrfmiddlewaretoken: '{{ csrf_token }}'
+                },
+                success: function (response) {
+                    if (response.status === 'success') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Updated!',
+                            text: response.message,
+                            timer: 1200,
+                            showConfirmButton: false
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire('Error', response.message, 'error');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Server error. Try again.', 'error');
+                }
+            });
+
         }
     });
 }
