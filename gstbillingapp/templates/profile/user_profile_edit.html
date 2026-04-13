@@ -111,7 +111,7 @@ function initMap(lat = 12.602429, lng = 78.595726) { // Headquarters Location
     );
 
     let satelliteLayer = L.tileLayer(
-        'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
         {
             attribution: '&copy; Google Maps',
             subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
@@ -119,7 +119,7 @@ function initMap(lat = 12.602429, lng = 78.595726) { // Headquarters Location
     );
 
     // Default layer
-    cartoLayer.addTo(map);
+    satelliteLayer.addTo(map);
     // Layer control
     let baseMaps = {
         "☀️ Light": cartoLayer,

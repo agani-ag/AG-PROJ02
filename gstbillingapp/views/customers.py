@@ -205,6 +205,8 @@ def show_customer_collection_api(request):
     data = []
     markdown_blocks = []
     markdown_blocks.append(f"*COLLECTION ROUTE* - *{collection_day_name}*")
+    if not books.exists():
+        markdown_blocks.append(f"\n_No customers with collection day on {collection_day_name}._")
     for book in books:
         customer = book.customer
         current_balance = round(book.current_balance if book.current_balance else 0, 2)

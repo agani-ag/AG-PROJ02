@@ -243,6 +243,36 @@
         margin-right: 10px !important;
     }
     
+    /* Waypoints list */
+    .waypoints-list {
+        background: white;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        max-height: 130px;
+        overflow-y: auto;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .waypoints-list .wp-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 10px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 12px;
+    }
+    .waypoints-list .wp-item:last-child { border-bottom: none; }
+    .wp-remove {
+        background: none;
+        border: none;
+        color: #d32f2f;
+        cursor: pointer;
+        font-size: 16px;
+        padding: 0 4px;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+    .wp-remove:hover { color: #b71c1c; }
+
     /* Scrollbar styling */
     .list-section::-webkit-scrollbar,
     #distance-summary::-webkit-scrollbar {
@@ -306,11 +336,13 @@
 
     <div class="side-panel" id="side-panel">
         <div class="panel-header">
-            {% if customers|length == all_customers|length %}
-                <h2>Customer Locations</h2>
-            {% else %}
-                <h2>Customer Locations ({{ customers|length }}/{{ all_customers|length }})</h2>
-            {% endif %}
+            <h2>Customer Locations</h2>
+            <p style="margin:4px 0 0; font-size:13px; opacity:0.85;">
+                {{ customers|length }} mapped
+                {% if customers|length != all_customers|length %}
+                    / {{ all_customers|length }} total
+                {% endif %}
+            </p>
         </div>
         
         <div class="toolbar">
@@ -346,6 +378,7 @@
                 <button id="start-at-user" type="button" class="btn btn-primary">Start at My Location</button>
                 <button id="clear-route" type="button" class="btn">Clear Route</button>
             </div>
+            <div id="waypoints-list" class="waypoints-list" style="display:none;"></div>
             <div id="distance-summary"></div>
             <div id="routing-status" class="status"></div>
         </div>
@@ -356,33 +389,55 @@
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
 <script>
-    // Base layers
-    const osmStreets = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '&copy; OpenStreetMap contributors', zIndex: 1
-    });
-    const esriSat = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 19, attribution: 'Tiles &copy; Esri', zIndex: 1 }
-    );
-    const esriLabels = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 19, attribution: 'Labels &copy; Esri', zIndex: 2 }
-    );
-
-    const circlesGroup = L.layerGroup();
-    const baseLayers = { 'Street (OSM)': osmStreets, 'Satellite (Esri)': esriSat };
-    const circles5kmGroup = L.layerGroup();
-    const overlays = { 'Labels (Esri)': esriLabels, '1 km circles': circlesGroup, '5 km circles': circles5kmGroup };
-
     const defaultCenter = [20.5937, 78.9629];
-    const map = L.map('map', { center: defaultCenter, zoom: 5, layers: [esriSat, esriLabels] });
-    L.control.layers(baseLayers, overlays, { position: 'topright', collapsed: false }).addTo(map);
-    L.control.scale({ metric: true, imperial: false }).addTo(map);
+    const map = L.map('map', { center: defaultCenter, zoom: 5 });
+    
+    // ── Layer groups declared FIRST (referenced in overlays below) ──
+    const circlesGroup = L.layerGroup();
+    const circles5kmGroup = L.layerGroup();
 
-    map.on('baselayerchange', (e) => {
-        if (e.layer === esriSat) esriLabels.addTo(map);
-        else map.removeLayer(esriLabels);
+    // ── Base tile layers — googleLayer is the default ──
+    const cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CartoDB</a>', maxZoom: 19
     });
+
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19
+    });
+
+    const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+        attribution: '&copy; OpenStreetMap contributors &copy; CartoDB', maxZoom: 19
+    });
+
+    const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
+        attribution: '&copy; OpenTopoMap contributors', maxZoom: 17
+    });
+
+    const googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
+        attribution: '&copy; Google Maps', maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3']
+    }).addTo(map);
+
+    const satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
+        attribution: '&copy; Google Maps', maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3']
+    });
+
+    // ── Layer control — single instance ──
+    const baseMaps = {
+        "🗺️ Google": googleLayer,
+        "☀️ Light": cartoLayer,
+        "🌙 Dark": darkLayer,
+        "⛰️ Terrain": topoLayer,
+        "🗺️ OSM": osmLayer,
+        "🛰️ Satellite": satelliteLayer
+    };
+
+    const overlays = {
+        "🔵 1 km Radius": circlesGroup,
+        "🟢 5 km Radius": circles5kmGroup
+    };
+
+    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
+    L.control.scale({ metric: true, imperial: false }).addTo(map);
 
     // DOM refs
     const list = document.getElementById('customer-list');
@@ -391,6 +446,7 @@
     const locateBtn = document.getElementById('locate-me');
     const showLabelsChk = document.getElementById('show-labels');
     const startAtUserBtn = document.getElementById('start-at-user');
+    const waypointsList = document.getElementById('waypoints-list');
 
     const customers = Array.from(list.querySelectorAll('li[data-lat][data-lng]'))
         .map(li => ({
@@ -411,27 +467,15 @@
 
     function applyTooltip(marker, label) {
         if (marker.getTooltip()) marker.unbindTooltip();
-        if (labelsEnabled && label) {
-            marker.bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -10] });
+        if (label) {
+            // Always bind tooltip: permanent when labels enabled, hover-only when disabled
+            marker.bindTooltip(label, { permanent: labelsEnabled, direction: 'top', offset: [0, -10] });
         }
     }
 
     customers.forEach((cust) => {
         const marker = L.marker([cust.lat, cust.lng]).addTo(map).bindPopup(cust.label || '');
-        
-        // Bind tooltip that shows on hover
-        marker.bindTooltip(cust.label, { 
-            permanent: false,  // Show only on hover
-            direction: 'top', 
-            offset: [0, -10],
-            className: 'hover-tooltip'
-        });
-        
-        // Apply permanent labels if enabled
-        if (labelsEnabled) {
-            marker.bindTooltip(cust.label, { permanent: true, direction: 'top', offset: [0, -10] });
-        }
-        
+        applyTooltip(marker, cust.label);
         markers.push({ marker, label: cust.label });
         const key = `${cust.lat},${cust.lng}`;
         markersByLatLng.set(key, marker);
@@ -738,6 +782,7 @@
     }
 
     function updateRoute() {
+        renderWaypointsList();
         if (!routingControl) {
             console.error('Routing control not initialized');
             return;
@@ -803,6 +848,33 @@
         addWaypoint(lat, lng, label);
     }
 
+    function renderWaypointsList() {
+        if (!waypointsList) return;
+        if (!waypoints.length) {
+            waypointsList.style.display = 'none';
+            waypointsList.innerHTML = '';
+            return;
+        }
+        waypointsList.style.display = 'block';
+        waypointsList.innerHTML = waypoints.map((w, i) =>
+            `<div class="wp-item">` +
+            `<span>${i + 1}. ${w.label}</span>` +
+            `<button class="wp-remove" data-index="${i}" title="Remove stop">&times;</button>` +
+            `</div>`
+        ).join('');
+    }
+
+    if (waypointsList) {
+        waypointsList.addEventListener('click', (e) => {
+            const btn = e.target.closest('.wp-remove');
+            if (!btn) return;
+            const idx = parseInt(btn.dataset.index, 10);
+            waypoints.splice(idx, 1);
+            renderWaypointsList();
+            updateRoute();
+        });
+    }
+
     routingToggle.addEventListener('change', () => {
         routingMode = routingToggle.checked;
         if (routingMode) {
@@ -819,6 +891,7 @@
                 routingControl.setWaypoints([]);
             }
             Array.from(list.children).forEach(el => el.classList.remove('active'));
+            renderWaypointsList();
         }
     });
 
@@ -904,6 +977,7 @@
             }
         }
         Array.from(list.children).forEach(el => el.classList.remove('active'));
+        renderWaypointsList();
     });
 
     // Log current state for debugging
