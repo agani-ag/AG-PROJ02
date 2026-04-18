@@ -179,7 +179,7 @@ def cheque_leaf_reminder_api(request):
     amounts = 0
 
     if not clearance_cheque_leafs.exists():
-        markdown += f"_No upcoming cheque clearances for {_escape_md(tommorrow.strftime("%d-%m-%Y"))}\\._"
+        markdown += f"_No upcoming cheque clearances for {_escape_md(tommorrow.strftime('%d-%m-%Y'))}\\._"
         markdown += f'\n{separator}\n'
     else:
         for cheque in clearance_cheque_leafs:
