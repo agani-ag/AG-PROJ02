@@ -190,7 +190,7 @@ def cheque_leaf_reminder_api(request):
                 f"🏦  Bank: *{_escape_md(cheque.bank)}*\n"
                 f"👤  Payee: *{_escape_md(cheque.payee_name)}*\n"
                 f"💰  Amount: *₹{_escape_md(str(cheque.amount))}*\n"
-                f"📅  Clearance Date: *{_escape_md(cheque.clearance_date.strftime("%d-%m-%Y"))}*\n"
+                f"📅  Clearance Date: *{_escape_md(cheque.clearance_date.strftime('%d-%m-%Y'))}*\n"
                 f"📌  Status: *{_escape_md(cheque.status)}*\n"
                 f"🏷️  Brand: *{_escape_md(Brand.upper())}*\n"
                 f"{separator}\n\n"
