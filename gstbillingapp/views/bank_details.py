@@ -167,34 +167,38 @@ def cheque_leaf_reminder_api(request):
         return JsonResponse({'status': 'error', 'message': 'user_ids is required (non-empty array).'}, status=400)
     
     active_status = ['ISSUED', 'PRESENTED','BOUNCED']
-    tommorrow = timezone.now().date() + timezone.timedelta(days=1)
+    tommorrow = timezone.localtime().date() + timezone.timedelta(days=1)
     clearance_cheque_leafs = ChequeLeaf.objects.filter(
         user__id__in=user_ids,
         clearance_date=tommorrow,
         status__in=active_status
     )
 
-    markdown = "*💰 Cheque Clearance Reminder*\n\n"
-    separator = "\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-"
+    markdown = "_*💰 Cheque Clearance Reminder*_\n\n"
+    separator = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    amounts = 0
 
     if not clearance_cheque_leafs.exists():
-        markdown += f"_No upcoming cheque clearances for {_escape_md(str(tommorrow))}\\._"
+        markdown += f"_No upcoming cheque clearances for {_escape_md(tommorrow.strftime("%d-%m-%Y"))}\\._"
         markdown += f'\n{separator}\n'
     else:
         for cheque in clearance_cheque_leafs:
             Brand = str(cheque.user if cheque.user else "N/A")
+            amounts += int(cheque.amount)
             markdown += (
-                f"*Cheque No:* `{_escape_md(str(cheque.cheque_number))}`\n"
-                f"*Bank:* {_escape_md(cheque.bank)}\n"
-                f"*Payee:* {_escape_md(cheque.payee_name)}\n"
-                f"*Amount:* ₹{_escape_md(str(cheque.amount))}\n"
-                f"*Clearance Date:* {_escape_md(str(cheque.clearance_date))}\n"
-                f"*Status:* {_escape_md(cheque.status)}\n"
-                f"*Brand:* {_escape_md(Brand.upper())}\n"
-                f"{separator}\n"
+                f"🔢  Cheque No: *`{_escape_md(str(cheque.cheque_number))}`*\n"
+                f"🏦  Bank: *{_escape_md(cheque.bank)}*\n"
+                f"👤  Payee: *{_escape_md(cheque.payee_name)}*\n"
+                f"💰  Amount: *₹{_escape_md(str(cheque.amount))}*\n"
+                f"📅  Clearance Date: *{_escape_md(cheque.clearance_date.strftime("%d-%m-%Y"))}*\n"
+                f"📌  Status: *{_escape_md(cheque.status)}*\n"
+                f"🏷️  Brand: *{_escape_md(Brand.upper())}*\n"
+                f"{separator}\n\n"
             )
+    if clearance_cheque_leafs.count() > 1:
+        markdown += f"*{clearance_cheque_leafs.count()} Cheques \\= ₹{_escape_md(str(amounts))}*\n"
     # ── Footer ──
-    markdown += f'🦀 Crab AI'
+    markdown += f'🦀  _Crab AI \\| {_escape_md(timezone.localtime().strftime("%d %b %Y"))}_'
     
     return JsonResponse({
         "status": "success",

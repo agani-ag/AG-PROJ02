@@ -40,7 +40,9 @@
 	<tbody class="two-col-form">
 		{% for book in books %}
 		<tr>
-			<td>{{book.customer.customer_name}}</td>
+			<td><a href="{% url 'book_logs' book.customer.id %}" style="color: black;text-decoration: none;">
+                {{book.customer.customer_name}}</a>
+            </td>
 			{% if book.customer.customer_latitude and book.customer.customer_longitude %}
 			<td onclick="popup_Customer_maps({{ book.customer.customer_latitude|default:0 }}, {{ book.customer.customer_longitude|default:0 }},
 				'{{ book.customer.customer_name|escapejs }}')" style="cursor: pointer;">

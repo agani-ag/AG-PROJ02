@@ -205,28 +205,29 @@ def show_customer_collection_api(request):
 
     data = []
     markdown_blocks = []
-    separator = "\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-"
+    separator = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    counter = 1
     
-    markdown_blocks.append(f"*COLLECTION ROUTE* \\- *{_escape_md(collection_day_name)}*")
+    markdown_blocks.append(f"📅  _*COLLECTION ROUTE* \\- *{_escape_md(collection_day_name)}*_\n")
     if not books.exists():
         markdown_blocks.append(f"_No customers with collection day on {_escape_md(collection_day_name)}\\._")
     for book in books:
         customer = book.customer
-        current_balance = round(book.current_balance if book.current_balance else 0, 2)
+        current_balance = -round(book.current_balance or 0, 2)
         data.append({
             'current_balance': current_balance,
             'customer_name': customer.customer_name,
             'customer_place': customer.customer_place,
             'collection_day': customer.collection_day,
         })
-        markdown_blocks.append(separator)
-        markdown_blocks.append(f"*{_escape_md(customer.customer_name)}*")
+        markdown_blocks.append(f"{counter}\\. *{_escape_md(customer.customer_name)}*")
         if customer.customer_place:
-            markdown_blocks.append(f"Place: {_escape_md(customer.customer_place)}")
-        markdown_blocks.append(f"Current Balance: ₹{_escape_md(str(current_balance))}")
+            markdown_blocks.append(f"    📍  *{_escape_md(customer.customer_place)}*")
+        markdown_blocks.append(f"    💰  *₹{_escape_md(str(current_balance))}*\n")
+        counter += 1
     # ── Footer ──
     markdown_blocks.append(separator)
-    markdown_blocks.append(f'🦀 Crab AI')
+    markdown_blocks.append(f'🦀  _Crab AI \\| {_escape_md(timezone.localtime().strftime("%d %b %Y"))}_')
     markdown_formatted = '\n'.join(markdown_blocks)
     if markdown:
         return JsonResponse({'markdown': markdown_formatted}, safe=False)
