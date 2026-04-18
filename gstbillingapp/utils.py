@@ -271,6 +271,15 @@ def parse_code_GS(input_code):
     result = {key.upper(): int(value) for key, value in matches}
     return result
 
+def _escape_md(text):
+    """Escape special characters for Telegram MarkdownV2 format."""
+    if not text:
+        return ''
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    escaped = str(text)
+    for ch in special_chars:
+        escaped = escaped.replace(ch, f'\\{ch}')
+    return escaped
 
 # ================ Notification System Methods =================
 def create_notification(user, title, message, notification_type='INFO', 

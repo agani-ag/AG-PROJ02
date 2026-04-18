@@ -18,6 +18,7 @@ from ..forms import CustomerForm
 
 # Python imports
 import json
+from ..utils import _escape_md
 
 # Variables
 CPASSWORD = 'pass123'
@@ -195,7 +196,7 @@ def customer_collection_day_update(request):
 def show_customer_collection_api(request):
     markdown = request.GET.get('markdown', 'false').lower() == 'true'
     user_id = request.GET.get('user_id', None)
-    today = timezone.localdate().weekday()
+    today = timezone.localtime().weekday()
     collection_day = (today + 1) % 7
     collection_day_name = Customer.DAYS[collection_day][1]
     books = Book.objects.filter(user_id=user_id, customer__collection_day=collection_day)\
@@ -204,9 +205,11 @@ def show_customer_collection_api(request):
 
     data = []
     markdown_blocks = []
-    markdown_blocks.append(f"*COLLECTION ROUTE* - *{collection_day_name}*")
+    separator = "\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-"
+    
+    markdown_blocks.append(f"*COLLECTION ROUTE* \\- *{_escape_md(collection_day_name)}*")
     if not books.exists():
-        markdown_blocks.append(f"\n_No customers with collection day on {collection_day_name}._")
+        markdown_blocks.append(f"_No customers with collection day on {_escape_md(collection_day_name)}\\._")
     for book in books:
         customer = book.customer
         current_balance = round(book.current_balance if book.current_balance else 0, 2)
@@ -216,14 +219,14 @@ def show_customer_collection_api(request):
             'customer_place': customer.customer_place,
             'collection_day': customer.collection_day,
         })
-        markdown_blocks.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
-        markdown_blocks.append(f"*{customer.customer_name}*")
+        markdown_blocks.append(separator)
+        markdown_blocks.append(f"*{_escape_md(customer.customer_name)}*")
         if customer.customer_place:
-            markdown_blocks.append(f"Place: {customer.customer_place}")
-        markdown_blocks.append(f"Current Balance: ₹{current_balance}")
+            markdown_blocks.append(f"Place: {_escape_md(customer.customer_place)}")
+        markdown_blocks.append(f"Current Balance: ₹{_escape_md(str(current_balance))}")
     # ── Footer ──
-    markdown_blocks.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
-    markdown_blocks.append(f'🦀  Crab AI')
+    markdown_blocks.append(separator)
+    markdown_blocks.append(f'🦀 Crab AI')
     markdown_formatted = '\n'.join(markdown_blocks)
     if markdown:
         return JsonResponse({'markdown': markdown_formatted}, safe=False)

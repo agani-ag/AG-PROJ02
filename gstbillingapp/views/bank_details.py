@@ -16,6 +16,7 @@ from ..forms import (
 )
 # Python imports
 import json
+from ..utils import _escape_md
 
 # ===================== Bank Details views =============================
 @login_required
@@ -174,25 +175,26 @@ def cheque_leaf_reminder_api(request):
     )
 
     markdown = "*💰 Cheque Clearance Reminder*\n\n"
+    separator = "\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-\\-"
 
     if not clearance_cheque_leafs.exists():
-        markdown += f"_No upcoming cheque clearances for {tommorrow}._"
-        markdown += '\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n'
+        markdown += f"_No upcoming cheque clearances for {_escape_md(str(tommorrow))}\\._"
+        markdown += f'\n{separator}\n'
     else:
         for cheque in clearance_cheque_leafs:
             Brand = str(cheque.user if cheque.user else "N/A")
             markdown += (
-                f"*Cheque No:* `{cheque.cheque_number}`\n"
-                f"*Bank:* {cheque.bank}\n"
-                f"*Payee:* {cheque.payee_name}\n"
-                f"*Amount:* ₹{cheque.amount}\n"
-                f"*Clearance Date:* {cheque.clearance_date}\n"
-                f"*Status:* {cheque.status}\n"
-                f"*Brand:* {Brand.upper()}\n"
-                f"▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"
+                f"*Cheque No:* `{_escape_md(str(cheque.cheque_number))}`\n"
+                f"*Bank:* {_escape_md(cheque.bank)}\n"
+                f"*Payee:* {_escape_md(cheque.payee_name)}\n"
+                f"*Amount:* ₹{_escape_md(str(cheque.amount))}\n"
+                f"*Clearance Date:* {_escape_md(str(cheque.clearance_date))}\n"
+                f"*Status:* {_escape_md(cheque.status)}\n"
+                f"*Brand:* {_escape_md(Brand.upper())}\n"
+                f"{separator}\n"
             )
     # ── Footer ──
-    markdown += f'🦀  Crab AI'
+    markdown += f'🦀 Crab AI'
     
     return JsonResponse({
         "status": "success",
