@@ -144,8 +144,8 @@ def purchases_logs_overdue_api(request):
 @login_required
 def purchases_logs_add(request):
     context = {}
-    context['categories'] = PurchaseLog.objects.filter(user=request.user).values_list('category', flat=True).distinct().exclude(category__isnull=True).exclude(category__exact='')
-    context['references'] = PurchaseLog.objects.filter(user=request.user).values_list('reference', flat=True).distinct().exclude(reference__isnull=True).exclude(reference__exact='')
+    context['categories'] = PurchaseLog.objects.filter(user=request.user).values_list('category', flat=True).distinct().exclude(category__isnull=True).exclude(category__exact='').order_by('category')
+    context['references'] = PurchaseLog.objects.filter(user=request.user).values_list('reference', flat=True).distinct().exclude(reference__isnull=True).exclude(reference__exact='').order_by('reference')
     context['form'] = PurchaseLogForm()
         
     if request.method == "POST":

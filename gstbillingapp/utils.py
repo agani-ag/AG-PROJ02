@@ -542,10 +542,10 @@ def distance_meters(lat1, lng1, lat2, lng2):
 # ================= Purchases Log Utilities ====================================
 def get_change_type_change(change_type, change):
     if change_type == '1':  # Purchased
-        if int(change) > 0:
-            change = -int(change)
+        if float(change) > 0:
+            change = -float(change)
     else:
-        change = abs(int(change))
+        change = abs(float(change))
     return change
 
 def get_vendor_instance(vendor, request):

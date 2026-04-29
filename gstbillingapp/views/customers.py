@@ -230,7 +230,11 @@ def show_customer_collection_api(request):
     markdown_blocks.append(f'🦀  _Crab AI \\| {_escape_md(timezone.localtime().strftime("%d %b %Y"))}_')
     markdown_formatted = '\n'.join(markdown_blocks)
     if markdown:
-        return JsonResponse({'markdown': markdown_formatted}, safe=False)
+        markdown_data = {
+            'markdown': markdown_formatted,
+            'count': len(books),
+        }
+        return JsonResponse(markdown_data, safe=False)
     return JsonResponse(data, safe=False)
 
 @csrf_exempt
