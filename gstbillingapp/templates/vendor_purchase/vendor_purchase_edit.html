@@ -73,9 +73,11 @@ let map;
 let marker;
 let geocoder;
 var editModeActive = false;
+var latitude = parseFloat(document.getElementsByName("vendor_latitude")[0].value) || 12.602429;
+var longitude = parseFloat(document.getElementsByName("vendor_longitude")[0].value) || 78.595726;
 
 // 🚀 Init map
-function initMap(lat = 12.602429, lng = 78.595726) { // Headquarters Location
+function initMap(lat = latitude, lng = longitude) { // Headquarters Location
     map = L.map('map').setView([lat, lng], 13);
 
     let cartoLayer = L.tileLayer(
@@ -161,6 +163,7 @@ function initMap(lat = 12.602429, lng = 78.595726) { // Headquarters Location
         div.style.justifyContent = 'center';
         div.title = "Use Current Location";
         div.innerHTML = '📍';
+        L.DomEvent.disableClickPropagation(div);
         div.onclick = function(e) {
             e.preventDefault();
             getLiveLocation();
@@ -182,6 +185,7 @@ function initMap(lat = 12.602429, lng = 78.595726) { // Headquarters Location
         div.style.justifyContent = 'center';
         div.title = "Edit Mode";
         div.innerHTML = '✏️';
+        L.DomEvent.disableClickPropagation(div);
         div.onclick = function(e) {
             e.preventDefault();
             editMode();
