@@ -3,12 +3,11 @@ from django.urls import path, include
 
 # Local imports
 from .views import (
-    auth, profile, invoices, customers,
-    books, products, inventory, purchases,
-    vendor_purchase, features, views,
-    expense_tracker, bank_details, graphs,
-    quotation, notifications, reports,
-    location, asset
+    asset, auth, bank_details, books, customers,
+    expense_tracker, features, graphs, invoices,
+    inventory, notifications, products, profile,
+    purchases, quotation, reports, vendor_purchase, 
+    views,
 )
 
 urlpatterns = [
@@ -190,14 +189,4 @@ urlpatterns = [
     path('notifications/mark-all-read/', notifications.notification_mark_all_read, name='notification_mark_all_read'),
     path('notifications/<int:notification_id>/delete/', notifications.notification_delete, name='notification_delete'),
     path('notifications/delete-all-read/', notifications.notification_delete_all_read, name='notification_delete_all_read'),
-
-    # Location Tracking URLs
-    path("dashboard/admin/", location.admin_dashboard),
-    path("dashboard/employee/", location.employee_dashboard),
-    path("dashboard/customer/", location.customer_dashboard),
-
-    path("api/location/push/", location.push_location),
-    path("api/location/poll/", location.poll_locations),
-    path("api/location/history/", location.route_history),
-    path("api/location/geofence/", location.geofence_events),
 ]

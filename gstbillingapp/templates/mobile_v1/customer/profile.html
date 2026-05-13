@@ -231,6 +231,26 @@
         color: var(--oneui-text-primary);
     }
     
+    .btn-save-location {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        transition: all 0.2s ease;
+    }
+    
+    .btn-save-location:active {
+        transform: scale(0.95);
+    }
+    
     /* Footer Info */
     .profile-footer {
         background: var(--oneui-surface);
@@ -508,7 +528,7 @@
         </div>
         
         <!-- Location Map -->
-        {% if customer.customer_latitude and customer.customer_longitude %}
+        {% if customer.customer_latitude and customer.customer_longitude or request.GET.u == "emp" %}
         <div class="map-container">
             <div class="map-header">
                 <h3 class="map-title">
@@ -518,9 +538,20 @@
             <div id="map"></div>
             <div class="map-footer">
                 <i class="fas fa-route"></i>
-                <div>
-                    <div class="distance-info" id="distance-time">Calculating route...</div>
+                <div style="flex:1;">
+                    <div class="distance-info" id="distance-time">
+                        {% if customer.customer_latitude and customer.customer_longitude %}
+                            Calculating route...
+                        {% else %}
+                            Set your location using the map
+                        {% endif %}
+                    </div>
                 </div>
+                {% if request.GET.u == "emp" %}
+                <button type="button" id="saveLocationBtn" class="btn-save-location" style="display:none;" onclick="saveLocation()">
+                    <i class="fas fa-save"></i> Save
+                </button>
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -670,6 +701,8 @@
 {% endblock %}
 
 {% block includejs %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
 <script>
     // Toggle Payment Section
@@ -712,74 +745,65 @@
     {% endif %}
 </script>
 
-{% if customer.customer_latitude and customer.customer_longitude %}
 <script>
-    // Map initialization with smooth animations
+    // ===== Interactive Map with Location Picker =====
+    let map, customerMarker, hqMarker, routingControl;
+    let editModeActive = false;
+    let locationChanged = false;
+    const isEmployee = {% if request.GET.u == "emp" %}true{% else %}false{% endif %};
+
+    // Current customer coordinates (or defaults)
+    let currentLat = {% if customer.customer_latitude %}{{ customer.customer_latitude }}{% else %}12.602429{% endif %};
+    let currentLng = {% if customer.customer_longitude %}{{ customer.customer_longitude }}{% else %}78.595726{% endif %};
+    const customerName = "{{ customer.customer_name|escapejs }}";
+
+    // HQ coordinates
+    const hqLat = {% if users.business_latitude %}{{ users.business_latitude }}{% else %}12.602429{% endif %};
+    const hqLng = {% if users.business_longitude %}{{ users.business_longitude }}{% else %}78.595726{% endif %};
+    const hqName = "{{ users.business_title|escapejs }}";
+
     document.addEventListener('DOMContentLoaded', function() {
-        const latitude = {{ customer.customer_latitude }};
-        const longitude = {{ customer.customer_longitude }};
-        const name = "{{ customer.customer_name }}";
+        initMap();
+    });
 
-        // Head Office coordinates
-        const hqLat = {{ users.business_latitude }};
-        const hqLng = {{ users.business_longitude }};
-        const hqName = "{{ users.business_title }}";
-
-        // Initialize map
-        const map = L.map('map', {
+    function initMap() {
+        map = L.map('map', {
             zoomControl: true,
             scrollWheelZoom: false
-        }).setView([latitude, longitude], 13);
+        }).setView([currentLat, currentLng], 13);
 
-        let cartoLayer = L.tileLayer(
-            'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-            {
-                attribution: '&copy; OpenStreetMap &copy; CartoDB'
-            }
-        );
-        let darkLayer = L.tileLayer(
-            'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-            {
-                attribution: '&copy; OpenStreetMap &copy; CartoDB'
-            }
-        );
-        let topoLayer = L.tileLayer(
-            'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-            {
-                attribution: '&copy; OpenTopoMap'
-            }
-        );
-        let osmLayer = L.tileLayer(
-            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            {
-                attribution: '&copy; OpenStreetMap'
-            }
-        );
-        let googleLayer = L.tileLayer(
-            'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-            { 
-                attribution: '&copy; Google Maps',
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-            }
-        );
-        let satelliteLayer = L.tileLayer(
-            'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-            {
-                attribution: '&copy; Google Maps',
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-            }
-        );
+        // Tile layers
+        let cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CartoDB'
+        });
+        let darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CartoDB'
+        });
+        let topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenTopoMap'
+        });
+        let osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
+        });
+        let googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            attribution: '&copy; Google Maps',
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        });
+        let satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+            attribution: '&copy; Google Maps',
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        });
+
         satelliteLayer.addTo(map);
-        let baseMaps = {
+        L.control.layers({
             "☀️ Light": cartoLayer,
             "🌙 Dark": darkLayer,
             "🗺️ Google": googleLayer,
             "⛰️ Terrain": topoLayer,
             "🗺️ OSM": osmLayer,
             "🛰️ Satellite": satelliteLayer
-        };
-        L.control.layers(baseMaps).addTo(map);
-        
+        }).addTo(map);
+
         // Custom marker icons
         const customerIcon = L.divIcon({
             className: 'custom-marker',
@@ -787,7 +811,6 @@
             iconSize: [32, 32],
             iconAnchor: [16, 16]
         });
-
         const hqIcon = L.divIcon({
             className: 'custom-marker',
             html: '<div style="background: #34c759; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
@@ -795,49 +818,210 @@
             iconAnchor: [16, 16]
         });
 
-        // Customer Marker
-        L.marker([latitude, longitude], {icon: customerIcon})
-            .addTo(map)
-            .bindTooltip(name, { permanent: false, direction: 'top' });
+        // Customer marker (draggable)
+        customerMarker = L.marker([currentLat, currentLng], {
+            icon: customerIcon,
+            draggable: false
+        }).addTo(map).bindTooltip(customerName, { permanent: false, direction: 'top' });
 
-        // HQ Marker
-        L.marker([hqLat, hqLng], {icon: hqIcon})
+        // HQ marker
+        hqMarker = L.marker([hqLat, hqLng], {icon: hqIcon})
             .addTo(map)
             .bindTooltip(hqName, { permanent: true, offset: [0, -20], direction: 'top' });
 
-        // Routing with custom styling
-        L.Routing.control({
+        // Employee-only: Search, Live Location, Edit Mode controls
+        if (isEmployee) {
+            // Search bar (Leaflet Geocoder)
+            let geocoder = L.Control.geocoder({
+                defaultMarkGeocode: false
+            }).on('markgeocode', function(e) {
+                let center = e.geocode.center;
+                setCustomerLocation(center.lat, center.lng);
+            }).addTo(map);
+
+            // 📍 "Use Current Location" button
+            let locateControl = L.control({ position: 'topleft' });
+            locateControl.onAdd = function() {
+                let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                div.style.cssText = 'background:white;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;';
+                div.title = "Use Current Location";
+                div.innerHTML = '📍';
+                L.DomEvent.disableClickPropagation(div);
+                div.onclick = function(e) {
+                    e.preventDefault();
+                    getLiveLocation();
+                };
+                return div;
+            };
+            locateControl.addTo(map);
+
+            // ✏️ "Edit Mode" button
+            let editControl = L.control({ position: 'topleft' });
+            editControl.onAdd = function() {
+                let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                div.id = 'editModeBtn';
+                div.style.cssText = 'background:white;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;';
+                div.title = "Edit Mode";
+                div.innerHTML = '✏️';
+                L.DomEvent.disableClickPropagation(div);
+                div.onclick = function(e) {
+                    e.preventDefault();
+                    toggleEditMode();
+                };
+                return div;
+            };
+            editControl.addTo(map);
+
+            // Marker drag end
+            customerMarker.on('dragend', function() {
+                if (editModeActive) {
+                    let pos = customerMarker.getLatLng();
+                    setCustomerLocation(pos.lat, pos.lng);
+                }
+            });
+
+            // Map click
+            map.on('click', function(e) {
+                if (editModeActive) {
+                    setCustomerLocation(e.latlng.lat, e.latlng.lng);
+                }
+            });
+        }
+
+        // Show route if coordinates exist
+        {% if customer.customer_latitude and customer.customer_longitude %}
+        drawRoute();
+        setTimeout(function() {
+            map.fitBounds(L.latLngBounds([
+                [currentLat, currentLng],
+                [hqLat, hqLng]
+            ]), { padding: [50, 50] });
+        }, 500);
+        {% endif %}
+    }
+
+    function setCustomerLocation(lat, lng) {
+        currentLat = lat;
+        currentLng = lng;
+        customerMarker.setLatLng([lat, lng]);
+        map.setView([lat, lng], 15);
+        locationChanged = true;
+        document.getElementById('saveLocationBtn').style.display = 'flex';
+
+        // Re-draw route
+        drawRoute();
+    }
+
+    function drawRoute() {
+        if (routingControl) {
+            map.removeControl(routingControl);
+        }
+        routingControl = L.Routing.control({
             waypoints: [
-                L.latLng(latitude, longitude),
+                L.latLng(currentLat, currentLng),
                 L.latLng(hqLat, hqLng)
             ],
             routeWhileDragging: false,
             show: false,
             addWaypoints: false,
             lineOptions: {
-                styles: [{ 
-                    color: '#007aff', 
-                    weight: 4,
-                    opacity: 0.8 
-                }]
+                styles: [{ color: '#007aff', weight: 4, opacity: 0.8 }]
             },
-            createMarker: function() { return null; } // Hide default markers
-        }).on('routesfound', function (e) {
+            createMarker: function() { return null; }
+        }).on('routesfound', function(e) {
             const distance = e.routes[0].summary.totalDistance / 1000;
             const time = e.routes[0].summary.totalTime / 60;
-            document.getElementById('distance-time').innerHTML = 
-                `<strong>${distance.toFixed(2)} KM</strong> • ${Math.round(time)} min drive`;
+            document.getElementById('distance-time').innerHTML =
+                '<strong>' + distance.toFixed(2) + ' KM</strong> • ' + Math.round(time) + ' min drive';
         }).addTo(map);
+    }
 
-        // Fit bounds to show both markers
-        setTimeout(() => {
-            const bounds = L.latLngBounds([
-                [latitude, longitude],
-                [hqLat, hqLng]
-            ]);
-            map.fitBounds(bounds, { padding: [50, 50] });
-        }, 500);
-    });
+    function toggleEditMode() {
+        editModeActive = !editModeActive;
+        customerMarker.dragging[editModeActive ? 'enable' : 'disable']();
+        let btn = document.getElementById('editModeBtn');
+        if (btn) {
+            btn.style.background = editModeActive ? '#667eea' : 'white';
+            btn.style.color = editModeActive ? 'white' : 'black';
+        }
+        Swal.fire({
+            title: editModeActive ? 'Edit Mode Activated' : 'Edit Mode Deactivated',
+            text: editModeActive
+                ? 'Tap on the map or drag the marker to set location.'
+                : 'Tap/drag will no longer change location.',
+            icon: 'info',
+            timer: 2000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top'
+        });
+    }
+
+    function getLiveLocation() {
+        if (!navigator.geolocation) {
+            Swal.fire({ title: 'Error', text: 'Geolocation not supported.', icon: 'error' });
+            return;
+        }
+        Swal.fire({
+            title: 'Fetching Location...',
+            text: 'Please allow location access',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                Swal.close();
+                setCustomerLocation(position.coords.latitude, position.coords.longitude);
+            },
+            function() {
+                Swal.fire({
+                    title: 'Permission Needed',
+                    text: 'Please allow location access to use this feature.',
+                    icon: 'warning'
+                });
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    }
+
+    function saveLocation() {
+        if (!locationChanged) return;
+        const cid = new URLSearchParams(window.location.search).get('cid');
+        Swal.fire({
+            title: 'Saving Location...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+        fetch('/mobile/v1/customer/update-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cid: cid,
+                latitude: currentLat,
+                longitude: currentLng
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                locationChanged = false;
+                document.getElementById('saveLocationBtn').style.display = 'none';
+                if (editModeActive) toggleEditMode();
+                Swal.fire({
+                    title: 'Location Saved!',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top'
+                });
+            } else {
+                Swal.fire({ title: 'Error', text: data.message, icon: 'error' });
+            }
+        })
+        .catch(() => {
+            Swal.fire({ title: 'Error', text: 'Failed to save location.', icon: 'error' });
+        });
+    }
 </script>
-{% endif %}
 {% endblock %}

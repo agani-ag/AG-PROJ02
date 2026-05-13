@@ -13,6 +13,7 @@ urlpatterns = [
     path('customer/home', customer.customer_home, name='v1customerhome'),
     path('customer/books', customer.customer_books, name='v1customerbooks'),
     path('customer/profile', customer.customer_profile, name='v1customerprofile'),
+    path('customer/update-location', customer.customer_update_location, name='v1customerupdatelocation'),
     path('customer/invoices', customer.customer_invoices, name='v1customerinvoices'),
     path('customer/notifications', customer.customer_notifications, name='v1customernotifications'),
     path('customer/invoice_viewer/<int:invoice_id>', customer.customer_invoice_viewer, name='v1customerinvoiceviewer'),

@@ -808,57 +808,5 @@
         getGreeting();
     });
 
-    {% if request.GET.u != "emp" %}
-    // Geolocation Tracking
-    const API_PUSH = "/api/location/push/";
-    const ROOM = "customer-room";
-    const USER = "{{ request.GET.cid | default:'unknown' }}";
-    const USER_TYPE = "customer";
-
-    function send(lat,lng,accuracy){
-    fetch(API_PUSH,{
-    method:"POST",
-    headers:{
-        "Content-Type":"application/json",
-        "X-CSRFToken":"{{ csrf_token }}"
-    },
-    body:JSON.stringify({
-        lat:lat,
-        lng:lng,
-        accuracy:accuracy,
-        user_id:USER,
-        user_type:USER_TYPE,
-        room:ROOM
-    })
-    })
-    }
-
-    function gpsSuccess(pos){
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-    marker.setLatLng([lat,lng]);
-    map.setView([lat,lng],16);
-    document.getElementById("status").innerText="GPS: Exact";
-    send(lat,lng,"gps");
-    }
-
-    function gpsError(){
-    fetch("https://ipinfo.io/json")
-    .then(r => r.json())
-    .then(d => {
-    if(!d.loc) return;
-
-    const [lat, lng] = d.loc.split(",").map(Number);
-
-    send(lat, lng, "approx");
-    });
-    }
-
-    navigator.geolocation.watchPosition(
-    gpsSuccess,
-    gpsError,
-    {enableHighAccuracy:true,timeout:5000}
-    );
-    {% endif %}
 </script>
 {% endblock %}

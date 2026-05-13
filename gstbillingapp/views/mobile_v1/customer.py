@@ -56,6 +56,37 @@ def customer_profile(request):
         pass
     return render(request, 'mobile_v1/customer/profile.html', context)
 
+@csrf_exempt
+def customer_update_location(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+    try:
+        data = json.loads(request.body)
+        cid = data.get('cid')
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+
+        if not cid or latitude is None or longitude is None:
+            return JsonResponse({'status': 'error', 'message': 'Missing parameters'}, status=400)
+
+        cid_data = parse_code_GS(cid)
+        if not cid_data:
+            return JsonResponse({'status': 'error', 'message': 'Invalid customer data'}, status=400)
+
+        customer_id = cid_data.get('C')
+        user_id = cid_data.get('GS')
+
+        customer = get_object_or_404(Customer, user__id=user_id, id=customer_id)
+        customer.customer_latitude = round(float(latitude), 6)
+        customer.customer_longitude = round(float(longitude), 6)
+        customer.save(update_fields=['customer_latitude', 'customer_longitude'])
+
+        return JsonResponse({'status': 'success', 'message': 'Location updated'})
+    except (ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'message': 'Invalid coordinates'}, status=400)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
 def customer_invoices(request):
     context = {}
 
