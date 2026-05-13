@@ -60,6 +60,7 @@ urlpatterns = [
     path('customers/api/all_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
     path('customers/api/is_mobile_user', customers.customer_is_mobile_user, name='customer_is_mobile_user'),
     path('customers/api/default_password', customers.customer_default_password, name='customer_default_password'),
+    path('customers/api/location-mapper', customers.customers_location_mapper_api, name='customers_location_mapper_api'),
     path('customers/api/collection-day/show', customers.show_customer_collection_api, name='customer_collection_day_show'),
     path('customers/api/collection-day/update', customers.customer_collection_day_update, name='customer_collection_day_update'),
 

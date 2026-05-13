@@ -198,6 +198,9 @@
         padding: 16px 20px;
         background: linear-gradient(135deg, #667eea08, #764ba208);
         border-bottom: 1px solid var(--oneui-divider);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
     
     .map-title {
@@ -210,6 +213,25 @@
     #map {
         height: 280px;
         width: 100%;
+    }
+    
+    .map-container.fullscreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999;
+        border-radius: 0;
+        margin: 0;
+    }
+    
+    .map-container.fullscreen #map {
+        height: calc(100vh - 110px);
+    }
+    
+    .map-container.fullscreen .map-header {
+        border-radius: 0;
     }
     
     .map-footer {
@@ -235,20 +257,38 @@
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: white;
         border: none;
-        border-radius: 10px;
-        padding: 8px 16px;
+        border-radius: 12px;
+        padding: 10px 20px;
         font-size: 14px;
         font-weight: 600;
         cursor: pointer;
         display: flex;
         align-items: center;
-        gap: 6px;
-        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-        transition: all 0.2s ease;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .btn-save-location::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+        pointer-events: none;
     }
     
     .btn-save-location:active {
-        transform: scale(0.95);
+        transform: scale(0.93);
+        box-shadow: 0 2px 6px rgba(102, 126, 234, 0.25);
+    }
+    
+    .btn-save-location i {
+        font-size: 15px;
+        color: white;
     }
     
     /* Footer Info */
@@ -534,6 +574,11 @@
                 <h3 class="map-title">
                     <i class="fas fa-map-marked-alt"></i> Location & Navigation
                 </h3>
+                {% if request.GET.u == "emp" %}
+                <button type="button" id="saveLocationBtn" class="btn-save-location" style="display:none;" onclick="saveLocation()">
+                    <i class="fas fa-check-circle"></i> Save
+                </button>
+                {% endif %}
             </div>
             <div id="map"></div>
             <div class="map-footer">
@@ -547,11 +592,6 @@
                         {% endif %}
                     </div>
                 </div>
-                {% if request.GET.u == "emp" %}
-                <button type="button" id="saveLocationBtn" class="btn-save-location" style="display:none;" onclick="saveLocation()">
-                    <i class="fas fa-save"></i> Save
-                </button>
-                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -829,6 +869,23 @@
             .addTo(map)
             .bindTooltip(hqName, { permanent: true, offset: [0, -20], direction: 'top' });
 
+        // ⛶ Fullscreen toggle button
+        let fullscreenControl = L.control({ position: 'topleft' });
+        fullscreenControl.onAdd = function() {
+            let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+            div.id = 'fullscreenBtn';
+            div.style.cssText = 'background:white;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;';
+            div.title = "Toggle Fullscreen";
+            div.innerHTML = '⛶';
+            L.DomEvent.disableClickPropagation(div);
+            div.onclick = function(e) {
+                e.preventDefault();
+                toggleFullscreen();
+            };
+            return div;
+        };
+        fullscreenControl.addTo(map);
+
         // Employee-only: Search, Live Location, Edit Mode controls
         if (isEmployee) {
             // Search bar (Leaflet Geocoder)
@@ -982,6 +1039,18 @@
             },
             { enableHighAccuracy: true, timeout: 10000 }
         );
+    }
+
+    function toggleFullscreen() {
+        let container = document.querySelector('.map-container');
+        let btn = document.getElementById('fullscreenBtn');
+        container.classList.toggle('fullscreen');
+        let isFullscreen = container.classList.contains('fullscreen');
+        if (btn) {
+            btn.innerHTML = isFullscreen ? '✕' : '⛶';
+            btn.title = isFullscreen ? 'Exit Fullscreen' : 'Toggle Fullscreen';
+        }
+        setTimeout(function() { map.invalidateSize(); }, 300);
     }
 
     function saveLocation() {

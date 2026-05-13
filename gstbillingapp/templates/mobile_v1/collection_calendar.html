@@ -1,0 +1,717 @@
+{% extends 'mobile_v1/base.html' %}
+
+{% block title %}Collection Calendar - GST Sync{% endblock %}
+
+{% block includecss %}
+<style>
+    :root {
+        --oneui-primary: #667eea;
+        --oneui-primary-dark: #5568d3;
+        --oneui-secondary: #764ba2;
+        --oneui-accent: #34c759;
+        --oneui-warning: #ff9500;
+        --oneui-danger: #ff3b30;
+        --oneui-bg: #f5f5f7;
+        --oneui-surface: #ffffff;
+        --oneui-text-primary: #1c1c1e;
+        --oneui-text-secondary: #8e8e93;
+        --oneui-divider: #e5e5ea;
+        --oneui-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+        --oneui-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.10);
+        --oneui-radius: 16px;
+        --oneui-radius-sm: 12px;
+        --gradient-header: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { background: var(--oneui-bg); min-height: 100vh; padding-bottom: 72px; margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+    /* ===== Header ===== */
+    .header-section {
+        background: var(--gradient-header);
+        color: white;
+        padding: 18px 0 14px;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+    }
+    .header-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-icon-circle {
+        width: 44px; height: 44px;
+        background: rgba(255,255,255,0.18);
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .header-icon-circle i { font-size: 20px; }
+    .header-text h1 { font-size: 1.2rem; font-weight: 700; margin: 0; line-height: 1.2; }
+    .header-text p { margin: 2px 0 0; font-size: 0.75rem; opacity: 0.85; font-weight: 500; }
+    .header-stats { display: flex; gap: 8px; flex-shrink: 0; }
+    .stat-chip {
+        text-align: center;
+        padding: 5px 10px;
+        background: rgba(255,255,255,0.15);
+        border-radius: 10px;
+        backdrop-filter: blur(4px);
+    }
+    .stat-chip .num { display: block; font-size: 1rem; font-weight: 700; line-height: 1.2; }
+    .stat-chip .lbl { display: block; font-size: 0.6rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+
+    /* ===== Day Pills ===== */
+    .day-pills-wrap { padding: 14px 0 6px; }
+    .day-pills {
+        display: flex; gap: 8px;
+        overflow-x: auto; padding: 0 16px 8px;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory;
+    }
+    .day-pills::-webkit-scrollbar { display: none; }
+    .day-pill {
+        flex: 0 0 auto;
+        scroll-snap-align: start;
+        padding: 7px 18px;
+        border-radius: 20px;
+        border: 1.5px solid var(--oneui-divider);
+        background: var(--oneui-surface);
+        font-size: 0.8rem; font-weight: 600;
+        color: var(--oneui-text-secondary);
+        text-decoration: none;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .day-pill.active {
+        background: var(--gradient-header); color: white;
+        border-color: transparent;
+        box-shadow: 0 3px 12px rgba(102,126,234,0.35);
+    }
+    .day-pill:active { transform: scale(0.93); }
+
+    /* ===== Filter Bar ===== */
+    .filter-bar {
+        display: flex; gap: 10px; align-items: center;
+        padding: 10px 16px;
+        background: var(--oneui-surface);
+        box-shadow: var(--oneui-shadow);
+        margin: 0 0 8px;
+    }
+    .filter-select {
+        flex: 1; padding: 10px 36px 10px 12px;
+        border: 1.5px solid var(--oneui-divider);
+        border-radius: var(--oneui-radius-sm);
+        font-size: 0.85rem; font-weight: 500;
+        color: var(--oneui-text-primary);
+        background: var(--oneui-surface);
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238e8e93' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        transition: border-color 0.2s;
+    }
+    .filter-select:focus { outline: none; border-color: var(--oneui-primary); }
+    .btn-route {
+        padding: 10px 18px; border: none;
+        border-radius: var(--oneui-radius-sm);
+        background: var(--gradient-header);
+        color: white; font-size: 0.85rem; font-weight: 600;
+        display: flex; align-items: center; gap: 6px;
+        white-space: nowrap; cursor: pointer;
+        box-shadow: 0 3px 12px rgba(102,126,234,0.3);
+        transition: transform 0.15s;
+    }
+    .btn-route:active { transform: scale(0.95); }
+
+    /* ===== Customer Cards ===== */
+    .list-container { padding: 4px 16px 16px; }
+    .customer-card {
+        display: flex; align-items: center; gap: 12px;
+        padding: 13px 14px;
+        background: var(--oneui-surface);
+        border-radius: var(--oneui-radius-sm);
+        box-shadow: var(--oneui-shadow);
+        margin-bottom: 8px;
+        border: 1.5px solid transparent;
+        transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+    }
+    .customer-card:active {
+        transform: scale(0.98);
+        border-color: rgba(102,126,234,0.25);
+        background: #f8f8ff;
+    }
+    .customer-num {
+        width: 34px; height: 34px;
+        background: linear-gradient(135deg, rgba(102,126,234,0.08), rgba(118,75,162,0.08));
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 0.85rem; color: var(--oneui-primary);
+        flex-shrink: 0;
+    }
+    .customer-info { flex: 1; min-width: 0; }
+    .customer-name {
+        font-weight: 600; font-size: 0.9rem;
+        color: var(--oneui-text-primary);
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        line-height: 1.3;
+    }
+    .customer-place {
+        font-size: 0.72rem; color: var(--oneui-text-secondary);
+        margin-top: 2px;
+        display: flex; align-items: center; gap: 5px;
+    }
+    .customer-balance { text-align: right; flex-shrink: 0; padding-left: 4px; }
+    .balance-amount { font-weight: 700; font-size: 0.9rem; line-height: 1; }
+    .balance-positive { color: var(--oneui-accent); }
+    .balance-negative { color: var(--oneui-danger); }
+    .balance-neutral { color: var(--oneui-warning); }
+    .loc-indicator {
+        width: 7px; height: 7px; border-radius: 50%;
+        display: inline-block; flex-shrink: 0;
+    }
+    .loc-indicator.on { background: var(--oneui-accent); box-shadow: 0 0 4px rgba(52,199,89,0.4); }
+    .loc-indicator.off { background: var(--oneui-divider); }
+
+    /* ===== Empty State ===== */
+    .empty-state { text-align: center; padding: 70px 24px; }
+    .empty-state-icon {
+        width: 96px; height: 96px; margin: 0 auto 20px;
+        background: linear-gradient(135deg, rgba(102,126,234,0.08), rgba(118,75,162,0.08));
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .empty-state-icon i { font-size: 38px; color: var(--oneui-text-secondary); opacity: 0.5; }
+    .empty-state-title { font-size: 17px; font-weight: 700; color: var(--oneui-text-primary); margin: 0 0 6px; }
+    .empty-state-text { font-size: 14px; color: var(--oneui-text-secondary); margin: 0; }
+
+    /* ===== Fullscreen Map Swal ===== */
+    .swal-fullscreen { padding: 0 !important; }
+    .swal-fullscreen .swal2-popup {
+        width: 100vw !important; max-width: 100vw !important;
+        height: 100vh !important; max-height: 100vh !important;
+        margin: 0 !important; border-radius: 0 !important;
+        padding: 0 !important;
+        display: flex !important; flex-direction: column !important;
+    }
+    .swal-fullscreen .swal2-html-container {
+        flex: 1 !important; margin: 0 !important; padding: 0 !important;
+        overflow: hidden !important;
+        display: flex !important; flex-direction: column !important;
+        max-height: none !important;
+    }
+    .swal-fullscreen .swal2-close {
+        z-index: 10001 !important;
+        color: white !important;
+        background: rgba(0,0,0,0.45) !important;
+        border-radius: 50% !important;
+        width: 36px !important; height: 36px !important;
+        font-size: 22px !important;
+        top: 24px !important; right: 12px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+    }
+    .swal-fullscreen .leaflet-bottom.leaflet-right {
+        bottom: 60px !important;
+    }
+
+    /* Route mode toggle button in summary */
+    .route-mode-toggle {
+        padding: 6px 14px;
+        border: none;
+        border-radius: 18px;
+        background: var(--gradient-header);
+        color: white;
+        font-size: 0.72rem; font-weight: 700;
+        cursor: pointer;
+        display: flex; align-items: center; gap: 5px;
+        box-shadow: 0 2px 8px rgba(102,126,234,0.35);
+        transition: all 0.2s cubic-bezier(.4,0,.2,1);
+        flex-shrink: 0;
+    }
+    .route-mode-toggle:active { transform: scale(0.92); }
+    .route-mode-toggle i { font-size: 0.65rem; }
+
+    /* Map container */
+    .map-fullscreen { flex: 1; position: relative; }
+
+    /* Bottom info sheet */
+    .map-bottom-sheet {
+        max-height: 35vh;
+        overflow-y: auto;
+        background: var(--oneui-surface);
+        border-top: 1px solid var(--oneui-divider);
+        flex-shrink: 0;
+        -webkit-overflow-scrolling: touch;
+    }
+    .route-summary {
+        display: flex; align-items: center; justify-content: center; gap: 16px;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, rgba(102,126,234,0.06), rgba(118,75,162,0.06));
+        border-bottom: 1px solid var(--oneui-divider);
+        font-size: 0.78rem; font-weight: 600; color: var(--oneui-text-primary);
+    }
+    .route-summary .metric { display: flex; align-items: center; gap: 4px; }
+    .route-summary .metric i { color: var(--oneui-primary); font-size: 0.75rem; }
+    .legend-list { padding: 8px 16px 70px; }
+    .legend-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 7px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+        font-size: 0.8rem;
+    }
+    .legend-item:last-child { border-bottom: none; }
+    .legend-num {
+        width: 26px; height: 26px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 0.72rem; color: white;
+        flex-shrink: 0;
+    }
+    .legend-num.start { background: var(--oneui-accent); }
+    .legend-num.stop { background: var(--oneui-primary); }
+    .legend-name { flex: 1; min-width: 0; font-weight: 500; color: var(--oneui-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .legend-place { font-size: 0.7rem; color: var(--oneui-text-secondary); }
+
+    /* ===== Dark Mode ===== */
+    [data-theme="dark"] { --oneui-bg: #000; --oneui-surface: #1c1c1e; --oneui-text-primary: #fff; --oneui-text-secondary: #8e8e93; --oneui-divider: #38383a; }
+    [data-theme="dark"] .filter-bar,
+    [data-theme="dark"] .customer-card { background: var(--oneui-surface); }
+    [data-theme="dark"] .customer-card:active { background: #2c2c2e; }
+    [data-theme="dark"] .filter-select { background: var(--oneui-surface); color: var(--oneui-text-primary); border-color: var(--oneui-divider); }
+    [data-theme="dark"] .day-pill { background: var(--oneui-surface); border-color: var(--oneui-divider); }
+    [data-theme="dark"] .day-pill.active { background: var(--gradient-header); color: white; border-color: transparent; }
+    [data-theme="dark"] .map-bottom-sheet { background: var(--oneui-surface); border-color: var(--oneui-divider); }
+    [data-theme="dark"] .route-mode-toggle { box-shadow: 0 3px 12px rgba(0,0,0,0.5); }
+    [data-theme="dark"] .route-summary { background: rgba(102,126,234,0.1); border-color: var(--oneui-divider); }
+    [data-theme="dark"] .legend-item { border-color: rgba(255,255,255,0.06); }
+    [data-theme="dark"] .swal-fullscreen .swal2-popup { background: var(--oneui-bg) !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="header-section">
+    <div class="header-content">
+        <div class="header-left">
+            <div class="header-icon-circle"><i class="fas fa-calendar-alt"></i></div>
+            <div class="header-text">
+                <h1>Collection</h1>
+                <p>{% if filter_day_display %}{{ filter_day_display }}{% else %}All Days{% endif %}</p>
+            </div>
+        </div>
+        <div class="header-stats">
+            <div class="stat-chip">
+                <span class="num" id="total-count">{{ books|length }}</span>
+                <span class="lbl">Total</span>
+            </div>
+            <div class="stat-chip">
+                <span class="num" id="loc-count">0</span>
+                <span class="lbl">Located</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Day Pills -->
+<div class="day-pills-wrap">
+    <div class="day-pills" id="dayPills">
+        <a href="?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="day-pill {% if not filter_day_display %}active{% endif %}">All</a>
+        <a href="?filter=1&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="day-pill {% if filter_day == '1' %}active{% endif %}">Mon</a>
+        <a href="?filter=2&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="day-pill {% if filter_day == '2' %}active{% endif %}">Tue</a>
+        <a href="?filter=3&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="day-pill {% if filter_day == '3' %}active{% endif %}">Wed</a>
+        <a href="?filter=4&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="day-pill {% if filter_day == '4' %}active{% endif %}">Thu</a>
+        <a href="?filter=5&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="day-pill {% if filter_day == '5' %}active{% endif %}">Fri</a>
+        <a href="?filter=6&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="day-pill {% if filter_day == '6' %}active{% endif %}">Sat</a>
+        <a href="?filter=0&u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="day-pill {% if filter_day == '0' %}active{% endif %}">Sun</a>
+    </div>
+</div>
+
+<!-- Filter & Route -->
+<div class="filter-bar">
+    <select class="filter-select" id="userFilter" onchange="applyUserFilter()">
+        <option value="">All Users</option>
+        {% for u in users %}
+        <option value="{{ u.user.id }}" {% if u.user.id|stringformat:"s" == request.GET.user_id %}selected{% endif %}>{{ u.business_brand }}</option>
+        {% endfor %}
+    </select>
+    {% if filter_day_display %}
+    <button class="btn-route" onclick="showRouteMap()">
+        <i class="fas fa-route"></i> Route
+    </button>
+    {% endif %}
+</div>
+
+<!-- Customer List -->
+<div class="list-container">
+    {% if books %}
+        {% for book in books %}
+        <div class="customer-card" onclick="{% if book.customer.customer_latitude and book.customer.customer_longitude %}popup_Customer_maps({{ book.customer.customer_latitude }}, {{ book.customer.customer_longitude }}, '{{ book.customer.customer_name|escapejs }}', '{{ book.customer.customer_userid }}'){% else %}goToCustomer('{{ book.customer.customer_userid }}'){% endif %}">
+            <div class="customer-num">{{ forloop.counter }}</div>
+            <div class="customer-info">
+                <div class="customer-name">{{ book.customer.customer_name }}</div>
+                <div class="customer-place">
+                    <span class="loc-indicator {% if book.customer.customer_latitude and book.customer.customer_longitude %}on{% else %}off{% endif %}"></span>
+                    {% if book.customer.customer_place %}{{ book.customer.customer_place }}{% else %}No place{% endif %}
+                </div>
+            </div>
+            <div class="customer-balance">
+                <div class="balance-amount {% if book.current_balance >= -10 and book.current_balance <= 10 %}balance-neutral{% elif book.current_balance > 0 %}balance-positive{% else %}balance-negative{% endif %}">
+                    ₹{{ book.current_balance|floatformat:2 }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon"><i class="fas fa-calendar-xmark"></i></div>
+            <div class="empty-state-title">No Collections</div>
+            <div class="empty-state-text">No customers found for this day.</div>
+        </div>
+    {% endif %}
+</div>
+
+{% include 'mobile_v1/navbarE.html' %}
+
+{% endblock %}
+
+
+{% block includejs %}
+<script type="text/javascript">
+
+const hqLat = {{ hq_lat|default:"0" }};
+const hqLng = {{ hq_lng|default:"0" }};
+const hqName = "{{ hq_name|escapejs }}";
+
+const customers = [
+    {% for book in books %}
+    {% if book.customer.customer_latitude and book.customer.customer_longitude %}
+    { name: "{{ book.customer.customer_name|escapejs }}", place: "{{ book.customer.customer_place|default_if_none:''|escapejs }}", lat: {{ book.customer.customer_latitude }}, lng: {{ book.customer.customer_longitude }}, balance: {{ book.current_balance|default:"0" }} },
+    {% endif %}
+    {% endfor %}
+];
+
+document.getElementById('loc-count').textContent = customers.length;
+
+// Scroll active day pill into view
+document.addEventListener('DOMContentLoaded', function() {
+    let activePill = document.querySelector('.day-pill.active');
+    if (activePill) {
+        setTimeout(function() {
+            activePill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }, 150);
+    }
+});
+
+function applyUserFilter() {
+    let userId = document.getElementById('userFilter').value;
+    let params = new URLSearchParams(window.location.search);
+    if (userId) { params.set('user_id', userId); } else { params.delete('user_id'); }
+    if (!params.has('u')) params.set('u', '{{ request.GET.u }}');
+    if (!params.has('admin')) params.set('admin', '{{ request.GET.admin }}');
+    if (!params.has('users_filter')) params.set('users_filter', '{{ request.GET.users_filter }}');
+    window.location.search = params.toString();
+}
+
+function goToCustomer(custId) {
+    let params = new URLSearchParams(window.location.search);
+    window.location.href = '{% url "v1customerhome" %}?cid=' + encodeURIComponent(custId) + '&u=' + (params.get('u') || '') + '&admin=' + (params.get('admin') || '') + '&users_filter=' + (params.get('users_filter') || '');
+}
+
+// ===== Single Customer Map (Fullscreen) =====
+function popup_Customer_maps(lat, lng, name, custId) {
+    Swal.fire({
+        html: '<div style="display:flex;flex-direction:column;height:100%;"><div id="single-map" style="flex:1;"></div><div id="single-route-info" style="display:none;padding:12px 16px 70px;background:var(--oneui-surface);border-top:1px solid var(--oneui-divider);font-size:0.8rem;font-weight:600;color:var(--oneui-text-primary);align-items:center;justify-content:center;gap:16px;"></div></div>',
+        showCloseButton: true,
+        showConfirmButton: false,
+        padding: 0,
+        customClass: { container: 'swal-fullscreen' },
+        didOpen: () => {
+            let map = L.map('single-map', { zoomControl: false }).setView([lat, lng], 16);
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+            let google = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { subdomains: ['mt0','mt1','mt2','mt3'] });
+            let satellite = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { subdomains: ['mt0','mt1','mt2','mt3'] });
+            google.addTo(map);
+            L.control.layers({ 'Map': google, 'Satellite': satellite }, null, { position: 'topright' }).addTo(map);
+
+            L.marker([lat, lng]).addTo(map).bindTooltip(name, { permanent: true, direction: 'top', offset: [0, -10], className: 'leaflet-tooltip-custom' });
+
+            // Combined action buttons (single leaflet-bar to save vertical space)
+            let myRouteCtrl = null, myLocMarker = null, watchId = null;
+            let hqRouteCtrl = null, hqMarker = null, hqActive = false;
+
+            let actionBar = L.control({ position: 'bottomright' });
+            actionBar.onAdd = function() {
+                let bar = L.DomUtil.create('div', 'leaflet-bar');
+                let btnStyle = 'width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:white;font-size:15px;cursor:pointer;color:#333;';
+
+                // Customer profile button
+                let custA = document.createElement('a');
+                custA.href = '#';
+                custA.style.cssText = btnStyle;
+                custA.title = 'Customer Profile';
+                custA.innerHTML = '<i class="fas fa-user"></i>';
+                L.DomEvent.on(custA, 'click', function(e) {
+                    L.DomEvent.stopPropagation(e);
+                    L.DomEvent.preventDefault(e);
+                    let params = new URLSearchParams(window.location.search);
+                    window.location.href = '{% url "v1customerhome" %}?cid=' + encodeURIComponent(custId) + '&u=' + (params.get('u') || '') + '&admin=' + (params.get('admin') || '') + '&users_filter=' + (params.get('users_filter') || '');
+                });
+                bar.appendChild(custA);
+
+                // HQ route button
+                if (hqLat && hqLng) {
+                    let hqA = document.createElement('a');
+                    hqA.href = '#';
+                    hqA.style.cssText = btnStyle;
+                    hqA.title = 'Route from HQ';
+                    hqA.innerHTML = '<i class="fas fa-store"></i>';
+                    L.DomEvent.on(hqA, 'click', function(e) {
+                        L.DomEvent.stopPropagation(e);
+                        L.DomEvent.preventDefault(e);
+                        if (hqActive) {
+                            if (hqMarker) { map.removeLayer(hqMarker); hqMarker = null; }
+                            if (hqRouteCtrl) { map.removeControl(hqRouteCtrl); hqRouteCtrl = null; }
+                            let infoEl = document.getElementById('single-route-info');
+                            if (infoEl && watchId === null) { infoEl.style.display = 'none'; infoEl.innerHTML = ''; }
+                            hqA.style.background = 'white';
+                            hqActive = false;
+                            return;
+                        }
+                        hqActive = true;
+                        hqA.style.background = '#e8f0fe';
+                        if (!hqMarker) {
+                            hqMarker = L.marker([hqLat, hqLng], {
+                                icon: L.divIcon({
+                                    className: '',
+                                    html: '<div style="background:#34c759;width:30px;height:30px;border-radius:50%;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:13px;">★</div>',
+                                    iconSize: [30, 30], iconAnchor: [15, 15]
+                                })
+                            }).addTo(map).bindTooltip(hqName || 'HQ', { permanent: true, direction: 'top', offset: [0, -18] });
+                        }
+                        if (hqRouteCtrl) map.removeControl(hqRouteCtrl);
+                        hqRouteCtrl = L.Routing.control({
+                            waypoints: [L.latLng(hqLat, hqLng), L.latLng(lat, lng)],
+                            routeWhileDragging: false, show: false, addWaypoints: false,
+                            lineOptions: { styles: [{ color: '#34c759', weight: 5, opacity: 0.8 }] },
+                            createMarker: function() { return null; }
+                        }).on('routesfound', function(re) {
+                            let dist = (re.routes[0].summary.totalDistance / 1000).toFixed(1);
+                            let time = Math.round(re.routes[0].summary.totalTime / 60);
+                            let infoEl = document.getElementById('single-route-info');
+                            if (infoEl) {
+                                infoEl.style.display = 'flex';
+                                infoEl.innerHTML = '<span><i class="fas fa-road" style="color:#34c759;margin-right:4px;"></i>' + dist + ' KM</span><span><i class="fas fa-clock" style="color:#34c759;margin-right:4px;"></i>' + time + ' min</span><span><i class="fas fa-building" style="color:#34c759;margin-right:4px;"></i>HQ</span>';
+                            }
+                        }).addTo(map);
+                        map.fitBounds([[hqLat, hqLng], [lat, lng]], { padding: [50, 50], animate: true });
+                    });
+                    bar.appendChild(hqA);
+                }
+
+                // Live location button
+                let locA = document.createElement('a');
+                locA.href = '#';
+                locA.style.cssText = btnStyle;
+                locA.title = 'Live route from my location';
+                locA.innerHTML = '<i class="fas fa-crosshairs"></i>';
+                L.DomEvent.on(locA, 'click', function(e) {
+                    L.DomEvent.stopPropagation(e);
+                    L.DomEvent.preventDefault(e);
+                    if (!navigator.geolocation) return;
+                    if (watchId !== null) {
+                        navigator.geolocation.clearWatch(watchId);
+                        watchId = null;
+                        if (myLocMarker) { map.removeLayer(myLocMarker); myLocMarker = null; }
+                        if (myRouteCtrl) { map.removeControl(myRouteCtrl); myRouteCtrl = null; }
+                        let infoEl = document.getElementById('single-route-info');
+                        if (infoEl && !hqActive) { infoEl.style.display = 'none'; infoEl.innerHTML = ''; }
+                        locA.style.background = 'white';
+                        return;
+                    }
+                    locA.style.background = '#e8f0fe';
+                    function updatePosition(pos) {
+                        let myLat = pos.coords.latitude, myLng = pos.coords.longitude;
+                        if (!myLocMarker) {
+                            myLocMarker = L.circleMarker([myLat, myLng], { radius: 9, fillColor: '#4285F4', fillOpacity: 1, color: 'white', weight: 3 }).addTo(map).bindTooltip('You', { permanent: true, direction: 'top', offset: [0, -10] });
+                        } else {
+                            myLocMarker.setLatLng([myLat, myLng]);
+                        }
+                        if (myRouteCtrl) map.removeControl(myRouteCtrl);
+                        myRouteCtrl = L.Routing.control({
+                            waypoints: [L.latLng(myLat, myLng), L.latLng(lat, lng)],
+                            routeWhileDragging: false, show: false, addWaypoints: false,
+                            lineOptions: { styles: [{ color: '#4285F4', weight: 5, opacity: 0.8 }] },
+                            createMarker: function() { return null; }
+                        }).on('routesfound', function(re) {
+                            let dist = (re.routes[0].summary.totalDistance / 1000).toFixed(1);
+                            let time = Math.round(re.routes[0].summary.totalTime / 60);
+                            let infoEl = document.getElementById('single-route-info');
+                            if (infoEl) {
+                                infoEl.style.display = 'flex';
+                                infoEl.innerHTML = '<span><i class="fas fa-road" style="color:var(--oneui-primary);margin-right:4px;"></i>' + dist + ' KM</span><span><i class="fas fa-clock" style="color:var(--oneui-primary);margin-right:4px;"></i>' + time + ' min</span><span><i class="fas fa-location-dot" style="color:#4285F4;margin-right:4px;"></i>Live</span>';
+                            }
+                        }).addTo(map);
+                        map.fitBounds([[myLat, myLng], [lat, lng]], { padding: [50, 50], animate: true });
+                    }
+                    navigator.geolocation.getCurrentPosition(updatePosition, function() {
+                        Swal.fire('Location Error', 'Could not get your location.', 'warning');
+                        locA.style.background = 'white';
+                    }, { enableHighAccuracy: true, timeout: 8000 });
+                    watchId = navigator.geolocation.watchPosition(updatePosition, function() {}, { enableHighAccuracy: true, maximumAge: 3000 });
+                });
+                bar.appendChild(locA);
+
+                return bar;
+            };
+            actionBar.addTo(map);
+
+            // Clean up watch on map close
+            map.on('unload', function() { if (watchId !== null) navigator.geolocation.clearWatch(watchId); });
+
+            setTimeout(function() { map.invalidateSize(); }, 200);
+        }
+    });
+}
+
+// ===== Route Map Helpers =====
+function orderNearest(list, sLat, sLng) {
+    let ord = [], rem = [...list], c = { lat: sLat, lng: sLng };
+    while (rem.length) {
+        let ni = 0, nd = Infinity;
+        for (let i = 0; i < rem.length; i++) {
+            let d = (rem[i].lat - c.lat) ** 2 + (rem[i].lng - c.lng) ** 2;
+            if (d < nd) { nd = d; ni = i; }
+        }
+        ord.push(rem[ni]); c = rem[ni]; rem.splice(ni, 1);
+    }
+    return ord;
+}
+
+// ===== Route Map (Fullscreen) =====
+function showRouteMap() {
+    if (!customers.length) {
+        Swal.fire('No Locations', 'No customers with map coordinates for this day.', 'info');
+        return;
+    }
+
+    let sLat, sLng, sName;
+    if (hqLat && hqLng) { sLat = hqLat; sLng = hqLng; sName = hqName || 'HQ'; }
+    else { sLat = customers[0].lat; sLng = customers[0].lng; sName = customers[0].name + ' (Start)'; }
+
+    let routeMap, routeCtrl, markers, infoCtrl;
+
+    function getOrdered(mode) {
+        let list = (!hqLat || !hqLng) ? customers.slice(1) : [...customers];
+        let first = (!hqLat || !hqLng) ? [customers[0]] : [];
+        if (mode === 'reverse') return first.concat(orderNearest(list, sLat, sLng)).reverse();
+        return first.concat(orderNearest(list, sLat, sLng));
+    }
+
+    function buildLegendHTML(ordered) {
+        let h = '<div class="legend-item"><div class="legend-num start">★</div><div class="legend-name">' + sName + '</div></div>';
+        ordered.forEach(function(c, i) {
+            h += '<div class="legend-item"><div class="legend-num stop">' + (i + 1) + '</div>';
+            h += '<div style="flex:1;min-width:0;"><div class="legend-name">' + c.name + '</div>';
+            if (c.place) h += '<div class="legend-place">' + c.place + '</div>';
+            h += '</div></div>';
+        });
+        return h;
+    }
+
+    function drawRoute(ordered) {
+        if (markers) routeMap.removeLayer(markers);
+        if (routeCtrl) routeMap.removeControl(routeCtrl);
+        markers = L.layerGroup().addTo(routeMap);
+
+        let startIcon = L.divIcon({
+            className: '',
+            html: '<div style="background:#34c759;width:34px;height:34px;border-radius:50%;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:15px;">★</div>',
+            iconSize: [34, 34], iconAnchor: [17, 17]
+        });
+        L.marker([sLat, sLng], { icon: startIcon }).addTo(markers).bindTooltip(sName, { permanent: true, direction: 'top', offset: [0, -20] });
+
+        let bounds = [[sLat, sLng]];
+        ordered.forEach(function(c, i) {
+            let icon = L.divIcon({
+                className: '',
+                html: '<div style="background:#667eea;width:30px;height:30px;border-radius:50%;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:12px;">' + (i + 1) + '</div>',
+                iconSize: [30, 30], iconAnchor: [15, 15]
+            });
+            let bc = c.balance > 0 ? '#34c759' : (c.balance < -10 ? '#ff3b30' : '#ff9500');
+            let tip = '<b>' + c.name + '</b>' + (c.place ? '<br>' + c.place : '') + '<br><span style="color:' + bc + ';font-weight:700;">₹' + c.balance.toFixed(2) + '</span>';
+            L.marker([c.lat, c.lng], { icon: icon }).addTo(markers).bindTooltip(tip, { direction: 'top', offset: [0, -18] });
+            bounds.push([c.lat, c.lng]);
+        });
+        routeMap.fitBounds(bounds, { padding: [40, 40] });
+
+        let wp = [L.latLng(sLat, sLng)];
+        ordered.forEach(function(c) { wp.push(L.latLng(c.lat, c.lng)); });
+
+        routeCtrl = L.Routing.control({
+            waypoints: wp, routeWhileDragging: false, show: false, addWaypoints: false,
+            lineOptions: { styles: [{ color: '#667eea', weight: 5, opacity: 0.75 }] },
+            createMarker: function() { return null; }
+        }).on('routesfound', function(e) {
+            let dist = (e.routes[0].summary.totalDistance / 1000).toFixed(1);
+            let time = Math.round(e.routes[0].summary.totalTime / 60);
+            let el = document.getElementById('route-summary');
+            if (el) el.innerHTML = '<button class="route-mode-toggle" id="btn-route-toggle" onclick="window._toggleRoute()"><i class="fas fa-' + (window._currentMode === 'reverse' ? 'exchange-alt' : 'location-arrow') + '"></i> <span id="route-mode-label">' + (window._currentMode === 'reverse' ? 'Reverse' : 'Nearest') + '</span></button><div class="metric"><i class="fas fa-road"></i> ' + dist + ' KM</div><div class="metric"><i class="fas fa-clock"></i> ' + time + ' min</div><div class="metric"><i class="fas fa-map-pin"></i> ' + ordered.length + ' stops</div>';
+        }).addTo(routeMap);
+
+        // Update legend
+        let legendEl = document.getElementById('legend-list');
+        if (legendEl) legendEl.innerHTML = buildLegendHTML(ordered);
+    }
+
+    let initOrdered = getOrdered('nearest');
+
+    let html = '<div style="display:flex;flex-direction:column;height:100%;">' +
+        '<div style="flex:1;position:relative;">' +
+            '<div class="map-fullscreen" id="route-map" style="height:100%;"></div>' +
+        '</div>' +
+        '<div class="map-bottom-sheet">' +
+            '<div class="route-summary" id="route-summary"><button class="route-mode-toggle" id="btn-route-toggle" onclick="window._toggleRoute()"><i class="fas fa-location-arrow"></i> <span id="route-mode-label">Nearest</span></button><div class="metric"><i class="fas fa-spinner fa-spin"></i> Calculating...</div></div>' +
+            '<div class="legend-list" id="legend-list">' + buildLegendHTML(initOrdered) + '</div>' +
+        '</div>' +
+    '</div>';
+
+    Swal.fire({
+        html: html,
+        showCloseButton: true,
+        showConfirmButton: false,
+        padding: 0,
+        customClass: { container: 'swal-fullscreen' },
+        didOpen: () => {
+            routeMap = L.map('route-map', { zoomControl: false }).setView([sLat, sLng], 10);
+            L.control.zoom({ position: 'bottomright' }).addTo(routeMap);
+
+            let google = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { subdomains: ['mt0','mt1','mt2','mt3'] });
+            let satellite = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { subdomains: ['mt0','mt1','mt2','mt3'] });
+            google.addTo(routeMap);
+            L.control.layers({ 'Map': google, 'Satellite': satellite }, null, { position: 'topright' }).addTo(routeMap);
+
+            window._currentMode = 'nearest';
+            window._toggleRoute = function() {
+                window._currentMode = window._currentMode === 'nearest' ? 'reverse' : 'nearest';
+                drawRoute(getOrdered(window._currentMode));
+                let label = document.getElementById('route-mode-label');
+                let icon = document.querySelector('#btn-route-toggle i');
+                if (window._currentMode === 'nearest') {
+                    label.textContent = 'Nearest';
+                    icon.className = 'fas fa-location-arrow';
+                } else {
+                    label.textContent = 'Reverse';
+                    icon.className = 'fas fa-exchange-alt';
+                }
+            };
+
+            drawRoute(initOrdered);
+            setTimeout(function() { routeMap.invalidateSize(); }, 300);
+        },
+        willClose: () => { delete window._toggleRoute; delete window._currentMode; }
+    });
+}
+</script>
+{% endblock %}

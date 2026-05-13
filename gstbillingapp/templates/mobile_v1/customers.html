@@ -475,6 +475,10 @@
                     <span class="stat-number" id="totalCustomers">{{ total_count|default:0 }}</span>
                     <span class="stat-label">Customers</span>
                 </div>
+                <a href="{% url 'v1collectioncalendar' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="stat-item" style="text-decoration:none;color:white;">
+                    <span class="stat-number"><i class="fas fa-calendar-alt"></i></span>
+                    <span class="stat-label">Collection</span>
+                </a>
             </div>
         </div>
     </div>

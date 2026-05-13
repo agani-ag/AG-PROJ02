@@ -34,6 +34,7 @@ urlpatterns = [
     path('invoices', customer.invoices, name='v1invoices'),
     path('products', customer.products, name='v1products'),
     path('customers', customer.customers, name='v1customers'),
+    path('collection-calendar', customer.collection_calendar, name='v1collectioncalendar'),
     path('purchaselogs', customer.purchase_logs, name='v1purchaselogs'),
     path('notifications', customer.notifications, name='v1notifications'),
     path('expensestracker', customer.expenses_tracker, name='v1expensestracker'),

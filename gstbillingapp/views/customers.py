@@ -108,10 +108,17 @@ def customers_collection_calendar(request):
     context = {}
     case_mapping = dict(Customer.DAYS)
     filter_day = request.GET.get('filter')
+    # Default to current day if no filter specified
+    if filter_day is None:
+        # Python: Monday=0..Sunday=6 → Model: Sunday=0, Monday=1..Saturday=6
+        py_day = timezone.localtime(timezone.now()).weekday()
+        filter_day = str((py_day + 1) % 7)
+        context['default_filter'] = True
     queryset = Book.objects.filter(user=request.user).exclude(customer_id__isnull=True).order_by('customer__customer_name')
     if filter_day:
-        queryset = queryset.filter(customer__collection_day=filter_day)
+        queryset = queryset.filter(customer__collection_day=filter_day).order_by('customer__book__current_balance')
         context['filter_day_display'] = case_mapping.get(int(filter_day))
+    context['filter_day'] = filter_day
     context['books'] = queryset
     return render(request, 'customers/collection_calendar.html', context)
 
@@ -274,3 +281,45 @@ def customer_api_add(request):
                 inserted_count += 1
         return JsonResponse({'status': 'success', 'message': f'{inserted_count} Customers added successfully. {not_inserted_count} Customers not added.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add customers.'})
+
+@csrf_exempt
+def customers_location_mapper_api(request):
+    if request.method == "POST":
+        user_id = request.POST.get("user_id", None)
+        update_days = request.POST.get("update_days", None)
+        if not user_id:
+            return JsonResponse({'status': 'error', 'message': 'User ID is required.'})
+        # Source: customers with valid location AND non-empty GST
+        source_customers = Customer.objects.filter(user_id=user_id)\
+            .exclude(customer_gst__isnull=True).exclude(customer_gst='')\
+            .exclude(customer_latitude__isnull=True)\
+            .exclude(customer_longitude__isnull=True)
+        location_mapping = {}
+        for customer in source_customers:
+            location_mapping[customer.customer_gst] = {
+                'customer_place': customer.customer_place,
+                'latitude': customer.customer_latitude,
+                'longitude': customer.customer_longitude,
+                'collection_day': customer.collection_day,
+            }
+        if not location_mapping:
+            return JsonResponse({'status': 'error', 'message': 'No customers with valid GST and location found.'})
+        # Target: other users' customers with matching GST (exclude source user)
+        target_customers = Customer.objects.exclude(user_id=user_id)\
+            .filter(customer_gst__in=location_mapping.keys())
+        updated = []
+        update_fields = ['customer_latitude', 'customer_longitude', 'customer_place']
+        if update_days:
+            update_fields.append('collection_day')
+        for customer in target_customers:
+            loc = location_mapping[customer.customer_gst]
+            customer.customer_latitude = loc['latitude']
+            customer.customer_longitude = loc['longitude']
+            customer.customer_place = loc['customer_place']
+            if update_days:
+                customer.collection_day = loc['collection_day']
+            updated.append(customer)
+        if updated:
+            Customer.objects.bulk_update(updated, update_fields)
+        return JsonResponse({'status': 'success', 'message': f'Customer locations updated successfully. {len(updated)} customers updated.'})
+    return JsonResponse({'status': 'error', 'message': 'Use POST method to update customer locations.'})

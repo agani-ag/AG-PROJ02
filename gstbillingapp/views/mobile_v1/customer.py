@@ -538,6 +538,66 @@ def customers(request):
     
     return render(request, 'mobile_v1/customers.html', context)
 
+
+def collection_calendar(request):
+    """Mobile collection calendar with route mapping - employee/admin only"""
+    context = {}
+    case_mapping = dict(Customer.DAYS)
+    users_filter = request.GET.get('users_filter', '')
+    user_ids = []
+
+    # Base user queryset
+    users = UserProfile.objects.all().select_related('user')
+    if users_filter:
+        user_ids = [int(uid) for uid in users_filter.split(',') if uid.isdigit()]
+        users = users.filter(user__id__in=user_ids)
+
+    filter_day = request.GET.get('filter')
+    # Default to current day if no filter specified
+    if filter_day is None:
+        py_day = timezone.localtime(timezone.now()).weekday()
+        filter_day = str((py_day + 1) % 7)
+        context['default_filter'] = True
+
+    queryset = Book.objects.select_related('customer', 'user').exclude(customer_id__isnull=True)
+    if user_ids:
+        queryset = queryset.filter(user__id__in=user_ids)
+
+    # Individual user filter from dropdown
+    user_id = request.GET.get('user_id', '')
+    if user_id and user_id.isdigit():
+        queryset = queryset.filter(user__id=int(user_id))
+
+    queryset = queryset.order_by('customer__customer_name')
+
+    if filter_day:
+        queryset = queryset.filter(customer__collection_day=filter_day).order_by('customer__book__current_balance')
+        context['filter_day_display'] = case_mapping.get(int(filter_day))
+
+    context['filter_day'] = filter_day
+    context['books'] = queryset
+    context['users'] = users
+    context['users_filter'] = users_filter
+
+    # HQ coordinates: use selected user, or first user in filter, or logged-in user
+    hq_profile = None
+    if user_id and user_id.isdigit():
+        hq_profile = UserProfile.objects.filter(user__id=int(user_id)).first()
+    if not hq_profile and user_ids:
+        hq_profile = UserProfile.objects.filter(user__id__in=user_ids).first()
+    if not hq_profile and hasattr(request.user, 'userprofile'):
+        hq_profile = request.user.userprofile
+    if hq_profile:
+        context['hq_lat'] = hq_profile.business_latitude or 0
+        context['hq_lng'] = hq_profile.business_longitude or 0
+        context['hq_name'] = hq_profile.business_title or ''
+    else:
+        context['hq_lat'] = 0
+        context['hq_lng'] = 0
+        context['hq_name'] = ''
+
+    return render(request, 'mobile_v1/collection_calendar.html', context)
+
 def invoices(request):
     import json
     from django.core.paginator import Paginator

@@ -11,19 +11,23 @@
         <form method="GET" class="d-flex align-items-center gap-2">
             <select name="filter" class="form-control form-control-sm" onchange="this.form.submit()">
                 <option value="">All Days</option>
-                <option value="1" {% if request.GET.filter == '1' %}selected{% endif %}>Monday</option>
-				<option value="2" {% if request.GET.filter == '2' %}selected{% endif %}>Tuesday</option>
-				<option value="3" {% if request.GET.filter == '3' %}selected{% endif %}>Wednesday</option>
-				<option value="4" {% if request.GET.filter == '4' %}selected{% endif %}>Thursday</option>
-				<option value="5" {% if request.GET.filter == '5' %}selected{% endif %}>Friday</option>
-				<option value="6" {% if request.GET.filter == '6' %}selected{% endif %}>Saturday</option>
-				<option value="0" {% if request.GET.filter == '0' %}selected{% endif %}>Sunday</option>
+                <option value="1" {% if filter_day == '1' %}selected{% endif %}>Monday</option>
+				<option value="2" {% if filter_day == '2' %}selected{% endif %}>Tuesday</option>
+				<option value="3" {% if filter_day == '3' %}selected{% endif %}>Wednesday</option>
+				<option value="4" {% if filter_day == '4' %}selected{% endif %}>Thursday</option>
+				<option value="5" {% if filter_day == '5' %}selected{% endif %}>Friday</option>
+				<option value="6" {% if filter_day == '6' %}selected{% endif %}>Saturday</option>
+				<option value="0" {% if filter_day == '0' %}selected{% endif %}>Sunday</option>
             </select>
         </form>
     </div>
 
 	<div class="col-auto">
 		<a href="{% url 'customers' %}" class="btn btn-danger btn-sm btn-curve" title="Customers"><i class="fas fa-users"></i></a>
+		<a href="#" class="btn btn-success btn-sm btn-curve" title="Update Locations" onclick="updateLocations()"><i class="fas fa-map-marker-alt"></i></a>
+		{% if filter_day_display %}
+		<a href="#" class="btn btn-primary btn-sm btn-curve" title="Route Map" onclick="showRouteMap()"><i class="fas fa-route"></i></a>
+		{% endif %}
 	</div>
 	
 </div>
@@ -72,7 +76,29 @@
 
 
 {% block includejs %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.min.js"></script>
 <script type="text/javascript">
+
+// HQ (business) coordinates
+const hqLat = {{ request.user.userprofile.business_latitude|default:"0" }};
+const hqLng = {{ request.user.userprofile.business_longitude|default:"0" }};
+const hqName = "{{ request.user.userprofile.business_title|escapejs }}";
+
+// Build customer location array from current page data
+const customers = [
+    {% for book in books %}
+    {% if book.customer.customer_latitude and book.customer.customer_longitude %}
+    {
+        name: "{{ book.customer.customer_name|escapejs }}",
+        place: "{{ book.customer.customer_place|default_if_none:''|escapejs }}",
+        lat: {{ book.customer.customer_latitude }},
+        lng: {{ book.customer.customer_longitude }},
+        balance: {{ book.current_balance|default:"0" }}
+    },
+    {% endif %}
+    {% endfor %}
+];
 
 $(document).ready( function () {
 	$('#customer-table').DataTable({
@@ -311,5 +337,260 @@ function UpdateCollectionDay(customerId, currentDay, currentPlace) {
     });
 }
 
+function orderNearest(list, sLat, sLng) {
+    let ordered = [], remaining = [...list];
+    let cur = { lat: sLat, lng: sLng };
+    while (remaining.length > 0) {
+        let ni = 0, nd = Infinity;
+        for (let i = 0; i < remaining.length; i++) {
+            let d = Math.pow(remaining[i].lat - cur.lat, 2) + Math.pow(remaining[i].lng - cur.lng, 2);
+            if (d < nd) { nd = d; ni = i; }
+        }
+        ordered.push(remaining[ni]);
+        cur = { lat: remaining[ni].lat, lng: remaining[ni].lng };
+        remaining.splice(ni, 1);
+    }
+    return ordered;
+}
+
+function orderFarthest(list, sLat, sLng) {
+    let ordered = [], remaining = [...list];
+    let cur = { lat: sLat, lng: sLng };
+    while (remaining.length > 0) {
+        let fi = 0, fd = -1;
+        for (let i = 0; i < remaining.length; i++) {
+            let d = Math.pow(remaining[i].lat - cur.lat, 2) + Math.pow(remaining[i].lng - cur.lng, 2);
+            if (d > fd) { fd = d; fi = i; }
+        }
+        ordered.push(remaining[fi]);
+        cur = { lat: remaining[fi].lat, lng: remaining[fi].lng };
+        remaining.splice(fi, 1);
+    }
+    return ordered;
+}
+
+function showRouteMap() {
+    if (customers.length === 0) {
+        Swal.fire('No Locations', 'No customers with map coordinates for this day.', 'info');
+        return;
+    }
+
+    // Determine starting point
+    let startLat, startLng, startName;
+    if (hqLat && hqLng) {
+        startLat = hqLat; startLng = hqLng; startName = hqName || 'HQ';
+    } else {
+        startLat = customers[0].lat; startLng = customers[0].lng; startName = customers[0].name + ' (Start)';
+    }
+
+    let routeMap, routingControl, markerGroup, infoControl;
+    let currentMode = 'nearest';
+
+    function getOrdered(mode) {
+        let list = (!hqLat || !hqLng) ? customers.slice(1) : [...customers];
+        let first = (!hqLat || !hqLng) ? [customers[0]] : [];
+        switch (mode) {
+            case 'nearest': return first.concat(orderNearest(list, startLat, startLng));
+            case 'farthest': return first.concat(orderFarthest(list, startLat, startLng));
+            case 'reverse': return first.concat(orderNearest(list, startLat, startLng)).reverse();
+            default: return first.concat(orderNearest(list, startLat, startLng));
+        }
+    }
+
+    function buildLegend(ordered) {
+        let h = '<div id="route-legend" style="max-height:150px;overflow-y:auto;margin-top:8px;text-align:left;font-size:13px;">';
+        h += '<div style="padding:4px 0;"><b style="color:#34c759;">&#9679;</b> Start: ' + startName + '</div>';
+        ordered.forEach(function(c, i) {
+            h += '<div style="padding:3px 0;"><b style="color:#667eea;">' + (i + 1) + '.</b> ' + c.name;
+            if (c.place) h += ' <span style="color:#888;">(' + c.place + ')</span>';
+            h += '</div>';
+        });
+        h += '</div>';
+        return h;
+    }
+
+    function drawRoute(ordered) {
+        // Clear previous markers and route
+        if (markerGroup) routeMap.removeLayer(markerGroup);
+        if (routingControl) routeMap.removeControl(routingControl);
+        if (infoControl) routeMap.removeControl(infoControl);
+        markerGroup = L.layerGroup().addTo(routeMap);
+
+        // HQ/Start marker
+        let hqIcon = L.divIcon({
+            className: 'custom-marker',
+            html: '<div style="background:#34c759;width:36px;height:36px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:16px;">\u2605</div>',
+            iconSize: [36, 36], iconAnchor: [18, 18]
+        });
+        L.marker([startLat, startLng], { icon: hqIcon })
+            .addTo(markerGroup)
+            .bindTooltip(startName, { permanent: true, direction: 'top', offset: [0, -20] });
+
+        // Customer markers
+        let bounds = [[startLat, startLng]];
+        ordered.forEach(function(c, i) {
+            let icon = L.divIcon({
+                className: 'custom-marker',
+                html: '<div style="background:#667eea;width:30px;height:30px;border-radius:50%;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:13px;">' + (i + 1) + '</div>',
+                iconSize: [30, 30], iconAnchor: [15, 15]
+            });
+            let balanceColor = c.balance > 0 ? '#34c759' : (c.balance < -10 ? '#ff3b30' : '#ff9500');
+            let tooltip = c.name + (c.place ? ' (' + c.place + ')' : '') + '<br><b style="color:' + balanceColor + '">\u20B9' + c.balance.toFixed(2) + '</b>';
+            L.marker([c.lat, c.lng], { icon: icon })
+                .addTo(markerGroup)
+                .bindTooltip(tooltip, { direction: 'top', offset: [0, -18] });
+            bounds.push([c.lat, c.lng]);
+        });
+        routeMap.fitBounds(bounds, { padding: [40, 40] });
+
+        // Waypoints & routing
+        let waypoints = [L.latLng(startLat, startLng)];
+        ordered.forEach(function(c) { waypoints.push(L.latLng(c.lat, c.lng)); });
+
+        routingControl = L.Routing.control({
+            waypoints: waypoints,
+            routeWhileDragging: false,
+            show: false,
+            addWaypoints: false,
+            lineOptions: { styles: [{ color: '#007aff', weight: 5, opacity: 0.8 }] },
+            createMarker: function() { return null; }
+        }).on('routesfound', function(e) {
+            let totalDist = e.routes[0].summary.totalDistance / 1000;
+            let totalTime = e.routes[0].summary.totalTime / 60;
+            if (infoControl) routeMap.removeControl(infoControl);
+            infoControl = L.control({ position: 'bottomleft' });
+            infoControl.onAdd = function() {
+                let div = L.DomUtil.create('div', '');
+                div.style.cssText = 'background:white;padding:8px 14px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.2);font-size:13px;font-weight:600;';
+                div.innerHTML = '\uD83D\uDEE3\uFE0F ' + totalDist.toFixed(1) + ' KM &bull; \u23F1 ' + Math.round(totalTime) + ' min &bull; ' + ordered.length + ' stops';
+                return div;
+            };
+            infoControl.addTo(routeMap);
+        }).addTo(routeMap);
+
+        // Update legend
+        let legendEl = document.getElementById('route-legend');
+        if (legendEl) legendEl.outerHTML = buildLegend(ordered);
+    }
+
+    let initOrdered = getOrdered('nearest');
+
+    let toolbarHtml = '<div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">' +
+        '<button id="btn-nearest" class="btn btn-primary btn-sm" onclick="window._reRoute(\'nearest\')"><i class="fas fa-location-arrow"></i> Nearest First</button>' +
+        '<button id="btn-farthest" class="btn btn-outline-secondary btn-sm" onclick="window._reRoute(\'farthest\')"><i class="fas fa-arrows-alt"></i> Farthest First</button>' +
+        '<button id="btn-reverse" class="btn btn-outline-secondary btn-sm" onclick="window._reRoute(\'reverse\')"><i class="fas fa-exchange-alt"></i> Reverse</button>' +
+        '</div>';
+
+    Swal.fire({
+        html: toolbarHtml + '<div id="route-map" style="height:500px;width:100%;border-radius:10px;"></div>' + buildLegend(initOrdered),
+        width: '90%',
+        showCloseButton: true,
+        showConfirmButton: false,
+        didOpen: () => {
+            routeMap = L.map('route-map').setView([startLat, startLng], 10);
+
+            let googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            });
+            let satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            });
+            let osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            });
+            googleLayer.addTo(routeMap);
+            L.control.layers({
+                '\uD83D\uDDFA\uFE0F Google': googleLayer,
+                '\uD83D\uDEF0\uFE0F Satellite': satelliteLayer,
+                '\uD83D\uDDFA\uFE0F OSM': osmLayer
+            }).addTo(routeMap);
+
+            // Re-route handler
+            window._reRoute = function(mode) {
+                currentMode = mode;
+                let ordered = getOrdered(mode);
+                drawRoute(ordered);
+                // Update active button
+                ['nearest', 'farthest', 'reverse'].forEach(function(m) {
+                    let btn = document.getElementById('btn-' + m);
+                    if (m === mode) {
+                        btn.className = 'btn btn-primary btn-sm';
+                    } else {
+                        btn.className = 'btn btn-outline-secondary btn-sm';
+                    }
+                });
+            };
+
+            drawRoute(initOrdered);
+            setTimeout(function() { routeMap.invalidateSize(); }, 300);
+        },
+        willClose: () => {
+            delete window._reRoute;
+        }
+    });
+}
+
+function updateLocations() {
+    Swal.fire({
+        title: 'Update Locations',
+        html: `
+            <p style="font-size:14px; color:#666; margin-bottom:16px;">
+                Copy location data from your customers to other users' customers with matching GST numbers.
+            </p>
+            <div style="text-align:left;">
+                <label style="font-weight:600;">Update Mode</label>
+                <select id="swal-mode" class="swal2-input">
+                    <option value="locations">Locations + Places</option>
+                    <option value="locations_days">Locations + Places + Collection Days</option>
+                </select>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-sync-alt"></i> Update',
+        focusConfirm: false,
+        preConfirm: () => {
+            return document.getElementById('swal-mode').value;
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Updating Locations...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+            let postData = {
+                user_id: '{{ request.user.id }}',
+                csrfmiddlewaretoken: '{{ csrf_token }}'
+            };
+            if (result.value === 'locations_days') {
+                postData.update_days = '1';
+            }
+            $.ajax({
+                url: "{% url 'customers_location_mapper_api' %}",
+                type: "POST",
+                data: postData,
+                success: function (response) {
+                    if (response.status === 'success') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Done!',
+                            text: response.message,
+                            timer: 2000,
+                            showConfirmButton: false
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire('Error', response.message, 'error');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Server error. Try again.', 'error');
+                }
+            });
+        }
+    });
+}
 </script>
 {% endblock %}
