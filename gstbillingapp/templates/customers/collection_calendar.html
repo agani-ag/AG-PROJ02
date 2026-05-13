@@ -54,6 +54,11 @@
 			<td>{% endif %}
 				{% if book.customer.customer_place %}
 					{{book.customer.customer_place}}
+                    {% if book.customer.customer_latitude and book.customer.customer_longitude %}
+                    <i class="fas fa-map-marker-alt text-success"></i>
+                    {% else %}
+                    <i class="fas fa-map-marker-alt text-muted" title="No coordinates"></i>
+                    {% endif %}
 				{% else %}<span class="text-muted">N/A</span>{% endif %}
 			</td>
 			<td class="font-weight-bold">{% if book.current_balance >= -10 and book.current_balance <= 10 %}
@@ -172,7 +177,8 @@ $(document).ready( function () {
 
 function popup_Customer_maps(latitude, longitude, name) {
     Swal.fire({
-        html: `<div id="map" style="height: 600px; width: 98%; border-radius: 10px;"></div>`,
+        html: `<div id="map" style="height: 600px; width: 98%; border-radius: 10px;"></div>
+               <div id="single-route-info" style="display:none;padding:10px 16px;font-size:13px;font-weight:600;text-align:center;"></div>`,
         width: '80%',
         showCloseButton: true,
         showConfirmButton: false,
@@ -240,12 +246,62 @@ function popup_Customer_maps(latitude, longitude, name) {
 				div.title = "Lead Location";
 				div.innerHTML = '📍';
 				div.onclick = function(e) {
-					e.stopPropagation(); // Prevent map click events
+					e.stopPropagation();
 					map.setView([latitude, longitude], 15, { animate: true });
 				};
 				return div;
 			};
 			locateControl.addTo(map);
+
+			// HQ Route button
+			if (hqLat && hqLng) {
+				let hqRouteCtrl = null, hqMarker = null, hqActive = false;
+				let hqControl = L.control({ position: 'topleft' });
+				hqControl.onAdd = function(map) {
+					let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+					div.style.cssText = 'background:white;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;';
+					div.title = 'Route from HQ';
+					div.innerHTML = '<i class="fas fa-store"></i>';
+					div.onclick = function(e) {
+						e.stopPropagation();
+						if (hqActive) {
+							if (hqMarker) { map.removeLayer(hqMarker); hqMarker = null; }
+							if (hqRouteCtrl) { map.removeControl(hqRouteCtrl); hqRouteCtrl = null; }
+							let infoEl = document.getElementById('single-route-info');
+							if (infoEl) { infoEl.style.display = 'none'; infoEl.innerHTML = ''; }
+							div.style.background = 'white';
+							hqActive = false;
+							return;
+						}
+						hqActive = true;
+						div.style.background = '#e8f0fe';
+						hqMarker = L.marker([hqLat, hqLng], {
+							icon: L.divIcon({
+								className: '',
+								html: '<div style="background:#34c759;width:30px;height:30px;border-radius:50%;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:13px;">★</div>',
+								iconSize: [30, 30], iconAnchor: [15, 15]
+							})
+						}).addTo(map).bindTooltip(hqName || 'HQ', { permanent: true, direction: 'top', offset: [0, -18] });
+						hqRouteCtrl = L.Routing.control({
+							waypoints: [L.latLng(hqLat, hqLng), L.latLng(latitude, longitude)],
+							routeWhileDragging: false, show: false, addWaypoints: false,
+							lineOptions: { styles: [{ color: '#34c759', weight: 5, opacity: 0.8 }] },
+							createMarker: function() { return null; }
+						}).on('routesfound', function(re) {
+							let dist = (re.routes[0].summary.totalDistance / 1000).toFixed(1);
+							let time = Math.round(re.routes[0].summary.totalTime / 60);
+							let infoEl = document.getElementById('single-route-info');
+							if (infoEl) {
+								infoEl.style.display = 'block';
+								infoEl.innerHTML = '<i class="fas fa-road" style="color:#34c759;margin-right:4px;"></i>' + dist + ' KM &bull; <i class="fas fa-clock" style="color:#34c759;margin-right:4px;"></i>' + time + ' min &bull; <i class="fas fa-building" style="color:#34c759;margin-right:4px;"></i>HQ';
+							}
+						}).addTo(map);
+						map.fitBounds([[hqLat, hqLng], [latitude, longitude]], { padding: [50, 50], animate: true });
+					};
+					return div;
+				};
+				hqControl.addTo(map);
+			}
 
             setTimeout(() => {
                 map.invalidateSize();
