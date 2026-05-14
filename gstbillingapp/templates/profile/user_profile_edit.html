@@ -1,64 +1,253 @@
 {% extends "base.html" %}
 {% load static %}
+
+{% block includecss %}
+<style>
+	.profile-header {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		padding: 28px 24px;
+		border-radius: 16px;
+		margin-bottom: 24px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.profile-header h2 { margin: 0; font-weight: 700; font-size: 1.5rem; }
+	.profile-header p { margin: 4px 0 0; opacity: 0.85; font-size: 0.85rem; }
+	.profile-header .uid-badge {
+		background: rgba(255,255,255,0.2);
+		padding: 6px 14px;
+		border-radius: 20px;
+		font-size: 0.78rem;
+		font-weight: 600;
+		backdrop-filter: blur(4px);
+	}
+	.section-card {
+		background: #fff;
+		border-radius: 14px;
+		box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+		margin-bottom: 20px;
+		overflow: hidden;
+		border: 1px solid #e5e5ea;
+	}
+	.section-header {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 16px 20px;
+		background: linear-gradient(135deg, rgba(102,126,234,0.06), rgba(118,75,162,0.06));
+		border-bottom: 1px solid #e5e5ea;
+		font-weight: 700;
+		font-size: 0.95rem;
+		color: #1c1c1e;
+	}
+	.section-header .uid-badge { margin-left: auto; }
+	.section-header > i {
+		color: #667eea;
+		font-size: 1rem;
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: rgba(102,126,234,0.1);
+		border-radius: 8px;
+	}
+	.section-body { padding: 20px; }
+	.form-row-custom {
+		display: flex;
+		gap: 16px;
+		margin-bottom: 16px;
+		flex-wrap: wrap;
+	}
+	.form-group-custom {
+		flex: 1;
+		min-width: 200px;
+	}
+	.form-group-custom label {
+		display: block;
+		font-weight: 600;
+		font-size: 0.8rem;
+		color: #8e8e93;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		margin-bottom: 6px;
+	}
+	.form-group-custom input,
+	.form-group-custom select,
+	.form-group-custom textarea {
+		width: 100%;
+		padding: 10px 14px;
+		border: 1.5px solid #e5e5ea;
+		border-radius: 10px;
+		font-size: 0.9rem;
+		font-weight: 500;
+		color: #1c1c1e;
+		transition: border-color 0.2s, box-shadow 0.2s;
+		background: #fafafa;
+	}
+	.form-group-custom input:focus,
+	.form-group-custom select:focus,
+	.form-group-custom textarea:focus {
+		outline: none;
+		border-color: #667eea;
+		box-shadow: 0 0 0 3px rgba(102,126,234,0.12);
+		background: #fff;
+	}
+	.form-group-custom textarea { resize: vertical; min-height: 70px; }
+	.uid-display {
+		padding: 10px 14px;
+		background: linear-gradient(135deg, rgba(52,199,89,0.08), rgba(52,199,89,0.04));
+		border: 1.5px solid rgba(52,199,89,0.25);
+		border-radius: 10px;
+		color: #34c759;
+		font-weight: 700;
+		font-size: 0.9rem;
+		font-family: 'SF Mono', monospace;
+		letter-spacing: 0.3px;
+	}
+	.map-container {
+		height: 420px;
+		border-radius: 12px;
+		overflow: hidden;
+		border: 1.5px solid #e5e5ea;
+	}
+	.btn-actions {
+		display: flex;
+		gap: 12px;
+		justify-content: flex-end;
+		margin-top: 8px;
+		padding: 20px 0;
+	}
+	.btn-save {
+		padding: 12px 32px;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		border: none;
+		border-radius: 12px;
+		font-weight: 700;
+		font-size: 0.9rem;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		box-shadow: 0 4px 16px rgba(102,126,234,0.35);
+		cursor: pointer;
+		transition: transform 0.15s, box-shadow 0.15s;
+	}
+	.btn-save:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(102,126,234,0.45); }
+	.btn-save:active { transform: scale(0.97); }
+	.btn-cancel {
+		padding: 12px 24px;
+		background: #fff;
+		color: #ff3b30;
+		border: 1.5px solid #ff3b30;
+		border-radius: 12px;
+		font-weight: 600;
+		font-size: 0.9rem;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		cursor: pointer;
+		transition: all 0.15s;
+		text-decoration: none;
+	}
+	.btn-cancel:hover { background: #fff5f5; color: #ff3b30; text-decoration: none; }
+	.coord-group { display: flex; gap: 12px; }
+	.coord-group .form-group-custom { flex: 1; }
+</style>
+{% endblock %}
+
 {% block content %}
-<h2>Edit Profile</h2>
+
 <form method="POST">
 	{% csrf_token %}
-	<table class="table">
-		<tbody class="two-col-form">
-			<tr>
-				<th scope="row" class="text-right">Business Name:</th>
-				<td class="form-input-td customer_search_area">{{user_profile_form.business_title}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Address:</th>
-				<td class="form-input-td">
-					<textarea name="business_address" rows="2" cols="35">{{user_profile_form.business_address.value|default:''}}</textarea>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Email:</th>
-				<td class="form-input-td">{{user_profile_form.business_email}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Phone:</th>
-				<td class="form-input-td">{{user_profile_form.business_phone}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">GST:</th>
-				<td class="form-input-td" pattern="([A-Za-z0-9]{15})|(^$)">{{user_profile_form.business_gst}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Brand:</th>
-				<td class="form-input-td">{{user_profile_form.business_brand}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">UserID:</th>
-				<td class="form-input-td" style="color: green;">{{business_uid}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Latitude:</th>
-				<td class="form-input-td">{{user_profile_form.business_latitude}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Longitude:</th>
-				<td class="form-input-td">{{user_profile_form.business_longitude}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Bank Details:</th>
-				<td class="form-input-td">{{user_profile_form.bankdetails}}</td>
-			</tr>
-			<tr>
-				<td colspan="2">
-					<div id="map" style="height: 400px; border-radius: 10px;"></div>
-				</td>
-			</tr>
-		</tbody>
-	</table>
 
-	<div class="text-right">
-		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
-		<a href="{% url 'user_profile' %}" class="btn btn-danger"><i class="fas fa-cancel"></i></a>
+	<!-- Business Information -->
+	<div class="section-card">
+		<div class="section-header">
+			<i class="fas fa-building"></i> Business Information
+		    <div class="uid-badge"><i class="fas fa-fingerprint"></i>{{ business_uid }}</div>
+		</div>
+		<div class="section-body">
+			<div class="form-row-custom">
+				<div class="form-group-custom">
+					<label><i class="fas fa-store" style="margin-right:4px;"></i> Business Name</label>
+					{{ user_profile_form.business_title }}
+				</div>
+				<div class="form-group-custom">
+					<label><i class="fas fa-tag" style="margin-right:4px;"></i> Brand</label>
+					{{ user_profile_form.business_brand }}
+				</div>
+			</div>
+			<div class="form-row-custom">
+				<div class="form-group-custom">
+					<label><i class="fas fa-map-marker-alt" style="margin-right:4px;"></i> Address</label>
+					<textarea name="business_address" rows="2">{{ user_profile_form.business_address.value|default:'' }}</textarea>
+				</div>
+			</div>
+			<div class="form-row-custom">
+				<div class="form-group-custom">
+					<label><i class="fas fa-id-card" style="margin-right:4px;"></i> GST Number</label>
+					{{ user_profile_form.business_gst }}
+				</div>
+				<div class="form-group-custom">
+					<label><i class="fas fa-university" style="margin-right:4px;"></i> Bank Details</label>
+					{{ user_profile_form.bankdetails }}
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Contact Details -->
+	<div class="section-card">
+		<div class="section-header">
+			<i class="fas fa-address-book"></i> Contact Details
+		</div>
+		<div class="section-body">
+			<div class="form-row-custom">
+				<div class="form-group-custom">
+					<label><i class="fas fa-envelope" style="margin-right:4px;"></i> Email</label>
+					{{ user_profile_form.business_email }}
+				</div>
+				<div class="form-group-custom">
+					<label><i class="fas fa-phone" style="margin-right:4px;"></i> Phone</label>
+					{{ user_profile_form.business_phone }}
+				</div>
+			</div>
+			<div class="form-row-custom">
+				<div class="form-group-custom">
+					<label><i class="fas fa-link" style="margin-right:4px;"></i> Project Link</label>
+					{{ user_profile_form.link_to_project1 }}
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Location -->
+	<div class="section-card">
+		<div class="section-header">
+			<i class="fas fa-map-marked-alt"></i> Business Location
+		</div>
+		<div class="section-body">
+			<div class="coord-group" style="margin-bottom:16px;">
+				<div class="form-group-custom">
+					<label><i class="fas fa-arrows-alt-v" style="margin-right:4px;"></i> Latitude</label>
+					{{ user_profile_form.business_latitude }}
+				</div>
+				<div class="form-group-custom">
+					<label><i class="fas fa-arrows-alt-h" style="margin-right:4px;"></i> Longitude</label>
+					{{ user_profile_form.business_longitude }}
+				</div>
+			</div>
+			<div class="map-container" id="map"></div>
+		</div>
+	</div>
+
+	<!-- Actions -->
+	<div class="btn-actions">
+		<a href="{% url 'user_profile' %}" class="btn-cancel"><i class="fas fa-times"></i> Cancel</a>
+		<button type="submit" class="btn-save"><i class="fas fa-save"></i> Save Changes</button>
 	</div>
 </form>
 

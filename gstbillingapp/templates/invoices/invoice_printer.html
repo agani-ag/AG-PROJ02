@@ -245,7 +245,6 @@
 							<td>{{ currency }} {{invoice_data.invoice_total_amt_with_gst|floatformat:2 }}</td>
 						</tr>
 
-
 						<tr> 
 							<td colspan="2" class="text-middle">
 								Invoice Total In Words: {{ total_in_words }} only.
@@ -258,29 +257,140 @@
 							<td colspan="2">Authorized Signatory<br> {{user_profile.business_title}} </td>
 						</tr>
 					</table>
-
-
 				</div>
-
-
-
 			</div>
-
-
 		</div>
 	</div>
 	<div class="text-right" style="margin-right: 5px;">
-		<button onclick="window.print();" title="Print Invoice"
-			class="btn btn-primary btn-curve d-print-none">
-			<i class="fas fa-print"></i>
-		</button>
-		<a href="{% url 'invoices' %}" class="btn btn-danger" title="Cancel Invoice"><i class="fas fa-cancel"></i></a>
+		<button onclick="window.print();" title="Print Invoice" class="btn btn-primary btn-curve d-print-none"><i class="fas fa-print"></i></button>
+		{% if user_profile.link_to_project1 %}
+			<button onclick="mapInvoiceToEmployee();" class="btn btn-warning btn-curve d-print-none" title="Map Invoice To Employee"><i class="fas fa-user"></i></button>
+		{% endif %}
+		<a href="{% url 'invoices' %}" class="btn btn-danger btn-curve d-print-none" title="Cancel Invoice"><i class="fas fa-times"></i></a>
 	</div>
 
 {% endblock %}
 {% block includejs %}
 <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
 <script>
+	{% if user_profile.link_to_project1 %}
+		// Map Invoice To Employee
+		function mapInvoiceToEmployee() {
+			Swal.fire({
+				title: 'Fetching Employees...',
+				allowOutsideClick: false,
+				didOpen: () => Swal.showLoading()
+			});
+			var invoice_employee_mapping_api = "{% url 'invoice_employee_mapping_proxy' %}";
+			fetch(invoice_employee_mapping_api)
+				.then(res => res.json())
+				.then(data => {
+					if (!data.employees || data.employees.length === 0) {
+						Swal.fire('No Employees', 'No staff members found.', 'info');
+						return;
+					}
+					let options = data.employees.map(e =>
+						'<option value="' + e.id + '">' + e.username + '</option>'
+					).join('');
+
+					Swal.fire({
+						title: '<i class="fas fa-user-tag" style="color:#667eea;margin-right:8px;"></i>Map to Employee',
+						html: `
+							<div style="text-align:left;margin-top:12px;">
+								<label style="font-weight:600;font-size:13px;color:#666;margin-bottom:6px;display:block;">Select Employee</label>
+								<select id="swal-employee" class="swal2-input" style="width:100%;margin:0;">
+									<option value="">-- Choose Employee --</option>
+									${options}
+								</select>
+							</div>
+							<div style="margin-top:16px;padding:12px 14px;background:#f8f9ff;border-radius:10px;border:1px solid #e5e5ea;text-align:left;font-size:13px;">
+								<div style="margin-bottom:6px;"><strong>Invoice:</strong> {% if invoice.is_gst %}{{ invoice.invoice_number }}{% else %}INV-{{ invoice.invoice_number }}{% endif %}</div>
+								<div style="margin-bottom:6px;"><strong>Date:</strong> {{ invoice.invoice_date }}</div>
+								<div><strong>Amount:</strong> {{ currency }} {{ invoice_data.invoice_total_amt_with_gst|floatformat:2 }}</div>
+							</div>
+						`,
+						showCancelButton: true,
+						confirmButtonText: '<i class="fas fa-check"></i> Map',
+						confirmButtonColor: '#667eea',
+						cancelButtonText: 'Cancel',
+						focusConfirm: false,
+						preConfirm: () => {
+							let empId = document.getElementById('swal-employee').value;
+							if (!empId) {
+								Swal.showValidationMessage('Please select an employee');
+								return false;
+							}
+							return empId;
+						}
+					}).then(result => {
+						if (result.isConfirmed) {
+							Swal.fire({ title: 'Mapping...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+							fetch(invoice_employee_mapping_api, {
+								method: 'POST',
+								headers: {
+									'Content-Type': 'application/json',
+									'X-CSRFToken': '{{ csrf_token }}'
+								},
+								body: JSON.stringify({
+									invoice_id: {{ invoice.id }},
+									employee_id: result.value,
+									invoice_number: '{% if invoice.is_gst %}{{ invoice.invoice_number }}{% else %}INV-{{ invoice.invoice_number }}{% endif %}',
+									invoice_amount: {{ invoice_data.invoice_total_amt_with_gst|floatformat:2 }},
+									invoice_date: '{{ invoice.invoice_date|date:"Y-m-d" }}',
+									invoice_brand: '{{ user_profile.business_brand|default:""|escapejs }}'
+								})
+							})
+							.then(res => res.json().then(data => ({status: res.status, body: data})))
+							.then(({status, body: resp}) => {
+								if (resp.error) {
+									if (status === 409 && resp.existing_mapping) {
+										Swal.fire({
+											icon: 'warning',
+											title: 'Already Mapped!',
+											html: `
+												<div style="text-align:left;font-size:13px;margin-top:10px;">
+													<div style="padding:12px 14px;background:#fffbeb;border-radius:10px;border:1px solid #fde68a;margin-bottom:10px;">
+														<div style="margin-bottom:6px;"><strong>Employee:</strong> ${resp.existing_mapping.employee.name}</div>
+														<div style="margin-bottom:6px;"><strong>Invoice:</strong> ${resp.existing_mapping.invoice_number}</div>
+														<div><strong>Mapped At:</strong> ${resp.existing_mapping.mapped_at}</div>
+													</div>
+													<div style="color:#92400e;font-size:12px;text-align:center;">This invoice is already assigned to an employee.</div>
+												</div>
+											`,
+											confirmButtonColor: '#667eea',
+										});
+									} else {
+										Swal.fire('Error', resp.error, 'error');
+									}
+								} else {
+									Swal.fire({
+										icon: 'success',
+										title: resp.created ? 'Mapped!' : 'Updated!',
+										html: `
+											<div style="text-align:left;font-size:13px;margin-top:10px;">
+												<div style="padding:12px 14px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;margin-bottom:10px;">
+													<div style="margin-bottom:6px;"><strong>Employee:</strong> ${resp.employee.name}</div>
+													<div><strong>Status:</strong> <span style="color:${resp.status === 'new' ? '#16a34a' : '#d97706'};font-weight:600;">${resp.status === 'new' ? 'New Mapping' : 'Updated'}</span></div>
+												</div>
+												<div style="padding:12px 14px;background:#f8f9ff;border-radius:10px;border:1px solid #e5e5ea;">
+													<div style="margin-bottom:6px;"><strong>Invoice:</strong> ${resp.invoice.invoice_number}</div>
+													<div style="margin-bottom:6px;"><strong>Amount:</strong> ₹${resp.invoice.invoice_amount}</div>
+													<div><strong>Date:</strong> ${resp.invoice.invoice_date}</div>
+												</div>
+											</div>
+										`,
+										confirmButtonColor: '#667eea',
+									});
+								}
+							})
+							.catch(() => Swal.fire('Error', 'Server error. Try again.', 'error'));
+						}
+					});
+				})
+			.catch(() => Swal.fire('Error', 'Failed to fetch employees.', 'error'));
+		}
+	{% endif %}
+
 	// UPI QR Code Generation
     const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
     const qr = new QRCodeStyling({

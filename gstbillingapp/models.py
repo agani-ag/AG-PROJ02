@@ -18,11 +18,11 @@ class UserProfile(models.Model):
     business_phone = models.CharField(max_length=20, blank=True, null=True)
     business_gst = models.CharField(max_length=15, blank=True, null=True)
     business_brand = models.CharField(max_length=30, blank=True, null=True, default=None)
-    business_config = models.TextField(blank=True, null=True, default=None)
     business_uid = models.TextField(blank=True, null=True)
     business_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     business_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     bankdetails = models.ForeignKey('BankDetails', blank=True, null=True, on_delete=models.SET_NULL)
+    link_to_project1 = models.URLField(blank=True, null=True)
 
     def save(self, *args, **kwargs):
         if self.business_title:
@@ -35,6 +35,8 @@ class UserProfile(models.Model):
             self.business_gst = self.business_gst.upper()
         if self.business_brand:
             self.business_brand = self.business_brand.upper()
+        if self.link_to_project1:
+            self.link_to_project1 = self.link_to_project1.lower()
 
         super().save(*args, **kwargs)
     

@@ -33,6 +33,7 @@ urlpatterns = [
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),
     path('invoices/push-to-books/<int:invoice_id>', invoices.invoice_push_to_books, name='invoice_push_to_books'),
     path('api/customer-invoice-filter/', invoices.customerInvoiceFilter, name='customer_invoice_filter'),
+    path('api/invoice-employee-mapping-proxy/', invoices.invoice_employee_mapping_proxy, name='invoice_employee_mapping_proxy'),
 
     # Quotation URLs
     path('quotations/', quotation.quotations, name='quotations'),

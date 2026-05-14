@@ -27,6 +27,8 @@ from ..utils import remove_inventory_entries_for_invoice
 import json
 import datetime
 import num2words
+import urllib.request
+import urllib.error
 
 
 # ================= Invoice, products and customers =============================
@@ -447,7 +449,7 @@ def invoice_push_to_books(request, invoice_id):
             
             # Push to books
             auto_deduct_book_from_invoice(invoice)
-            
+
             # Update the flag
             invoice.books_reflected = True
             invoice.save()
@@ -485,3 +487,45 @@ def customerInvoiceFilter(request):
         })
 
     return JsonResponse(data, safe=False)
+
+
+@login_required
+@csrf_exempt
+def invoice_employee_mapping_proxy(request):
+    """Proxy view to forward invoice-employee-mapping requests to the external project, bypassing CORS."""
+    try:
+        user_profile = UserProfile.objects.get(user=request.user)
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'error': 'User profile not found.'}, status=400)
+
+    base_url = user_profile.link_to_project1
+    if not base_url:
+        return JsonResponse({'error': 'External project URL not configured.'}, status=400)
+
+    api_url = base_url.rstrip('/') + '/api/invoice-employee-mapping'
+
+    if request.method == 'GET':
+        try:
+            req = urllib.request.Request(api_url, method='GET')
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+            return JsonResponse(data)
+        except (urllib.error.URLError, Exception) as e:
+            return JsonResponse({'error': str(e)}, status=502)
+
+    elif request.method == 'POST':
+        try:
+            body = request.body
+            req = urllib.request.Request(
+                api_url,
+                data=body,
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+            return JsonResponse(data)
+        except (urllib.error.URLError, Exception) as e:
+            return JsonResponse({'error': str(e)}, status=502)
+
+    return JsonResponse({'error': 'Method not allowed.'}, status=405)
