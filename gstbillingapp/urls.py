@@ -178,6 +178,7 @@ urlpatterns = [
     # Graphs and Analytics URLs
     path('graphs/customer', graphs.customer_graph, name='customer_graph'),
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
+    path('graphs/division-category-sales', graphs.division_category_sales, name='division_category_sales'),
     path('graphs/books', graphs.customer_books_graph, name='customer_books_graph'),
     path('graphs/purchase-log', graphs.purchase_log_graph, name='purchase_log_graph'),
     path('graphs/expense-tracker', graphs.expense_tracker_graph, name='expense_tracker_graph'),
