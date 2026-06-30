@@ -245,6 +245,7 @@ class Product(models.Model):
     product_gst_percentage = models.FloatField(default=18)
     product_rate_with_gst = models.FloatField(default=0)
     product_purchase_rate = models.FloatField(default=0)
+    product_division_category = models.CharField(max_length=50, null=True, blank=True)
     product_image_url = models.TextField(max_length=600, blank=True, null=True)
     product_category = models.ForeignKey(ProductCategory, null=True, blank=True, on_delete=models.SET_NULL)
 
@@ -259,6 +260,8 @@ class Product(models.Model):
             self.model_no = self.model_no.upper()
         if self.product_name:
             self.product_name = self.product_name.upper()
+        if self.product_division_category:
+            self.product_division_category = self.product_division_category.upper()
         
         super().save(*args, **kwargs)
 

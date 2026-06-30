@@ -23,21 +23,51 @@ class CustomerForm(ModelForm):
         self.fields['bankdetails'].queryset = BankDetails.objects.filter(whom_account=1)
 
 class ProductForm(ModelForm):
+     # Declared explicitly as a CharField so Django accepts ANY value (typed or selected)
+     # with no "Select a valid choice" validation, while still rendering as a <select>
+     # so the Select2 "tags" editable dropdown can initialise on it.
+     product_division_category = forms.CharField(
+         required=False,
+         widget=forms.Select(attrs={'class': 'editable-dropdown'})
+     )
+
      class Meta:
         model = Product
         fields = ['model_no', 'product_name', 'product_hsn', 'product_gst_percentage', 'product_purchase_rate',
-                    'product_rate_with_gst', 'product_discount', 'product_image_url', 'product_category']
-     
+                    'product_rate_with_gst', 'product_discount', 'product_image_url', 'product_category',
+                    'product_division_category']
+
      def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super(ProductForm, self).__init__(*args, **kwargs)
-        if user:
-            # Show only child categories (categories with parent) for product assignment
-            self.fields['product_category'].queryset = ProductCategory.objects.filter(
-                user=user, parent_category__isnull=False
-            ).select_related('parent_category').order_by('parent_category__category_name', 'category_name')
-            self.fields['product_category'].label_from_instance = lambda obj: obj.get_full_path()
 
+        # 1. Handle category filtering logic
+        if user:
+            if 'product_category' in self.fields:
+                self.fields['product_category'].queryset = ProductCategory.objects.filter(
+                    user=user, parent_category__isnull=False
+                ).select_related('parent_category').order_by('parent_category__category_name', 'category_name')
+                self.fields['product_category'].label_from_instance = lambda obj: obj.get_full_path()
+
+        # 2. Fetch distinct division categories to populate the <select> options
+        query = Product.objects.all()
+        if user:
+            query = query.filter(user=user)
+        distinct_divisions = list(query.values_list('product_division_category', flat=True)
+                                  .exclude(product_division_category__isnull=True)
+                                  .exclude(product_division_category="")
+                                  .distinct()
+                                  .order_by('product_division_category'))
+
+        # Make sure the currently saved / submitted value is in the list so it shows selected
+        current = self.data.get('product_division_category') or getattr(self.instance, 'product_division_category', None)
+        if current and current not in distinct_divisions:
+            distinct_divisions.insert(0, current)
+
+        # Render as <option>s; Select2 (tags:true) lets the user add new ones on top of these
+        self.fields['product_division_category'].widget.choices = (
+            [('', 'Select or type a category…')] + [(d, d) for d in distinct_divisions]
+        )
 
 class UserProfileForm(ModelForm):
     def __init__(self, *args, **kwargs):

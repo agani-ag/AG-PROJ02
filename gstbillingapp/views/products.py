@@ -300,6 +300,7 @@ def products_aggrid(request):
             'product_category_name': product.product_category.get_full_path() if product.product_category else '',
             'parent_category': product.product_category.parent_category.category_name if product.product_category and product.product_category.parent_category else '',
             'child_category': product.product_category.category_name if product.product_category else '',
+            'product_division_category': product.product_division_category or '',
             'current_stock': current_stock,
             'alert_level': alert_level
         })
@@ -314,10 +315,20 @@ def products_aggrid(request):
             'child': category.category_name
         })
     
+    # Distinct division categories (free-text) for the Division column dropdown
+    divisions = list(
+        Product.objects.filter(user=request.user)
+        .exclude(product_division_category__isnull=True)
+        .exclude(product_division_category="")
+        .values_list('product_division_category', flat=True)
+        .distinct().order_by('product_division_category')
+    )
+
     context['products_json'] = json.dumps(products_data)
     context['categories_json'] = json.dumps(categories_data)
+    context['divisions_json'] = json.dumps(divisions)
     context['products_count'] = len(products_data)
-    
+
     return render(request, 'products/products_aggrid.html', context)
 
 
@@ -377,7 +388,11 @@ def product_aggrid_update(request):
                     product.product_category = category
                 else:
                     product.product_category = None
-            
+
+            if 'product_division_category' in data:
+                # Free-text field — store whatever was selected/typed (blank allowed)
+                product.product_division_category = (data['product_division_category'] or '').strip()
+
             product.save()
             
             # Handle inventory updates

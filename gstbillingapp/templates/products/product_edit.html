@@ -1,11 +1,7 @@
 {% extends "base.html" %}
-
 {% load static %}
 
-
-
 {% block content %}
-
 <h2>Edit Product</h2>
 <form method="POST">
 	{% csrf_token %}
@@ -41,6 +37,15 @@
 				<th scope="row" class="text-right">Purchase Rate:</th>
 				<td class="form-input-td">{{product_form.product_purchase_rate}}
 					<span id="purchase_rate">0</span>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Division Category:</th>
+				<td class="form-input-td">
+					{{ product_form.product_division_category }}
+					<a href="#" class="btn btn-sm btn-secondary" title="Add Division"
+						onclick="addDivision(event)"><i class="fas fa-plus"></i>
+					</a>
 				</td>
 			</tr>
 			<tr>
@@ -88,6 +93,35 @@
 	</div>
 
 <script>
+
+// Add a new Division Category (free text saved on the product itself).
+function addDivision(e) {
+	e.preventDefault();
+	Swal.fire({
+		title: 'Add Division Category',
+		input: 'text',
+		inputLabel: 'Division name',
+		inputPlaceholder: 'Enter new division category',
+		showCancelButton: true,
+		confirmButtonText: 'Add',
+		cancelButtonText: 'Cancel',
+		inputValidator: (value) => {
+			if (!value || !value.trim()) return 'Division name is required';
+		}
+	}).then((result) => {
+		if (!result.isConfirmed) return;
+		const name = result.value.trim();
+		const sel = document.getElementById('id_product_division_category');
+		// Reuse a matching option if it already exists, otherwise add a new one
+		let opt = Array.from(sel.options).find(o => o.value.toLowerCase() === name.toLowerCase());
+		if (!opt) {
+			opt = new Option(name, name, true, true);
+			sel.add(opt);
+		}
+		sel.value = opt.value;
+	});
+}
+
 function popup_inventory() {
 	fetch("/inventory/{{ id }}?nav=1")
     .then(r => r.text())

@@ -107,6 +107,7 @@
 <script>
     const productsData = {{ products_json|safe }};
     const categoriesData = {{ categories_json|safe }};
+    const divisionsData = {{ divisions_json|safe }};
     
     // Category value formatter
     function categoryFormatter(params) {
@@ -204,6 +205,20 @@
                 ['', '-- No Category --'],
                 ...categoriesData.map(c => [c.id, c.name])
             ])
+        },
+        {
+            headerName: 'Division',
+            field: 'product_division_category',
+            editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: {
+                values: ['', ...divisionsData],
+                valueListGap: 0,
+                valueListMaxHeight: 300
+            },
+            valueFormatter: params => params.value ? params.value : '-',
+            cellStyle: editableCellStyle,
+            width: 160
         },
         {
             headerName: 'Purchase Rate (₹)',

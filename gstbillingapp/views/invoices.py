@@ -408,7 +408,8 @@ def invoice_delete(request):
                 booklog_obj = get_object_or_404(BookLog,associated_invoice=invoice_obj)
                 book = get_object_or_404(Book,user=request.user,id=booklog_obj.parent_book.id)
             except:
-                messages.warning(request, f'Error Invoice #{invoice_obj.invoice_number} deletion from books')
+                messages.warning(request, f'Missing Invoice #{invoice_obj.invoice_number} on books, safely removed invoice.')
+                invoice_obj.delete()
                 return redirect('invoices')
             booklog_obj.delete()
             new_total = BookLog.objects.filter(parent_book=book).aggregate(Sum('change'))['change__sum']
