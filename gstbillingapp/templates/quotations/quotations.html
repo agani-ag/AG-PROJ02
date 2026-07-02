@@ -76,6 +76,13 @@
 <hr>
 
 	<table class="table table-bordered" id="quotation-table">
+
+<div style="margin-bottom:8px; display:flex; justify-content:flex-end;">
+	<button class="btn btn-sm btn-outline-dark d-print-none" onclick="printQuotations();">
+		<i class="fas fa-print"></i> Print
+	</button>
+</div>
+
 		<thead class="thead-dark">
 			<tr>
 				<th>Quotation Number</th>
@@ -195,6 +202,100 @@
 			table.ajax.reload();
 		});
 	});
+
+// Report-level print that fetches all records from the server-side API
+function printQuotations() {
+	var params = {
+		quotation_type: $('#quotationTypeFilter').val() || 'all',
+		status_filter: $('#statusFilter').val() || 'all',
+		customer_id: $('#customerFilter').val() || '',
+		date_filter: $('#dateFilter').val() || 'all',
+		start_date: $('#startDate').val() || '',
+		end_date: $('#endDate').val() || ''
+	};
+	// request all records - large length; server may cap but typically returns all matching rows
+	params.start = 0;
+	params.length = 1000000;
+
+	var qs = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
+	(async function(){
+		try {
+			var allRows = [];
+			var batch = 500;
+			var start = 0;
+			while (true) {
+				var pagedQs = qs + '&start=' + start + '&length=' + batch;
+				var resp = await fetch('/quotations/ajax/?' + pagedQs);
+				var json = await resp.json();
+				if (json.error) { alert('Error: ' + json.error); return; }
+				var rows = json.data || [];
+				allRows = allRows.concat(rows);
+				if (rows.length < batch) break;
+				start += batch;
+			}
+
+			var rows = allRows;
+			var title = 'Quotations';
+			var typeText = $('#quotationTypeFilter option:selected').text();
+			var statusText = $('#statusFilter option:selected').text();
+			var customerText = $('#customerFilter option:selected').text() || 'All Customers';
+			var dateText = $('#dateFilter option:selected').text();
+			var total = $('#total-quotation-amount').text() || '';
+			var win = window.open('', '_blank');
+			var css = '';
+			css += '<style>';
+			css += 'body{font-family: Arial, Helvetica, sans-serif; margin:12px;}';
+			css += '.print-header{border-bottom:1px solid #333;padding-bottom:8px;margin-bottom:12px;}';
+			css += '.print-header h1{margin:0;font-size:18px;}';
+			css += '.print-meta{font-size:12px;color:#333;margin-top:6px;}';
+			css += 'table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px;}';
+			css += 'th,td{border:1px solid #ccc;padding:6px;text-align:left;}';
+			css += 'th{background:#f5f5f5;}';
+			css += '@media print{@page{size:A4 portrait;margin:8mm;}body{margin:0;padding:6mm;}}';
+			css += '</style>';
+			win.document.write('<html><head><title>'+title+'</title>'+css+'</head><body>');
+			var header = '';
+			header += '<div style="text-align:center; margin-bottom:20px;">';
+			header += '<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>';
+			header += '<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>';
+			header += '<p style="margin:2px 0; color:#666; font-size:13px;">Phone: {{ request.user.userprofile.business_phone|escapejs }}'
+				+ '{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}'
+				+ '{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}'
+				+ '</p>';
+			header += '<hr style="margin:10px 0;">';
+			header += '<h4 style="margin:0;">' + title + '</h4>';
+			header += '<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">';
+			header += '<span><strong>Type:</strong> ' + typeText + '</span>';
+			header += '<span><strong>Status:</strong> ' + statusText + '</span>';
+			header += '<span><strong>Customer:</strong> ' + customerText + '</span>';
+			header += '<span><strong>Date:</strong> ' + dateText + '</span>';
+			header += '<span><strong>Total:</strong> ' + total + '</span>';
+			header += '</div>';
+			header += '<hr style="margin-top:10px;">';
+			header += '</div>';
+			win.document.write(header);
+			win.document.write('<table><thead><tr><th>Quotation Number</th><th>Date</th><th>Customer</th><th style="text-align:right">Amount</th><th>Status</th></tr></thead><tbody>');
+			for(var i=0;i<rows.length;i++){
+				var r = rows[i];
+				win.document.write('<tr>');
+				win.document.write('<td>'+(r.quotation_number||'')+'</td>');
+				win.document.write('<td>'+(r.quotation_date||'')+'</td>');
+				win.document.write('<td>'+(r.customer||'')+'</td>');
+				win.document.write('<td style="text-align:right">'+(r.quotation_amount||'')+'</td>');
+				win.document.write('<td>'+(r.status||'')+'</td>');
+				win.document.write('</tr>');
+			}
+			win.document.write('</tbody></table>');
+			win.document.write('</body></html>');
+			win.document.close();
+			win.focus();
+			setTimeout(function(){ win.print(); win.close(); }, 250);
+		} catch(err) {
+			console.error(err);
+			alert('Unable to fetch records for printing. See console for details.');
+		}
+	})();
+}
 
 	function convertToInvoice(quotationId) {
 		Swal.fire({
