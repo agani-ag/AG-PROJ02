@@ -770,6 +770,29 @@
             </div>
         {% endif %}
     </div>
+
+    <!-- Division Category Summary -->
+    {% if dc_sales|length > 0 %}
+    <div class="section-header">
+        <h2 class="section-title">Division Category Overview</h2>
+        <p class="section-subtitle">01-06-2026 ➡️ 31-08-2026</p>
+    </div>
+        <div class="summary-section">
+            <h3 class="summary-title">
+                <i class="fas fa-layer-group"></i>
+                Total Purchases: <span class="text-success">₹{{ dc_total_sales|default:0|floatformat:2|intcomma }}</span>
+            </h3>
+            {% for division in dc_sales %}
+                <div class="summary-item">
+                    <span class="summary-label">
+                        <span class="badge bg-dark text-white">{{ forloop.counter }}</span>
+                        {{ division.category|default:"N/A" }}
+                    </span>
+                    <span class="summary-value">₹{{ division.sales|default:0|floatformat:2|intcomma }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
     
     <!-- Page Footer -->
     <div class="page-footer">

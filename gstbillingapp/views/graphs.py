@@ -72,45 +72,21 @@ def sales_dashboard(request):
 
     return render(request, "graphs/sales_dashboard.html", context)
 
-@login_required
-def division_category_sales(request):
-    # Custom date range filter for invoices
-    today = datetime.now().date()
-    from_date_str = request.GET.get('from_date', '')
-    to_date_str = request.GET.get('to_date', '')
-    selected_customer_id = request.GET.get('customer_id', 'all')
-
-    if from_date_str and to_date_str:
-        try:
-            start_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
-            end_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            start_date = today.replace(day=1)
-            end_date = today
-    else:
-        start_date = today.replace(day=1)
-        end_date = today
-
-    # Gather customers list for filter dropdown
-    customers = Customer.objects.filter(user=request.user).order_by('customer_name')
-
-    selected_customer_name = 'All Customers'
-    if selected_customer_id and selected_customer_id.isdigit():
-        selected_cust = customers.filter(id=int(selected_customer_id)).first()
-        if selected_cust:
-            selected_customer_name = selected_cust.customer_name
-
-    # Build invoice queryset for the selected date range and customer
+def get_division_category_sales(user, start_date, end_date, customer_id=None):
     invoice_queryset = Invoice.objects.filter(
-        user=request.user,
+        user=user,
         invoice_date__gte=start_date,
         invoice_date__lte=end_date
     )
-    if selected_customer_id and selected_customer_id.isdigit():
-        invoice_queryset = invoice_queryset.filter(invoice_customer_id=int(selected_customer_id))
+
+    if customer_id:
+        invoice_queryset = invoice_queryset.filter(
+            invoice_customer_id=customer_id
+        )
 
     totals_by_category = {}
     total_sales = 0.0
+
     for inv in invoice_queryset:
         try:
             invoice_data = json.loads(inv.invoice_json)
@@ -118,46 +94,102 @@ def division_category_sales(request):
             continue
 
         for item in invoice_data.get('items', []):
-            category = item.get('product_division_category') or item.get('division_category') or ''
+            category = (
+                item.get('product_division_category')
+                or item.get('division_category')
+                or ''
+            )
+
             if not category:
-                product_model = item.get('invoice_model_no')
-                if product_model:
-                    product_obj = Product.objects.filter(user=request.user, model_no=product_model).first()
-                    if product_obj and product_obj.product_division_category:
-                        category = product_obj.product_division_category
+                model = item.get('invoice_model_no')
+                if model:
+                    product = Product.objects.filter(
+                        user=user,
+                        model_no=model
+                    ).first()
+                    if product:
+                        category = product.product_division_category
 
-            category = category.strip().upper() if category else 'UNSPECIFIED'
+            category = category.strip().upper() if category else "UNSPECIFIED"
 
-            amt_without_gst = item.get('invoice_amt_without_gst')
-            if amt_without_gst in [None, '']:
-                try:
-                    qty = float(item.get('invoice_qty') or 1)
-                    rate_without_gst = float(item.get('invoice_rate_without_gst') or 0)
-                    amt_without_gst = qty * rate_without_gst
-                except (ValueError, TypeError):
-                    amt_without_gst = 0.0
-            else:
-                try:
-                    amt_without_gst = float(amt_without_gst)
-                except (ValueError, TypeError):
-                    amt_without_gst = 0.0
+            try:
+                amount = float(item.get("invoice_amt_without_gst") or 0)
+            except:
+                qty = float(item.get("invoice_qty") or 1)
+                rate = float(item.get("invoice_rate_without_gst") or 0)
+                amount = qty * rate
 
-            totals_by_category[category] = totals_by_category.get(category, 0.0) + amt_without_gst
-            total_sales += amt_without_gst
+            totals_by_category[category] = totals_by_category.get(category, 0) + amount
+            total_sales += amount
 
     chart_data = [
-        {'category': category, 'sales': round(amount, 2)}
-        for category, amount in sorted(totals_by_category.items(), key=lambda x: x[1], reverse=True)
+        {
+            "category": c,
+            "sales": round(v, 2)
+        }
+        for c, v in sorted(
+            totals_by_category.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
     ]
 
+    return {
+        "chart_data": chart_data,
+        "total_sales": round(total_sales, 2)
+    }
+
+@login_required
+def division_category_sales(request):
+    today = datetime.now().date()
+    from_date_str = request.GET.get("from_date", "")
+    to_date_str = request.GET.get("to_date", "")
+    selected_customer_id = request.GET.get("customer_id", "all")
+
+    if from_date_str and to_date_str:
+        try:
+            start_date = datetime.strptime(
+                from_date_str,
+                "%Y-%m-%d"
+            ).date()
+            end_date = datetime.strptime(
+                to_date_str,
+                "%Y-%m-%d"
+            ).date()
+        except ValueError:
+            start_date = today.replace(day=1)
+            end_date = today
+    else:
+        start_date = today.replace(day=1)
+        end_date = today
+
+    customers = Customer.objects.filter(user=request.user).order_by("customer_name")
+
+    selected_customer_name = "All Customers"
+    customer_id = None
+
+    if selected_customer_id.isdigit():
+        customer_id = int(selected_customer_id)
+
+        customer = customers.filter(id=customer_id).first()
+        if customer:
+            selected_customer_name = customer.customer_name
+
+    summary = get_division_category_sales(
+        user=request.user,
+        start_date=start_date,
+        end_date=end_date,
+        customer_id=customer_id
+    )
+
     context = {
-        'from_date': start_date.isoformat(),
-        'to_date': end_date.isoformat(),
-        'selected_customer_id': selected_customer_id,
-        'selected_customer_name': selected_customer_name,
-        'customers': customers,
-        'chart_data': chart_data,
-        'total_sales': round(total_sales, 2)
+        "from_date": start_date.isoformat(),
+        "to_date": end_date.isoformat(),
+        "selected_customer_id": selected_customer_id,
+        "selected_customer_name": selected_customer_name,
+        "customers": customers,
+        "chart_data": summary["chart_data"],
+        "total_sales": summary["total_sales"],
     }
     return render(request, "graphs/division_category_sales.html", context)
 

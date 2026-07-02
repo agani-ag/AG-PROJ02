@@ -637,13 +637,12 @@
         loadingSpinner.classList.add('active');
         customerList.style.opacity = '0.5';
         
-        // Build URL params
-        const params = new URLSearchParams({
-            page: currentPage,
-            user_id: userId,
-            users_filter: usersFilter,
-            search: searchQuery
-        });
+        // Build URL params while preserving the current navigation context
+        const params = new URLSearchParams(window.location.search);
+        params.set('page', currentPage);
+        params.set('user_id', userId || '');
+        params.set('search', searchQuery);
+        params.set('users_filter', usersFilter || '');
         
         // Fetch data
         fetch(`?${params.toString()}`, {

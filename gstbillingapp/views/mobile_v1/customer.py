@@ -13,6 +13,7 @@ from django.db.models import (
 from django.db.models.functions import (
     Abs, Cast
 )
+from ..graphs import get_division_category_sales
 # Models
 from ...models import (
     Customer, UserProfile, Invoice,
@@ -431,7 +432,11 @@ def customer_home(request):
     filtered_amount = sum(log.amount_positive for log in filtered_logs)
     filtered_amount -= filtered_logs[0].remaining_amount if filtered_logs else 0
     context['overdue_amount'] = filtered_amount
-            
+    # Division Category Summary
+    division_category_sales = get_division_category_sales(user.user, '2026-06-01', '2026-08-31', customer_id)
+    context['dc_sales'] = division_category_sales['chart_data']
+    context['dc_total_sales'] = division_category_sales['total_sales']
+
     return render(request, 'mobile_v1/customer/home.html', context)
 
 def customer_invoice_viewer(request, invoice_id):
