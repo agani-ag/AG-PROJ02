@@ -458,6 +458,7 @@ async function printInvoices() {
             google.charts.setOnLoadCallback(drawChart);
 
             let html = '';
+			entries.sort((a, b) => b.amount - a.amount); // Sort entries by amount descending
             entries.forEach(entry => {
                 html += `
                     <tr style="border-bottom: 1px solid #e5e7eb;">
