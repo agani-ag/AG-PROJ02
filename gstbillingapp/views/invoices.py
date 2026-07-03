@@ -269,7 +269,7 @@ def invoices_ajax(request):
             # actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve" title="View Invoice"><i class="fa fa-external-link-square"></i></a>'
             actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-primary btn-sm btn-curve" title="View Invoice"><i class="fa fa-eye"></i></a>'
             if invoice.invoice_customer:
-                actions_html += f'<a href="/customer/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve" title="Edit Customer"><i class="fa fa-user"></i></a>'
+                actions_html += f'<a href="/books/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve" title="View Books"><i class="fa fa-user"></i></a>'
             
             # Add push/fix button for not_pushed or missing_in_books filters
             if invoice_type in ['not_pushed', 'missing_in_books']:
