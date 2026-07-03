@@ -7,12 +7,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 
 # Models
-from ..models import Customer
-from ..models import Invoice
-from ..models import UserProfile
-from ..models import Book
-from ..models import BookLog
-from ..models import Quotation
+from ..models import (
+    Customer, Product, Invoice,
+    UserProfile, Book, BookLog, Quotation
+)
 
 # Utility functions
 from ..utils import invoice_data_validator
@@ -29,6 +27,7 @@ import datetime
 import num2words
 import urllib.request
 import urllib.error
+import html
 
 
 # ================= Invoice, products and customers =============================
@@ -263,14 +262,51 @@ def invoices_ajax(request):
             except Exception:
                 invoice_amount = 0.0
 
+            # Division Category Totals
+            totals_by_category = {}
+            amount_without_gst = 0.0
+
+            for item in invoice_json.get('items', []):
+                category = (
+                    item.get('product_division_category')
+                    or item.get('division_category')
+                    or ''
+                )
+
+                if not category:
+                    model = item.get('invoice_model_no')
+                    if model:
+                        product = Product.objects.filter(
+                            user=request.user,
+                            model_no=model
+                        ).first()
+                        if product:
+                            category = product.product_division_category
+
+                category = category.strip().upper() if category else "UNSPECIFIED"
+
+                try:
+                    amount = float(item.get("invoice_amt_without_gst") or 0)
+                except:
+                    qty = float(item.get("invoice_qty") or 1)
+                    rate = float(item.get("invoice_rate_without_gst") or 0)
+                    amount = qty * rate
+
+                totals_by_category[category] = totals_by_category.get(category, 0) + amount
+                amount_without_gst += amount
+
             # Actions
             actions_html = '<div class="btn-group" role="group">'
             # actions_html += f'<button type="button" onclick="popup_invoice({invoice.id})" class="btn btn-primary btn-sm btn-curve" title="Preview Invoice"><i class="fa fa-eye"></i></button>'
             # actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve" title="View Invoice"><i class="fa fa-external-link-square"></i></a>'
             actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-primary btn-sm btn-curve" title="View Invoice"><i class="fa fa-eye"></i></a>'
             if invoice.invoice_customer:
-                actions_html += f'<a href="/books/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve" title="View Books"><i class="fa fa-user"></i></a>'
-            
+                category_json = html.escape(json.dumps(totals_by_category))
+                actions_html += f'''
+                        <button type="button" class="btn btn-orange btn-sm btn-curve"
+                            data-category="{category_json}" data-total="{amount_without_gst}"
+                            onclick="dc_invoice_map(this)" title="Division Category"><i class="fa fa-snowflake"></i></button>
+                '''
             # Add push/fix button for not_pushed or missing_in_books filters
             if invoice_type in ['not_pushed', 'missing_in_books']:
                 button_title = 'Push to Books' if invoice_type == 'not_pushed' else 'Fix & Push to Books'

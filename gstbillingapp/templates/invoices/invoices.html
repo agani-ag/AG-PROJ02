@@ -305,8 +305,6 @@ function pushToBooks(invoiceId) {
 	});
 }	
 
-</script>
-<script type="text/javascript">
 async function printInvoices() {
 	try {
 		var params = {
@@ -389,6 +387,94 @@ async function printInvoices() {
 		console.error(err);
 		alert('Unable to fetch records for printing. See console for details.');
 	}
+}
+</script>
+<script src="https://www.gstatic.com/charts/loader.js"></script>
+<script>
+    google.charts.load('current', {'packages':['corechart']});
+
+	function dc_invoice_map(btn) {
+
+    const categoryData = JSON.parse(btn.dataset.category);
+    const total = parseFloat(btn.dataset.total);
+    const labels = Object.keys(categoryData);
+    const values = Object.values(categoryData);
+    const entries = labels.map((label, index) => ({
+        label,
+        amount: values[index],
+        percent: total > 0 ? (values[index] / total) * 100 : 0
+    }));
+
+    Swal.fire({
+        title: 'Division Category Analysis',
+        width: 820,
+        html: `
+            <div style="font-family: 'Segoe UI', sans-serif; color: #1f2937;">
+                <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 18px;">
+                    <div style="flex: 0 0 340px; min-width: 280px; background: #ffffff; border-radius: 18px; border: 1px solid #e5e7eb; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08); padding: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <div style="font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 14px; text-align: center;">Division Category Sales</div>
+                        <div style="width: 100%; max-width: 300px; height: 300px; display: flex; align-items: center; justify-content: center;">
+                            <div id="divisionChart" style="width: 100%; height: 100%;"></div>
+                        </div>
+                    </div>
+                    <div style="flex: 1 1 360px; min-width: 300px; background: #ffffff; border-radius: 18px; border: 1px solid #e5e7eb; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08); padding: 18px;">
+                        <div style="font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 12px;">Category Breakdown</div>
+                        <div style="max-height: 340px; overflow-y: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 14px; color: #334155;">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left; padding: 10px 8px 10px 0; color: #475569; font-weight: 700;">Category</th>
+                                        <th style="text-align: right; padding: 10px 8px 10px 0; color: #475569; font-weight: 700;">Amount</th>
+                                        <th style="text-align: right; padding: 10px 0 10px 0; color: #475569; font-weight: 700;">%</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="divisionTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `,
+        didOpen: () => {
+            const drawChart = () => {
+                const data = new google.visualization.DataTable();
+                data.addColumn('string', 'Category');
+                data.addColumn('number', 'Amount');
+                data.addRows(entries.map(entry => [entry.label, entry.amount]));
+
+                const options = {
+                    pieHole: 0.35,
+                    chartArea: { left: 20, top: 20, width: '100%', height: '70%' },
+                    legend: { position: 'bottom', textStyle: { color: '#475569', fontSize: 12 }, alignment: 'center', maxLines: 10 },
+                    tooltip: { text: 'percentage' },
+                    pieSliceText: 'percentage',
+                    pieSliceTextStyle: { color: '#111827', fontSize: 12 }
+                };
+
+                const chart = new google.visualization.PieChart(document.getElementById('divisionChart'));
+                chart.draw(data, options);
+            };
+
+            google.charts.setOnLoadCallback(drawChart);
+
+            let html = '';
+            entries.forEach(entry => {
+                html += `
+                    <tr style="border-bottom: 1px solid #e5e7eb;">
+                        <td style="padding: 14px 8px 14px 0;">${entry.label}</td>
+                        <td style="padding: 14px 8px 14px 0; text-align: right;">₹ ${entry.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                        <td style="padding: 14px 0 14px 0; text-align: right;">${entry.percent.toFixed(1)}%</td>
+                    </tr>`;
+            });
+            document.getElementById('divisionTable').innerHTML = html;
+        },
+        showCloseButton: true,
+        confirmButtonText: 'Close',
+        customClass: {
+            popup: 'swal2-border-radius'
+        }
+    });
+
 }
 </script>
 {% endblock %}
