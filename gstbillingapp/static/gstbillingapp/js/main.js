@@ -146,18 +146,17 @@ function update_amounts(element){
 // CUSTOMER SEARCH ========================================================
 
 function customer_result_to_domstr(result) {
-    var domstr = "<div class='customer-search-result' data-customer='" + JSON.stringify(result) + "'>"+
-    "<div>"+ result['customer_name'] + "</div>" +
-    "<div>"+ result['customer_address'] + "</div>" +
-    "<div>"+ result['customer_phone'] + "</div>" +
-    "<div>"+ result['customer_gst'] + "</div>" +
-    "</div>";
-     return domstr;
+    var $dom = $("<div>", { class: 'customer-search-result' }).data('customer', result);
+    $dom.append($("<div>").text(result['customer_name']));
+    $dom.append($("<div>").text(result['customer_address']));
+    $dom.append($("<div>").text(result['customer_phone']));
+    $dom.append($("<div>").text(result['customer_gst']));
+    return $dom;
 }
 
 function customer_result_click() {
     console.log("UPDATE THE FORM WITH SEARCH RESULT");
-    customer_data_json = JSON.parse($(this).attr('data-customer'));
+    var customer_data_json = $(this).data('customer');
     $('#customer-name-input').val(customer_data_json['customer_name']);
     $('#customer-address-input').val(customer_data_json['customer_address']);
     $('#customer-phone-input').val(customer_data_json['customer_phone']);
@@ -229,17 +228,16 @@ function initialize_fuse_customers () {
 var selected_item_input;
 
 function product_result_to_domstr(result) {
-    var domstr = "<div class='product-search-result' data-product='" + JSON.stringify(result) + "'>"+
-    "<h5>"+ result['model_no'] + "</h5>" +
-    "<div>"+ result['product_name'] + " | " + result['product_hsn'] + " | " + result['product_gst_percentage'] + "%" +
-    " | " + result['product_discount'] + "%" +
-    "</div>";
-     return domstr;
+    var $dom = $("<div>", { class: 'product-search-result' }).data('product', result);
+    $dom.append($("<h5>").text(result['model_no']));
+    $dom.append($("<div>").text(result['product_name'] + " | " + result['product_hsn'] + " | " + result['product_gst_percentage'] + "%" +
+        " | " + result['product_discount'] + "%"));
+    return $dom;
 }
 
 function product_result_click() {
     console.log("UPDATE THE FORM WITH SEARCH RESULT");
-    product_data_json = JSON.parse($(this).attr('data-product'));
+    var product_data_json = $(this).data('product');
     selected_item_input.val(product_data_json['model_no']);
     selected_item_input.parent().parent().find('input[name=invoice-product]').val(product_data_json['product_name']);    
     selected_item_input.parent().parent().find('input[name=invoice-hsn]').val(product_data_json['product_hsn']);    
