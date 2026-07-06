@@ -541,7 +541,9 @@ def distance_meters(lat1, lng1, lat2, lng2):
 
 # ================= Purchases Log Utilities ====================================
 def get_change_type_change(change_type, change):
-    if change_type == '1':  # Purchased
+    if change_type == '3':  # Others
+        change = change
+    elif change_type == '1':  # Purchased
         if float(change) > 0:
             change = -float(change)
     else:
