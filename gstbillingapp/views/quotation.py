@@ -810,5 +810,6 @@ def quotation_update_status(request, quotation_id):
             'message': str(e)
         }, status=400)
 
+@login_required
 def quotation_cart(request):
     return render(request, 'quotations/quotation_cart.html')

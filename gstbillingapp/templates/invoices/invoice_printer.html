@@ -4,20 +4,34 @@
 
 	<div class="card">
 		<div class="card-header">
-			<div class="row">
-			<div class="col-sm-6 col-6">&nbsp;</div>
-			<div class="col-sm-6 text-right"><strong>Original[&nbsp;&nbsp;] / Duplicate[&nbsp;&nbsp;] / Triplicate[&nbsp;&nbsp;]</strong></div> 
-			<div class="col-sm-6 col-6">&nbsp;</div>
-			<div class="col-sm-6 col-6">&nbsp;</div>
-			<div class="col-sm-6 col-6"><strong>Invoice Date: {{invoice.invoice_date}}</strong></div>
-			<div class="col-sm-6 text-right">&nbsp;</div> 
-			<div class="col-sm-6 col-6"><strong>Invoice No:
-				{% if invoice.is_gst %}
-					{{invoice.invoice_number}}
-				{% else %}
-					INV-{{invoice.invoice_number}}
-				{% endif %}
-			</strong></div>
+			<div class="row align-items-center" style="padding-top: 35px;">
+
+				<!-- Left: invoice date + number -->
+				<div class="col-4 text-left">
+					<div><strong>Invoice Date: {{invoice.invoice_date}}</strong></div>
+					<div><strong>Invoice No:
+						{% if invoice.is_gst %}
+							{{invoice.invoice_number}}
+						{% else %}
+							INV-{{invoice.invoice_number}}
+						{% endif %}
+					</strong></div>
+				</div>
+
+				<!-- Middle: invoice title -->
+				<div class="col-4 text-center" id="invoice-title">
+					<span contenteditable="true" style="outline:none; cursor:text;">
+						<h4 class="mb-0 text-uppercase font-weight-bold" style="letter-spacing:2px;">
+							{% if invoice.is_gst %}Tax Invoice{% else %}Invoice{% endif %}
+						</h4>
+					</span>
+				</div>
+
+				<!-- Right: copy type -->
+				<div class="col-4 text-right">
+					<strong>Original[&nbsp;&nbsp;] / Duplicate[&nbsp;&nbsp;] / Triplicate[&nbsp;&nbsp;]</strong>
+				</div>
+
 			</div>
 		</div>
 
