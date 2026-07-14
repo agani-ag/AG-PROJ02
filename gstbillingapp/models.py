@@ -180,6 +180,7 @@ class Quotation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by_customer = models.BooleanField(default=False)  # For customer self-orders
+    created_from_cart = models.BooleanField(default=False)  # Checked out from the Quotation Cart page
     notes = models.TextField(blank=True, null=True)
     
     class Meta:

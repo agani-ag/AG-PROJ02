@@ -15,6 +15,87 @@ from .models import (
     Book, BookLog, Customer
 )
 
+#  ================= GST Calculation ====================
+def calculate_item_amounts(rate_with_gst, gst_percentage, discount, qty, igstcheck=False):
+    """
+    Canonical GST math for a single line item — the one convention used everywhere.
+
+    Despite its name, product_rate_with_gst is treated as GST-EXCLUSIVE: the
+    discount comes off the rate first, then GST is added on top of the discounted
+    rate. This mirrors update_amounts() in static/gstbillingapp/js/main.js, which
+    is what the quotation/invoice form posts, so a quotation's total does not move
+    when it is converted to an invoice.
+    """
+    rate_with_gst = float(rate_with_gst or 0)
+    gst_percentage = float(gst_percentage or 0)
+    discount = float(discount or 0)
+    qty = float(qty or 0)
+
+    rate_without_gst = rate_with_gst - (rate_with_gst * discount / 100)
+    amt_without_gst = rate_without_gst * qty
+
+    if igstcheck:
+        igst = amt_without_gst * gst_percentage / 100
+        sgst = cgst = 0.0
+    else:
+        sgst = cgst = amt_without_gst * gst_percentage / 200
+        igst = 0.0
+
+    amt_with_gst = amt_without_gst + sgst + cgst + igst
+
+    return {
+        'rate_without_gst': round(rate_without_gst, 2),
+        'amt_without_gst': round(amt_without_gst, 2),
+        'amt_sgst': round(sgst, 2),
+        'amt_cgst': round(cgst, 2),
+        'amt_igst': round(igst, 2),
+        'amt_with_gst': round(amt_with_gst, 2),
+    }
+
+
+def build_quotation_item(product, qty, igstcheck=False, discount=None):
+    """
+    Build one quotation_json item from a Product, priced by the canonical rule.
+
+    Rate and GST% are ALWAYS read from the Product — never from the caller — so a
+    tampered client payload cannot reprice a line. `discount` may be overridden
+    (staff set a per-line discount in the cart); it is clamped to 0-100. Pass
+    discount=None to use the product's own discount.
+
+    Emits the same keys invoice_data_processor() produces, so quotations created
+    from a cart/order render identically in the invoice printer and viewer.
+    """
+    if discount is None:
+        discount = product.product_discount or 0
+    discount = min(100.0, max(0.0, float(discount or 0)))
+
+    amounts = calculate_item_amounts(
+        product.product_rate_with_gst,
+        product.product_gst_percentage,
+        discount,
+        qty,
+        igstcheck,
+    )
+
+    return {
+        'invoice_model_no': product.model_no or '',
+        'invoice_product': product.product_name or '',
+        'invoice_hsn': product.product_hsn or '',
+        'invoice_qty': int(qty),
+        'invoice_discount': discount,
+        'invoice_rate_with_gst': float(product.product_rate_with_gst or 0),
+        'invoice_gst_percentage': float(product.product_gst_percentage or 0),
+        'invoice_rate_without_gst': amounts['rate_without_gst'],
+        'invoice_amt_without_gst': amounts['amt_without_gst'],
+        'invoice_amt_sgst': amounts['amt_sgst'],
+        'invoice_amt_cgst': amounts['amt_cgst'],
+        'invoice_amt_igst': amounts['amt_igst'],
+        'invoice_amt_with_gst': amounts['amt_with_gst'],
+        # Kept for existing order-history consumers that read invoice_amt.
+        'invoice_amt': amounts['amt_with_gst'],
+    }
+
+
 #  ================= Invoice Methods ====================
 def invoice_data_validator(invoice_data):
     
@@ -270,6 +351,119 @@ def parse_code_GS(input_code):
     # Create a dictionary from the matches
     result = {key.upper(): int(value) for key, value in matches}
     return result
+
+# ================ Quotation Cart identity =====================
+
+class CartContext:
+    """
+    Who is using the Quotation Cart, and what they are allowed to do.
+
+    business_user  - whose products, prices and quotation numbers are used
+    fixed_customer - the customer the quotation MUST be billed to (customer mode),
+                     or None when the actor may choose one
+    actor          - 'staff' | 'customer' | 'employee'
+    """
+
+    def __init__(self, business_user, actor, fixed_customer=None, businesses=None):
+        self.business_user = business_user
+        self.actor = actor
+        self.fixed_customer = fixed_customer
+        # Employee mode with several businesses in users_filter: the cart must ask
+        # which one before it can load a catalog, since a quotation belongs to one.
+        self.businesses = businesses or []
+
+    @property
+    def can_choose_customer(self):
+        return self.fixed_customer is None
+
+    @property
+    def needs_business_choice(self):
+        return self.business_user is None and len(self.businesses) > 1
+
+
+class CartAccessError(Exception):
+    """The request does not identify anyone who may use the cart."""
+
+
+def resolve_cart_context(request):
+    """
+    Work out who is using the cart. Every cart surface (page, product feed, checkout)
+    goes through this instead of reading request.user, so the three entry points can
+    never disagree about whose data is in play.
+
+        staff     - logged in, no params            -> picks any of their customers
+        customer  - ?cid=GS1C22                     -> LOCKED to customer 22 of business 1
+        employee  - ?u=emp&users_filter=1[,4,...]   -> picks a customer of the chosen business
+
+    Raises CartAccessError when the request identifies nobody.
+    """
+    from django.contrib.auth.models import User
+
+    # --- Customer mode: the cid encodes business (GS) and customer (C). ---
+    cid = request.GET.get('cid')
+    if cid:
+        parsed = parse_code_GS(cid)
+        business_id = (parsed or {}).get('GS')
+        customer_id = (parsed or {}).get('C')
+        if not business_id or not customer_id:
+            raise CartAccessError('Invalid customer code.')
+
+        # Scoping the lookup by user__id is what stops a tampered code from pairing
+        # one business's id with another business's customer.
+        customer = Customer.objects.filter(id=customer_id, user__id=business_id).first()
+        if not customer:
+            raise CartAccessError('Customer not found for this code.')
+
+        return CartContext(customer.user, 'customer', fixed_customer=customer)
+
+    # --- Employee mode: business ids arrive in users_filter, as on the other
+    #     mobile employee pages. ---
+    if request.GET.get('u') == 'emp':
+        raw = request.GET.get('users_filter', '')
+        ids = [int(uid) for uid in raw.split(',') if uid.strip().isdigit()]
+        if not ids:
+            # Never fall back to "every business" — this endpoint writes.
+            raise CartAccessError('Employee access requires users_filter.')
+
+        # select_related: the picker reads each business's profile (title/brand/phone).
+        businesses = list(User.objects.filter(id__in=ids).select_related('userprofile'))
+        if not businesses:
+            raise CartAccessError('No such business.')
+
+        if len(businesses) == 1:
+            return CartContext(businesses[0], 'employee')
+
+        # Several to choose from: the caller must pick one before a catalog loads.
+        chosen = request.GET.get('business')
+        if chosen and chosen.isdigit():
+            picked = next((b for b in businesses if b.id == int(chosen)), None)
+            if picked:
+                return CartContext(picked, 'employee', businesses=businesses)
+
+        return CartContext(None, 'employee', businesses=businesses)
+
+    # --- Staff mode: an ordinary logged-in session. ---
+    if request.user.is_authenticated:
+        return CartContext(request.user, 'staff')
+
+    raise CartAccessError('Sign in, or open the cart with a valid customer code.')
+
+
+def cart_product_payload(business_user):
+    """
+    Products for the cart, scoped to one business and field-whitelisted.
+
+    productsjson() dumps Product.objects.values() — every column, including
+    product_purchase_rate. That is the cost price, so it must never reach a cart
+    that unauthenticated customers can open.
+    """
+    fields = (
+        'id', 'model_no', 'product_name', 'product_hsn',
+        'product_rate_with_gst', 'product_gst_percentage', 'product_discount',
+        'product_image_url', 'product_category_id', 'product_division_category',
+    )
+    return list(Product.objects.filter(user=business_user).values(*fields))
+
 
 def _escape_md(text):
     """Escape special characters for Telegram MarkdownV2 format."""

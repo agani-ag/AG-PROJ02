@@ -71,9 +71,17 @@ def invoice_create(request):
         else:
             is_gst = True
         
+        # A GST invoice needs the customer's GSTIN. Rather than rejecting, fall back to
+        # a non-GST invoice — but the number submitted with the form came from the GST
+        # series, so it has to be re-drawn from the non-GST series below.
+        auto_downgraded_to_non_gst = False
         if is_gst and invoice_data['customer-gst'].strip() == '':
-            messages.warning(request, "GST Invoice requires Customer GST Number.")
-            return render(request, 'invoices/invoice_create.html', context)
+            is_gst = False
+            auto_downgraded_to_non_gst = True
+            messages.info(
+                request,
+                "Customer has no GST Number — this was created as a NON-GST invoice."
+            )
 
         validation_error = invoice_data_validator(invoice_data)
         if validation_error:
@@ -114,8 +122,17 @@ def invoice_create(request):
 
         # save invoice
         invoice_data_processed_json = json.dumps(invoice_data_processed)
+
+        invoice_number = int(invoice_data['invoice-number'])
+        if auto_downgraded_to_non_gst:
+            # The posted number belongs to the GST series; take the next non-GST one.
+            max_non_gst = Invoice.objects.filter(
+                user=request.user, is_gst=False
+            ).aggregate(Max('invoice_number'))['invoice_number__max']
+            invoice_number = (max_non_gst or 0) + 1
+
         new_invoice = Invoice(user=request.user,
-            invoice_number=int(invoice_data['invoice-number']),
+            invoice_number=invoice_number,
             invoice_date=datetime.datetime.strptime(invoice_data['invoice-date'], '%Y-%m-%d'),
             invoice_customer=customer, invoice_json=invoice_data_processed_json, is_gst= is_gst)
         new_invoice.save()

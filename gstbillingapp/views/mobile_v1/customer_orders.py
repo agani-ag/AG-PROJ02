@@ -18,7 +18,7 @@ import datetime
 import num2words
 
 # Utility functions
-from ...utils import parse_code_GS
+from ...utils import parse_code_GS, build_quotation_item
 
 
 # ================= Customer Ordering System =============================
@@ -188,50 +188,30 @@ def customer_create_order(request):
         total_cgst = 0
         total_igst = 0
         
-        # Process each item
+        # Process each item — priced by the canonical rule in utils.build_quotation_item:
+        # discount off the rate first, then GST on top of the discounted rate.
         for item in order_items:
             try:
                 product = Product.objects.get(id=item['product_id'], user=business_user)
                 quantity = int(item['quantity'])
-                
-                # Calculate amounts
-                rate_with_gst = float(product.product_rate_with_gst)
-                gst_percentage = float(product.product_gst_percentage)
-                discount = float(product.product_discount or 0)
-                
-                # Calculate rate without GST
-                rate_without_gst = rate_with_gst / (1 + (gst_percentage / 100))
-                
-                # Item total with GST
-                item_total_with_gst = rate_with_gst * quantity
-                item_total_without_gst = rate_without_gst * quantity
-                
-                # GST amounts
-                gst_amount = item_total_with_gst - item_total_without_gst
-                sgst_amount = gst_amount / 2
-                cgst_amount = gst_amount / 2
-                
-                total_amount_with_gst += item_total_with_gst
-                total_amount_without_gst += item_total_without_gst
-                total_sgst += sgst_amount
-                total_cgst += cgst_amount
-                
-                quotation_data['items'].append({
-                    'invoice_model_no': product.model_no or '',
-                    'invoice_product': product.product_name or '',
-                    'invoice_hsn': product.product_hsn or '',
-                    'invoice_qty': quantity,
-                    'invoice_rate_with_gst': rate_with_gst,
-                    'invoice_gst_percentage': gst_percentage,
-                    'invoice_discount': discount,
-                    'invoice_amt': item_total_with_gst
-                })
+
+                item_entry = build_quotation_item(
+                    product, quantity, igstcheck=quotation_data['igstcheck']
+                )
+
+                total_amount_with_gst += item_entry['invoice_amt_with_gst']
+                total_amount_without_gst += item_entry['invoice_amt_without_gst']
+                total_sgst += item_entry['invoice_amt_sgst']
+                total_cgst += item_entry['invoice_amt_cgst']
+                total_igst += item_entry['invoice_amt_igst']
+
+                quotation_data['items'].append(item_entry)
             except Product.DoesNotExist:
                 return JsonResponse({
-                    'success': False, 
+                    'success': False,
                     'message': f'Product not found'
                 }, status=400)
-        
+
         # Set totals
         quotation_data['invoice_total_amt_with_gst'] = round(total_amount_with_gst, 2)
         quotation_data['invoice_total_amt_without_gst'] = round(total_amount_without_gst, 2)
@@ -670,50 +650,30 @@ def customer_update_order(request, quotation_id):
         total_cgst = 0
         total_igst = 0
         
-        # Process each item
+        # Process each item — priced by the canonical rule in utils.build_quotation_item:
+        # discount off the rate first, then GST on top of the discounted rate.
         for item in order_items:
             try:
                 product = Product.objects.get(id=item['product_id'], user=business_user)
                 quantity = int(item['quantity'])
-                
-                # Calculate amounts
-                rate_with_gst = float(product.product_rate_with_gst)
-                gst_percentage = float(product.product_gst_percentage)
-                discount = float(product.product_discount or 0)
-                
-                # Calculate rate without GST
-                rate_without_gst = rate_with_gst / (1 + (gst_percentage / 100))
-                
-                # Item total with GST
-                item_total_with_gst = rate_with_gst * quantity
-                item_total_without_gst = rate_without_gst * quantity
-                
-                # GST amounts
-                gst_amount = item_total_with_gst - item_total_without_gst
-                sgst_amount = gst_amount / 2
-                cgst_amount = gst_amount / 2
-                
-                total_amount_with_gst += item_total_with_gst
-                total_amount_without_gst += item_total_without_gst
-                total_sgst += sgst_amount
-                total_cgst += cgst_amount
-                
-                quotation_data['items'].append({
-                    'invoice_model_no': product.model_no or '',
-                    'invoice_product': product.product_name or '',
-                    'invoice_hsn': product.product_hsn or '',
-                    'invoice_qty': quantity,
-                    'invoice_rate_with_gst': rate_with_gst,
-                    'invoice_gst_percentage': gst_percentage,
-                    'invoice_discount': discount,
-                    'invoice_amt': item_total_with_gst
-                })
+
+                item_entry = build_quotation_item(
+                    product, quantity, igstcheck=quotation_data['igstcheck']
+                )
+
+                total_amount_with_gst += item_entry['invoice_amt_with_gst']
+                total_amount_without_gst += item_entry['invoice_amt_without_gst']
+                total_sgst += item_entry['invoice_amt_sgst']
+                total_cgst += item_entry['invoice_amt_cgst']
+                total_igst += item_entry['invoice_amt_igst']
+
+                quotation_data['items'].append(item_entry)
             except Product.DoesNotExist:
                 return JsonResponse({
-                    'success': False, 
+                    'success': False,
                     'message': f'Product not found'
                 }, status=400)
-        
+
         # Set totals
         quotation_data['invoice_total_amt_with_gst'] = round(total_amount_with_gst, 2)
         quotation_data['invoice_total_amt_without_gst'] = round(total_amount_without_gst, 2)

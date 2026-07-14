@@ -1,4 +1,5 @@
-{% extends "base.html" %}
+{# Desktop shell for staff; the mobile shell (with its bottom nav) for cid / emp modes. #}
+{% extends base_template|default:"base.html" %}
 {% load static %}
 {% block title %}Quotation Cart{% endblock %}
 
@@ -120,23 +121,100 @@
     </div>
 </div>
 
-<!-- Filter Row -->
+<!-- Who this cart belongs to. Shown whenever the cart is opened by a code rather
+     than a login, so a public visitor can see the shop and the account up front. -->
+{% if is_public %}
+<div class="card mb-3 border-primary cart-identity">
+    <div class="card-body py-2 px-3">
+        <div class="row align-items-center">
+            <div class="col-md-6 col-12">
+                <small class="text-muted d-block">Business</small>
+                <strong class="text-primary">
+                    <i class="fas fa-store mr-1"></i>
+                    {{ business_profile.business_title|default:"—" }}
+                    {% if business_profile.business_brand %}
+                        <span class="badge badge-primary ml-1">{{ business_profile.business_brand }}</span>
+                    {% endif %}
+                </strong>
+                {% if business_profile.business_phone %}
+                    <small class="d-block">
+                        <!-- tel: so a tap on mobile dials the shop -->
+                        <a href="tel:{{ business_profile.business_phone }}" class="text-muted">
+                            <i class="fas fa-phone-alt mr-1"></i>{{ business_profile.business_phone }}
+                        </a>
+                    </small>
+                {% endif %}
+            </div>
+
+            <div class="col-md-6 col-12 mt-2 mt-md-0 text-md-right">
+                {% if fixed_customer %}
+                    <small class="text-muted d-block">Quotation for</small>
+                    <strong>
+                        <i class="fas fa-user mr-1"></i>{{ fixed_customer.customer_name }}
+                    </strong>
+                    <small class="text-muted d-block">
+                        {% if fixed_customer.customer_gst %}
+                            GST: {{ fixed_customer.customer_gst }}
+                        {% else %}
+                            No GST No — quotations will be NON-GST
+                        {% endif %}
+                    </small>
+                {% else %}
+                    <span class="badge badge-info">Employee Mode</span>
+                    <small class="text-muted d-block">Pick a customer at checkout</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Filter Row. The division filter only exists when this business uses the field,
+     so the columns widen to fill the gap when it is absent. -->
 <div class="row mb-3">
-    <div class="col-md-4 col-6 mb-2">
+    <div class="col-md-3 col-6 mb-2">
         <input type="text" id="searchInput" class="form-control" placeholder="Search products..." oninput="applyFilters()">
     </div>
-    <div class="col-md-4 col-6 mb-2">
+    <div class="col-md-3 col-6 mb-2">
         <select id="categoryFilter" class="form-control" onchange="applyFilters()">
             <option value="">All Categories</option>
         </select>
     </div>
-    <div class="col-md-4 col-12 mb-2 d-flex align-items-center justify-content-between">
+    {% if divisions %}
+    <div class="col-md-3 col-6 mb-2">
+        <select id="divisionFilter" class="form-control" onchange="applyFilters()">
+            <option value="">All Divisions</option>
+            {% for d in divisions %}
+                <option value="{{ d }}">{{ d }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    <div class="{% if divisions %}col-md-3{% else %}col-md-6{% endif %} col-12 mb-2 d-flex align-items-center justify-content-between">
         <span class="badge badge-primary" id="totalCount" style="font-size:0.9em;">0 Products</span>
-        <button class="btn btn-secondary btn-sm btn-curve" onclick="loadData()">
+        <button class="btn btn-secondary btn-sm btn-curve" onclick="refreshCatalog()">
             <i class="fas fa-sync-alt"></i> Refresh
         </button>
     </div>
 </div>
+
+<!-- Group-by toggle. Offered whenever the business uses divisions; without any
+     division data there is nothing to switch to, so it is hidden. -->
+{% if divisions %}
+<div class="row mb-2">
+    <div class="col d-flex align-items-center">
+        <small class="text-muted mr-2">Group by:</small>
+        <div class="btn-group btn-group-sm btn-group-toggle" role="group">
+            <button type="button" id="groupByCategory" class="btn btn-outline-dark" onclick="setGroupBy('category')">
+                <i class="fas fa-folder mr-1"></i>Category
+            </button>
+            <button type="button" id="groupByDivision" class="btn btn-outline-dark" onclick="setGroupBy('division')">
+                <i class="fas fa-layer-group mr-1"></i>Division
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <hr>
 
@@ -182,26 +260,44 @@
     </div>
 </div>
 
+{% if navbar_template %}
+    <!-- Clear the fixed bottom nav so it never covers the last row of products. -->
+    <div style="height:80px;"></div>
+    {% include navbar_template %}
+{% endif %}
+
 {% endblock %}
 
 {% block includejs %}
 <script type="text/javascript">
-const PRODUCT_API = "{% url 'productsjson' %}";
-const CATEGORY_API = "{% url 'categoriesjson' %}";
-/* No checkout endpoint exists yet — checkout() refuses to run while this is null
-   instead of faking success. Point it at a real URL to enable checkout. */
-const CHECKOUT_API = null;
+/* The cart mode (staff / ?cid=... / ?u=emp...) lives in the query string, so carry it
+   onto the checkout POST — otherwise the server would not know who is checking out. */
+const CART_QUERY = "{{ cart_query|escapejs }}";
+const CHECKOUT_API = "{% url 'quotation_cart_checkout' %}" + (CART_QUERY ? "?" + CART_QUERY : "");
 
-/* Scope the cart to the logged-in user so a second login on the same browser
-   does not inherit the previous user's cart. */
-const CART_KEY = "quotation_cart_u{{ request.user.id|default:'anon' }}";
+const ACTOR = "{{ actor|escapejs }}";
+const CAN_CHOOSE_CUSTOMER = {{ can_choose_customer|yesno:"true,false" }};
 
-let allProducts = [];
-let allCategories = [];
+/* Products, categories and customers are rendered by the server, already scoped to
+   this business and field-whitelisted — the browser never queries for them, so it
+   cannot reach another business's data or the product cost price. */
+const allProducts = {{ products_json|safe }};
+const allCategories = {{ categories_json|safe }};
+const allCustomers = {{ customers_json|safe }};
+const FIXED_CUSTOMER = {{ fixed_customer_json|safe }};
+
+/* Keyed per business AND per actor, so a shared phone does not carry one customer's
+   cart over to the next. */
+const CART_KEY = "quotation_cart_" + ACTOR + "_" + (FIXED_CUSTOMER ? "c" + FIXED_CUSTOMER.id : "u{{ request.user.id|default:'anon' }}");
+
+/* Grouping dimension. Defaults to whichever one this business actually populates —
+   a shop that only uses divisions would otherwise open on one "Uncategorized" heap. */
+let groupBy = "{{ default_group_by }}";
+
 let categoryMap = {};
 let productMap = {};
 let cart = loadCart();
-let openCategories = {};   /* category path -> is expanded, preserved across re-renders */
+let openCategories = {};   /* group heading -> is expanded, preserved across re-renders */
 
 /* ================== HELPERS ================== */
 
@@ -227,6 +323,12 @@ function money(value) {
     return num(value).toFixed(2);
 }
 
+/* One label/amount line in the checkout confirmation table. */
+function row(label, value) {
+    return '<tr><td>' + label + '</td>' +
+           '<td class="text-right">₹ ' + money(value) + '</td></tr>';
+}
+
 function loadCart() {
     try {
         var stored = JSON.parse(localStorage.getItem(CART_KEY));
@@ -236,37 +338,24 @@ function loadCart() {
     }
 }
 
-/* ================== LOAD DATA ================== */
+/* ================== INIT ================== */
 
-async function loadData() {
-    $('#loadingIndicator').show();
-    try {
-        const [pRes, cRes] = await Promise.all([
-            fetch(PRODUCT_API, { credentials: 'same-origin' }),
-            fetch(CATEGORY_API, { credentials: 'same-origin' })
-        ]);
-        /* A logged-out session redirects to the login page, which is HTML —
-           without this check the JSON parse error looks like a server fault. */
-        if (!pRes.ok || !cRes.ok) throw new Error('Request failed');
+/* Nothing to fetch — the server already rendered the catalog into this page. */
+function loadData() {
+    buildCategoryMap();
+    buildProductMap();
+    buildCategoryDropdown();
+    paintGroupByButtons();
+    reconcileCart();
+    applyFilters();
+    updateCartUI();
+    $('#loadingIndicator').hide();
+}
 
-        allProducts = await pRes.json();
-        allCategories = await cRes.json();
-
-        buildCategoryMap();
-        buildProductMap();
-        buildCategoryDropdown();
-        reconcileCart();
-        applyFilters();
-        updateCartUI();
-    } catch (err) {
-        console.error('Failed to load data:', err);
-        document.getElementById("productContainer").innerHTML =
-            '<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle fa-3x mb-3"></i>' +
-            '<p>Could not load products. Check your connection and try Refresh.</p></div>';
-        Swal.fire('Error', 'Failed to load products. Please refresh.', 'error');
-    } finally {
-        $('#loadingIndicator').hide();
-    }
+/* Refresh re-renders the page so the catalog comes fresh from the server, keeping
+   the current mode (?cid=... / ?u=emp...) intact. */
+function refreshCatalog() {
+    window.location.reload();
 }
 
 /* Cart lives in localStorage, so it can hold products that were since deleted
@@ -342,9 +431,46 @@ function buildCategoryDropdown() {
 
 /* ================== FILTER ================== */
 
+/* The division dropdown is only rendered when the business uses that field, so read
+   it defensively — it is absent on businesses with no divisions. */
+function divisionFilterValue() {
+    var el = document.getElementById("divisionFilter");
+    return el ? el.value : "";
+}
+
+/* ================== GROUP BY ================== */
+
+/* The heading a product is filed under, in whichever dimension is active. */
+function groupLabelFor(product) {
+    if (groupBy === 'division') {
+        return product.product_division_category || "No Division";
+    }
+    return getCategoryFullPath(product.product_category_id);
+}
+
+function setGroupBy(mode) {
+    if (groupBy === mode) return;
+    groupBy = mode;
+    /* Open/closed state is keyed by heading name, and the two dimensions have
+       different headings, so drop it rather than carry it across. */
+    openCategories = {};
+    paintGroupByButtons();
+    applyFilters();
+}
+
+function paintGroupByButtons() {
+    var cat = document.getElementById('groupByCategory');
+    var div = document.getElementById('groupByDivision');
+    if (!cat || !div) return;   /* toggle absent when only one dimension is in use */
+
+    cat.classList.toggle('active', groupBy === 'category');
+    div.classList.toggle('active', groupBy === 'division');
+}
+
 function applyFilters() {
     var search = document.getElementById("searchInput").value.trim().toLowerCase();
     var category = document.getElementById("categoryFilter").value;
+    var division = divisionFilterValue();
 
     var filtered = allProducts.filter(function(p) {
         /* product_name is nullable in the model, so these can be null. */
@@ -352,7 +478,8 @@ function applyFilters() {
         var model = (p.model_no || "").toLowerCase();
         var matchSearch = !search || name.indexOf(search) !== -1 || model.indexOf(search) !== -1;
         var matchCategory = !category || String(p.product_category_id) === String(category);
-        return matchSearch && matchCategory;
+        var matchDivision = !division || (p.product_division_category || "") === division;
+        return matchSearch && matchCategory && matchDivision;
     });
 
     renderProducts(filtered);
@@ -365,7 +492,8 @@ function renderProducts(products) {
     container.innerHTML = "";
 
     var hasFilter = document.getElementById("searchInput").value.trim() !== "" ||
-                    document.getElementById("categoryFilter").value !== "";
+                    document.getElementById("categoryFilter").value !== "" ||
+                    divisionFilterValue() !== "";
 
     document.getElementById("totalCount").innerText = products.length + " Products";
 
@@ -374,10 +502,10 @@ function renderProducts(products) {
         return;
     }
 
-    /* Group by category */
+    /* Group by whichever dimension the toggle has selected. */
     var grouped = {};
     products.forEach(function(p) {
-        var categoryName = getCategoryFullPath(p.product_category_id);
+        var categoryName = groupLabelFor(p);
         if (!grouped[categoryName]) {
             grouped[categoryName] = { withImage: [], withoutImage: [] };
         }
@@ -400,7 +528,7 @@ function renderProducts(products) {
         section.className = 'category-section';
         section.innerHTML =
             '<div class="category-header" data-toggle="collapse" data-target="#' + collapseId + '">' +
-                '<span><i class="fas fa-folder-open mr-2"></i>' + esc(category) +
+                '<span><i class="fas ' + (groupBy === 'division' ? 'fa-layer-group' : 'fa-folder-open') + ' mr-2"></i>' + esc(category) +
                     ' <span class="badge badge-light">' + (withImg.length + withoutImg.length) + '</span>' +
                 '</span>' +
                 '<i class="fas ' + (isOpen ? 'fa-chevron-up' : 'fa-chevron-down') + '" id="icon-' + collapseId + '"></i>' +
@@ -707,30 +835,271 @@ function openCart() {
 
 /* ================== CHECKOUT ================== */
 
+/* Mirrors quotation_create() / invoice_create(): a GST quotation needs the customer's
+   GSTIN, and a customer without one is automatically switched to non-GST. */
+function hasGstin(gst) {
+    return !!(gst && String(gst).trim() !== '');
+}
+
+/* Force the toggle off (and lock it) when the customer has no GSTIN, so the dialog
+   shows exactly what the server will do rather than letting the user pick GST and
+   then be silently overridden. */
+function syncGstToggle(gst) {
+    var toggle = document.getElementById('swal-is-gst');
+    if (!toggle) return;
+
+    if (!hasGstin(gst)) {
+        toggle.checked = false;
+        toggle.disabled = true;
+    } else {
+        toggle.disabled = false;
+    }
+    showGstStatus(gst);
+}
+
+function showGstStatus(gst) {
+    var box = document.getElementById('swal-gst-status');
+    if (!box) return;
+
+    var isGstQuotation = document.getElementById('swal-is-gst').checked;
+
+    if (!hasGstin(gst)) {
+        box.innerHTML =
+            '<div class="alert alert-warning py-2 mb-0" style="font-size:0.85em;">' +
+                '<i class="fas fa-info-circle mr-1"></i>' +
+                'This customer has <strong>no GST Number</strong>, so a ' +
+                '<strong>NON-GST quotation</strong> will be created automatically.' +
+            '</div>';
+        return;
+    }
+
+    if (!isGstQuotation) {
+        box.innerHTML =
+            '<div class="alert alert-secondary py-2 mb-0" style="font-size:0.85em;">' +
+                '<i class="fas fa-file-alt mr-1"></i>' +
+                'A <strong>NON-GST quotation</strong> will be created (separate QT- number series).' +
+            '</div>';
+        return;
+    }
+
+    box.innerHTML =
+        '<div class="alert alert-success py-2 mb-0" style="font-size:0.85em;">' +
+            '<i class="fas fa-check-circle mr-1"></i>' +
+            'A <strong>GST quotation</strong> will be created — customer GST: ' + esc(gst) + '.' +
+        '</div>';
+}
+
+/* ================== SHARE (SMS / WhatsApp) ================== */
+
+/* Plain text — no markdown, since SMS renders none of it and WhatsApp only some.
+   The message always goes to the shop, so it always reads as an order placed with
+   them: To = shop, From = the customer it is billed to. */
+function buildShareMessage(data) {
+    var seller = data.business_brand
+        ? data.business_title + ' (' + data.business_brand + ')'
+        : data.business_title;
+
+    var lines = [];
+
+    lines.push('*Quotation ' + data.quotation_label + '*');
+    if (seller) lines.push('To: ' + seller);
+    lines.push('From: ' + data.customer_name);
+    lines.push('Date: ' + data.quotation_date);
+    lines.push('');
+
+    (data.items || []).forEach(function(item, i) {
+        lines.push((i + 1) + '. ' + item.model_no + ' x ' + item.qty + ' = ' + money(item.amount));
+    });
+
+    lines.push('');
+    var t = data.totals || {};
+    if (t.discount > 0) lines.push('Discount: ' + money(t.discount));
+    lines.push('Total: Rs. ' + money(t.grand_total));
+    lines.push(data.is_gst ? '(GST Quotation)' : '(Non-GST Quotation)');
+    lines.push('');
+    lines.push('Please confirm this order.');
+
+    return lines.join('\n');
+}
+
+/* WhatsApp needs an international number. Numbers are stored as bare 10-digit
+   Indian mobiles, so add 91 when that is what we were given; anything already
+   carrying a country code is passed through untouched. */
+function waNumber(phone) {
+    var digits = String(phone || '').replace(/\D/g, '');
+    if (digits.length === 10) return '91' + digits;
+    if (digits.length === 12 && digits.indexOf('91') === 0) return digits;
+    return digits;
+}
+
+/* share_phone is the recipient the SERVER chose: the customer when a shop is sending,
+   the shop when a customer is ordering for themselves. */
+function shareWhatsApp(data) {
+    var num = waNumber(data.share_phone);
+    var text = encodeURIComponent(buildShareMessage(data));
+    /* No number on file: open the chooser so the sender can pick a contact. */
+    var url = num ? 'https://wa.me/' + num + '?text=' + text
+                  : 'https://wa.me/?text=' + text;
+    window.open(url, '_blank');
+}
+
+function shareSMS(data) {
+    var digits = String(data.share_phone || '').replace(/\D/g, '');
+    /* iOS wants ?&body=, Android accepts ?body=; ?&body= works on both. */
+    window.location.href = 'sms:' + digits + '?&body=' + encodeURIComponent(buildShareMessage(data));
+}
+
+/* ================== CHECKOUT ================== */
+
 function checkout() {
     if (cart.length === 0) {
         Swal.fire('Empty Cart', 'Add items before checkout.', 'info');
         return;
     }
 
-    /* The old code POSTed to "#", i.e. back to this page. Any 2xx (including this
-       page's own HTML) counted as success: it announced "Order placed
-       successfully!" and wiped the cart without a quotation ever being created. */
-    if (!CHECKOUT_API) {
-        Swal.fire('Not Available', 'Checkout is not wired up yet. Your cart has been saved.', 'info');
-        return;
+    var totals = calculateTotals();
+
+    /* Customer mode: the buyer is fixed by the link, so there is nothing to pick and
+       no customer list in the page. Staff/employee get the dropdown. */
+    var customerSection;
+    if (!CAN_CHOOSE_CUSTOMER && FIXED_CUSTOMER) {
+        customerSection =
+            '<div class="alert alert-info py-2 text-left" style="font-size:0.9em;">' +
+                '<i class="fas fa-user mr-1"></i> Quotation for: <strong>' +
+                esc(FIXED_CUSTOMER.customer_name) + '</strong>' +
+            '</div>';
+    } else {
+        var customerOptions = allCustomers.map(function(c) {
+            return '<option value="' + c.id + '">' + esc(c.customer_name) +
+                   (c.customer_phone ? ' — ' + esc(c.customer_phone) : '') + '</option>';
+        }).join('');
+
+        customerSection =
+            '<select id="swal-customer" class="swal2-input" style="width:100%;">' +
+                '<option value="">-- Select Existing Customer --</option>' +
+                customerOptions +
+                '<option value="__new__">+ New Customer</option>' +
+            '</select>' +
+            '<div id="swal-customer-fields" style="display:none;">' +
+                '<input id="swal-name" class="swal2-input" placeholder="Customer Name *">' +
+                '<input id="swal-phone" class="swal2-input" placeholder="Phone">' +
+                '<input id="swal-address" class="swal2-input" placeholder="Address">' +
+                '<input id="swal-gst" class="swal2-input" placeholder="GST No (15 chars, optional)">' +
+            '</div>';
     }
 
     Swal.fire({
-        title: 'Confirm Checkout?',
-        text: 'Grand Total: ₹ ' + money(calculateTotals().grandTotal),
-        icon: 'question',
+        title: 'Checkout',
+        width: 520,
+        html:
+            '<p class="mb-3">Estimated Total: <strong class="text-success">₹ ' + money(totals.grandTotal) + '</strong>' +
+            '<br><small class="text-muted">Final amount is recalculated by the server.</small></p>' +
+
+            customerSection +
+
+            '<div class="custom-control custom-switch text-left mt-3 mb-2" style="padding-left:2.25rem;">' +
+                '<input type="checkbox" class="custom-control-input" id="swal-is-gst" checked>' +
+                '<label class="custom-control-label" for="swal-is-gst">GST Quotation</label>' +
+            '</div>' +
+
+            '<div id="swal-gst-status" class="mt-2"></div>',
+        focusConfirm: false,
         showCancelButton: true,
         confirmButtonColor: '#28a745',
         cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Yes, Checkout!'
+        confirmButtonText: 'Create Quotation',
+
+        didOpen: function() {
+            var select = document.getElementById('swal-customer');
+            var fields = document.getElementById('swal-customer-fields');
+            var gstInput = document.getElementById('swal-gst');
+            var gstToggle = document.getElementById('swal-is-gst');
+
+            /* The GSTIN currently in play: the fixed customer's, the picked one's, or typed. */
+            function currentGst() {
+                if (!select) return FIXED_CUSTOMER ? FIXED_CUSTOMER.customer_gst : null;
+                if (select.value === '__new__') return gstInput.value;
+                var picked = allCustomers.find(function(c) { return String(c.id) === select.value; });
+                return picked ? picked.customer_gst : null;
+            }
+
+            /* No dropdown in customer mode — the customer is settled, so just reflect
+               their GST status on the toggle. */
+            if (select) {
+                select.addEventListener('change', function() {
+                    /* An existing customer's details are already on the server, so the
+                       fields stay hidden — nothing to fill in. */
+                    fields.style.display = (select.value === '__new__') ? 'block' : 'none';
+                    syncGstToggle(currentGst());
+                });
+                gstInput.addEventListener('input', function() { syncGstToggle(currentGst()); });
+            }
+
+            gstToggle.addEventListener('change', function() { showGstStatus(currentGst()); });
+
+            syncGstToggle(currentGst());
+        },
+
+        preConfirm: function() {
+            var isGst = document.getElementById('swal-is-gst').checked;
+            var select = document.getElementById('swal-customer');
+
+            /* Customer mode: the server takes the customer from the cid, so send none. */
+            if (!select) {
+                return { customer: {}, is_gst: isGst };
+            }
+
+            var choice = select.value;
+
+            if (!choice) {
+                Swal.showValidationMessage('Select a customer, or choose "New Customer"');
+                return false;
+            }
+
+            if (choice !== '__new__') {
+                return { customer: { id: choice }, is_gst: isGst };
+            }
+
+            var name = document.getElementById('swal-name').value.trim();
+            var gst = document.getElementById('swal-gst').value.trim();
+
+            if (!name) {
+                Swal.showValidationMessage('Customer name is required');
+                return false;
+            }
+            if (gst && gst.length !== 15) {
+                Swal.showValidationMessage('GST No must be exactly 15 characters');
+                return false;
+            }
+
+            return {
+                customer: {
+                    name: name,
+                    phone: document.getElementById('swal-phone').value.trim(),
+                    address: document.getElementById('swal-address').value.trim(),
+                    gst: gst
+                },
+                is_gst: isGst
+            };
+        }
     }).then(function(result) {
         if (!result.isConfirmed) return;
+
+        Swal.fire({
+            title: 'Creating Quotation...',
+            allowOutsideClick: false,
+            didOpen: function() { Swal.showLoading(); }
+        });
+
+        /* Send ids/qty/discount only — the server re-reads rate and GST% from the
+           Product table, so the prices in localStorage cannot influence the total. */
+        var payload = {
+            customer: result.value.customer,
+            is_gst: result.value.is_gst,
+            items: cart.map(function(item) {
+                return { id: item.id, qty: item.qty, discount: item.discount };
+            })
+        };
 
         fetch(CHECKOUT_API, {
             method: "POST",
@@ -739,23 +1108,104 @@ function checkout() {
                 "Content-Type": "application/json",
                 "X-CSRFToken": getCSRFToken()
             },
-            body: JSON.stringify({ items: cart, totals: calculateTotals() })
+            body: JSON.stringify(payload)
         }).then(function(response) {
-            return response.json().catch(function() { return { success: response.ok }; });
+            return response.json().catch(function() { return { success: false }; });
         }).then(function(data) {
-            /* Only clear the cart once the server confirms the quotation exists. */
+            /* Only empty the cart once the server confirms the quotation exists. */
             if (!data || !data.success) {
                 Swal.fire('Error', (data && data.message) || 'Checkout failed. Please try again.', 'error');
                 return;
             }
-            Swal.fire('Success!', 'Quotation created successfully!', 'success').then(function() {
-                cart = [];
-                saveCart();
-                if (data.redirect_url) {
-                    window.location.href = data.redirect_url;
-                } else {
-                    location.reload();
+
+            cart = [];
+            saveCart();
+            refreshCardActions();
+
+            /* Show the server's figures, not the browser's estimate — these are the
+               amounts the quotation was actually saved with. */
+            var t = data.totals || {};
+            var taxRows = data.is_gst
+                ? (t.igst > 0
+                    ? row('IGST', t.igst)
+                    : row('CGST', t.cgst) + row('SGST', t.sgst))
+                : '';
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Quotation ' + data.quotation_label + ' Created',
+                html:
+                    '<div class="text-left" style="font-size:0.9em;">' +
+                        '<div class="mb-2">' +
+                            '<span class="badge ' + (data.is_gst ? 'badge-success' : 'badge-secondary') + '">' +
+                                (data.is_gst ? 'GST' : 'NON-GST') +
+                            '</span> ' +
+                            esc(data.customer_name) +
+                            ' <small class="text-muted">(' + data.item_count + ' item(s))</small>' +
+                        '</div>' +
+                        (data.gst_downgraded
+                            ? '<div class="alert alert-warning py-1 px-2 mb-2" style="font-size:0.8em;">' +
+                                  'Customer has no GST Number — created as NON-GST.' +
+                              '</div>'
+                            : '') +
+                        '<table class="table table-sm mb-2">' +
+                            row('Subtotal', t.gross) +
+                            row('Discount', -t.discount) +
+                            row('Taxable Value', t.taxable) +
+                            taxRows +
+                            '<tr class="font-weight-bold">' +
+                                '<td>Grand Total</td>' +
+                                '<td class="text-right text-success">₹ ' + money(t.grand_total) + '</td>' +
+                            '</tr>' +
+                        '</table>' +
+
+                        /* Share the quotation with the customer. The buttons are wired
+                           in didOpen, since Swal strips inline handlers from html. */
+                        '<div class="d-flex mb-2" style="gap:8px;">' +
+                            '<button type="button" id="share-wa" class="btn btn-success btn-sm btn-block m-0">' +
+                                '<i class="fab fa-whatsapp mr-1"></i>WhatsApp' +
+                            '</button>' +
+                            '<button type="button" id="share-sms" class="btn btn-info btn-sm btn-block m-0">' +
+                                '<i class="fas fa-sms mr-1"></i>SMS' +
+                            '</button>' +
+                        '</div>' +
+                        (data.share_phone
+                            ? '<small class="text-muted d-block mb-2">' +
+                                  '<i class="fas fa-paper-plane mr-1"></i>Sending to ' +
+                                  '<strong>' + esc(data.share_to) + '</strong> — ' + esc(data.share_phone) +
+                              '</small>'
+                            : '<small class="text-warning d-block mb-2">' +
+                                  'No phone on file for ' + esc(data.share_to || 'the recipient') +
+                                  ' — you will pick the contact.' +
+                              '</small>') +
+
+                        '<small class="text-muted">' +
+                            (data.redirect_url
+                                ? 'A new cart has been started.'
+                                : 'Sent for approval. A new cart has been started.') +
+                        '</small>' +
+                    '</div>',
+                /* Public actors get no link into the internal quotation page — the
+                   server withholds redirect_url for them. */
+                showCancelButton: !!data.redirect_url,
+                confirmButtonText: data.redirect_url ? 'View Quotation' : 'New Cart',
+                cancelButtonText: 'New Cart',
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
+
+                didOpen: function() {
+                    /* Sharing must not dismiss the dialog — the user may want to send
+                       by WhatsApp and then by SMS, or share again after cancelling. */
+                    document.getElementById('share-wa')
+                        .addEventListener('click', function() { shareWhatsApp(data); });
+                    document.getElementById('share-sms')
+                        .addEventListener('click', function() { shareSMS(data); });
                 }
+            }).then(function(choice) {
+                if (choice.isConfirmed && data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                }
+                /* Otherwise stay put — the cart is already empty and ready to reuse. */
             });
         }).catch(function() {
             Swal.fire('Error', 'Network error. Please try again.', 'error');

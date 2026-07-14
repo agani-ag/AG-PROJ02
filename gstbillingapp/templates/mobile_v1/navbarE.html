@@ -30,6 +30,12 @@
             <i class="fas fa-box"></i>
             <span>Products</span>
         </a>
+
+        <!-- Quotation Cart -->
+        <a href="{% url 'quotation_cart' %}?u={{ request.GET.u }}&admin={{ request.GET.admin }}&users_filter={{ request.GET.users_filter }}" class="nav-item" data-page="cart">
+            <i class="fas fa-shopping-basket"></i>
+            <span>Cart</span>
+        </a>
         
         {% if temp %}
         <!-- Orders (Admin) -->
@@ -116,6 +122,9 @@
                 item.classList.add('active');
                 activeItem = item;
             } else if (page === 'products' && currentPath.endsWith('/products')) {
+                item.classList.add('active');
+                activeItem = item;
+            } else if (page === 'cart' && currentPath.includes('quotation/cart')) {
                 item.classList.add('active');
                 activeItem = item;
             } else if (page === 'orders' && currentPath.includes('/admin/orders')) {

@@ -34,6 +34,12 @@
         </a>
         {% endif %}
         
+        <!-- Quotation Cart -->
+        <a href="{% url 'quotation_cart' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="cart">
+            <i class="fas fa-shopping-basket"></i>
+            <span>Cart</span>
+        </a>
+
         <!-- Profile -->
         <a href="{% url 'v1customerprofile' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="profile">
             <i class="fas fa-user-circle"></i>
@@ -100,6 +106,8 @@
             } else if (page === 'orders' && (currentPath.includes('customer/orders') || currentPath.includes('customer/products') || currentPath.includes('customer/order/'))) {
                 item.classList.add('active');
             } else if (page === 'books' && currentPath.includes('customer/books')) {
+                item.classList.add('active');
+            } else if (page === 'cart' && currentPath.includes('quotation/cart')) {
                 item.classList.add('active');
             } else if (page === 'notifications' && currentPath.includes('customer/notifications')) {
                 item.classList.add('active');
