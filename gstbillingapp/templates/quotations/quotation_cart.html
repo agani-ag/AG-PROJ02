@@ -87,6 +87,31 @@
     border-radius: 50%;
 }
 
+/* The mobile bottom nav is fixed, so it sat on top of the cart modal's footer and
+   buried the Clear / Checkout buttons. Bootstrap flags the open modal on <body>, so
+   drop the nav for as long as the cart is up — it is unreachable then anyway. */
+body.modal-open .mobile-bottom-nav {
+    display: none !important;
+}
+
+/* Belt and braces: the nav sits at z-index 9999, far above Bootstrap's 1050, so the
+   modal has to be lifted over it in case the body flag above is ever missing. */
+#cartModal {
+    z-index: 10001;
+}
+.modal-backdrop {
+    z-index: 10000;
+}
+#cartModal .modal-footer {
+    padding-bottom: 15px;
+}
+
+/* SweetAlert defaults to 1060 — also under the nav, so the checkout dialog's own
+   buttons would be covered. Lift it above everything. */
+.swal2-container {
+    z-index: 10002 !important;
+}
+
 /* Responsive tweaks */
 @media (max-width: 767px) {
     .product-card .card-img-top {
@@ -246,9 +271,12 @@
     </div>
 </div>
 
-<!-- Cart Modal (Mobile) -->
+<!-- Cart Modal (Mobile).
+     modal-dialog-scrollable: with a long cart the dialog grew taller than the screen
+     and pushed the footer — which holds the totals AND the Clear/Checkout buttons —
+     off the bottom. Scrolling the body instead keeps the footer pinned and visible. -->
 <div class="modal fade" id="cartModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="fas fa-shopping-bag"></i> Cart</h5>
