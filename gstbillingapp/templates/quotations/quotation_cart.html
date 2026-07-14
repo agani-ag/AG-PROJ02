@@ -891,32 +891,38 @@ function showGstStatus(gst) {
 
 /* ================== SHARE (SMS / WhatsApp) ================== */
 
-/* Plain text — no markdown, since SMS renders none of it and WhatsApp only some.
-   The message always goes to the shop, so it always reads as an order placed with
-   them: To = shop, From = the customer it is billed to. */
-function buildShareMessage(data) {
+/* The message always goes to the shop, so it reads as an order placed with them:
+   To = shop, From = the customer it is billed to.
+
+   `plain` strips the WhatsApp *bold* markers and the blank separator lines. SMS
+   renders no markdown, and several SMS handlers truncate a body at a blank line —
+   which is why the SMS was arriving cut off after the From: line. */
+function buildShareMessage(data, plain) {
     var seller = data.business_brand
         ? data.business_title + ' (' + data.business_brand + ')'
         : data.business_title;
 
+    var b = plain ? '' : '*';       /* bold marker */
+    var gap = plain ? [] : [''];    /* blank separator line */
+
     var lines = [];
 
-    lines.push('*Quotation ' + data.quotation_label + '*');
+    lines.push(b + 'Quotation ' + data.quotation_label + b);
     if (seller) lines.push('To: ' + seller);
     lines.push('From: ' + data.customer_name);
     lines.push('Date: ' + data.quotation_date);
-    lines.push('');
+    lines = lines.concat(gap);
 
     (data.items || []).forEach(function(item, i) {
         lines.push((i + 1) + '. ' + item.model_no + ' x ' + item.qty + ' = ' + money(item.amount));
     });
 
-    lines.push('');
+    lines = lines.concat(gap);
     var t = data.totals || {};
     if (t.discount > 0) lines.push('Discount: ' + money(t.discount));
     lines.push('Total: Rs. ' + money(t.grand_total));
     lines.push(data.is_gst ? '(GST Quotation)' : '(Non-GST Quotation)');
-    lines.push('');
+    lines = lines.concat(gap);
     lines.push('Please confirm this order.');
 
     return lines.join('\n');
@@ -932,21 +938,31 @@ function waNumber(phone) {
     return digits;
 }
 
-/* share_phone is the recipient the SERVER chose: the customer when a shop is sending,
-   the shop when a customer is ordering for themselves. */
+/* share_phone is the recipient the SERVER chose — always the shop. */
 function shareWhatsApp(data) {
     var num = waNumber(data.share_phone);
-    var text = encodeURIComponent(buildShareMessage(data));
-    /* No number on file: open the chooser so the sender can pick a contact. */
-    var url = num ? 'https://wa.me/' + num + '?text=' + text
-                  : 'https://wa.me/?text=' + text;
+    var text = encodeURIComponent(buildShareMessage(data, false));
+
+    /* api.whatsapp.com/send, NOT wa.me: when wa.me is opened with a number the browser
+       hands it straight to the app as a deep link and the ?text= is dropped, which is
+       why the chat opened empty. The send endpoint carries the prefill reliably. */
+    var url = num
+        ? 'https://api.whatsapp.com/send?phone=' + num + '&text=' + text
+        : 'https://api.whatsapp.com/send?text=' + text;   /* no number: pick a contact */
+
     window.open(url, '_blank');
 }
 
 function shareSMS(data) {
     var digits = String(data.share_phone || '').replace(/\D/g, '');
-    /* iOS wants ?&body=, Android accepts ?body=; ?&body= works on both. */
-    window.location.href = 'sms:' + digits + '?&body=' + encodeURIComponent(buildShareMessage(data));
+    var text = encodeURIComponent(buildShareMessage(data, true));
+
+    /* Separator differs by platform: iOS wants sms:<n>&body=, Android sms:<n>?body=.
+       The old '?&body=' satisfied neither cleanly. */
+    var isApple = /iPhone|iPad|iPod|Macintosh/i.test(navigator.userAgent);
+    var sep = isApple ? '&' : '?';
+
+    window.location.href = 'sms:' + digits + sep + 'body=' + text;
 }
 
 /* ================== CHECKOUT ================== */

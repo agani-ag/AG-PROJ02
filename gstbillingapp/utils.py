@@ -421,12 +421,18 @@ def resolve_cart_context(request):
     if request.GET.get('u') == 'emp':
         raw = request.GET.get('users_filter', '')
         ids = [int(uid) for uid in raw.split(',') if uid.strip().isdigit()]
-        if not ids:
-            # Never fall back to "every business" — this endpoint writes.
-            raise CartAccessError('Employee access requires users_filter.')
 
         # select_related: the picker reads each business's profile (title/brand/phone).
-        businesses = list(User.objects.filter(id__in=ids).select_related('userprofile'))
+        businesses = User.objects.select_related('userprofile')
+        if ids:
+            businesses = businesses.filter(id__in=ids)
+        else:
+            # No users_filter (or an empty one) means every business, as on the other
+            # mobile employee pages. A quotation still belongs to exactly one, so the
+            # employee is sent to the picker rather than writing against "all".
+            businesses = businesses.filter(userprofile__isnull=False)
+
+        businesses = list(businesses.order_by('userprofile__business_title'))
         if not businesses:
             raise CartAccessError('No such business.')
 
