@@ -27,8 +27,14 @@
 					{% elif quotation.status == 'CONVERTED' %}
 						<span class="badge badge-secondary"><i class="fas fa-check-double"></i> RECEIVED BY CUSTOMER</span>
 					{% endif %}
+					{% if quotation.created_from_cart %}
+						<!-- d-print-none: an internal source flag, not part of the printed quotation. -->
+						<span class="badge badge-info d-print-none" title="Created from the Quotation Cart">
+							<i class="fas fa-shopping-basket"></i> From Cart
+						</span>
+					{% endif %}
 				</strong>
-			</div> 
+			</div>
 			<div class="col-sm-6 col-6">&nbsp;</div>
 			<div class="col-sm-6 col-6">&nbsp;</div>
 			<div class="col-sm-6 col-6"><strong><span class="hide-on-toggle">Quotation</span> Date: {{quotation.quotation_date}}</strong></div>

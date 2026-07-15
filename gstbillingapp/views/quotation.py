@@ -321,6 +321,10 @@ def quotations_ajax(request):
             else:
                 quotation_num = f'<span class="text-danger font-weight-bold">QT-NG{quotation.quotation_number}</span>'
 
+            # Flag quotations that came in through the Quotation Cart.
+            if quotation.created_from_cart:
+                quotation_num += ' <span class="badge badge-info" title="Created from Quotation Cart"><i class="fas fa-shopping-basket"></i> Cart</span>'
+
             # Customer
             if quotation.quotation_customer:
                 customer_html = f'<a href="/customer/edit/{quotation.quotation_customer.id}" style="text-decoration: none;color: black;">{quotation.quotation_customer.customer_name}</a>'
