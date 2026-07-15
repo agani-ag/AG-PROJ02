@@ -223,11 +223,11 @@ body.modal-open .mobile-bottom-nav {
     </div>
 </div>
 
-<!-- Group-by toggle. Offered whenever the business uses divisions; without any
-     division data there is nothing to switch to, so it is hidden. -->
-{% if divisions %}
-<div class="row mb-2">
-    <div class="col d-flex align-items-center">
+<!-- Group-by (only when divisions exist) + Sort-by (always).
+     Centered on mobile, left-aligned from md up. -->
+<div class="row mb-2 justify-content-center justify-content-md-start">
+    {% if divisions %}
+    <div class="col-auto mb-2 d-flex align-items-center">
         <small class="text-muted mr-2">Group by:</small>
         <div class="btn-group btn-group-sm btn-group-toggle" role="group">
             <button type="button" id="groupByCategory" class="btn btn-outline-dark" onclick="setGroupBy('category')">
@@ -238,8 +238,19 @@ body.modal-open .mobile-bottom-nav {
             </button>
         </div>
     </div>
+    {% endif %}
+    <div class="col-auto mb-2 d-flex align-items-center">
+        <small class="text-muted mr-2">Sort by:</small>
+        <div class="btn-group btn-group-sm btn-group-toggle" role="group">
+            <button type="button" id="sortByAlpha" class="btn btn-outline-dark" onclick="setSortBy('alpha')" title="Click again to reverse">
+                <i class="fas fa-arrow-down-a-z mr-1" id="sortAlphaIcon"></i>Name
+            </button>
+            <button type="button" id="sortByPrice" class="btn btn-outline-dark" onclick="setSortBy('price')" title="Click again to reverse">
+                <i class="fas fa-arrow-down-1-9 mr-1" id="sortPriceIcon"></i>Price
+            </button>
+        </div>
+    </div>
 </div>
-{% endif %}
 
 <hr>
 
@@ -324,6 +335,11 @@ const CART_KEY = "quotation_cart_" + ACTOR + "_" + (FIXED_CUSTOMER ? "c" + FIXED
    a shop that only uses divisions would otherwise open on one "Uncategorized" heap. */
 let groupBy = "{{ default_group_by }}";
 
+/* Sort within each group. sortField = 'alpha' (product name) or 'price' (rate);
+   sortDir = 'asc' or 'desc'. Clicking the active field again flips its direction. */
+let sortField = "alpha";
+let sortDir = "asc";
+
 let categoryMap = {};
 let productMap = {};
 let cart = loadCart();
@@ -376,6 +392,7 @@ function loadData() {
     buildProductMap();
     buildCategoryDropdown();
     paintGroupByButtons();
+    paintSortByButtons();
     reconcileCart();
     applyFilters();
     updateCartUI();
@@ -497,6 +514,65 @@ function paintGroupByButtons() {
     div.classList.toggle('active', groupBy === 'division');
 }
 
+/* ================== SORT BY ================== */
+
+/* Same field again → flip direction; a different field → switch and start ascending. */
+function setSortBy(field) {
+    if (sortField === field) {
+        sortDir = (sortDir === 'asc') ? 'desc' : 'asc';
+    } else {
+        sortField = field;
+        sortDir = 'asc';
+    }
+    paintSortByButtons();
+    applyFilters();
+}
+
+function paintSortByButtons() {
+    var a = document.getElementById('sortByAlpha');
+    var p = document.getElementById('sortByPrice');
+    if (!a || !p) return;
+
+    var alphaActive = (sortField === 'alpha');
+    a.classList.toggle('active', alphaActive);
+    p.classList.toggle('active', !alphaActive);
+
+    /* Arrow points the way the active field is sorted; the idle field keeps a neutral
+       ascending arrow so its label still reads. */
+    setIcon('sortAlphaIcon', alphaActive
+        ? (sortDir === 'asc' ? 'fa-arrow-down-a-z' : 'fa-arrow-up-a-z')
+        : 'fa-arrow-down-a-z');
+    setIcon('sortPriceIcon', !alphaActive
+        ? (sortDir === 'asc' ? 'fa-arrow-down-1-9' : 'fa-arrow-up-9-1')
+        : 'fa-arrow-down-1-9');
+}
+
+function setIcon(id, faClass) {
+    var el = document.getElementById(id);
+    if (el) el.className = 'fas ' + faClass + ' mr-1';
+}
+
+function sortProducts(list) {
+    var sorted = list.slice();   /* never mutate the shared allProducts array */
+    var dir = (sortDir === 'desc') ? -1 : 1;
+
+    if (sortField === 'price') {
+        sorted.sort(function(a, b) {
+            var pa = num(a.product_rate_with_gst), pb = num(b.product_rate_with_gst);
+            if (pa !== pb) return (pa - pb) * dir;
+            /* tie on price → stable, readable secondary order by name (follows dir too) */
+            return (a.product_name || a.model_no || '').localeCompare(b.product_name || b.model_no || '') * dir;
+        });
+    } else {
+        sorted.sort(function(a, b) {
+            var na = (a.product_name || a.model_no || '');
+            var nb = (b.product_name || b.model_no || '');
+            return na.localeCompare(nb) * dir;
+        });
+    }
+    return sorted;
+}
+
 function applyFilters() {
     var search = document.getElementById("searchInput").value.trim().toLowerCase();
     var category = document.getElementById("categoryFilter").value;
@@ -512,7 +588,7 @@ function applyFilters() {
         return matchSearch && matchCategory && matchDivision;
     });
 
-    renderProducts(filtered);
+    renderProducts(sortProducts(filtered));
 }
 
 /* ================== RENDER PRODUCTS ================== */
@@ -602,6 +678,73 @@ function groupLabel(text, cssClass, spaced) {
     return div;
 }
 
+/* ================== PRODUCT TYPE ICON ==================
+   No per-product photos are stored and no external image service is used. Each
+   product shows a GENERIC local Font Awesome icon for its type, chosen from keywords
+   in the name/model/division — a switch looks like a switch whatever its model. A
+   real photo in product_image_url still wins over the icon.
+
+   All icons verified present in the loaded Font Awesome 6 (desktop 6.0.0 and mobile
+   6.5.2) — being local, they render instantly and offline, with no network calls.
+
+   Ordered, first match wins — put more specific words first (BELL PUSH is a switch,
+   so PUSH before BELL; TAPE before TAP because 'TAP' is a substring of 'TAPE').
+   Tune freely — it is just data. */
+var PRODUCT_TYPE_ICONS = [
+    { kw: ['TAPE'],                                           fa: 'fa-compact-disc' },
+
+    /* --- Plumbing / sanitaryware --- */
+    { kw: ['SHOWER', 'RAIN SHOWER', 'OVER HEAD'],             fa: 'fa-shower' },
+    { kw: ['HEATER', 'GEYSER', 'IMMERSION'],                  fa: 'fa-temperature-high' },
+    { kw: ['EWC', 'CLOSET', 'TOILET', 'URINAL', 'COMMODE', 'SEAT COVER'], fa: 'fa-toilet' },
+    { kw: ['BASIN', 'SINK', 'WASH'],                          fa: 'fa-sink' },
+    { kw: ['TAP', 'FAUCET', 'COCK', 'MIXER', 'DIVERTOR', 'DIVERTER', 'SPOUT', 'BIB', 'PILLAR', 'FLANGE', 'JET', 'SPRAY'], fa: 'fa-faucet' },
+    { kw: ['PIPE', 'ELBOW', 'NIPPLE', 'COUPLER', 'BEND'],     fa: 'fa-grip-lines-vertical' },
+
+    /* --- Electrical --- */
+    { kw: ['DIMMER', 'REGULATOR', 'FAN REG'],                 fa: 'fa-sliders' },
+    { kw: ['EXHAUST', 'FAN'],                                 fa: 'fa-fan' },
+    { kw: ['MCB', 'MCCB', 'RCCB', 'RCBO', 'ISOLATOR', 'BREAKER', 'DISTRIBUTION', "DB'", ' DB', 'CHANGEOVER', 'FUSE'], fa: 'fa-bolt' },
+    { kw: ['GANG BOX', 'METAL BOX', 'CONCEAL BOX', 'JUNCTION', 'BOX'], fa: 'fa-box' },
+    { kw: ['SOCKET', 'PLUG', 'PIN TOP', 'MULTI PLUG', 'ADAPTOR', 'ADAPTER', 'COMBINDER', 'COMBINER', 'USB', 'CHARGER'], fa: 'fa-plug' },
+    { kw: ['WIRE', 'CABLE', 'FLEX', 'CORD', 'RJ-11', 'RJ11', 'RJ-45', 'JACK', 'TELEPHONE'], fa: 'fa-ethernet' },
+    { kw: ['CEILING ROSE', 'ROSE', 'HOLDER', 'BATTEN', 'LAMP', 'BULB', 'LED', 'TUBE', 'LIGHT', 'PANEL', 'MARKER', 'STRIP'], fa: 'fa-lightbulb' },
+    { kw: ['BELL PUSH', 'PUSH', 'BELL', 'BUZZER', 'CHIME', 'ALARM'], fa: 'fa-bell' },
+    { kw: ['PLATE', 'COVER', 'FRAME', 'MODULE'],              fa: 'fa-clone' },
+    { kw: ['INDICATOR'],                                      fa: 'fa-circle-dot' },
+    { kw: ['SWITCH', 'DP ', ' SP ', '1W', '2W', 'TWO WAY', 'ONE WAY'], fa: 'fa-toggle-on' },
+];
+
+/* Neutral "a product" default when nothing matches — not fa-bolt, since the catalog
+   is not only electrical. */
+var PRODUCT_TYPE_ICON_DEFAULT = 'fa-cube';
+
+function productTypeIcon(product) {
+    var hay = ((product.product_name || '') + ' ' +
+               (product.model_no || '') + ' ' +
+               (product.product_division_category || '')).toUpperCase();
+
+    for (var i = 0; i < PRODUCT_TYPE_ICONS.length; i++) {
+        var entry = PRODUCT_TYPE_ICONS[i];
+        for (var k = 0; k < entry.kw.length; k++) {
+            if (hay.indexOf(entry.kw[k]) !== -1) return entry.fa;
+        }
+    }
+    return PRODUCT_TYPE_ICON_DEFAULT;
+}
+
+/* The image area for a card: the real photo if one exists, otherwise the local type
+   icon. No network calls — renders instantly and works offline. */
+function cardMediaHtml(product, name) {
+    if (product.product_image_url) {
+        return '<img src="' + esc(product.product_image_url) + '" class="card-img-top" alt="' + name + '">';
+    }
+    return '<div class="card-img-top d-flex align-items-center justify-content-center" ' +
+               'style="background:#f0f0f0;height:160px;">' +
+               '<i class="fas ' + productTypeIcon(product) + ' fa-3x text-secondary"></i>' +
+           '</div>';
+}
+
 /* ================== PRODUCT CARD ================== */
 
 function createCard(product) {
@@ -613,10 +756,7 @@ function createCard(product) {
 
     col.innerHTML =
         '<div class="product-card">' +
-            (product.product_image_url ?
-                '<img src="' + esc(product.product_image_url) + '" class="card-img-top" alt="' + name + '">'
-                : '<div class="card-img-top d-flex align-items-center justify-content-center" style="background:#f0f0f0;height:160px;"><i class="fas fa-box fa-3x text-muted"></i></div>'
-            ) +
+            cardMediaHtml(product, name) +
             '<div class="card-body">' +
                 '<h6 class="mb-1 font-weight-bold" style="font-size:0.85em;">' + name + '</h6>' +
                 '<small class="text-muted d-block mb-1">Model: ' + esc(product.model_no) + '</small>' +
