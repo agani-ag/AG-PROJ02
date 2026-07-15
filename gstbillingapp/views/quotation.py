@@ -1039,10 +1039,16 @@ def quotation_cart_checkout(request):
                 status=400,
             )
 
+        # Discount is a staff-only override. For customers and employees the client's
+        # discount is ignored (discount=None falls back to the product's own), so a
+        # forged payload cannot mark down the price — the read-only field is only the
+        # visible half of this rule.
+        line_discount = line.get('discount') if ctx.actor == 'staff' else None
+
         item_entry = build_quotation_item(
             product, qty,
             igstcheck=quotation_data['igstcheck'],
-            discount=line.get('discount'),
+            discount=line_discount,
         )
 
         # Gross and discount are not stored on the quotation, but the cart shows them
