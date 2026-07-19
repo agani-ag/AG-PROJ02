@@ -120,6 +120,9 @@ class Invoice(models.Model):
         null=True
     )
     invoice_json = models.TextField()
+    # Holds the ORIGINAL invoice_json only — captured once, on the first debug edit,
+    # and never overwritten. Restore always brings back the pristine first version.
+    invoice_json_backup = models.TextField(blank=True, null=True)
     inventory_reflected = models.BooleanField(default=True)
     books_reflected = models.BooleanField(default=True)
     is_gst = models.BooleanField(default=True)

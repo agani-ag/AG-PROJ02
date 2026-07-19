@@ -1,6 +1,7 @@
 # Django imports
 from django.contrib import messages
 from django.db.models import Max, Sum
+from django.db import transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
@@ -20,6 +21,8 @@ from ..utils import update_inventory
 from ..utils import add_customer_book
 from ..utils import auto_deduct_book_from_invoice
 from ..utils import remove_inventory_entries_for_invoice
+from ..utils import remove_book_entries_for_invoice
+from ..utils import recompute_invoice_data
 
 # Third-party libraries
 import json
@@ -369,7 +372,132 @@ def invoice_viewer(request, invoice_id):
     context['total_in_words'] = num2words.num2words(int(context['invoice_data']['invoice_total_amt_with_gst']), lang='en_IN').title()
     context['user_profile'] = user_profile
     context['nav_hide'] = request.GET.get('nav') or ''
+
+    # Debug JSON editor: ?debug=1 / ?debug=true. Absent → normal view, no change.
+    debug_mode = str(request.GET.get('debug', '')).lower() in ('1', 'true', 'yes')
+    context['debug_mode'] = debug_mode
+    if debug_mode:
+        # Pretty-print for the editor; the backup (original) may not exist yet.
+        context['invoice_json_pretty'] = json.dumps(context['invoice_data'], indent=2, ensure_ascii=False)
+        context['has_backup'] = bool(invoice_obj.invoice_json_backup)
+
     return render(request, 'invoices/invoice_printer.html', context)
+
+
+@login_required
+def invoice_json_save(request, invoice_id):
+    """
+    Debug JSON editor save. Validates + recomputes totals from the edited items,
+    keeps the ORIGINAL as a one-time backup, optionally re-reflects inventory/books
+    (replacing this invoice's existing entries, never duplicating). All-or-nothing:
+    any failure rolls back the JSON change too, so document / stock / books can
+    never drift apart.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+
+    invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
+
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'message': 'Malformed request'}, status=400)
+
+    raw_json = payload.get('json')
+    reflect = bool(payload.get('reflect', False))
+
+    # 1. Parse the edited JSON.
+    try:
+        invoice_data = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'message': 'Edited content is not valid JSON.'}, status=400)
+
+    # 2. Structural check + 3. recompute totals from items.
+    try:
+        invoice_data = recompute_invoice_data(invoice_data)
+    except ValueError as err:
+        return JsonResponse({'success': False, 'message': str(err)}, status=400)
+
+    try:
+        with transaction.atomic():
+            # 4. Backup the ORIGINAL once, then never overwrite it.
+            if not invoice_obj.invoice_json_backup:
+                invoice_obj.invoice_json_backup = invoice_obj.invoice_json
+
+            # 5. Save the recomputed JSON.
+            invoice_obj.invoice_json = json.dumps(invoice_data)
+            invoice_obj.save()
+
+            # 6. Optionally replace this invoice's stock/ledger entries.
+            if reflect:
+                if invoice_obj.inventory_reflected:
+                    remove_inventory_entries_for_invoice(invoice_obj, request.user)
+                    update_inventory(invoice_obj, request)
+                if invoice_obj.books_reflected:
+                    remove_book_entries_for_invoice(invoice_obj)
+                    auto_deduct_book_from_invoice(invoice_obj)
+    except Product.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Re-reflect failed: an edited line no longer matches a product '
+                       '(model no / name / HSN / GST%). Nothing was saved.',
+        }, status=400)
+    except Exception as err:
+        return JsonResponse({'success': False, 'message': f'Save failed: {err}. Nothing was saved.'}, status=400)
+
+    totals = {
+        'taxable': invoice_data['invoice_total_amt_without_gst'],
+        'sgst': invoice_data['invoice_total_amt_sgst'],
+        'cgst': invoice_data['invoice_total_amt_cgst'],
+        'igst': invoice_data['invoice_total_amt_igst'],
+        'grand_total': invoice_data['invoice_total_amt_with_gst'],
+    }
+    return JsonResponse({
+        'success': True,
+        'message': 'Saved.' + (' Inventory & books re-reflected.' if reflect else ''),
+        'reflected': reflect,
+        'totals': totals,
+    })
+
+
+@login_required
+def invoice_json_restore(request, invoice_id):
+    """Restore the ORIGINAL invoice_json from the backup. Optionally re-reflect so
+    stock/ledger resync to the original after edited values were reflected."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+
+    invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
+
+    if not invoice_obj.invoice_json_backup:
+        return JsonResponse({'success': False, 'message': 'No original backup to restore.'}, status=400)
+
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        payload = {}
+    reflect = bool(payload.get('reflect', False))
+
+    try:
+        with transaction.atomic():
+            invoice_obj.invoice_json = invoice_obj.invoice_json_backup
+            invoice_obj.save()
+            if reflect:
+                if invoice_obj.inventory_reflected:
+                    remove_inventory_entries_for_invoice(invoice_obj, request.user)
+                    update_inventory(invoice_obj, request)
+                if invoice_obj.books_reflected:
+                    remove_book_entries_for_invoice(invoice_obj)
+                    auto_deduct_book_from_invoice(invoice_obj)
+    except Product.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Restore re-reflect failed: original line no longer matches a product. Nothing was changed.',
+        }, status=400)
+    except Exception as err:
+        return JsonResponse({'success': False, 'message': f'Restore failed: {err}. Nothing was changed.'}, status=400)
+
+    return JsonResponse({'success': True, 'message': 'Original restored.' + (' Re-reflected.' if reflect else '')})
 
 
 @login_required

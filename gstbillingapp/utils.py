@@ -96,6 +96,90 @@ def build_quotation_item(product, qty, igstcheck=False, discount=None):
     }
 
 
+#  ================= Invoice JSON debug-edit ====================
+
+INVOICE_ITEM_INPUT_KEYS = (
+    'invoice_model_no', 'invoice_product', 'invoice_hsn',
+    'invoice_qty', 'invoice_discount', 'invoice_rate_with_gst',
+    'invoice_gst_percentage',
+)
+
+
+def recompute_invoice_data(invoice_data):
+    """
+    Structurally validate an edited invoice_json dict, then regenerate every
+    computed amount from the per-item inputs (qty / rate / discount / gst%),
+    honoring igstcheck. The caller's totals are ignored and rebuilt so the saved
+    invoice is always internally consistent.
+
+    Mutates and returns the same dict. Raises ValueError with a human-readable
+    message on any structural problem — the debug save aborts on that.
+    """
+    if not isinstance(invoice_data, dict):
+        raise ValueError("Invoice JSON must be an object.")
+
+    items = invoice_data.get('items')
+    if not isinstance(items, list) or len(items) == 0:
+        raise ValueError("Invoice JSON must have a non-empty 'items' list.")
+
+    igstcheck = bool(invoice_data.get('igstcheck', False))
+
+    total_without_gst = total_sgst = total_cgst = total_igst = total_with_gst = 0.0
+
+    for idx, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Item {idx} is not an object.")
+        for key in INVOICE_ITEM_INPUT_KEYS:
+            if key not in item:
+                raise ValueError(f"Item {idx} is missing '{key}'.")
+
+        try:
+            qty = float(item['invoice_qty'])
+            rate = float(item['invoice_rate_with_gst'])
+            discount = float(item['invoice_discount'])
+            gst = float(item['invoice_gst_percentage'])
+        except (TypeError, ValueError):
+            raise ValueError(f"Item {idx} has a non-numeric qty / rate / discount / gst.")
+
+        amounts = calculate_item_amounts(rate, gst, discount, qty, igstcheck)
+
+        item['invoice_rate_without_gst'] = amounts['rate_without_gst']
+        item['invoice_amt_without_gst'] = amounts['amt_without_gst']
+        item['invoice_amt_sgst'] = amounts['amt_sgst']
+        item['invoice_amt_cgst'] = amounts['amt_cgst']
+        item['invoice_amt_igst'] = amounts['amt_igst']
+        item['invoice_amt_with_gst'] = amounts['amt_with_gst']
+        # Order-history consumers read invoice_amt; keep it in step.
+        item['invoice_amt'] = amounts['amt_with_gst']
+
+        total_without_gst += amounts['amt_without_gst']
+        total_sgst += amounts['amt_sgst']
+        total_cgst += amounts['amt_cgst']
+        total_igst += amounts['amt_igst']
+        total_with_gst += amounts['amt_with_gst']
+
+    invoice_data['igstcheck'] = igstcheck
+    invoice_data['invoice_total_amt_without_gst'] = round(total_without_gst, 2)
+    invoice_data['invoice_total_amt_sgst'] = round(total_sgst, 2)
+    invoice_data['invoice_total_amt_cgst'] = round(total_cgst, 2)
+    invoice_data['invoice_total_amt_igst'] = round(total_igst, 2)
+    invoice_data['invoice_total_amt_with_gst'] = round(total_with_gst, 2)
+
+    return invoice_data
+
+
+def remove_book_entries_for_invoice(invoice):
+    """Delete this invoice's book log(s) and re-total the book — the books half of
+    a re-reflect, mirroring remove_inventory_entries_for_invoice()."""
+    if invoice.invoice_customer is None:
+        return
+    book = Book.objects.filter(user=invoice.user, customer=invoice.invoice_customer).first()
+    if not book:
+        return
+    BookLog.objects.filter(parent_book=book, associated_invoice=invoice).delete()
+    recalculate_book_current_balance(book)
+
+
 #  ================= Invoice Methods ====================
 def invoice_data_validator(invoice_data):
     

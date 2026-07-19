@@ -282,6 +282,47 @@
 		<a href="{% url 'invoices' %}" class="btn btn-danger btn-curve d-print-none" title="Cancel Invoice"><i class="fas fa-times"></i></a>
 	</div>
 
+{% if debug_mode %}
+	{% csrf_token %}
+	<!-- Debug JSON editor. d-print-none: never appears on a printout/PDF. -->
+	<div class="card mt-4 border-warning d-print-none" id="jsonDebugPanel">
+		<div class="card-header bg-warning d-flex justify-content-between align-items-center">
+			<strong><i class="fas fa-code"></i> Invoice JSON — Debug Editor</strong>
+			<span class="badge badge-dark">debug mode</span>
+		</div>
+		<div class="card-body">
+			<div class="alert alert-secondary py-2" style="font-size:0.85em;">
+				<i class="fas fa-info-circle"></i>
+				Totals are <strong>recomputed from the items</strong> on save. Editing here changes the
+				<strong>document only</strong> — tick <em>Re-reflect</em> to also update stock &amp; ledger.
+				Changing a line's model&nbsp;no / name / HSN / GST% and re-reflecting will be refused
+				(the product can't be matched).
+			</div>
+
+			<textarea id="jsonEditor" class="form-control" spellcheck="false"
+				style="font-family:monospace; font-size:0.8em; min-height:340px; white-space:pre;">{{ invoice_json_pretty }}</textarea>
+
+			<div class="d-flex flex-wrap align-items-center mt-2" style="gap:10px;">
+				<span id="jsonStatus" class="badge badge-success">valid JSON</span>
+
+				<div class="custom-control custom-checkbox">
+					<input type="checkbox" class="custom-control-input" id="reflectCheck">
+					<label class="custom-control-label" for="reflectCheck">Re-reflect inventory &amp; books</label>
+				</div>
+
+				<div class="ml-auto d-flex" style="gap:8px;">
+					<button class="btn btn-sm btn-outline-secondary" onclick="prettifyJson()"><i class="fas fa-align-left"></i> Prettify</button>
+					<button class="btn btn-sm btn-outline-secondary" onclick="revertJson()"><i class="fas fa-undo"></i> Revert edits</button>
+					{% if has_backup %}
+						<button class="btn btn-sm btn-outline-danger" onclick="restoreOriginal()"><i class="fas fa-history"></i> Restore original</button>
+					{% endif %}
+					<button class="btn btn-sm btn-success" id="jsonSaveBtn" onclick="saveJson()"><i class="fas fa-save"></i> Save</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{% endif %}
+
 {% endblock %}
 {% block includejs %}
 <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
@@ -429,5 +470,102 @@
 		dotsOptions: { color: "#000", type: "rounded" }
 	});
     qr_new.append(document.getElementById("upi_qr_new"));
+
+{% if debug_mode %}
+	/* ============ Invoice JSON Debug Editor ============ */
+	var JSON_ORIGINAL_TEXT = document.getElementById('jsonEditor').value;  // as first rendered
+	var SAVE_URL = "{% url 'invoice_json_save' invoice.id %}";
+	var RESTORE_URL = "{% url 'invoice_json_restore' invoice.id %}";
+
+	function debugCsrf() { return '{{ csrf_token }}'; }
+
+	/* Live valid/invalid indicator. */
+	function checkJsonValidity() {
+		var el = document.getElementById('jsonEditor');
+		var status = document.getElementById('jsonStatus');
+		var btn = document.getElementById('jsonSaveBtn');
+		try {
+			JSON.parse(el.value);
+			status.className = 'badge badge-success';
+			status.textContent = 'valid JSON';
+			btn.disabled = false;
+			return true;
+		} catch (e) {
+			status.className = 'badge badge-danger';
+			status.textContent = 'invalid JSON: ' + e.message;
+			btn.disabled = true;
+			return false;
+		}
+	}
+	document.getElementById('jsonEditor').addEventListener('input', checkJsonValidity);
+
+	function prettifyJson() {
+		if (!checkJsonValidity()) return;
+		var el = document.getElementById('jsonEditor');
+		el.value = JSON.stringify(JSON.parse(el.value), null, 2);
+	}
+
+	function revertJson() {
+		document.getElementById('jsonEditor').value = JSON_ORIGINAL_TEXT;
+		checkJsonValidity();
+	}
+
+	function saveJson() {
+		if (!checkJsonValidity()) {
+			Swal.fire('Invalid JSON', 'Fix the JSON before saving.', 'error');
+			return;
+		}
+		var reflect = document.getElementById('reflectCheck').checked;
+		var body = { json: document.getElementById('jsonEditor').value, reflect: reflect };
+
+		Swal.fire({ title: 'Saving...', allowOutsideClick: false, didOpen: function(){ Swal.showLoading(); } });
+
+		fetch(SAVE_URL, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'X-CSRFToken': debugCsrf() },
+			body: JSON.stringify(body)
+		})
+		.then(function(r){ return r.json().catch(function(){ return { success: false, message: 'Bad response' }; }); })
+		.then(function(d){
+			if (!d.success) { Swal.fire('Not saved', d.message || 'Save failed.', 'error'); return; }
+			var t = d.totals || {};
+			Swal.fire({
+				icon: 'success',
+				title: 'Saved',
+				html: (d.message || '') +
+					'<br><small>Grand Total: ₹ ' + (t.grand_total != null ? t.grand_total : '-') + '</small>',
+			}).then(function(){ window.location.reload(); });
+		})
+		.catch(function(){ Swal.fire('Error', 'Network error. Nothing saved.', 'error'); });
+	}
+
+	function restoreOriginal() {
+		Swal.fire({
+			title: 'Restore original?',
+			html: 'This replaces the current invoice with the <strong>original</strong> version.',
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonText: 'Restore',
+			confirmButtonColor: '#d33',
+			input: 'checkbox',
+			inputPlaceholder: 'Also re-reflect inventory &amp; books'
+		}).then(function(res){
+			if (!res.isConfirmed) return;
+			var reflect = !!res.value;
+			Swal.fire({ title: 'Restoring...', allowOutsideClick: false, didOpen: function(){ Swal.showLoading(); } });
+			fetch(RESTORE_URL, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'X-CSRFToken': debugCsrf() },
+				body: JSON.stringify({ reflect: reflect })
+			})
+			.then(function(r){ return r.json().catch(function(){ return { success:false, message:'Bad response' }; }); })
+			.then(function(d){
+				if (!d.success) { Swal.fire('Not restored', d.message || 'Restore failed.', 'error'); return; }
+				Swal.fire('Restored', d.message || '', 'success').then(function(){ window.location.reload(); });
+			})
+			.catch(function(){ Swal.fire('Error', 'Network error. Nothing changed.', 'error'); });
+		});
+	}
+{% endif %}
 </script>
 {% endblock %}
