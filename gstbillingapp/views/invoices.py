@@ -23,6 +23,7 @@ from ..utils import auto_deduct_book_from_invoice
 from ..utils import remove_inventory_entries_for_invoice
 from ..utils import remove_book_entries_for_invoice
 from ..utils import recompute_invoice_data
+from ..utils import find_matching_customer
 
 # Third-party libraries
 import json
@@ -93,29 +94,18 @@ def invoice_create(request):
 
         invoice_data_processed = invoice_data_processor(invoice_data)
         # save customer
+        # Prefer the hidden customer-id (set when a customer is picked from the list);
+        # otherwise fall back to a name (+ phone) match. The fallback used to require an
+        # exact name+address+phone+GST match, which failed for non-GST customers whose
+        # GST is stored NULL against the form's empty '' — wrongly forcing 'Add Customer'.
         customer = None
         customer_id = invoice_data.get('customer-id')
-        try:
-            if customer_id and customer_id.isdigit():
-                customer = Customer.objects.filter(user=request.user, id=int(customer_id)).first()
-            else:
-                customer = Customer.objects.filter(user=request.user,
-                            customer_name=invoice_data['customer-name'],
-                            customer_address=invoice_data['customer-address'],
-                            customer_phone=invoice_data['customer-phone'],
-                            customer_gst=invoice_data['customer-gst']).first()
-        except Exception as e:
-            pass
-        
+        if customer_id and customer_id.isdigit():
+            customer = Customer.objects.filter(user=request.user, id=int(customer_id)).first()
+        else:
+            customer = find_matching_customer(request.user, invoice_data)
+
         if not customer:
-            # customer = Customer(user=request.user,
-            #     customer_name=invoice_data['customer-name'],
-            #     customer_address=invoice_data['customer-address'],
-            #     customer_phone=invoice_data['customer-phone'],
-            #     customer_gst=invoice_data['customer-gst'])
-            # # create customer book
-            # customer.save()
-            # add_customer_book(customer)
             messages.warning(request, "Customer does not exist. Please add the customer first.")
             return redirect('customer_add')
 

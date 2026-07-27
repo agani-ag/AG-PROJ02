@@ -21,6 +21,7 @@ from ..utils import (
     build_quotation_item,
     resolve_cart_context,
     cart_product_payload,
+    find_matching_customer,
     CartAccessError
 )
 
@@ -115,16 +116,11 @@ def quotation_create(request):
         customer = None
         
         if is_modified_customer:
-            # When modifying details, still need to find/create a base customer
-            # Try to find existing customer by name only
-            try:
-                customer = Customer.objects.filter(
-                    user=request.user,
-                    customer_name=quotation_data['customer-name']
-                ).first()
-            except:
-                pass
-            
+            # When modifying details, still need to find/create a base customer.
+            # Match on the normalised name so we reuse the existing record instead of
+            # creating a near-duplicate that differs only in casing.
+            customer = find_matching_customer(request.user, quotation_data)
+
             if not customer:
                 # Create a base customer record with the provided details
                 customer = Customer.objects.create(
@@ -136,17 +132,8 @@ def quotation_create(request):
                 )
                 messages.info(request, f"New customer '{customer.customer_name}' created.")
         else:
-            # Normal flow - exact match required
-            try:
-                customer = Customer.objects.get(
-                    user=request.user,
-                    customer_name=quotation_data['customer-name'],
-                    customer_address=quotation_data['customer-address'],
-                    customer_phone=quotation_data['customer-phone'],
-                    customer_gst=quotation_data['customer-gst']
-                )
-            except Customer.DoesNotExist:
-                pass
+            # Normal flow - match an existing customer by name (+ phone).
+            customer = find_matching_customer(request.user, quotation_data)
 
             if not customer:
                 # Redirect to customer add page
@@ -458,17 +445,8 @@ def quotation_edit(request, quotation_id):
             customer = quotation.quotation_customer
             messages.info(request, "Customer details modified. Using original customer mapping.")
         else:
-            # Normal flow - validate customer from form (must match existing)
-            try:
-                customer = Customer.objects.get(
-                    user=request.user,
-                    customer_name=quotation_data['customer-name'],
-                    customer_address=quotation_data['customer-address'],
-                    customer_phone=quotation_data['customer-phone'],
-                    customer_gst=quotation_data['customer-gst']
-                )
-            except Customer.DoesNotExist:
-                pass
+            # Normal flow - match an existing customer by name (+ phone).
+            customer = find_matching_customer(request.user, quotation_data)
 
             if not customer:
                 messages.warning(request, "Customer not found. Please add the customer first or enable 'Modify Details'.")

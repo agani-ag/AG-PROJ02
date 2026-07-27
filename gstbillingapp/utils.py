@@ -15,6 +15,38 @@ from .models import (
     Book, BookLog, Customer
 )
 
+#  ================= Customer matching ====================
+def find_matching_customer(user, data):
+    """
+    Locate the existing Customer an invoice / quotation form refers to.
+
+    Matches on the normalised name (+ phone when the form supplies one), NOT on an
+    exact name+address+phone+GST match. The old exact match compared customer_gst,
+    so a non-GST customer — stored with a NULL GST — never equalled the form's empty
+    '' GST, and the caller wrongly bounced the user to 'Add Customer' for a customer
+    that already existed. Name is upper-cased to line up with Customer.save(), which
+    stores it upper-case.
+
+    Shared by quotation_create/edit and invoice_create. Expects the POST field names
+    'customer-name' and 'customer-phone'. Returns the Customer or None.
+    """
+    name = (data.get('customer-name') or '').strip().upper()
+    if not name:
+        return None
+
+    qs = Customer.objects.filter(user=user, customer_name=name).order_by('id')
+
+    # Prefer a phone match to disambiguate namesakes, but only when it actually
+    # narrows things down — a blank or non-matching phone must not lose a valid hit.
+    phone = (data.get('customer-phone') or '').strip()
+    if phone:
+        phone_qs = qs.filter(customer_phone=phone)
+        if phone_qs.exists():
+            qs = phone_qs
+
+    return qs.first()
+
+
 #  ================= GST Calculation ====================
 def calculate_item_amounts(rate_with_gst, gst_percentage, discount, qty, igstcheck=False):
     """
