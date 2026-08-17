@@ -583,6 +583,7 @@ def cart_product_payload(business_user):
         'id', 'model_no', 'product_name', 'product_hsn',
         'product_rate_with_gst', 'product_gst_percentage', 'product_discount',
         'product_image_url', 'product_category_id', 'product_division_category',
+        'product_model_category', 'product_colour',
     )
     return list(Product.objects.filter(user=business_user).values(*fields))
 

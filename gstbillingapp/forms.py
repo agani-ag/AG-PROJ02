@@ -5,7 +5,7 @@ from .models import (
     InventoryLog, Book, BookLog,
     ExpenseTracker, BankDetails, VendorPurchase,
     PurchaseLog, ProductCategory, Asset, AssetLog,
-    ChequeLeaf
+    ChequeLeaf, DEFAULT_PRODUCT_COLOURS
 )
 
 
@@ -23,19 +23,25 @@ class CustomerForm(ModelForm):
         self.fields['bankdetails'].queryset = BankDetails.objects.filter(whom_account=1)
 
 class ProductForm(ModelForm):
-     # Declared explicitly as a CharField so Django accepts ANY value (typed or selected)
-     # with no "Select a valid choice" validation, while still rendering as a <select>
-     # so the Select2 "tags" editable dropdown can initialise on it.
+     # These three are free-text "tag" fields. Declared explicitly as CharFields so
+     # Django accepts ANY value (typed or selected) with no "Select a valid choice"
+     # validation, while still rendering as a <select> so the Select2 tags:true
+     # editable dropdown (see product_edit.html) can turn each into a type-or-select box.
      product_division_category = forms.CharField(
-         required=False,
-         widget=forms.Select(attrs={'class': 'editable-dropdown'})
+         required=False, widget=forms.Select(attrs={'class': 'editable-dropdown'})
+     )
+     product_model_category = forms.CharField(
+         required=False, widget=forms.Select(attrs={'class': 'editable-dropdown'})
+     )
+     product_colour = forms.CharField(
+         required=False, widget=forms.Select(attrs={'class': 'editable-dropdown'})
      )
 
      class Meta:
         model = Product
         fields = ['model_no', 'product_name', 'product_hsn', 'product_gst_percentage', 'product_purchase_rate',
                     'product_rate_with_gst', 'product_discount', 'product_image_url', 'product_category',
-                    'product_division_category']
+                    'product_division_category', 'product_model_category', 'product_colour']
 
      def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
@@ -49,25 +55,32 @@ class ProductForm(ModelForm):
                 ).select_related('parent_category').order_by('parent_category__category_name', 'category_name')
                 self.fields['product_category'].label_from_instance = lambda obj: obj.get_full_path()
 
-        # 2. Fetch distinct division categories to populate the <select> options
-        query = Product.objects.all()
-        if user:
-            query = query.filter(user=user)
-        distinct_divisions = list(query.values_list('product_division_category', flat=True)
-                                  .exclude(product_division_category__isnull=True)
-                                  .exclude(product_division_category="")
-                                  .distinct()
-                                  .order_by('product_division_category'))
+        # 2. Populate each tag field's <select> options with the business's distinct
+        #    values (colour also seeds WHITE/GREY/BLACK). Select2 tags:true then lets
+        #    the user pick one or type a brand-new value on top of these.
+        base_query = Product.objects.filter(user=user) if user else Product.objects.all()
 
-        # Make sure the currently saved / submitted value is in the list so it shows selected
-        current = self.data.get('product_division_category') or getattr(self.instance, 'product_division_category', None)
-        if current and current not in distinct_divisions:
-            distinct_divisions.insert(0, current)
+        for field_name, prompt, seeds in (
+            ('product_division_category', 'Select or type a division…', []),
+            ('product_model_category', 'Select or type a model category…', []),
+            ('product_colour', 'Select or type a colour…', DEFAULT_PRODUCT_COLOURS),
+        ):
+            distinct = list(seeds)
+            for value in (base_query.values_list(field_name, flat=True)
+                          .exclude(**{field_name + '__isnull': True})
+                          .exclude(**{field_name: ''})
+                          .distinct().order_by(field_name)):
+                if value not in distinct:
+                    distinct.append(value)
 
-        # Render as <option>s; Select2 (tags:true) lets the user add new ones on top of these
-        self.fields['product_division_category'].widget.choices = (
-            [('', 'Select or type a category…')] + [(d, d) for d in distinct_divisions]
-        )
+            # Ensure the current saved / submitted value is present so it shows selected.
+            current = self.data.get(field_name) or getattr(self.instance, field_name, None)
+            if current and current not in distinct:
+                distinct.insert(0, current)
+
+            self.fields[field_name].widget.choices = (
+                [('', prompt)] + [(v, v) for v in distinct]
+            )
 
 class UserProfileForm(ModelForm):
     def __init__(self, *args, **kwargs):

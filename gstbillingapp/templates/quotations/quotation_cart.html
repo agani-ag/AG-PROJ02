@@ -194,8 +194,9 @@ body.modal-open .mobile-bottom-nav {
 </div>
 {% endif %}
 
-<!-- Filter Row. The division filter only exists when this business uses the field,
-     so the columns widen to fill the gap when it is absent. -->
+<!-- Filter Row. Each tag filter (division / model category / colour) only renders
+     when the business actually uses that field; filters wrap and the count/refresh
+     sits on its own line below. -->
 <div class="row mb-3">
     <div class="col-md-3 col-6 mb-2">
         <input type="text" id="searchInput" class="form-control" placeholder="Search products..." oninput="applyFilters()">
@@ -209,13 +210,27 @@ body.modal-open .mobile-bottom-nav {
     <div class="col-md-3 col-6 mb-2">
         <select id="divisionFilter" class="form-control" onchange="applyFilters()">
             <option value="">All Divisions</option>
-            {% for d in divisions %}
-                <option value="{{ d }}">{{ d }}</option>
-            {% endfor %}
+            {% for d in divisions %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
         </select>
     </div>
     {% endif %}
-    <div class="{% if divisions %}col-md-3{% else %}col-md-6{% endif %} col-12 mb-2 d-flex align-items-center justify-content-between">
+    {% if model_categories %}
+    <div class="col-md-3 col-6 mb-2">
+        <select id="modelCategoryFilter" class="form-control" onchange="applyFilters()">
+            <option value="">All Model Categories</option>
+            {% for m in model_categories %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    {% if colours %}
+    <div class="col-md-3 col-6 mb-2">
+        <select id="colourFilter" class="form-control" onchange="applyFilters()">
+            <option value="">All Colours</option>
+            {% for c in colours %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    <div class="col-12 mb-2 d-flex align-items-center justify-content-between">
         <span class="badge badge-primary" id="totalCount" style="font-size:0.9em;">0 Products</span>
         <button class="btn btn-secondary btn-sm btn-curve" onclick="refreshCatalog()">
             <i class="fas fa-sync-alt"></i> Refresh
@@ -223,19 +238,26 @@ body.modal-open .mobile-bottom-nav {
     </div>
 </div>
 
-<!-- Group-by (only when divisions exist) + Sort-by (always).
+<!-- Group-by (when the business uses divisions or model categories) + Sort-by (always).
      Centered on mobile, left-aligned from md up. -->
 <div class="row mb-2 justify-content-center justify-content-md-start">
-    {% if divisions %}
+    {% if divisions or model_categories %}
     <div class="col-auto mb-2 d-flex align-items-center">
         <small class="text-muted mr-2">Group by:</small>
         <div class="btn-group btn-group-sm btn-group-toggle" role="group">
             <button type="button" id="groupByCategory" class="btn btn-outline-dark" onclick="setGroupBy('category')">
                 <i class="fas fa-folder mr-1"></i>Category
             </button>
+            {% if divisions %}
             <button type="button" id="groupByDivision" class="btn btn-outline-dark" onclick="setGroupBy('division')">
                 <i class="fas fa-layer-group mr-1"></i>Division
             </button>
+            {% endif %}
+            {% if model_categories %}
+            <button type="button" id="groupByModelCategory" class="btn btn-outline-dark" onclick="setGroupBy('model_category')">
+                <i class="fas fa-sitemap mr-1"></i>Model
+            </button>
+            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -478,12 +500,15 @@ function buildCategoryDropdown() {
 
 /* ================== FILTER ================== */
 
-/* The division dropdown is only rendered when the business uses that field, so read
-   it defensively — it is absent on businesses with no divisions. */
-function divisionFilterValue() {
-    var el = document.getElementById("divisionFilter");
+/* Each tag dropdown is only rendered when the business uses that field, so read
+   defensively — any of them may be absent. */
+function filterValue(id) {
+    var el = document.getElementById(id);
     return el ? el.value : "";
 }
+function divisionFilterValue()      { return filterValue("divisionFilter"); }
+function modelCategoryFilterValue() { return filterValue("modelCategoryFilter"); }
+function colourFilterValue()        { return filterValue("colourFilter"); }
 
 /* ================== GROUP BY ================== */
 
@@ -491,6 +516,9 @@ function divisionFilterValue() {
 function groupLabelFor(product) {
     if (groupBy === 'division') {
         return product.product_division_category || "No Division";
+    }
+    if (groupBy === 'model_category') {
+        return product.product_model_category || "No Model Category";
     }
     return getCategoryFullPath(product.product_category_id);
 }
@@ -507,11 +535,14 @@ function setGroupBy(mode) {
 
 function paintGroupByButtons() {
     var cat = document.getElementById('groupByCategory');
-    var div = document.getElementById('groupByDivision');
-    if (!cat || !div) return;   /* toggle absent when only one dimension is in use */
-
+    if (!cat) return;   /* toggle absent when the business uses no grouping dimension */
     cat.classList.toggle('active', groupBy === 'category');
-    div.classList.toggle('active', groupBy === 'division');
+
+    var div = document.getElementById('groupByDivision');
+    if (div) div.classList.toggle('active', groupBy === 'division');
+
+    var mdl = document.getElementById('groupByModelCategory');
+    if (mdl) mdl.classList.toggle('active', groupBy === 'model_category');
 }
 
 /* ================== SORT BY ================== */
@@ -577,6 +608,8 @@ function applyFilters() {
     var search = document.getElementById("searchInput").value.trim().toLowerCase();
     var category = document.getElementById("categoryFilter").value;
     var division = divisionFilterValue();
+    var modelCategory = modelCategoryFilterValue();
+    var colour = colourFilterValue();
 
     var filtered = allProducts.filter(function(p) {
         /* product_name is nullable in the model, so these can be null. */
@@ -585,7 +618,9 @@ function applyFilters() {
         var matchSearch = !search || name.indexOf(search) !== -1 || model.indexOf(search) !== -1;
         var matchCategory = !category || String(p.product_category_id) === String(category);
         var matchDivision = !division || (p.product_division_category || "") === division;
-        return matchSearch && matchCategory && matchDivision;
+        var matchModel = !modelCategory || (p.product_model_category || "") === modelCategory;
+        var matchColour = !colour || (p.product_colour || "") === colour;
+        return matchSearch && matchCategory && matchDivision && matchModel && matchColour;
     });
 
     renderProducts(sortProducts(filtered));
@@ -599,7 +634,9 @@ function renderProducts(products) {
 
     var hasFilter = document.getElementById("searchInput").value.trim() !== "" ||
                     document.getElementById("categoryFilter").value !== "" ||
-                    divisionFilterValue() !== "";
+                    divisionFilterValue() !== "" ||
+                    modelCategoryFilterValue() !== "" ||
+                    colourFilterValue() !== "";
 
     document.getElementById("totalCount").innerText = products.length + " Products";
 

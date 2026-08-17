@@ -854,14 +854,19 @@ def quotation_cart(request):
             .values('id', 'customer_name', 'customer_phone', 'customer_gst')
         )
 
-    # Free-text division field: offer a filter only when this business actually uses it.
-    divisions = list(
-        Product.objects.filter(user=ctx.business_user)
-        .exclude(product_division_category__isnull=True)
-        .exclude(product_division_category='')
-        .values_list('product_division_category', flat=True)
-        .distinct().order_by('product_division_category')
-    )
+    # Free-text tag fields: offer a filter only when this business actually uses one.
+    def _cart_distinct(field):
+        return list(
+            Product.objects.filter(user=ctx.business_user)
+            .exclude(**{field + '__isnull': True})
+            .exclude(**{field: ''})
+            .values_list(field, flat=True)
+            .distinct().order_by(field)
+        )
+
+    divisions = _cart_distinct('product_division_category')
+    model_categories = _cart_distinct('product_model_category')
+    colours = _cart_distinct('product_colour')
 
     # Default the grouping to whichever dimension this business actually populates:
     # a shop that files products by division and never sets a category would otherwise
@@ -887,6 +892,8 @@ def quotation_cart(request):
         'base_template': base_template,
         'navbar_template': navbar_template,
         'divisions': divisions,
+        'model_categories': model_categories,
+        'colours': colours,
         'has_categories': has_categorised_products,
         'default_group_by': default_group_by,
         'actor': ctx.actor,

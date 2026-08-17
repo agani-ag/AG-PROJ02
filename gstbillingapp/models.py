@@ -240,6 +240,11 @@ class ProductCategory(models.Model):
     def __str__(self):
         return self.get_full_path()
 
+# Colours the product_colour dropdown always offers, even before any product uses
+# one. Merged with the business's own distinct colours in the form / grid / cart.
+DEFAULT_PRODUCT_COLOURS = ['WHITE', 'GREY', 'BLACK']
+
+
 class Product(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     model_no = models.CharField(max_length=200)
@@ -250,6 +255,8 @@ class Product(models.Model):
     product_rate_with_gst = models.FloatField(default=0)
     product_purchase_rate = models.FloatField(default=0)
     product_division_category = models.CharField(max_length=50, null=True, blank=True)
+    product_model_category = models.CharField(max_length=50, null=True, blank=True)
+    product_colour = models.CharField(max_length=30, null=True, blank=True)
     product_image_url = models.TextField(max_length=600, blank=True, null=True)
     product_category = models.ForeignKey(ProductCategory, null=True, blank=True, on_delete=models.SET_NULL)
 
@@ -266,7 +273,13 @@ class Product(models.Model):
             self.product_name = self.product_name.upper()
         if self.product_division_category:
             self.product_division_category = self.product_division_category.upper()
-        
+        if self.product_model_category:
+            self.product_model_category = self.product_model_category.upper()
+        if self.product_colour:
+            # Uppercased like the other tags so seeds (WHITE/GREY/BLACK) and typed
+            # values dedupe cleanly in the dropdown.
+            self.product_colour = self.product_colour.upper()
+
         super().save(*args, **kwargs)
 
     def __str__(self):

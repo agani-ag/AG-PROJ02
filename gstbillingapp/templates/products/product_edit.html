@@ -1,6 +1,34 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block includecss %}
+<style>
+/* Make the Select2 tag boxes (Division / Model Category / Colour) match the plain
+   form inputs on this page: same compact height, square corners, small font, and a
+   sensible width instead of Select2's full-width default theme. */
+.two-col-form .select2-container { width: 250px !important; max-width: 100%; }
+.two-col-form .select2-container--default .select2-selection--single {
+    height: 30px;
+    border: 1px solid #ccc;
+    border-radius: 0;
+}
+.two-col-form .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 28px;
+    padding-left: 6px;
+    font-size: 0.85em;
+    color: #212529;
+}
+.two-col-form .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 28px;
+}
+.two-col-form .select2-container--default .select2-selection--single .select2-selection__placeholder {
+    color: #6c757d;
+}
+/* Dropdown list + search box: same small font as the fields. */
+.select2-dropdown, .select2-results__option, .select2-search__field { font-size: 0.85em; }
+</style>
+{% endblock %}
+
 {% block content %}
 <h2>Edit Product</h2>
 <form method="POST">
@@ -43,9 +71,18 @@
 				<th scope="row" class="text-right">Division Category:</th>
 				<td class="form-input-td">
 					{{ product_form.product_division_category }}
-					<a href="#" class="btn btn-sm btn-secondary" title="Add Division"
-						onclick="addDivision(event)"><i class="fas fa-plus"></i>
-					</a>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Model Category:</th>
+				<td class="form-input-td">
+					{{ product_form.product_model_category }}
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Colour:</th>
+				<td class="form-input-td">
+					{{ product_form.product_colour }}
 				</td>
 			</tr>
 			<tr>
@@ -93,34 +130,6 @@
 	</div>
 
 <script>
-
-// Add a new Division Category (free text saved on the product itself).
-function addDivision(e) {
-	e.preventDefault();
-	Swal.fire({
-		title: 'Add Division Category',
-		input: 'text',
-		inputLabel: 'Division name',
-		inputPlaceholder: 'Enter new division category',
-		showCancelButton: true,
-		confirmButtonText: 'Add',
-		cancelButtonText: 'Cancel',
-		inputValidator: (value) => {
-			if (!value || !value.trim()) return 'Division name is required';
-		}
-	}).then((result) => {
-		if (!result.isConfirmed) return;
-		const name = result.value.trim();
-		const sel = document.getElementById('id_product_division_category');
-		// Reuse a matching option if it already exists, otherwise add a new one
-		let opt = Array.from(sel.options).find(o => o.value.toLowerCase() === name.toLowerCase());
-		if (!opt) {
-			opt = new Option(name, name, true, true);
-			sel.add(opt);
-		}
-		sel.value = opt.value;
-	});
-}
 
 function popup_inventory() {
 	fetch("/inventory/{{ id }}?nav=1")
@@ -299,5 +308,22 @@ document.addEventListener("input", function(e) {
 
 // Run on page load
 window.onload = calculateValues;
+</script>
+{% endblock %}
+
+{% block includejs %}
+<script>
+// Runs AFTER base.html has loaded jQuery + Select2 (this block renders below them),
+// so $ and .select2 are defined. Division / Model Category / Colour become
+// type-or-select boxes: pick an existing value OR type a brand-new one inline,
+// saved as free text on submit.
+$(function() {
+	$('.editable-dropdown').select2({
+		tags: true,
+		width: '250px',   /* matches the plain inputs; CSS caps it at 100% on mobile */
+		placeholder: 'Select or type a value…',
+		allowClear: true
+	});
+});
 </script>
 {% endblock %}

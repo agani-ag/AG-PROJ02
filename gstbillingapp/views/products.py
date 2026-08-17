@@ -8,7 +8,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 # Models
 from ..models import (
     Product, UserProfile,
-    ProductCategory
+    ProductCategory, DEFAULT_PRODUCT_COLOURS
 )
 # Utility functions
 from ..utils import (
@@ -301,6 +301,8 @@ def products_aggrid(request):
             'parent_category': product.product_category.parent_category.category_name if product.product_category and product.product_category.parent_category else '',
             'child_category': product.product_category.category_name if product.product_category else '',
             'product_division_category': product.product_division_category or '',
+            'product_model_category': product.product_model_category or '',
+            'product_colour': product.product_colour or '',
             'current_stock': current_stock,
             'alert_level': alert_level
         })
@@ -315,18 +317,29 @@ def products_aggrid(request):
             'child': category.category_name
         })
     
-    # Distinct division categories (free-text) for the Division column dropdown
-    divisions = list(
-        Product.objects.filter(user=request.user)
-        .exclude(product_division_category__isnull=True)
-        .exclude(product_division_category="")
-        .values_list('product_division_category', flat=True)
-        .distinct().order_by('product_division_category')
-    )
+    # Distinct free-text values for the select-editor columns.
+    def _distinct(field):
+        return list(
+            Product.objects.filter(user=request.user)
+            .exclude(**{field + '__isnull': True})
+            .exclude(**{field: ''})
+            .values_list(field, flat=True)
+            .distinct().order_by(field)
+        )
+
+    divisions = _distinct('product_division_category')
+    model_categories = _distinct('product_model_category')
+    # Colour seeds WHITE/GREY/BLACK, then the business's own distinct colours.
+    colours = list(DEFAULT_PRODUCT_COLOURS)
+    for c in _distinct('product_colour'):
+        if c not in colours:
+            colours.append(c)
 
     context['products_json'] = json.dumps(products_data)
     context['categories_json'] = json.dumps(categories_data)
     context['divisions_json'] = json.dumps(divisions)
+    context['model_categories_json'] = json.dumps(model_categories)
+    context['colours_json'] = json.dumps(colours)
     context['products_count'] = len(products_data)
 
     return render(request, 'products/products_aggrid.html', context)
@@ -392,6 +405,12 @@ def product_aggrid_update(request):
             if 'product_division_category' in data:
                 # Free-text field — store whatever was selected/typed (blank allowed)
                 product.product_division_category = (data['product_division_category'] or '').strip()
+
+            if 'product_model_category' in data:
+                product.product_model_category = (data['product_model_category'] or '').strip()
+
+            if 'product_colour' in data:
+                product.product_colour = (data['product_colour'] or '').strip()
 
             product.save()
             

@@ -108,7 +108,9 @@
     const productsData = {{ products_json|safe }};
     const categoriesData = {{ categories_json|safe }};
     const divisionsData = {{ divisions_json|safe }};
-    
+    const modelCategoriesData = {{ model_categories_json|safe }};
+    const coloursData = {{ colours_json|safe }};
+
     // Category value formatter
     function categoryFormatter(params) {
         if (!params.value) return '';
@@ -219,6 +221,34 @@
             valueFormatter: params => params.value ? params.value : '-',
             cellStyle: editableCellStyle,
             width: 160
+        },
+        {
+            headerName: 'Model Category',
+            field: 'product_model_category',
+            editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: {
+                values: ['', ...modelCategoriesData],
+                valueListGap: 0,
+                valueListMaxHeight: 300
+            },
+            valueFormatter: params => params.value ? params.value : '-',
+            cellStyle: editableCellStyle,
+            width: 160
+        },
+        {
+            headerName: 'Colour',
+            field: 'product_colour',
+            editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: {
+                values: ['', ...coloursData],
+                valueListGap: 0,
+                valueListMaxHeight: 300
+            },
+            valueFormatter: params => params.value ? params.value : '-',
+            cellStyle: editableCellStyle,
+            width: 140
         },
         {
             headerName: 'Purchase Rate (₹)',
