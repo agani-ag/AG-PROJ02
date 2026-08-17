@@ -55,15 +55,15 @@ class ProductForm(ModelForm):
                 ).select_related('parent_category').order_by('parent_category__category_name', 'category_name')
                 self.fields['product_category'].label_from_instance = lambda obj: obj.get_full_path()
 
-        # 2. Populate each tag field's <select> options with the business's distinct
-        #    values (colour also seeds WHITE/GREY/BLACK). Select2 tags:true then lets
-        #    the user pick one or type a brand-new value on top of these.
+        # 2. Populate each tag field's <select> with the business's distinct values
+        #    (colour also seeds WHITE/GREY/BLACK). Plain dropdowns; the '＋ Add' button
+        #    on each adds a new value.
         base_query = Product.objects.filter(user=user) if user else Product.objects.all()
 
-        for field_name, prompt, seeds in (
-            ('product_division_category', 'Select or type a division…', []),
-            ('product_model_category', 'Select or type a model category…', []),
-            ('product_colour', 'Select or type a colour…', DEFAULT_PRODUCT_COLOURS),
+        for field_name, seeds in (
+            ('product_division_category', []),
+            ('product_model_category', []),
+            ('product_colour', DEFAULT_PRODUCT_COLOURS),
         ):
             distinct = list(seeds)
             for value in (base_query.values_list(field_name, flat=True)
@@ -79,8 +79,37 @@ class ProductForm(ModelForm):
                 distinct.insert(0, current)
 
             self.fields[field_name].widget.choices = (
-                [('', prompt)] + [(v, v) for v in distinct]
+                [('', '---------')] + [(v, v) for v in distinct]
             )
+
+        # 3. Cascading map for the Model Category dropdown: which distinct model
+        #    categories exist under each division. The template renders this as JSON
+        #    and the page filters Model Category whenever Division changes.
+        self.division_model_map = {}
+        pairs = (base_query
+                 .exclude(product_model_category__isnull=True)
+                 .exclude(product_model_category='')
+                 .values_list('product_division_category', 'product_model_category')
+                 .distinct())
+        for division, model_cat in pairs:
+            key = division or ''
+            bucket = self.division_model_map.setdefault(key, [])
+            if model_cat not in bucket:
+                bucket.append(model_cat)
+        for values in self.division_model_map.values():
+            values.sort()
+
+        # Full distinct lists, for the "include the other field's values" toggles.
+        self.all_divisions = list(base_query
+                                  .exclude(product_division_category__isnull=True)
+                                  .exclude(product_division_category='')
+                                  .values_list('product_division_category', flat=True)
+                                  .distinct().order_by('product_division_category'))
+        self.all_model_categories = list(base_query
+                                         .exclude(product_model_category__isnull=True)
+                                         .exclude(product_model_category='')
+                                         .values_list('product_model_category', flat=True)
+                                         .distinct().order_by('product_model_category'))
 
 class UserProfileForm(ModelForm):
     def __init__(self, *args, **kwargs):
