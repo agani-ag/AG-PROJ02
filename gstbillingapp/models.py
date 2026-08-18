@@ -89,6 +89,9 @@ class Customer(models.Model):
     collection_day = models.IntegerField(choices=DAYS, default=0)
     customer_place = models.CharField(max_length=25, blank=True, null=True)
     credit_limit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=25000.00)
+    # Bumped to revoke this customer's mobile (/m/) access link without touching others —
+    # baked into the signed token (see mobile_auth.py).
+    mobile_token_version = models.IntegerField(default=1)
 
     def save(self, *args, **kwargs):
         if self.customer_name:
@@ -660,3 +663,47 @@ class ChequeLeaf(models.Model):
 
     def __str__(self):
         return f"Cheque {self.cheque_number}"
+
+
+# ======================= Mobile Employee =================================
+class Employee(models.Model):
+    """
+    A staff member of ONE business (the business is the owner's User). Each business
+    manages its own employees. Used for the mobile employee app (/m/employee/) — the
+    employee signs in via a signed token minted by gstbilling (see mobile_auth.py).
+
+    Multi-business reps are a later phase; today an employee maps to a single business.
+    """
+    business = models.ForeignKey(User, on_delete=models.CASCADE, related_name="employees")
+    # Businesses this employee may access on the mobile app — an explicitly chosen
+    # subset of the home business's GST group. Empty falls back to just `business`.
+    businesses = models.ManyToManyField(User, related_name="covering_employees", blank=True)
+    name = models.CharField(max_length=100)
+    email = models.EmailField(blank=True, null=True)
+    phone = models.CharField(max_length=14, blank=True, null=True)
+    address = models.TextField(max_length=600, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    # Bumped to revoke this employee's mobile access link (baked into the signed token).
+    token_version = models.IntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def covered_businesses(self):
+        """The businesses this employee can access — the chosen set, or the home
+        business when none were picked."""
+        qs = self.businesses.all()
+        return qs if qs.exists() else User.objects.filter(id=self.business_id)
+
+    def save(self, *args, **kwargs):
+        if self.name:
+            self.name = self.name.strip().upper()
+        if self.email:
+            self.email = self.email.strip().lower()
+        if self.address:
+            self.address = self.address.strip().upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} @ {self.business.username}"

@@ -1,0 +1,41 @@
+{% extends "m/base.html" %}
+{% block title %}Collections{% endblock %}
+{% block heading %}Collections{% endblock %}
+{% block includecss %}
+.days{display:flex;gap:6px;overflow-x:auto;padding:2px 0 12px;-webkit-overflow-scrolling:touch}
+.days a{flex:0 0 auto;padding:8px 14px;border-radius:20px;background:var(--card);color:var(--soft);font-size:13px;font-weight:700;box-shadow:var(--sh)}
+.days a.on{background:var(--acc);color:#fff}
+{% endblock %}
+{% block content %}
+
+<div class="days">
+    {% for val, label in days %}
+    <a href="?day={{ val }}" class="{% if val == sel %}on{% endif %}">{{ label|slice:":3"|capfirst }}</a>
+    {% endfor %}
+</div>
+
+{% if total_due %}
+<div class="panel between"><span class="muted">Total due this day</span><span class="kpi" style="font-size:20px;color:var(--red)">&#8377; {{ total_due|floatformat:2 }}</span></div>
+{% endif %}
+
+{% if rows %}
+<div class="list">
+    {% for r in rows %}
+    <div class="row">
+        <a href="{% url 'm_employee_customer' r.id %}" style="color:inherit;flex:1;display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico {% if r.bal < 0 %}ic-red{% else %}ic-grey{% endif %}"><svg class="i"><use href="#ic-user"/></svg></span>
+            <span style="min-width:0"><span class="b">{{ r.name }}</span><div class="sub">{{ r.place|default:r.phone|default:"—" }}</div></span>
+        </a>
+        <span class="right" style="display:flex;align-items:center;gap:8px">
+            {% if r.bal < 0 %}<span class="badge b-red">&#8377; {{ r.bal|floatformat:2|cut:"-" }}</span>{% else %}<span class="sub">clear</span>{% endif %}
+            {% if r.phone %}<a class="btn btn-green" href="tel:{{ r.phone }}" style="padding:8px 10px;width:auto"><svg class="i" style="stroke:#fff;width:15px;height:15px"><use href="#ic-phone"/></svg></a>{% endif %}
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-wallet"/></svg><div>No customers set for this collection day.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="collections" %}{% endblock %}

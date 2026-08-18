@@ -1,0 +1,54 @@
+{% extends "m/base.html" %}
+{% block title %}{{ c.customer_name }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_customers' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Customers</a>{% endblock %}
+{% block heading %}{{ c.customer_name }}{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <div class="muted sm">{% if outstanding %}Amount due{% else %}Balance{% endif %}</div>
+    <div class="kpi" style="color:{% if outstanding %}var(--red){% else %}var(--green){% endif %}">
+        {% if outstanding %}&#8377; {{ outstanding|floatformat:2 }}{% elif balance > 0 %}&#8377; {{ balance|floatformat:2 }} adv{% else %}No dues{% endif %}
+    </div>
+    {% if c.customer_phone %}
+    <div class="between mt" style="gap:10px">
+        <a class="btn btn-sm" href="tel:{{ c.customer_phone }}" style="flex:1"><svg class="i"><use href="#ic-phone"/></svg> Call</a>
+        <button class="btn btn-sm btn-green" style="flex:1" onclick="remind()"><svg class="i" style="stroke:#fff"><use href="#ic-phone"/></svg> Remind</button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="panel">
+    <div class="b" style="margin-bottom:10px">Record a payment</div>
+    <input class="field" id="pay-amt" type="number" inputmode="decimal" placeholder="Amount received" min="1">
+    <input class="field" id="pay-note" placeholder="Note (optional)">
+    <button class="btn btn-acc" onclick="pay()"><svg class="i" style="stroke:#fff"><use href="#ic-check"/></svg> Save payment</button>
+</div>
+
+{% if logs %}
+<div class="sec"><h2 class="t" style="font-size:15px">Recent entries</h2></div>
+<div class="list">
+    {% for l in logs %}
+    <div class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center">
+            <span class="ico {% if l.change < 0 %}ic-red{% else %}ic-green{% endif %}"><svg class="i"><use href="#{% if l.change < 0 %}ic-receipt{% else %}ic-check{% endif %}"/></svg></span>
+            <span><span class="b">{{ l.get_change_type_display }}</span><div class="sub">{{ l.date|date:"d M Y" }}</div></span>
+        </span>
+        <span class="b tabnum" style="color:{% if l.change < 0 %}var(--red){% else %}var(--green){% endif %}">{% if l.change < 0 %}&minus;{% else %}+{% endif %}&#8377; {{ l.change|floatformat:2|cut:"-" }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<script>
+async function pay(){
+    var a=parseFloat(document.getElementById('pay-amt').value);
+    if(!a||a<=0){M.toast('Enter a valid amount');return;}
+    var n=document.getElementById('pay-note').value;
+    var r=await M.post("{% url 'm_employee_record_payment' c.id %}",{amount:a,note:n});
+    if(r.ok){M.toast('Payment saved');setTimeout(()=>location.reload(),700);}else{M.toast(r.message||'Failed');}
+}
+function remind(){M.wa("{{ c.customer_phone|escapejs }}","Dear {{ c.customer_name|escapejs }}, our records show an outstanding balance of {{ outstanding|floatformat:2 }}. Kindly arrange payment. Thank you.");}
+</script>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="customers" %}{% endblock %}

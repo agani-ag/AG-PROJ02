@@ -1,0 +1,83 @@
+{% extends "m/base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block chrome %}
+<div class="hero">
+    <p class="hi" id="greeting">Welcome</p>
+    <h1 class="nm">{{ primary.customer_name }}</h1>
+    <div class="due">
+        <div class="l">{% if multi %}Total due — all shops{% else %}Amount due{% endif %}</div>
+        <div class="v">{% if group_total %}&#8377; {{ group_total|floatformat:2 }}{% else %}No dues 🎉{% endif %}</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="sec"><h2 class="t">This month</h2><p class="s">{% now "F Y" %}</p></div>
+<div class="stats">
+    <a href="{% url 'm_customer_books' %}" class="stat c-red">
+        <div class="chip"><svg class="i"><use href="#ic-receipt"/></svg></div>
+        <p class="l">Purchased</p>
+        <div class="v">&#8377; {{ m_purchased|floatformat:0 }}</div>
+        <p class="c">{{ m_pcount }} transaction{{ m_pcount|pluralize }}</p>
+    </a>
+    <a href="{% url 'm_customer_books' %}" class="stat c-green">
+        <div class="chip"><svg class="i"><use href="#ic-check"/></svg></div>
+        <p class="l">Paid</p>
+        <div class="v">&#8377; {{ m_paid|floatformat:0 }}</div>
+        <p class="c">{{ m_paycount }} payment{{ m_paycount|pluralize }}</p>
+    </a>
+</div>
+
+{% if purchased %}
+<div class="sec"><h2 class="t">Payment progress</h2><p class="s">All time</p></div>
+<div class="panel">
+    <div class="prog">
+        <div class="top"><span>Overall</span><span class="b">{{ progress }}%</span></div>
+        <div class="bar"><span class="fill-green" style="width:{{ progress }}%"></span></div>
+        <div class="vals"><span>Paid &#8377; {{ paid|floatformat:0 }}</span><span>of &#8377; {{ purchased|floatformat:0 }}</span></div>
+    </div>
+    <div class="prog">
+        <div class="top"><span>This month</span><span class="b">{{ m_progress }}%</span></div>
+        <div class="bar"><span class="fill-blue" style="width:{{ m_progress }}%"></span></div>
+        <div class="vals"><span>Paid &#8377; {{ m_paid|floatformat:0 }}</span><span>of &#8377; {{ m_purchased|floatformat:0 }}</span></div>
+    </div>
+</div>
+{% endif %}
+
+{% if multi %}
+<div class="sec"><h2 class="t">By shop</h2><p class="s">Your balance at each</p></div>
+<div class="list">
+    {% for p in per %}
+    <a href="{% url 'm_customer_books' %}?biz={{ p.id }}" class="row">
+        <span class="lbl" style="display:flex;align-items:center;gap:10px">
+            <span class="ico ic-blue" style="width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center"><svg class="i" style="width:16px;height:16px"><use href="#ic-building"/></svg></span>
+            <span><span class="b">{{ p.brand|default:p.title }}</span></span>
+        </span>
+        {% if p.due %}<span class="badge b-red">&#8377; {{ p.due|floatformat:2 }}</span>{% else %}<span class="badge b-green">clear</span>{% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="sec"><h2 class="t">Quick actions</h2></div>
+<a href="/quotation/cart?cid={{ primary.customer_userid }}" class="btn btn-acc" style="margin-bottom:12px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> Place an order</a>
+<div class="qa">
+    <a href="{% url 'm_customer_invoices' %}"><span class="ico ic-blue"><svg class="i"><use href="#ic-receipt"/></svg></span><span class="b">Invoices</span></a>
+    <a href="{% url 'm_customer_orders' %}"><span class="ico ic-amber"><svg class="i"><use href="#ic-cart"/></svg></span><span class="b">My orders</span></a>
+    <a href="{% url 'm_customer_books' %}"><span class="ico ic-green"><svg class="i"><use href="#ic-book"/></svg></span><span class="b">Ledger</span></a>
+    <a href="{% url 'm_customer_profile' %}"><span class="ico ic-grey"><svg class="i"><use href="#ic-user"/></svg></span><span class="b">Profile</span></a>
+</div>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_customer.html" with active="home" %}{% endblock %}
+{% block includejs %}
+<script>
+(function(){
+    var h=new Date().getHours(), g="Hello";
+    if(h>=5&&h<12)g="Good morning";else if(h>=12&&h<17)g="Good afternoon";else if(h>=17&&h<21)g="Good evening";else g="Good night";
+    document.getElementById('greeting').textContent=g+',';
+})();
+</script>
+{% endblock %}

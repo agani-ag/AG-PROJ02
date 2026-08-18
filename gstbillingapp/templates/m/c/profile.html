@@ -1,0 +1,26 @@
+{% extends "m/base.html" %}
+{% block title %}Profile{% endblock %}
+{% block heading %}My Profile{% endblock %}
+{% block content %}
+
+<div class="panel" style="text-align:center;padding:22px 16px">
+    <span class="ico ic-blue" style="width:60px;height:60px;border-radius:18px;margin:0 auto 10px"><svg class="i" style="width:28px;height:28px"><use href="#ic-user"/></svg></span>
+    <div class="b" style="font-size:19px">{{ c.customer_name }}</div>
+    {% if c.customer_place %}<div class="sub">{{ c.customer_place }}</div>{% endif %}
+</div>
+
+<div class="list">
+    <div class="row"><span class="muted">Phone</span><span class="b">{{ c.customer_phone|default:"—" }}</span></div>
+    <div class="row"><span class="muted">GST</span><span class="b">{{ c.customer_gst|default:"—" }}</span></div>
+    <div class="row" style="display:block">
+        <div class="muted sm">Address</div>
+        <div class="mt">{{ c.customer_address|default:"—" }}</div>
+    </div>
+</div>
+
+{% if c.customer_phone %}
+<a class="btn" href="tel:{{ c.customer_phone }}"><svg class="i"><use href="#ic-phone"/></svg> Call</a>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_customer.html" with active="profile" %}{% endblock %}

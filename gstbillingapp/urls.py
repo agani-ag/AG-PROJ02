@@ -7,7 +7,7 @@ from .views import (
     expense_tracker, features, graphs, invoices,
     inventory, notifications, products, profile,
     purchases, quotation, reports, vendor_purchase,
-    views, insights,
+    views, insights, employee,
 )
 
 urlpatterns = [
@@ -24,6 +24,15 @@ urlpatterns = [
     # Profile URLs
     path('profile', profile.user_profile, name='user_profile'),
     path('profile/edit', profile.user_profile_edit, name='user_profile_edit'),
+
+    # Employee (mobile field-staff) management
+    path('employees', employee.employees, name='employees'),
+    path('employees/add', employee.employee_add, name='employee_add'),
+    path('employees/edit/<int:pk>', employee.employee_edit, name='employee_edit'),
+    path('employees/<int:pk>/delete', employee.employee_delete, name='employee_delete'),
+    path('employees/<int:pk>/mobile-link', employee.employee_mobile_link, name='employee_mobile_link'),
+    path('employees/<int:pk>/revoke', employee.employee_revoke, name='employee_revoke'),
+    path('customers/<int:customer_id>/mobile-link', employee.customer_mobile_link, name='customer_mobile_link'),
 
     # Invoice URLs
     path('invoices', invoices.invoices, name='invoices'),

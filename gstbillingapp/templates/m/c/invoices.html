@@ -1,0 +1,27 @@
+{% extends "m/base.html" %}
+{% block title %}Invoices{% endblock %}
+{% block heading %}My Invoices{% endblock %}
+{% block subhead %}{% if rows %}<div class="sub">{{ rows|length }} invoice{{ rows|length|pluralize }}</div>{% endif %}{% endblock %}
+{% block content %}
+
+{% if rows %}
+<div class="list">
+    {% for r in rows %}
+    <a href="{% url 'm_customer_invoice' r.id %}" class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-receipt"/></svg></span>
+            <span>
+                <span class="b">{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %}</span>
+                <div class="sub">{{ r.date|date:"d M Y" }}</div>
+            </span>
+        </span>
+        <span class="b tabnum">&#8377; {{ r.amount|floatformat:2 }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-receipt"/></svg><div>No invoices yet.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_customer.html" with active="invoices" %}{% endblock %}

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="row">
+	<div class="col">
+		<h2>Employees</h2>
+	</div>
+	<div class="col text-right" style="padding-top: 0.5%;">
+		<a href="{% url 'employee_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Employee"><i class="fas fa-plus"></i></a>
+	</div>
+</div>
+
+<table class="table table-bordered" id="employee-table">
+	<thead class="thead-dark">
+		<tr>
+			<th>Name</th>
+			<th>Email</th>
+			<th>Phone</th>
+			<th>Status</th>
+			<th>Actions</th>
+		</tr>
+	</thead>
+	<tbody class="two-col-form">
+		{% for e in employees %}
+		<tr>
+			<td>{{ e.name }}</td>
+			<td>{% if e.email %}{{ e.email }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+			<td>{% if e.phone %}{{ e.phone }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+			<td>
+				{% if e.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-secondary">Inactive</span>{% endif %}
+			</td>
+			<td>
+				<div class="btn-group" role="group">
+					<a href="{% url 'employee_edit' e.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Employee"><i class="fas fa-pen-to-square"></i></a>
+					<button type="button" class="btn btn-info btn-sm btn-curve" onclick="mobileLink({{ e.id }})" title="Mobile Access Link"><i class="fas fa-mobile-alt"></i></button>
+					<button type="button" class="btn btn-dark btn-sm btn-curve" onclick="revoke({{ e.id }})" title="Revoke Access"><i class="fas fa-ban"></i></button>
+					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#employeeDeleteModal" data-employee-id="{{ e.id }}" data-employee-name="{{ e.name }}" title="Remove Employee"><i class="fas fa-trash"></i></button>
+				</div>
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+
+<div class="modal fade" id="employeeDeleteModal" tabindex="-1" role="dialog" aria-labelledby="employeeDeleteModalLabel" aria-hidden="true">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="employeeDeleteModalLabel">Are you sure?</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<form method="POST" id="employeeDeleteForm">
+			{% csrf_token %}
+			<div class="modal-body">
+				Are you sure you want to remove <b><span class="employee-name"></span></b>?
+			</div>
+			<div class="modal-footer">
+				<button type="submit" class="btn btn-danger">Yes</button>
+				<button type="button" class="btn btn-primary" data-dismiss="modal">No</button>
+			</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+{% endblock %}
+
+
+{% block includejs %}
+<script type="text/javascript">
+$('#employeeDeleteModal').on('show.bs.modal', function (event) {
+	var button = $(event.relatedTarget);
+	var id = button.data('employee-id');
+	var name = button.data('employee-name');
+	var modal = $(this);
+	modal.find('.employee-name').text(name);
+	modal.find('#employeeDeleteForm').attr('action', '/employees/' + id + '/delete');
+});
+
+$(document).ready(function () {
+	$('#employee-table').DataTable({
+		"order": [],
+		"columnDefs": [{ "targets": 4, "sortable": false, "searchable": false }],
+		"paging": true,
+		dom: 'Bfrtip',
+		buttons: [
+			{ extend: 'excelHtml5', text: '<i class="fas fa-file-excel"></i> Excel', className: 'btn btn-success btn-sm btn-curve' },
+			{ extend: 'pdfHtml5', text: '<i class="fas fa-file-pdf"></i> PDF', className: 'btn btn-danger btn-sm btn-curve' },
+			{
+				extend: 'print', text: '<i class="fas fa-print"></i> Print', className: 'btn btn-warning btn-sm btn-curve', title: '',
+				customize: function (win) {
+					var body = $(win.document.body);
+					body.css('font-family', 'Arial, sans-serif');
+					var header = '<div style="text-align:center; margin-bottom:20px;">' +
+						'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
+						'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
+						'<hr style="margin:10px 0;"><h4 style="margin:0;">Employees</h4><hr style="margin-top:10px;"></div>';
+					body.find('table').before(header);
+					body.find('table th:last-child, table td:last-child').hide();
+					body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
+					body.find('table tbody tr').each(function (index) {
+						$(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
+					});
+					body.find('table').css('width', '100%').css('border-collapse', 'collapse').css('font-size', '13px');
+					body.find('table th, table td').css('border', '1px solid #ddd').css('padding', '8px');
+					body.find('table thead th').css('background-color', '#343a40').css('color', '#fff').css('text-align', 'left');
+				}
+			}
+		]
+	});
+});
+
+function _csrf() { return document.querySelector('[name=csrfmiddlewaretoken]').value; }
+
+function mobileLink(id) {
+	fetch('/employees/' + id + '/mobile-link').then(r => r.json()).then(d => {
+		if (!d.ok) return;
+		Swal.fire({
+			title: 'Mobile Access Link',
+			html: '<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
+			      '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
+			confirmButtonText: 'Copy link',
+			preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(d.url)
+		});
+	});
+}
+
+function revoke(id) {
+	Swal.fire({
+		title: 'Revoke access?', text: 'The current link and any active session stop working.',
+		icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Yes, revoke!'
+	}).then(r => {
+		if (r.isConfirmed) {
+			fetch('/employees/' + id + '/revoke', { method: 'POST', headers: { 'X-CSRFToken': _csrf() } })
+				.then(() => Swal.fire('Revoked!', 'Generate a new link to restore access.', 'success'));
+		}
+	});
+}
+</script>
+{% endblock %}

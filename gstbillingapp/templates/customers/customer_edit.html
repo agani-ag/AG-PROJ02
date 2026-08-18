@@ -93,6 +93,7 @@
 </form>
 		{% if id %}
 			<a class="btn btn-warning" href="#" onclick="popup_books()" title="Inventory Logs"><i class="fas fa-file-lines"></i></a>
+			<a class="btn btn-info" href="#" onclick="customerMobileLink('{{ customer_id }}')" title="Mobile access link"><i class="fas fa-mobile-alt"></i></a>
 		{% endif %}
 		{% if customer_password %}
 			<a onclick="resetCustomerPassword('{{ customer_id }}')" class="btn btn-dark" title="Reset Customer Password"><i class="fas fa-redo"></i></a>
@@ -127,6 +128,18 @@
 </div>
 
 <script>
+function customerMobileLink(customerId) {
+	fetch('/customers/' + customerId + '/mobile-link').then(r => r.json()).then(d => {
+		if (!d.ok) return;
+		Swal.fire({
+			title: 'Mobile access link',
+			html: '<small class="text-muted">Paste this URL into the SyncUp app link list for this customer.</small>' +
+			      '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
+			confirmButtonText: 'Copy link',
+			preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(d.url)
+		});
+	});
+}
 function resetCustomerPassword(customerId) {
 	Swal.fire({
 		title: 'Customer Password Reset',

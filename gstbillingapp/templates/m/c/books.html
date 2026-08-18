@@ -1,0 +1,35 @@
+{% extends "m/base.html" %}
+{% block title %}Ledger{% endblock %}
+{% block heading %}My Ledger{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <div class="muted sm">{% if outstanding %}Amount due{% elif advance %}Advance balance{% else %}Balance{% endif %}</div>
+    <div class="kpi" style="color:{% if outstanding %}var(--red){% else %}var(--green){% endif %}">
+        {% if outstanding %}&#8377; {{ outstanding|floatformat:2 }}{% elif advance %}&#8377; {{ advance|floatformat:2 }}{% else %}No dues{% endif %}
+    </div>
+</div>
+
+{% if logs %}
+<div class="list">
+    {% for l in logs %}
+    <div class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico {% if l.change < 0 %}ic-red{% else %}ic-green{% endif %}"><svg class="i"><use href="#{% if l.change < 0 %}ic-receipt{% else %}ic-check{% endif %}"/></svg></span>
+            <span style="min-width:0">
+                <span class="b">{{ l.get_change_type_display }}</span>
+                <div class="sub">{{ l.date|date:"d M Y" }}{% if l.description %} · {{ l.description }}{% endif %}</div>
+            </span>
+        </span>
+        <span class="b tabnum" style="color:{% if l.change < 0 %}var(--red){% else %}var(--green){% endif %};white-space:nowrap">
+            {% if l.change < 0 %}&minus;{% else %}+{% endif %}&#8377; {{ l.change|floatformat:2|cut:"-" }}
+        </span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-book"/></svg><div>No ledger entries yet.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_customer.html" with active="books" %}{% endblock %}

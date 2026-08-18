@@ -1,0 +1,10 @@
+{% extends "m/base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block heading %}Sign in{% endblock %}
+{% block content %}
+<div class="empty" style="padding-top:20vh">
+    <svg class="i" style="width:46px;height:46px;stroke:var(--red)"><use href="#ic-clock"/></svg>
+    <h3 style="margin:10px 0 4px">Session expired</h3>
+    <p class="muted">Please reopen this page from the SyncUp app to sign in again.</p>
+</div>
+{% endblock %}

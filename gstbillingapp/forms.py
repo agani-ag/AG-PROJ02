@@ -5,7 +5,7 @@ from .models import (
     InventoryLog, Book, BookLog,
     ExpenseTracker, BankDetails, VendorPurchase,
     PurchaseLog, ProductCategory, Asset, AssetLog,
-    ChequeLeaf, DEFAULT_PRODUCT_COLOURS
+    ChequeLeaf, Employee, DEFAULT_PRODUCT_COLOURS
 )
 
 
@@ -207,3 +207,8 @@ class ChequeLeafForm(ModelForm):
     def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.fields['amount'].required = True
+
+class EmployeeForm(ModelForm):
+    class Meta:
+        model = Employee
+        fields = ['name', 'email', 'phone', 'address', 'is_active']

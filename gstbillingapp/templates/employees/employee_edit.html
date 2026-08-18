@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<h2>{% if employee %}Edit Employee{% else %}Add Employee{% endif %}</h2>
+<form method="POST">
+	{% csrf_token %}
+	<table class="table">
+		<tbody class="two-col-form">
+			<tr>
+				<th scope="row" class="text-right">Employee Name:</th>
+				<td class="form-input-td">
+					<input type="text" name="name" value="{{ form.name.value|default:'' }}" required>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Email:</th>
+				<td class="form-input-td">
+					<input type="email" name="email" value="{{ form.email.value|default:'' }}">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Phone:</th>
+				<td class="form-input-td">
+					<input type="tel" name="phone" pattern="^$|^[6-9][0-9]{9}$" value="{{ form.phone.value|default:'' }}">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Address:</th>
+				<td class="form-input-td">
+					<textarea name="address" rows="4" cols="30">{{ form.address.value|default:'' }}</textarea>
+				</td>
+			</tr>
+			{% if group_businesses|length > 1 %}
+			<tr>
+				<th scope="row" class="text-right">Businesses:</th>
+				<td class="form-input-td">
+					<div class="dropdown">
+						<button class="btn btn-outline-secondary dropdown-toggle" type="button" id="bizDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+							<span id="bizCount">Select businesses</span>
+						</button>
+						<div class="dropdown-menu" id="bizMenu" style="max-height:260px; overflow-y:auto; padding:8px 14px; min-width:240px;">
+							{% for b in group_businesses %}
+							<label class="d-block mb-1" style="font-weight:normal; white-space:nowrap;">
+								<input type="checkbox" name="businesses" value="{{ b.id }}" {% if b.id in selected_ids %}checked{% endif %}>
+								{{ b.userprofile.business_brand|default:b.userprofile.business_title|default:b.username }}
+							</label>
+							{% endfor %}
+						</div>
+					</div>
+					<small class="text-muted d-block mt-1">Which businesses this employee can access on mobile. Leave all unchecked to cover only your business.</small>
+				</td>
+			</tr>
+			{% endif %}
+			<tr>
+				<th scope="row" class="text-right">Active:</th>
+				<td class="form-input-td">
+					<label class="switch">
+						<input type="checkbox" name="is_active" {% if form.is_active.value or not employee %}checked{% endif %}>
+						<span class="slider round"></span>
+					</label>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+
+	<div class="form-group text-right">
+		<button type="submit" class="btn btn-primary" title="Save Employee"><i class="fas fa-save"></i></button>
+</form>
+		{% if employee %}
+			<a class="btn btn-info" href="#" onclick="employeeMobileLink('{{ employee.id }}')" title="Mobile access link"><i class="fas fa-mobile-alt"></i></a>
+		{% endif %}
+		<a class="btn btn-danger" href="{% url 'employees' %}" title="Back To Employees"><i class="fas fa-cancel"></i></a>
+	</div>
+
+{% endblock %}
+
+{% block includejs %}
+<script>
+function employeeMobileLink(id) {
+	fetch('/employees/' + id + '/mobile-link').then(r => r.json()).then(d => {
+		if (!d.ok) return;
+		Swal.fire({
+			title: 'Mobile Access Link',
+			html: '<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
+			      '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
+			confirmButtonText: 'Copy link',
+			preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(d.url)
+		});
+	});
+}
+
+// Businesses checkbox-dropdown: keep it open while ticking, and show the count.
+(function () {
+	var menu = document.getElementById('bizMenu');
+	if (!menu) return;
+	menu.addEventListener('click', function (e) { e.stopPropagation(); });
+	function refresh() {
+		var n = menu.querySelectorAll('input[name=businesses]:checked').length;
+		document.getElementById('bizCount').textContent = n ? (n + ' selected') : 'Select businesses';
+	}
+	menu.addEventListener('change', refresh);
+	refresh();
+})();
+</script>
+{% endblock %}

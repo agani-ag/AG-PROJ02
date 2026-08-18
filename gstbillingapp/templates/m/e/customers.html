@@ -1,0 +1,44 @@
+{% extends "m/base.html" %}
+{% block title %}Customers{% endblock %}
+{% block heading %}Customers{% endblock %}
+{% block subhead %}{% if rows %}<div class="sub" id="cust-count">{{ rows|length }} customer{{ rows|length|pluralize }}</div>{% endif %}{% endblock %}
+{% block content %}
+
+<div style="position:relative;margin-bottom:12px">
+    <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+    <input class="field" id="cust-q" placeholder="Search name or phone…" oninput="filterCust(this.value)" autocomplete="off" style="margin:0;padding-left:42px">
+</div>
+
+{% if rows %}
+<div class="list" id="cust-list">
+    {% for r in rows %}
+    <a href="{% url 'm_employee_customer' r.id %}" class="row" data-s="{{ r.name|lower }} {{ r.phone|default:'' }}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-user"/></svg></span>
+            <span style="min-width:0"><span class="b">{{ r.name }}</span><div class="sub">{{ r.phone|default:"—" }}</div></span>
+        </span>
+        {% if r.bal < 0 %}<span class="badge b-red">&#8377; {{ r.bal|floatformat:2|cut:"-" }}</span>
+        {% elif r.bal > 0 %}<span class="badge b-green">&#8377; {{ r.bal|floatformat:2 }}</span>
+        {% else %}<span class="sub">clear</span>{% endif %}
+    </a>
+    {% endfor %}
+</div>
+<div class="empty" id="cust-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-people"/></svg><div>No customers yet.</div></div>
+{% endif %}
+
+<script>
+function filterCust(q){
+    q = (q||'').toLowerCase().trim();
+    var rows = document.querySelectorAll('#cust-list .row'), shown = 0;
+    for (var i=0;i<rows.length;i++){
+        var m = !q || rows[i].getAttribute('data-s').indexOf(q) >= 0;
+        rows[i].style.display = m ? '' : 'none'; if (m) shown++;
+    }
+    var e = document.getElementById('cust-empty'); if (e) e.style.display = shown ? 'none' : 'block';
+    var c = document.getElementById('cust-count'); if (c) c.textContent = shown + (shown===1?' customer':' customers');
+}
+</script>
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="customers" %}{% endblock %}
