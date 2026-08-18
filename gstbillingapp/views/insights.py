@@ -35,27 +35,34 @@ def _invoice_total(invoice_json_str):
 
 def _oldest_unpaid_days(logs, today):
     """
-    FIFO age (in days) of the oldest purchase not yet covered by settlements.
+    FIFO age (in days) of the oldest still-unsettled debit.
 
-    Purchases are change_type 1 (stored negative); settlements are Paid / Returned /
-    Other (types 0, 2, 3). We pay down the oldest purchases first and return the age
-    of the first one still open. Mirrors the AR aging report's intent. None if clear.
+    Works off the SIGNED ledger so it stays consistent with current_balance: any log
+    that increases the dues (change < 0 — invoice purchases AND negative 'Other'
+    debits such as opening balances) ages; any log that reduces them (change > 0 —
+    Paid, Returned, positive 'Other') settles, applied oldest-debit-first. Returns the
+    age of the first debit not fully covered, or None when nothing is outstanding.
+
+    Keying only on invoice-type purchases (the older approach) wrongly reported "no
+    overdue" for customers whose debt was entered as 'Other'.
     """
-    purchases = []      # (date, amount) oldest first
-    settled = 0.0
+    debits = []         # (date, amount>0) oldest first — anything that raises the dues
+    credits = 0.0       # anything that lowers the dues
     for log in logs:
-        if log.change_type == 1 and log.date:
-            purchases.append((log.date, abs(log.change)))
-        elif log.change_type in (0, 2, 3):
-            settled += abs(log.change)
+        amt = log.change or 0
+        if amt < 0:
+            if log.date:
+                debits.append((log.date, -amt))
+        elif amt > 0:
+            credits += amt
 
-    purchases.sort(key=lambda p: p[0])
-    for pdate, amount in purchases:
-        if settled >= amount:
-            settled -= amount
+    debits.sort(key=lambda d: d[0])
+    for ddate, amount in debits:
+        if credits >= amount:
+            credits -= amount
             continue
-        # This purchase is (partly) still open — its age is the overdue age.
-        return (today - pdate.date()).days
+        # This debit is (partly) still open — its age is the overdue age.
+        return (today - ddate.date()).days
     return None
 
 

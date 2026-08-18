@@ -64,7 +64,6 @@ urlpatterns = [
     path('customersjson', customers.customersjson, name='customersjson'),
     path('customers/collection-calendar', customers.customers_collection_calendar, name='customers_collection_calendar'),
     # API Endpoints
-    path('customers/api/add', customers.customer_api_add, name='customer_api_add'),
     path('customers/api/all_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
     path('customers/api/is_mobile_user', customers.customer_is_mobile_user, name='customer_is_mobile_user'),
     path('customers/api/default_password', customers.customer_default_password, name='customer_default_password'),
@@ -82,7 +81,6 @@ urlpatterns = [
     path('books/full/ajax', books.book_logs_full_ajax, name='book_logs_full_ajax'),
     path('books/fulladdupdate', books.book_logs_full_add, name='book_logs_full_add'),
     # API Endpoints
-    path('books/api/add', books.book_logs_api_add, name='book_logs_api_add'),
     path('books/api/active', books.book_logs_api_active, name='book_logs_api_active'),
     path('customer/book/filter/', books.customerBookFilter, name='customer_book_filter'),
     path('customer/book/pending-logs', books.book_logs_pending, name='book_logs_pending'),
@@ -97,13 +95,11 @@ urlpatterns = [
     path('products/edit/<int:product_id>', products.product_edit, name='product_edit'),
     path('products/delete', products.product_delete, name='product_delete'),
     path('productsjson', products.productsjson, name='productsjson'),
-    path('categoriesjson', products.categoriesjson, name='categoriesjson'),
     # Product Category URLs
     path('product-categories', products.product_category_list, name='product_category_list'),
     path('product-categories/save', products.product_category_save, name='product_category_save'),
     path('product-categories/delete/<int:pk>', products.product_category_delete, name='product_category_delete'),
     # API Endpoints
-    path('products/api/add', products.product_api_add, name='product_api_add'),
     path('products/api/aggrid-update', products.product_aggrid_update, name='product_aggrid_update'),
 
     # Inventory URLs
@@ -114,7 +110,6 @@ urlpatterns = [
     path('inventory/logs', inventory.inventory_logs_full, name='inventory_logs_full'),
     # API Endpoints
     path('inventory/api/stock-alert-level/add', inventory.invertory_stock_alert_update, name='invertory_stock_alert_update'),
-    path('inventory/api/stock/add', inventory.inventory_api_stock_add, name='inventory_api_stock_add'),
     path('inventory/logs/ajax/', inventory.inventory_logs_ajax, name='inventory_logs_ajax'),
     path('inventory/chart/trend/', inventory.inventory_trend_chart, name='inventory_trend_chart'),
     path('inventory/chart/product/', inventory.inventory_product_chart, name='inventory_product_chart'),
@@ -165,16 +160,13 @@ urlpatterns = [
     path('api/cheque_leaf_reminder', bank_details.cheque_leaf_reminder_api, name='cheque_leaf_reminder_api'),
 
     # Features URLs
-    path('liveshare', features.liveshare_page, name='liveshare_page'),
-    path('feature/upload', features.excel_upload, name='feature_upload'),
     path('download/sqlite', features.download_sqlite, name='download_sqlite'),
 
     # Reports URLs
-    path('reports/sales', reports.sales_report_pdf, name='sales_report'),
     path('reports/overdue', reports.overdue_report, name='overdue_report'),
+    path('api/reports/overdue', reports.overdue_report_api, name='overdue_report_api'),
     path('reports/bi-dashboard', reports.bi_dashboard, name='bi_dashboard'),
     path('reports/ar-aging', reports.ar_aging_report, name='ar_aging_report'),
-    path('api/reports/overdue', reports.overdue_report_api, name='overdue_report_api'),
     path('reports/transactions', reports.transaction_report, name='transaction_report'),
     path('reports/credit-aging', reports.credit_aging_report, name='credit_aging_report'),
     path('reports/customer-analysis', reports.customer_analysis, name='customer_analysis'),
@@ -187,7 +179,6 @@ urlpatterns = [
     path('graphs/dashboard', graphs.sales_dashboard, name='sales_dashboard'),
     path('graphs/division-category-sales', graphs.division_category_sales, name='division_category_sales'),
     path('graphs/books', graphs.customer_books_graph, name='customer_books_graph'),
-    path('graphs/purchase-log', graphs.purchase_log_graph, name='purchase_log_graph'),
     path('graphs/expense-tracker', graphs.expense_tracker_graph, name='expense_tracker_graph'),
     path('graphs/customer-location-map', graphs.customer_location_map, name='customer_location_map'),
     

@@ -100,48 +100,6 @@ def productsjson(request):
         product['current_stock'] = stock_map.get(product['id'])
     return JsonResponse(products, safe=False)
 
-@login_required
-def categoriesjson(request):
-    categories = list(ProductCategory.objects.filter(user=request.user).values())
-    return JsonResponse(categories, safe=False)
-
-@csrf_exempt
-def product_api_add(request):
-    if request.method == "POST":
-        business_uid = request.GET.get('business_uid', None)
-        if not business_uid:
-            return JsonResponse({'status': 'error', 'message': 'Business UID is required.'})
-        user_profile = get_object_or_404(UserProfile, business_uid=business_uid)
-        if user_profile:
-            user = user_profile.user
-        data = request.body.decode('utf-8')
-        data = json.loads(data)
-        inserted_count = 0
-        not_inserted_count = 0
-        for item in data:
-            if item.get('model_no') == "" or item.get('model_no') is None:
-                not_inserted_count += 1
-            elif Product.objects.filter(user=user, model_no=item.get('model_no').upper()).exists():
-                not_inserted_count += 1
-            else:
-                product = Product(
-                    user=user,
-                    model_no=item.get('model_no'),
-                    product_name=item.get('product_name') or '',
-                    product_hsn=item.get('product_hsn') or '',
-                    product_discount=item.get('product_discount') or 0,
-                    product_gst_percentage=item.get('product_gst_percentage') or 18,
-                    product_rate_with_gst=item.get('product_rate_with_gst') or 0
-                )
-                product.save()
-                create_inventory(product)
-                product_stock = item.get('product_stock') or 0
-                if int(product_stock) > 0:
-                    add_stock_to_inventory(product, int(product_stock), "Initial stock", user)
-                inserted_count += 1
-        return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products added successfully.\n{not_inserted_count} Products not added.\nTotal {len(data)} items.'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to add products.'})
-
 # ================= Product Category Views ===========================
 @login_required
 def product_category_list(request):
@@ -355,6 +313,7 @@ def products_aggrid(request):
     return render(request, 'products/products_aggrid.html', context)
 
 
+
 @csrf_exempt
 @login_required
 def product_aggrid_update(request):
@@ -413,7 +372,7 @@ def product_aggrid_update(request):
                     product.product_category = None
 
             if 'product_division_category' in data:
-                # Free-text field — store whatever was selected/typed (blank allowed)
+                # Free-text field â€” store whatever was selected/typed (blank allowed)
                 product.product_division_category = (data['product_division_category'] or '').strip()
 
             if 'product_model_category' in data:

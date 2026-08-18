@@ -134,159 +134,6 @@ def customer_products_catalog(request):
         })
 
 
-def customer_create_order(request):
-    """Customer creates a quotation (order request)"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
-    
-    try:
-        cid = request.POST.get('cid')
-        cid_data = parse_code_GS(cid)
-        
-        if not cid_data:
-            return JsonResponse({'success': False, 'message': 'Invalid customer code'}, status=400)
-        
-        customer_id = cid_data.get('C', None)
-        user_id = cid_data.get('GS', None)
-        
-        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
-        business_user = customer.user
-        user_profile = get_object_or_404(UserProfile, user=business_user)
-        
-        # Parse order items
-        order_items_json = request.POST.get('order_items', '[]')
-        order_items = json.loads(order_items_json)
-        
-        if not order_items:
-            return JsonResponse({'success': False, 'message': 'No items in order'}, status=400)
-        
-        # Determine if GST quotation
-        is_gst = customer.customer_gst is not None and customer.customer_gst.strip() != ''
-        
-        # Get next quotation number
-        max_quotation_number = Quotation.objects.filter(
-            user=business_user, 
-            is_gst=is_gst
-        ).aggregate(Max('quotation_number'))['quotation_number__max']
-        
-        next_quotation_number = (max_quotation_number or 0) + 1
-        
-        # Build quotation JSON
-        quotation_data = {
-            'customer_name': customer.customer_name,
-            'customer_address': customer.customer_address or '',
-            'customer_phone': customer.customer_phone or '',
-            'customer_gst': customer.customer_gst or '',
-            'vehicle_number': '',
-            'items': [],
-            'igstcheck': False
-        }
-        
-        total_amount_with_gst = 0
-        total_amount_without_gst = 0
-        total_sgst = 0
-        total_cgst = 0
-        total_igst = 0
-        
-        # Process each item — priced by the canonical rule in utils.build_quotation_item:
-        # discount off the rate first, then GST on top of the discounted rate.
-        for item in order_items:
-            try:
-                product = Product.objects.get(id=item['product_id'], user=business_user)
-                quantity = int(item['quantity'])
-
-                item_entry = build_quotation_item(
-                    product, quantity, igstcheck=quotation_data['igstcheck']
-                )
-
-                total_amount_with_gst += item_entry['invoice_amt_with_gst']
-                total_amount_without_gst += item_entry['invoice_amt_without_gst']
-                total_sgst += item_entry['invoice_amt_sgst']
-                total_cgst += item_entry['invoice_amt_cgst']
-                total_igst += item_entry['invoice_amt_igst']
-
-                quotation_data['items'].append(item_entry)
-            except Product.DoesNotExist:
-                return JsonResponse({
-                    'success': False,
-                    'message': f'Product not found'
-                }, status=400)
-
-        # Set totals
-        quotation_data['invoice_total_amt_with_gst'] = round(total_amount_with_gst, 2)
-        quotation_data['invoice_total_amt_without_gst'] = round(total_amount_without_gst, 2)
-        quotation_data['invoice_total_amt_sgst'] = round(total_sgst, 2)
-        quotation_data['invoice_total_amt_cgst'] = round(total_cgst, 2)
-        quotation_data['invoice_total_amt_igst'] = round(total_igst, 2)
-        
-        # Create quotation
-        valid_until = datetime.date.today() + datetime.timedelta(days=30)
-        
-        with transaction.atomic():
-            new_quotation = Quotation(
-                user=business_user,
-                quotation_number=next_quotation_number,
-                quotation_date=datetime.date.today(),
-                valid_until=valid_until,
-                quotation_customer=customer,
-                quotation_json=json.dumps(quotation_data),
-                is_gst=is_gst,
-                status='DRAFT',
-                created_by_customer=True,
-                notes=f'Customer order via mobile app by {customer.customer_name}'
-            )
-            new_quotation.save()
-            
-            # Create notification for business owner
-            notification = Notification(
-                user=business_user,
-                notification_type='ORDER',
-                title=f'New Order from {customer.customer_name}',
-                message=f'Order #{new_quotation.quotation_number} placed for ₹{total_amount_with_gst:.2f}',
-                link_url=f'/quotation/{new_quotation.id}/',
-                link_text='View Order'
-            )
-            notification.save()
-            
-            # Send WebSocket notification
-            try:
-                from asgiref.sync import async_to_sync
-                from channels.layers import get_channel_layer
-                
-                channel_layer = get_channel_layer()
-                if channel_layer:
-                    async_to_sync(channel_layer.group_send)(
-                        f"notifications_user_{business_user.id}",
-                        {
-                            'type': 'new_notification',
-                            'notification': {
-                                'id': notification.id,
-                                'type': notification.notification_type,
-                                'title': notification.title,
-                                'message': notification.message,
-                                'link_url': notification.link_url,
-                                'link_text': notification.link_text,
-                                'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                            }
-                        }
-                    )
-            except Exception as e:
-                print(f"WebSocket notification failed: {e}")
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Order #{new_quotation.quotation_number} placed successfully!',
-            'quotation_id': new_quotation.id,
-            'quotation_number': new_quotation.quotation_number
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': f'Error creating order: {str(e)}'
-        }, status=500)
-
-
 def customer_orders_list(request):
     """List customer's own orders (quotations)"""
     context = {}
@@ -836,3 +683,156 @@ def customer_order_received(request, quotation_id):
         
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
+
+
+def customer_create_order(request):
+    """Customer creates a quotation (order request)"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+    
+    try:
+        cid = request.POST.get('cid')
+        cid_data = parse_code_GS(cid)
+        
+        if not cid_data:
+            return JsonResponse({'success': False, 'message': 'Invalid customer code'}, status=400)
+        
+        customer_id = cid_data.get('C', None)
+        user_id = cid_data.get('GS', None)
+        
+        customer = get_object_or_404(Customer, id=customer_id, user__id=user_id)
+        business_user = customer.user
+        user_profile = get_object_or_404(UserProfile, user=business_user)
+        
+        # Parse order items
+        order_items_json = request.POST.get('order_items', '[]')
+        order_items = json.loads(order_items_json)
+        
+        if not order_items:
+            return JsonResponse({'success': False, 'message': 'No items in order'}, status=400)
+        
+        # Determine if GST quotation
+        is_gst = customer.customer_gst is not None and customer.customer_gst.strip() != ''
+        
+        # Get next quotation number
+        max_quotation_number = Quotation.objects.filter(
+            user=business_user, 
+            is_gst=is_gst
+        ).aggregate(Max('quotation_number'))['quotation_number__max']
+        
+        next_quotation_number = (max_quotation_number or 0) + 1
+        
+        # Build quotation JSON
+        quotation_data = {
+            'customer_name': customer.customer_name,
+            'customer_address': customer.customer_address or '',
+            'customer_phone': customer.customer_phone or '',
+            'customer_gst': customer.customer_gst or '',
+            'vehicle_number': '',
+            'items': [],
+            'igstcheck': False
+        }
+        
+        total_amount_with_gst = 0
+        total_amount_without_gst = 0
+        total_sgst = 0
+        total_cgst = 0
+        total_igst = 0
+        
+        # Process each item â€” priced by the canonical rule in utils.build_quotation_item:
+        # discount off the rate first, then GST on top of the discounted rate.
+        for item in order_items:
+            try:
+                product = Product.objects.get(id=item['product_id'], user=business_user)
+                quantity = int(item['quantity'])
+
+                item_entry = build_quotation_item(
+                    product, quantity, igstcheck=quotation_data['igstcheck']
+                )
+
+                total_amount_with_gst += item_entry['invoice_amt_with_gst']
+                total_amount_without_gst += item_entry['invoice_amt_without_gst']
+                total_sgst += item_entry['invoice_amt_sgst']
+                total_cgst += item_entry['invoice_amt_cgst']
+                total_igst += item_entry['invoice_amt_igst']
+
+                quotation_data['items'].append(item_entry)
+            except Product.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Product not found'
+                }, status=400)
+
+        # Set totals
+        quotation_data['invoice_total_amt_with_gst'] = round(total_amount_with_gst, 2)
+        quotation_data['invoice_total_amt_without_gst'] = round(total_amount_without_gst, 2)
+        quotation_data['invoice_total_amt_sgst'] = round(total_sgst, 2)
+        quotation_data['invoice_total_amt_cgst'] = round(total_cgst, 2)
+        quotation_data['invoice_total_amt_igst'] = round(total_igst, 2)
+        
+        # Create quotation
+        valid_until = datetime.date.today() + datetime.timedelta(days=30)
+        
+        with transaction.atomic():
+            new_quotation = Quotation(
+                user=business_user,
+                quotation_number=next_quotation_number,
+                quotation_date=datetime.date.today(),
+                valid_until=valid_until,
+                quotation_customer=customer,
+                quotation_json=json.dumps(quotation_data),
+                is_gst=is_gst,
+                status='DRAFT',
+                created_by_customer=True,
+                notes=f'Customer order via mobile app by {customer.customer_name}'
+            )
+            new_quotation.save()
+            
+            # Create notification for business owner
+            notification = Notification(
+                user=business_user,
+                notification_type='ORDER',
+                title=f'New Order from {customer.customer_name}',
+                message=f'Order #{new_quotation.quotation_number} placed for â‚¹{total_amount_with_gst:.2f}',
+                link_url=f'/quotation/{new_quotation.id}/',
+                link_text='View Order'
+            )
+            notification.save()
+            
+            # Send WebSocket notification
+            try:
+                from asgiref.sync import async_to_sync
+                from channels.layers import get_channel_layer
+                
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        f"notifications_user_{business_user.id}",
+                        {
+                            'type': 'new_notification',
+                            'notification': {
+                                'id': notification.id,
+                                'type': notification.notification_type,
+                                'title': notification.title,
+                                'message': notification.message,
+                                'link_url': notification.link_url,
+                                'link_text': notification.link_text,
+                                'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                            }
+                        }
+                    )
+            except Exception as e:
+                print(f"WebSocket notification failed: {e}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Order #{new_quotation.quotation_number} placed successfully!',
+            'quotation_id': new_quotation.id,
+            'quotation_number': new_quotation.quotation_number
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error creating order: {str(e)}'
+        }, status=500)

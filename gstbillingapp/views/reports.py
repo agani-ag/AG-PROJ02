@@ -22,162 +22,6 @@ from ..models import (
 )
 
 
-def sales_report_pdf(request):
-    user = request.user
-    user_profile = UserProfile.objects.get(user=user)
-
-    customers = Customer.objects.filter(user=user).order_by("customer_name")
-
-    elements = []
-    styles = getSampleStyleSheet()
-
-    title_style = ParagraphStyle(
-        "Title", parent=styles["Heading1"],
-        alignment=1, fontSize=16
-    )
-
-    subtitle_style = ParagraphStyle(
-        "Sub", parent=styles["Normal"],
-        alignment=1, fontSize=10
-    )
-
-    # ---------------- RESPONSE ---------------- #
-    response = HttpResponse(content_type="application/pdf")
-    response["Content-Disposition"] = 'attachment; filename="sales_report_till_now.pdf"'
-
-    doc = SimpleDocTemplate(
-        response,
-        pagesize=A4,
-        rightMargin=15 * mm,
-        leftMargin=15 * mm,
-        topMargin=20 * mm,
-        bottomMargin=20 * mm
-    )
-
-    # ---------------- HEADER ---------------- #
-    elements.append(Paragraph(user_profile.business_title, title_style))
-    elements.append(Paragraph(user_profile.business_address, subtitle_style))
-    elements.append(
-        Paragraph(
-            f"Phone: {user_profile.business_phone} | GST: {user_profile.business_gst}",
-            subtitle_style
-        )
-    )
-    elements.append(Spacer(1, 8))
-    elements.append(Paragraph("Sales Report (Till Now)", subtitle_style))
-    elements.append(Spacer(1, 15))
-
-    # ---------------- TOTALS ---------------- #
-    grand_paid = 0.0
-    grand_purchased = 0.0
-    grand_returned = 0.0
-    grand_other = 0.0
-
-    # ---------------- PER CUSTOMER ---------------- #
-    for customer in customers:
-        book = Book.objects.filter(user=user, customer=customer).first()
-        if not book:
-            continue
-
-        logs = BookLog.objects.filter(parent_book=book, is_active=True)
-
-        paid = purchased = returned = other = 0.0
-
-        for log in logs:
-            if log.change_type == 0:
-                paid += log.change
-            elif log.change_type == 1:
-                purchased += log.change
-            elif log.change_type == 2:
-                returned += log.change
-            elif log.change_type == 3:
-                other += log.change
-
-        balance = abs(purchased) - (abs(paid) + abs(returned) + abs(other))
-
-        grand_paid += abs(paid)
-        grand_purchased += abs(purchased)
-        grand_returned += abs(returned)
-        grand_other += abs(other)
-
-        # ---------- CUSTOMER TABLE ---------- #
-        customer_table = Table(
-            [
-                ["Customer", customer.customer_name],
-                ["Paid", f"{paid:.2f}"],
-                ["Purchased", f"{purchased:.2f}"],
-                ["Returned", f"{returned:.2f}"],
-                ["Other", f"{other:.2f}"],
-                ["Balance", f"{balance:.2f}"],
-            ],
-            colWidths=[50 * mm, 120 * mm]
-        )
-
-        customer_table.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
-        ]))
-
-        elements.append(customer_table)
-        elements.append(Spacer(1, 15))
-
-        # ---------- SIGNATURE (PER CUSTOMER) ---------- #
-        sign_table = Table(
-            [
-                ["Customer Signature", "Authorized Signature"],
-                ["", ""],
-                ["_______________________", "_______________________"]
-            ],
-            colWidths=[85 * mm, 85 * mm]
-        )
-
-        sign_table.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("TOPPADDING", (0, 1), (-1, 1), 20),
-            ("BOTTOMPADDING", (0, 1), (-1, 1), 20),
-            ("GRID", (0, 0), (-1, -1), 0, colors.white),
-        ]))
-
-        elements.append(sign_table)
-        elements.append(Spacer(1, 25))
-
-    # ---------------- GRAND TOTAL ---------------- #
-    grand_balance = abs(grand_purchased) - (abs(grand_paid) + abs(grand_returned) + abs(grand_other))
-
-    total_table = Table(
-        [
-            ["GRAND TOTAL PAID", f"{grand_paid:.2f}"],
-            ["GRAND TOTAL PURCHASED", f"{grand_purchased:.2f}"],
-            ["GRAND TOTAL RETURNED", f"{grand_returned:.2f}"],
-            ["GRAND TOTAL OTHER", f"{grand_other:.2f}"],
-            ["FINAL BALANCE", f"{grand_balance:.2f}"],
-        ],
-        colWidths=[80 * mm, 90 * mm]
-    )
-
-    total_table.setStyle(TableStyle([
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-        ("BACKGROUND", (0, -1), (-1, -1), colors.lightyellow),
-        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-    ]))
-
-    elements.append(total_table)
-
-    # ---------------- FOOTER ---------------- #
-    def page_number(canvas, doc):
-        canvas.setFont("Helvetica", 9)
-        canvas.drawCentredString(A4[0] / 2, 10 * mm, f"Page {canvas.getPageNumber()}")
-
-    doc.build(elements, onFirstPage=page_number, onLaterPages=page_number)
-
-    return response
-
-
 @login_required
 def bi_dashboard(request):
     """Business Intelligence Dashboard view"""
@@ -1117,249 +961,6 @@ def _escape_md(text):
     return escaped
 
 
-@csrf_exempt
-def overdue_report_api(request):
-    """
-    API endpoint for Overdue Report (multi-user).
-    Accepts POST with JSON body: {"user_ids": [1, 2, 3]}
-    Or GET with query param: ?user_ids=1,2,3
-    Query param: ?days=90 (default 90, options: 15,30,45,...450)
-    Returns user-wise grouped overdue data with user details.
-    """
-    today = date.today()
-    day_options = list(range(15, 465, 15))
-    # Ignore overdue amounts less than this threshold
-    IGNORE_SMALL_OVERDUE = 10.0
-
-    # --- Parse user_ids ---
-    user_ids = []
-    if request.method == 'POST':
-        try:
-            body = json.loads(request.body.decode('utf-8'))
-            user_ids = body.get('user_ids', [])
-        except (json.JSONDecodeError, ValueError):
-            return JsonResponse({'status': 'error', 'message': 'Invalid JSON body.'}, status=400)
-    else:
-        raw = request.GET.get('user_ids', '')
-        if raw:
-            try:
-                user_ids = [int(uid.strip()) for uid in raw.split(',') if uid.strip()]
-            except ValueError:
-                return JsonResponse({'status': 'error', 'message': 'user_ids must be comma-separated integers.'}, status=400)
-
-    if not user_ids:
-        return JsonResponse({'status': 'error', 'message': 'user_ids is required (non-empty array).'}, status=400)
-
-    # --- Parse days ---
-    if request.method == 'POST':
-        try:
-            body = json.loads(request.body.decode('utf-8'))
-            selected_days = int(body.get('days', 90))
-        except (json.JSONDecodeError, ValueError, TypeError):
-            selected_days = 90
-    else:
-        selected_days = request.GET.get('days', '90')
-        try:
-            selected_days = int(selected_days)
-        except (ValueError, TypeError):
-            selected_days = 90
-
-    if selected_days not in day_options:
-        selected_days = 90
-
-    # --- Parse markdown flag ---
-    include_markdown = False
-    if request.method == 'POST':
-        try:
-            body = json.loads(request.body.decode('utf-8'))
-            include_markdown = bool(body.get('markdown', False))
-        except (json.JSONDecodeError, ValueError):
-            pass
-    else:
-        md_raw = request.GET.get('markdown', '').lower()
-        include_markdown = md_raw in ('true', '1', 'yes')
-
-    # --- Fetch valid users ---
-    users = User.objects.filter(pk__in=user_ids)
-    found_ids = set(users.values_list('pk', flat=True))
-    not_found_ids = [uid for uid in user_ids if uid not in found_ids]
-
-    # --- Build per-user overdue data ---
-    results = []
-    grand_total_overdue = 0.0
-    grand_total_customers = 0
-    grand_actual_total_customers = 0
-
-    for user in users:
-        # User details
-        user_profile = UserProfile.objects.filter(user=user).first()
-        user_info = {
-            'user_id': user.id,
-            'username': user.username,
-            'email': user.email or '',
-            'business_title': user_profile.business_title or '' if user_profile else '',
-            'business_phone': user_profile.business_phone or '' if user_profile else '',
-            'business_gst': user_profile.business_gst or '' if user_profile else '',
-            'business_brand': user_profile.business_brand or '' if user_profile else '',
-        }
-
-        # Total customer count for this user
-        actual_total_customers = Customer.objects.filter(user=user).count()
-
-        books = Book.objects.filter(user=user).select_related('customer')
-
-        customer_rows = []
-        user_total_overdue = 0.0
-
-        for book in books:
-            if not book.customer:
-                continue
-
-            logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
-
-            total_purchased = 0.0
-            total_settled = 0.0
-            for log in logs:
-                if log.change_type == 1:
-                    total_purchased += abs(log.change)
-                elif log.change_type in [0, 2, 3]:
-                    total_settled += abs(log.change)
-
-            outstanding = total_purchased - total_settled
-            if outstanding <= 0.01:
-                continue
-
-            purchase_entries = []
-            for log in logs:
-                if log.change_type == 1 and log.date:
-                    age_days = (today - log.date.date()).days
-                    purchase_entries.append({
-                        'amount': abs(log.change),
-                        'age_days': max(age_days, 0),
-                    })
-
-            purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
-            remaining_to_settle = total_settled
-            overdue_amount = 0.0
-
-            for entry in purchase_entries:
-                if remaining_to_settle >= entry['amount']:
-                    remaining_to_settle -= entry['amount']
-                    continue
-                elif remaining_to_settle > 0:
-                    unpaid = entry['amount'] - remaining_to_settle
-                    remaining_to_settle = 0
-                else:
-                    unpaid = entry['amount']
-
-                if entry['age_days'] >= selected_days:
-                    overdue_amount += unpaid
-
-            if overdue_amount <= 0:
-                continue
-
-            # Ignore very small overdue amounts
-            if overdue_amount < IGNORE_SMALL_OVERDUE:
-                continue
-
-            user_total_overdue += overdue_amount
-
-            customer_rows.append({
-                'customer_id': book.customer.id,
-                'customer_name': book.customer.customer_name,
-                'phone': book.customer.customer_phone or '',
-                'overdue_amount': round(overdue_amount, 2),
-            })
-
-        customer_rows.sort(key=lambda x: x['overdue_amount'], reverse=True)
-
-        grand_total_overdue += user_total_overdue
-        grand_total_customers += len(customer_rows)
-        grand_actual_total_customers += actual_total_customers
-
-        results.append({
-            'user': user_info,
-            'actual_total_customers': actual_total_customers,
-            'total_overdue': round(user_total_overdue, 2),
-            'overdue_customers': len(customer_rows),
-            'customers': customer_rows,
-        })
-
-    # --- Build Telegram Markdown if requested ---
-    markdown_text = None
-    if include_markdown:
-        lines = []
-        # ── Header ──
-        lines.append('📋  *OVERDUE REPORT*')
-        lines.append(f'📅  {_escape_md(today.strftime("%d %b %Y"))} \\| ⏳ {selected_days} Days')
-        lines.append('')
-
-        if not_found_ids:
-            lines.append(f'❌  Not Found IDs: {_escape_md(", ".join(str(i) for i in not_found_ids))}')
-            lines.append('')
-
-        # ── Per-User Sections ──
-        for r in results:
-            u = r['user']
-            biz_title = u.get('business_title', '') or u.get('username', '')
-            lines.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
-            lines.append(f'🏢  *{_escape_md(biz_title)}*')
-            if u.get('business_phone'):
-                lines.append(f'📞  {_escape_md(u["business_phone"])}')
-            if u.get('business_gst'):
-                lines.append(f'🔖  {_escape_md(u["business_gst"])}')
-            if u.get('business_brand'):
-                lines.append(f'🏷️  {_escape_md(u["business_brand"])}')
-
-            user_overdue_str = _escape_md(f'{r["total_overdue"]:,.2f}')           
-            lines.append(f'👥  Total Customers: *{r["actual_total_customers"]}*')
-            lines.append(f'⚠️  Overdue Customers: *{r["overdue_customers"]}*')
-            lines.append(f'💰  Total Overdue: *Rs\\.{user_overdue_str}*')
-            lines.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
-            lines.append('')
-
-            if r['customers']:
-                for idx, c in enumerate(r['customers'], 1):
-                    cname = _escape_md(c['customer_name'])
-                    phone = c.get('phone', False)
-                    amt = f'Rs.{c["overdue_amount"]:,.2f}'
-                    lines.append(f'{_escape_md(str(idx))}\\. *{cname}*')
-                    if phone:
-                        lines.append(f'    📞  *{_escape_md(phone)}*')
-                    lines.append(f'    💰  *{_escape_md(amt)}*')
-                    lines.append('')
-            else:
-                lines.append('✅ _No overdue customers_')
-                lines.append('')
-
-            lines.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
-            lines.append(f'💰  Total Overdue: *Rs\\.{user_overdue_str}*')
-            lines.append('')
-
-        # ── Footer ──
-        lines.append(f'🦀  _Crab AI \\| {_escape_md(today.strftime("%d %b %Y"))}_')
-
-        markdown_text = '\n'.join(lines)
-
-    response_data = {
-        'status': 'success',
-        'report_date': today.strftime('%Y-%m-%d'),
-        'selected_days': selected_days,
-        'day_options': day_options,
-        'grand_total_overdue': round(grand_total_overdue, 2),
-        'grand_actual_total_customers': grand_actual_total_customers,
-        'grand_overdue_customers': grand_total_customers,
-        'users_count': len(results),
-        'not_found_user_ids': not_found_ids,
-        'results': results,
-    }
-
-    if include_markdown:
-        return JsonResponse({'status': 'success', 'markdown': markdown_text})
-
-    return JsonResponse(response_data)
-
-
 # =============================================================================
 # Customer Intelligence Analysis
 # =============================================================================
@@ -2122,3 +1723,246 @@ def inventory_margin_report(request):
     }
 
     return render(request, 'reports/inventory_margin_report.html', context)
+
+
+@csrf_exempt
+def overdue_report_api(request):
+    """
+    API endpoint for Overdue Report (multi-user).
+    Accepts POST with JSON body: {"user_ids": [1, 2, 3]}
+    Or GET with query param: ?user_ids=1,2,3
+    Query param: ?days=90 (default 90, options: 15,30,45,...450)
+    Returns user-wise grouped overdue data with user details.
+    """
+    today = date.today()
+    day_options = list(range(15, 465, 15))
+    # Ignore overdue amounts less than this threshold
+    IGNORE_SMALL_OVERDUE = 10.0
+
+    # --- Parse user_ids ---
+    user_ids = []
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            user_ids = body.get('user_ids', [])
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON body.'}, status=400)
+    else:
+        raw = request.GET.get('user_ids', '')
+        if raw:
+            try:
+                user_ids = [int(uid.strip()) for uid in raw.split(',') if uid.strip()]
+            except ValueError:
+                return JsonResponse({'status': 'error', 'message': 'user_ids must be comma-separated integers.'}, status=400)
+
+    if not user_ids:
+        return JsonResponse({'status': 'error', 'message': 'user_ids is required (non-empty array).'}, status=400)
+
+    # --- Parse days ---
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            selected_days = int(body.get('days', 90))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            selected_days = 90
+    else:
+        selected_days = request.GET.get('days', '90')
+        try:
+            selected_days = int(selected_days)
+        except (ValueError, TypeError):
+            selected_days = 90
+
+    if selected_days not in day_options:
+        selected_days = 90
+
+    # --- Parse markdown flag ---
+    include_markdown = False
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            include_markdown = bool(body.get('markdown', False))
+        except (json.JSONDecodeError, ValueError):
+            pass
+    else:
+        md_raw = request.GET.get('markdown', '').lower()
+        include_markdown = md_raw in ('true', '1', 'yes')
+
+    # --- Fetch valid users ---
+    users = User.objects.filter(pk__in=user_ids)
+    found_ids = set(users.values_list('pk', flat=True))
+    not_found_ids = [uid for uid in user_ids if uid not in found_ids]
+
+    # --- Build per-user overdue data ---
+    results = []
+    grand_total_overdue = 0.0
+    grand_total_customers = 0
+    grand_actual_total_customers = 0
+
+    for user in users:
+        # User details
+        user_profile = UserProfile.objects.filter(user=user).first()
+        user_info = {
+            'user_id': user.id,
+            'username': user.username,
+            'email': user.email or '',
+            'business_title': user_profile.business_title or '' if user_profile else '',
+            'business_phone': user_profile.business_phone or '' if user_profile else '',
+            'business_gst': user_profile.business_gst or '' if user_profile else '',
+            'business_brand': user_profile.business_brand or '' if user_profile else '',
+        }
+
+        # Total customer count for this user
+        actual_total_customers = Customer.objects.filter(user=user).count()
+
+        books = Book.objects.filter(user=user).select_related('customer')
+
+        customer_rows = []
+        user_total_overdue = 0.0
+
+        for book in books:
+            if not book.customer:
+                continue
+
+            logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
+
+            total_purchased = 0.0
+            total_settled = 0.0
+            for log in logs:
+                if log.change_type == 1:
+                    total_purchased += abs(log.change)
+                elif log.change_type in [0, 2, 3]:
+                    total_settled += abs(log.change)
+
+            outstanding = total_purchased - total_settled
+            if outstanding <= 0.01:
+                continue
+
+            purchase_entries = []
+            for log in logs:
+                if log.change_type == 1 and log.date:
+                    age_days = (today - log.date.date()).days
+                    purchase_entries.append({
+                        'amount': abs(log.change),
+                        'age_days': max(age_days, 0),
+                    })
+
+            purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
+            remaining_to_settle = total_settled
+            overdue_amount = 0.0
+
+            for entry in purchase_entries:
+                if remaining_to_settle >= entry['amount']:
+                    remaining_to_settle -= entry['amount']
+                    continue
+                elif remaining_to_settle > 0:
+                    unpaid = entry['amount'] - remaining_to_settle
+                    remaining_to_settle = 0
+                else:
+                    unpaid = entry['amount']
+
+                if entry['age_days'] >= selected_days:
+                    overdue_amount += unpaid
+
+            if overdue_amount <= 0:
+                continue
+
+            # Ignore very small overdue amounts
+            if overdue_amount < IGNORE_SMALL_OVERDUE:
+                continue
+
+            user_total_overdue += overdue_amount
+
+            customer_rows.append({
+                'customer_id': book.customer.id,
+                'customer_name': book.customer.customer_name,
+                'phone': book.customer.customer_phone or '',
+                'overdue_amount': round(overdue_amount, 2),
+            })
+
+        customer_rows.sort(key=lambda x: x['overdue_amount'], reverse=True)
+
+        grand_total_overdue += user_total_overdue
+        grand_total_customers += len(customer_rows)
+        grand_actual_total_customers += actual_total_customers
+
+        results.append({
+            'user': user_info,
+            'actual_total_customers': actual_total_customers,
+            'total_overdue': round(user_total_overdue, 2),
+            'overdue_customers': len(customer_rows),
+            'customers': customer_rows,
+        })
+
+    # --- Build Telegram Markdown if requested ---
+    markdown_text = None
+    if include_markdown:
+        lines = []
+        # ── Header ──
+        lines.append('📋  *OVERDUE REPORT*')
+        lines.append(f'📅  {_escape_md(today.strftime("%d %b %Y"))} \\| ⏳ {selected_days} Days')
+        lines.append('')
+
+        if not_found_ids:
+            lines.append(f'❌  Not Found IDs: {_escape_md(", ".join(str(i) for i in not_found_ids))}')
+            lines.append('')
+
+        # ── Per-User Sections ──
+        for r in results:
+            u = r['user']
+            biz_title = u.get('business_title', '') or u.get('username', '')
+            lines.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
+            lines.append(f'🏢  *{_escape_md(biz_title)}*')
+            if u.get('business_phone'):
+                lines.append(f'📞  {_escape_md(u["business_phone"])}')
+            if u.get('business_gst'):
+                lines.append(f'🔖  {_escape_md(u["business_gst"])}')
+            if u.get('business_brand'):
+                lines.append(f'🏷️  {_escape_md(u["business_brand"])}')
+
+            user_overdue_str = _escape_md(f'{r["total_overdue"]:,.2f}')           
+            lines.append(f'👥  Total Customers: *{r["actual_total_customers"]}*')
+            lines.append(f'⚠️  Overdue Customers: *{r["overdue_customers"]}*')
+            lines.append(f'💰  Total Overdue: *Rs\\.{user_overdue_str}*')
+            lines.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
+            lines.append('')
+
+            if r['customers']:
+                for idx, c in enumerate(r['customers'], 1):
+                    cname = _escape_md(c['customer_name'])
+                    phone = c.get('phone', False)
+                    amt = f'Rs.{c["overdue_amount"]:,.2f}'
+                    lines.append(f'{_escape_md(str(idx))}\\. *{cname}*')
+                    if phone:
+                        lines.append(f'    📞  *{_escape_md(phone)}*')
+                    lines.append(f'    💰  *{_escape_md(amt)}*')
+                    lines.append('')
+            else:
+                lines.append('✅ _No overdue customers_')
+                lines.append('')
+
+            lines.append('▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬')
+            lines.append(f'💰  Total Overdue: *Rs\\.{user_overdue_str}*')
+            lines.append('')
+
+        # ── Footer ──
+        lines.append(f'🦀  _Crab AI \\| {_escape_md(today.strftime("%d %b %Y"))}_')
+
+        markdown_text = '\n'.join(lines)
+
+    response_data = {
+        'status': 'success',
+        'report_date': today.strftime('%Y-%m-%d'),
+        'selected_days': selected_days,
+        'day_options': day_options,
+        'grand_total_overdue': round(grand_total_overdue, 2),
+        'grand_actual_total_customers': grand_actual_total_customers,
+        'grand_overdue_customers': grand_total_customers,
+        'users_count': len(results),
+        'not_found_user_ids': not_found_ids,
+        'results': results,
+    }
+
+    if include_markdown:
+        return JsonResponse({'status': 'success', 'markdown': markdown_text})
+
+    return JsonResponse(response_data)

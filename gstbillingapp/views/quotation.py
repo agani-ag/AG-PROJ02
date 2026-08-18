@@ -720,99 +720,6 @@ def quotation_approve(request, quotation_id):
     })
 
 
-@login_required
-def quotation_update_customer(request, quotation_id):
-    """Update customer details in quotation JSON only"""
-    if request.method != 'POST':
-        return JsonResponse({
-            'success': False,
-            'message': 'Invalid request method'
-        }, status=405)
-    
-    quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
-    
-    try:
-        # Parse request data
-        data = json.loads(request.body)
-        
-        # Get current quotation JSON
-        quotation_data = json.loads(quotation.quotation_json)
-        
-        # Update customer details in JSON
-        quotation_data['customer_name'] = data.get('customer_name', '')
-        quotation_data['customer_address'] = data.get('customer_address', '')
-        quotation_data['customer_phone'] = data.get('customer_phone', '')
-        
-        if quotation.is_gst:
-            quotation_data['customer_gst'] = data.get('customer_gst', '')
-        
-        if data.get('vehicle_number'):
-            quotation_data['vehicle_number'] = data.get('vehicle_number')
-        elif 'vehicle_number' in quotation_data:
-            quotation_data['vehicle_number'] = data.get('vehicle_number', '')
-        
-        # Save updated JSON and mark as modified
-        quotation.quotation_json = json.dumps(quotation_data)
-        quotation.customer_details_modified = True
-        quotation.save()
-        
-        messages.success(request, 'Customer details updated successfully in quotation')
-        return JsonResponse({
-            'success': True,
-            'message': 'Customer details updated successfully (marked as modified)'
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': str(e)
-        }, status=400)
-
-
-@login_required
-def quotation_update_status(request, quotation_id):
-    """Update quotation/order status for tracking"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
-    
-    try:
-        quotation = get_object_or_404(Quotation, id=quotation_id, user=request.user)
-        new_status = request.POST.get('status')
-        
-        # Validate status
-        valid_statuses = ['DRAFT', 'APPROVED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CONVERTED']
-        if new_status not in valid_statuses:
-            return JsonResponse({'success': False, 'message': 'Invalid status'}, status=400)
-        
-        # Update status
-        old_status = quotation.status
-        quotation.status = new_status
-        quotation.save()
-        
-        # Get status display name
-        status_names = {
-            'DRAFT': 'Pending',
-            'APPROVED': 'Approved',
-            'PROCESSING': 'Processing',
-            'PACKED': 'Packed',
-            'SHIPPED': 'Shipped',
-            'OUT_FOR_DELIVERY': 'Out for Delivery',
-            'DELIVERED': 'Delivered',
-            'CONVERTED': 'Completed'
-        }
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Order status updated from {status_names.get(old_status, old_status)} to {status_names.get(new_status, new_status)}',
-            'new_status': new_status
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': str(e)
-        }, status=400)
-
 def quotation_cart(request):
     """
     Quotation Cart, reachable three ways — see resolve_cart_context():
@@ -1147,3 +1054,96 @@ def quotation_cart_checkout(request):
         },
         'redirect_url': redirect_url,
     })
+
+@login_required
+def quotation_update_customer(request, quotation_id):
+    """Update customer details in quotation JSON only"""
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid request method'
+        }, status=405)
+    
+    quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
+    
+    try:
+        # Parse request data
+        data = json.loads(request.body)
+        
+        # Get current quotation JSON
+        quotation_data = json.loads(quotation.quotation_json)
+        
+        # Update customer details in JSON
+        quotation_data['customer_name'] = data.get('customer_name', '')
+        quotation_data['customer_address'] = data.get('customer_address', '')
+        quotation_data['customer_phone'] = data.get('customer_phone', '')
+        
+        if quotation.is_gst:
+            quotation_data['customer_gst'] = data.get('customer_gst', '')
+        
+        if data.get('vehicle_number'):
+            quotation_data['vehicle_number'] = data.get('vehicle_number')
+        elif 'vehicle_number' in quotation_data:
+            quotation_data['vehicle_number'] = data.get('vehicle_number', '')
+        
+        # Save updated JSON and mark as modified
+        quotation.quotation_json = json.dumps(quotation_data)
+        quotation.customer_details_modified = True
+        quotation.save()
+        
+        messages.success(request, 'Customer details updated successfully in quotation')
+        return JsonResponse({
+            'success': True,
+            'message': 'Customer details updated successfully (marked as modified)'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)
+
+
+@login_required
+def quotation_update_status(request, quotation_id):
+    """Update quotation/order status for tracking"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+    
+    try:
+        quotation = get_object_or_404(Quotation, id=quotation_id, user=request.user)
+        new_status = request.POST.get('status')
+        
+        # Validate status
+        valid_statuses = ['DRAFT', 'APPROVED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CONVERTED']
+        if new_status not in valid_statuses:
+            return JsonResponse({'success': False, 'message': 'Invalid status'}, status=400)
+        
+        # Update status
+        old_status = quotation.status
+        quotation.status = new_status
+        quotation.save()
+        
+        # Get status display name
+        status_names = {
+            'DRAFT': 'Pending',
+            'APPROVED': 'Approved',
+            'PROCESSING': 'Processing',
+            'PACKED': 'Packed',
+            'SHIPPED': 'Shipped',
+            'OUT_FOR_DELIVERY': 'Out for Delivery',
+            'DELIVERED': 'Delivered',
+            'CONVERTED': 'Completed'
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Order status updated from {status_names.get(old_status, old_status)} to {status_names.get(new_status, new_status)}',
+            'new_status': new_status
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=400)

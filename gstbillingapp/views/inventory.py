@@ -106,41 +106,6 @@ def inventory_logs_del(request, inventorylog_id):
 
 # ================= Inventory API Views ===========================
 @csrf_exempt
-def inventory_api_stock_add(request):
-    if request.method == "POST":
-        business_uid = request.GET.get('business_uid', None)
-        notes = request.GET.get('notes', 'API Stock')
-        if not business_uid:
-            return JsonResponse({'status': 'error', 'message': 'Business UID is required.'})
-        user_profile = get_object_or_404(UserProfile, business_uid=business_uid)
-        if user_profile:
-            user = user_profile.user
-        data = request.body.decode('utf-8')
-        data = json.loads(data)
-        inserted_count = 0
-        not_inserted_count = 0
-        increased_quantity = 0
-        decreased_quantity = 0
-        for item in data:
-            if item.get('model_no') == "" or item.get('model_no') is None:
-                not_inserted_count += 1
-            elif Product.objects.filter(user=user, model_no=item.get('model_no').upper()).exists():
-                product = Product.objects.get(user=user, model_no=item.get('model_no').upper())
-                product_stock = item.get('product_stock') or 0
-                if int(product_stock) > 0:
-                    add_stock_to_inventory(product, int(product_stock), notes, user)
-                    inserted_count += 1
-                    increased_quantity += int(product_stock)
-                elif int(product_stock) < 0:
-                    add_stock_to_inventory(product, -abs(int(product_stock)), notes, user)
-                    inserted_count += 1
-                    decreased_quantity += -abs(int(product_stock))
-                else:
-                    not_inserted_count += 1
-        return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products Stock added successfully.\n{not_inserted_count} Products Stock not added.\nQuantity Added: {increased_quantity}\nQuantity Removed: {decreased_quantity}'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to add products stock.'})
-
-@csrf_exempt
 def invertory_stock_alert_update(request):
     if request.method == "POST":
         inventory_id = request.POST["inventory_id"]

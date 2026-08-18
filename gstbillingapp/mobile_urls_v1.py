@@ -50,7 +50,6 @@ urlpatterns = [
 
     # API URLs
     path('customers/api', customer.customersapi, name='v1customersapi'),
-    path('customer/api/syncup', customer.customerapi_syncup, name='v1customerapisyncup'),
     path('customer/api/books/add', customer.customers_book_add_api, name='v1customersbookaddapi'),
     path('api/notifications/count', customer.notifications_count_api, name='v1notificationscountapi'),
     path('product/api/add-stock', customer.product_inventory_stock_add, name='v1productinventorystockaddapi'),
