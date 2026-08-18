@@ -88,6 +88,7 @@ class Customer(models.Model):
     ]
     collection_day = models.IntegerField(choices=DAYS, default=0)
     customer_place = models.CharField(max_length=25, blank=True, null=True)
+    credit_limit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=25000.00)
 
     def save(self, *args, **kwargs):
         if self.customer_name:

@@ -13,7 +13,8 @@ class CustomerForm(ModelForm):
     class Meta:
         model = Customer
         fields = ['customer_name', 'customer_address', 'customer_phone', 'customer_gst', 'customer_email',
-                   'customer_place', 'customer_latitude', 'customer_longitude', 'bankdetails', 'collection_day']
+                   'customer_place', 'customer_latitude', 'customer_longitude', 'bankdetails', 'collection_day',
+                   'credit_limit']
         widgets = {
             'customer_place': forms.TextInput(attrs={'placeholder': 'Enter Collection Place'}),
         }

@@ -8,6 +8,9 @@
 
 <h2>Create Invoice</h2>
 
+<!-- Group C: today's tally + this-month GST meter (filled by /api/today-summary/) -->
+<div id="today-summary-strip" class="d-flex flex-wrap" style="gap:.4rem; margin:.25rem 0 .75rem; font-size:.85rem;"></div>
+
 <form method="POST" id="invoice-form" hidden="true">
 
 	<table class="table table-bordered">
@@ -52,6 +55,24 @@
 
 		</tbody>
 	</table>
+
+	<!-- Group A: know-your-customer panel (filled by /api/customer-insights/ when a customer is picked) -->
+	<div id="customer-insights-panel" class="card mb-3" style="display:none; border-left:4px solid #6c757d;">
+		<div class="card-body py-2 px-3">
+			<div class="d-flex flex-wrap align-items-center" style="gap:.4rem;">
+				<span id="ci-balance" class="badge"></span>
+				<span id="ci-aging" class="badge badge-light border" style="display:none;"></span>
+				<span id="ci-cheque" class="badge badge-danger" style="display:none;"></span>
+				<span id="ci-collection" class="badge badge-light border"></span>
+				<span id="ci-credit" class="badge" style="display:none;"></span>
+				<span id="ci-lastpay" class="text-muted small"></span>
+				<span id="ci-lastorder" class="text-muted small"></span>
+			</div>
+			<div id="ci-usual" class="mt-1" style="display:none;">
+				<small class="text-muted">Usual items (click to add):</small> <span id="ci-usual-chips"></span>
+			</div>
+		</div>
+	</div>
 
 	<table class="table table-bordered">
 		<tbody class="two-col-form">
@@ -138,6 +159,8 @@
 		</tr>
 
 	</table>
+	<!-- Group B: per-line stock / below-cost / last-price alerts -->
+	<div id="item-alerts" class="mb-2"></div>
 	{% csrf_token %}
 	<div class="d-flex justify-content-between">
 		<div>
@@ -191,4 +214,209 @@
 		$(this).fadeOut();
 	});
 	</script>
+
+<style>
+	/* Flagged item rows stay visible at a glance without a growing text list. */
+	#invoice-form-items-table-body tr.item-row-danger td { background: #f8d7da !important; }
+	#invoice-form-items-table-body tr.item-row-warning td { background: #fff3cd !important; }
+</style>
+
+<!-- Business-smart insights: Groups A (customer panel), B (item alerts), C (today tally) -->
+<script>
+(function () {
+	var productsMap = {};      // MODEL_NO -> product (incl. current_stock, product_purchase_rate)
+	var customerInsights = null;
+	var activeRowNo = null;    // only THIS row's detail is shown, so the list can't grow
+
+	function fmt(n) {
+		return (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+	}
+
+	// ---- Group C: today's tally + this-month GST ----
+	function loadTodaySummary() {
+		$.getJSON('/api/today-summary/', function (d) {
+			if (!d || !d.ok) return;
+			$('#today-summary-strip').html(
+				'<span class="badge badge-info">Today: ' + d.invoice_count + ' invoice(s)</span>' +
+				'<span class="badge badge-secondary">Sales &#8377;' + fmt(d.sales_total) + '</span>' +
+				'<span class="badge badge-success">Collected &#8377;' + fmt(d.collections_total) + '</span>' +
+				'<span class="badge badge-warning">GST ' + d.gst_month_label + ' &#8377;' + fmt(d.gst_month) + '</span>'
+			);
+		});
+	}
+
+	// ---- product catalogue (adds stock + purchase cost for Group B) ----
+	function loadProducts() {
+		$.getJSON('/productsjson', function (rows) {
+			(rows || []).forEach(function (p) {
+				if (p.model_no) productsMap[String(p.model_no).toUpperCase()] = p;
+			});
+			recomputeItemAlerts();
+		});
+	}
+
+	// ---- Group A: know-your-customer panel ----
+	function loadCustomerInsights() {
+		var cid = $('#customer-id-input').val();
+		if (!cid) { $('#customer-insights-panel').hide(); customerInsights = null; recomputeItemAlerts(); return; }
+		$.getJSON('/api/customer-insights/', { customer: cid }, function (d) {
+			if (!d || !d.ok) { $('#customer-insights-panel').hide(); return; }
+			customerInsights = d;
+			renderCustomerPanel(d);
+			recomputeItemAlerts();
+		});
+	}
+
+	function renderCustomerPanel(d) {
+		var bal = $('#ci-balance').removeClass('badge-danger badge-success badge-secondary');
+		bal.addClass(d.status === 'owes' ? 'badge-danger' : (d.status === 'advance' ? 'badge-success' : 'badge-secondary')).text(d.balance_label);
+
+		if (d.oldest_unpaid_days !== null && d.oldest_unpaid_days !== undefined)
+			$('#ci-aging').show().text('Oldest due: ' + d.oldest_unpaid_days + ' days');
+		else $('#ci-aging').hide();
+
+		if (d.bounced_cheques > 0) $('#ci-cheque').show().text('⚑ ' + d.bounced_cheques + ' bounced cheque(s)');
+		else $('#ci-cheque').hide();
+
+		$('#ci-collection').text('Collections: ' + d.collection_day);
+		$('#ci-lastpay').text(d.last_payment ? ('Last paid ₹' + fmt(d.last_payment.amount) + ' on ' + d.last_payment.date) : '');
+		$('#ci-lastorder').text(d.last_order ? ('· Last order ' + d.last_order.days_ago + 'd ago (₹' + fmt(d.last_order.amount) + ')') : '');
+
+		renderCreditBadge();
+		renderUsualChips(d.usual_items);
+
+		var border = d.status === 'owes' ? '#dc3545' : (d.status === 'advance' ? '#28a745' : '#6c757d');
+		$('#customer-insights-panel').css('border-left-color', border).show();
+	}
+
+	// Credit headroom depends on the live invoice total, so it re-renders on grid changes too.
+	function renderCreditBadge() {
+		var c = $('#ci-credit');
+		if (!customerInsights || customerInsights.credit_limit === null || customerInsights.credit_limit === undefined) { c.hide(); return; }
+		var invoiceTotal = parseFloat($('input[name=invoice-total-amt-with-gst]').val()) || 0;
+		var projected = customerInsights.outstanding + invoiceTotal;
+		c.removeClass('badge-danger badge-success');
+		if (projected > customerInsights.credit_limit)
+			c.addClass('badge-danger').text('⚠ Over credit limit by ₹' + fmt(projected - customerInsights.credit_limit));
+		else
+			c.addClass('badge-success').text('Credit left ₹' + fmt(customerInsights.credit_limit - projected));
+		c.show();
+	}
+
+	function renderUsualChips(items) {
+		if (!items || !items.length) { $('#ci-usual').hide(); return; }
+		var box = $('#ci-usual-chips').empty();
+		items.forEach(function (it) {
+			$('<a href="#" class="badge badge-light border" style="margin:1px;"></a>')
+				.text('+ ' + it.model_no)
+				.on('click', function (e) { e.preventDefault(); fillUsualItem(it); })
+				.appendTo(box);
+		});
+		$('#ci-usual').show();
+	}
+
+	function fillUsualItem(it) {
+		var p = productsMap[String(it.model_no).toUpperCase()];
+		if (!p) return;
+		var row = null;
+		$('#invoice-form-items-table-body > tr').each(function () {
+			if (!row && !$(this).find('input[name=invoice-model-no]').val()) row = $(this);
+		});
+		if (!row) { add_invoice_item_row(); row = $('#invoice-form-items-table-body > tr:last'); }
+		row.find('input[name=invoice-model-no]').val(p.model_no);
+		row.find('input[name=invoice-product]').val(p.product_name || '');
+		row.find('input[name=invoice-hsn]').val(p.product_hsn || '');
+		row.find('input[name=invoice-rate-with-gst]').val(p.product_rate_with_gst || 0);
+		row.find('input[name=invoice-gst-percentage]').val(p.product_gst_percentage || 0);
+		row.find('input[name=invoice-discount]').val(p.product_discount || 0);
+		row.find('input[name=invoice-qty]').val(it.last_qty || 1);
+		activeRowNo = row.index() + 1;
+		if (typeof initialize_auto_calculation === 'function') initialize_auto_calculation();
+		recomputeItemAlerts(); renderCreditBadge();
+	}
+
+	// ---- Group B: per-line stock / margin / last-price checks ----
+	// Detail text is shown ONLY for the row being edited, so the box stays small even
+	// with 25-30 items. Every other flagged row stays visible as a tinted row + tooltip.
+	function evaluateRow($r) {
+		var res = { severity: null, messages: [] };
+		var model = ($r.find('input[name=invoice-model-no]').val() || '').trim().toUpperCase();
+		if (!model) return res;
+		var qty = parseFloat($r.find('input[name=invoice-qty]').val()) || 0;
+		var rate = parseFloat($r.find('input[name=invoice-rate-with-gst]').val()) || 0;
+		var disc = parseFloat($r.find('input[name=invoice-discount]').val()) || 0;
+		var p = productsMap[model];
+
+		if (p && p.current_stock !== null && p.current_stock !== undefined && qty > p.current_stock) {
+			res.messages.push({ level: 'warning', text: model + ': qty ' + qty + ' exceeds stock (' + p.current_stock + ' left).' });
+			if (res.severity !== 'danger') res.severity = 'warning';
+		}
+		if (p && p.product_purchase_rate > 0) {
+			var eff = rate - (rate * disc / 100);
+			if (eff > 0 && eff < p.product_purchase_rate) {
+				res.messages.push({ level: 'danger', text: model + ': selling ₹' + fmt(eff) + ' below cost ₹' + fmt(p.product_purchase_rate) + '.' });
+				res.severity = 'danger';
+			}
+		}
+		if (customerInsights && customerInsights.product_last_prices && (model in customerInsights.product_last_prices)) {
+			var lp = customerInsights.product_last_prices[model];
+			if (Math.abs(lp - rate) > 0.01)
+				res.messages.push({ level: 'info', text: model + ': last billed to this customer at ₹' + fmt(lp) + ' (now ₹' + fmt(rate) + ').' });
+		}
+		return res;
+	}
+
+	function recomputeItemAlerts() {
+		var activeHtml = [];
+		var dangerCount = 0, warnCount = 0;
+		$('#invoice-form-items-table-body > tr').each(function (i) {
+			var $r = $(this);
+			var rowNo = i + 1;
+			var res = evaluateRow($r);
+
+			// Persistent, at-a-glance cue: tint the row + tooltip (no growing text list).
+			$r.removeClass('item-row-danger item-row-warning');
+			if (res.severity === 'danger') { $r.addClass('item-row-danger'); dangerCount++; }
+			else if (res.severity === 'warning') { $r.addClass('item-row-warning'); warnCount++; }
+			var warnMsgs = res.messages.filter(function (m) { return m.level !== 'info'; });
+			$r.attr('title', warnMsgs.map(function (m) { return m.text; }).join('  '));
+
+			// Detail text ONLY for the row currently being edited.
+			if (rowNo === activeRowNo)
+				res.messages.forEach(function (m) {
+					activeHtml.push('<div class="alert alert-' + m.level + ' py-1 px-2 mb-1 small">Row ' + rowNo + ' &mdash; ' + m.text + '</div>');
+				});
+		});
+
+		var summary = '';
+		if (dangerCount + warnCount > 0)
+			summary = '<div class="small text-muted mb-1">'
+				+ (dangerCount ? '<span class="badge badge-danger">' + dangerCount + '</span> below-cost ' : '')
+				+ (warnCount ? '<span class="badge badge-warning">' + warnCount + '</span> low-stock ' : '')
+				+ 'row(s) flagged — highlighted in the grid; hover a row for details.</div>';
+		$('#item-alerts').html(summary + activeHtml.join(''));
+	}
+
+	$(function () {
+		loadTodaySummary();
+		loadProducts();
+
+		// Customer picked from the dropdown — main.js fills the fields first, then we read the id.
+		$(document).on('click', '.customer-search-result', function () { setTimeout(loadCustomerInsights, 40); });
+		// Name cleared by hand → drop the panel.
+		$('#customer-name-input').on('input', function () {
+			if (!$(this).val()) { $('#customer-insights-panel').hide(); customerInsights = null; recomputeItemAlerts(); }
+		});
+
+		// Track which row is being edited/focused so only its detail shows; refresh on edit.
+		$('#invoice-form-items-table-body').on('focusin input change', 'input', function () {
+			activeRowNo = $(this).closest('tr').index() + 1;
+			setTimeout(function () { recomputeItemAlerts(); renderCreditBadge(); }, 0);
+		});
+		// New row added → clear any tint the clone inherited from the previous last row.
+		$('#invoice-form-addrow').on('click', function () { setTimeout(recomputeItemAlerts, 0); });
+		$(document).on('click', '.product-search-result', function () { setTimeout(function () { recomputeItemAlerts(); renderCreditBadge(); }, 40); });
+	});
+})();
+</script>
 {% endblock %}

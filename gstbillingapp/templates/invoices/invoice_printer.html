@@ -276,11 +276,33 @@
 	</div>
 	<div class="text-right" style="margin-right: 5px;">
 		<button onclick="window.print();" title="Print Invoice" class="btn btn-primary btn-curve d-print-none"><i class="fas fa-print"></i></button>
+		{% if invoice_data.customer_phone %}
+			<button onclick="shareInvoiceWhatsApp();" title="Send to customer on WhatsApp" class="btn btn-success btn-curve d-print-none"><i class="fab fa-whatsapp"></i></button>
+		{% endif %}
 		{% if user_profile.link_to_project1 %}
 			<button onclick="mapInvoiceToEmployee();" class="btn btn-warning btn-curve d-print-none" title="Map Invoice To Employee"><i class="fas fa-user"></i></button>
 		{% endif %}
 		<a href="{% url 'invoices' %}" class="btn btn-danger btn-curve d-print-none" title="Cancel Invoice"><i class="fas fa-times"></i></a>
 	</div>
+
+	<!-- C14: one-tap WhatsApp share to the customer (free wa.me click-to-chat, no API). -->
+	<script>
+		function shareInvoiceWhatsApp() {
+			var phone = "{{ invoice_data.customer_phone|default:''|escapejs }}".replace(/\D/g, '');
+			if (!phone) { alert('No customer phone number on this invoice.'); return; }
+			if (phone.length === 10) { phone = '91' + phone; }   // default to India country code
+			var lines = [
+				"Hello {{ invoice_data.customer_name|default:''|escapejs }},",
+				"",
+				"Invoice {% if invoice.is_gst %}#{{ invoice.invoice_number }}{% else %}INV-{{ invoice.invoice_number }}{% endif %} dated {{ invoice.invoice_date }}",
+				"Amount: {{ currency }} {{ invoice_data.invoice_total_amt_with_gst|floatformat:2 }}",
+				"",
+				"Thank you for your business.",
+				"{{ user_profile.business_title|default:''|escapejs }}{% if user_profile.business_phone %} | {{ user_profile.business_phone|escapejs }}{% endif %}"
+			];
+			window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\n")), "_blank");
+		}
+	</script>
 
 {% if debug_mode %}
 	{% csrf_token %}

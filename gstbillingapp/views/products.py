@@ -88,6 +88,16 @@ def product_delete(request):
 @login_required
 def productsjson(request):
     products = list(Product.objects.filter(user=request.user).values())
+    # Annotate each product with its current stock (kept in the separate Inventory
+    # model) so the invoice/quotation screen can warn when a line exceeds stock.
+    # Additive only — existing consumers ignore the extra key.
+    from ..models import Inventory
+    stock_map = dict(
+        Inventory.objects.filter(user=request.user, product__isnull=False)
+        .values_list('product_id', 'current_stock')
+    )
+    for product in products:
+        product['current_stock'] = stock_map.get(product['id'])
     return JsonResponse(products, safe=False)
 
 @login_required

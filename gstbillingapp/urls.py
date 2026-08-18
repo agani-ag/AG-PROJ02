@@ -6,8 +6,8 @@ from .views import (
     asset, auth, bank_details, books, customers,
     expense_tracker, features, graphs, invoices,
     inventory, notifications, products, profile,
-    purchases, quotation, reports, vendor_purchase, 
-    views,
+    purchases, quotation, reports, vendor_purchase,
+    views, insights,
 )
 
 urlpatterns = [
@@ -35,6 +35,9 @@ urlpatterns = [
     path('invoices/delete', invoices.invoice_delete, name='invoice_delete'),
     path('invoices/push-to-books/<int:invoice_id>', invoices.invoice_push_to_books, name='invoice_push_to_books'),
     path('api/customer-invoice-filter/', invoices.customerInvoiceFilter, name='customer_invoice_filter'),
+    # Business-smart insights (point-of-billing intelligence)
+    path('api/customer-insights/', insights.customer_insights, name='customer_insights'),
+    path('api/today-summary/', insights.today_summary, name='today_summary'),
     path('api/invoice-employee-mapping-proxy/', invoices.invoice_employee_mapping_proxy, name='invoice_employee_mapping_proxy'),
 
     # Quotation URLs
