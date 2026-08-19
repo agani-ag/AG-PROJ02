@@ -19,9 +19,10 @@
 {% endif %}
 
 {% if rows %}
-<div class="list">
+{% include "m/_searchbar.html" with target="#coll-list" empty="#coll-empty" placeholder="Search name or place…" %}
+<div class="list" id="coll-list">
     {% for r in rows %}
-    <div class="row">
+    <div class="row" data-s="{{ r.name|lower }} {{ r.place|default:''|lower }} {{ r.phone|default:'' }}">
         <a href="{% url 'm_employee_customer' r.id %}" style="color:inherit;flex:1;display:flex;gap:11px;align-items:center;min-width:0">
             <span class="ico {% if r.bal < 0 %}ic-red{% else %}ic-grey{% endif %}"><svg class="i"><use href="#ic-user"/></svg></span>
             <span style="min-width:0"><span class="b">{{ r.name }}</span><div class="sub">{{ r.place|default:r.phone|default:"—" }}</div></span>
@@ -33,6 +34,7 @@
     </div>
     {% endfor %}
 </div>
+<div class="empty" id="coll-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
 {% else %}
 <div class="empty"><svg class="i"><use href="#ic-wallet"/></svg><div>No customers set for this collection day.</div></div>
 {% endif %}

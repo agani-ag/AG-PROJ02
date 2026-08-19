@@ -156,7 +156,6 @@ def purchases_logs_add(request):
             purchase = form.save(commit=False)
             purchase.user = request.user
             purchase.change = get_change_type_change(request.POST.get('change_type'), request.POST.get('change'))
-            # purchase.vendor = get_vendor_instance(request.POST.get('vendor'), request)
             purchase.save()
             return redirect('purchases_logs')
     return render(request,'purchases/purchase_add.html',context)

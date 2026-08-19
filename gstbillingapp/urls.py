@@ -31,6 +31,7 @@ urlpatterns = [
     path('employees/edit/<int:pk>', employee.employee_edit, name='employee_edit'),
     path('employees/<int:pk>/delete', employee.employee_delete, name='employee_delete'),
     path('employees/<int:pk>/mobile-link', employee.employee_mobile_link, name='employee_mobile_link'),
+    path('employees/<int:pk>/invoices', employee.employee_invoices, name='employee_invoices'),
     path('employees/<int:pk>/revoke', employee.employee_revoke, name='employee_revoke'),
     path('customers/<int:customer_id>/mobile-link', employee.customer_mobile_link, name='customer_mobile_link'),
 
@@ -47,7 +48,7 @@ urlpatterns = [
     # Business-smart insights (point-of-billing intelligence)
     path('api/customer-insights/', insights.customer_insights, name='customer_insights'),
     path('api/today-summary/', insights.today_summary, name='today_summary'),
-    path('api/invoice-employee-mapping-proxy/', invoices.invoice_employee_mapping_proxy, name='invoice_employee_mapping_proxy'),
+    path('invoices/<int:invoice_id>/assign-employee', invoices.invoice_assign_employee, name='invoice_assign_employee'),
 
     # Quotation URLs
     path('quotations/', quotation.quotations, name='quotations'),

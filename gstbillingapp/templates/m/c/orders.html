@@ -3,12 +3,11 @@
 {% block heading %}My Orders{% endblock %}
 {% block content %}
 
-<a href="/quotation/cart?cid={{ c.customer_userid }}" class="btn btn-acc" style="margin-bottom:14px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> Place a new order</a>
-
 {% if rows %}
-<div class="list">
+{% include "m/_searchbar.html" with target="#ord-list" empty="#ord-empty" placeholder="Search number or status…" %}
+<div class="list" id="ord-list">
     {% for o in rows %}
-    <div class="row">
+    <div class="row" data-s="qt-{{ o.quotation_number }} {{ o.quotation_number }} {{ o.get_status_display|lower }} {{ o.quotation_date|date:'d M Y'|lower }}">
         <span class="lbl" style="display:flex;gap:11px;align-items:center">
             <span class="ico ic-amber"><svg class="i"><use href="#ic-cart"/></svg></span>
             <span>
@@ -22,6 +21,7 @@
     </div>
     {% endfor %}
 </div>
+<div class="empty" id="ord-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
 {% else %}
 <div class="empty"><svg class="i"><use href="#ic-cart"/></svg><div>No orders yet.</div></div>
 {% endif %}

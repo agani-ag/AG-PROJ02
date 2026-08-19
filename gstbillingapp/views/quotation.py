@@ -18,11 +18,10 @@ from ..utils import (
     update_products_from_invoice,
     update_inventory,
     auto_deduct_book_from_invoice,
-    build_quotation_item,
-    resolve_cart_context,
     cart_product_payload,
+    create_cart_draft_quotation,
     find_matching_customer,
-    CartAccessError
+    CartError,
 )
 
 # Third-party libraries
@@ -720,51 +719,29 @@ def quotation_approve(request, quotation_id):
     })
 
 
+@login_required
 def quotation_cart(request):
     """
-    Quotation Cart, reachable three ways — see resolve_cart_context():
-      staff     /quotation/cart                     (logged in)
-      customer  /quotation/cart?cid=GS1C22          (no login)
-      employee  /quotation/cart?u=emp&users_filter=1 (no login)
+    Quotation Cart — a fast, catalog-driven way for staff to build a draft
+    quotation. Logged-in staff only; the cart is scoped to their own business.
     """
-    try:
-        ctx = resolve_cart_context(request)
-    except CartAccessError as err:
-        return render(request, 'quotations/quotation_cart_denied.html',
-                      {'message': str(err)}, status=403)
-
-    # Employee handed several businesses: pick one before any catalog is loaded,
-    # since a quotation belongs to exactly one business. Only employees on mobile ever
-    # see this, so it wears the mobile shell.
-    if ctx.needs_business_choice:
-        return render(request, 'quotations/quotation_cart_pick_business.html', {
-            'base_template': 'mobile_v1/base.html',
-            'businesses': ctx.businesses,
-            'users_filter': request.GET.get('users_filter', ''),
-            'admin': request.GET.get('admin', ''),
-        })
-
-    business_profile = UserProfile.objects.filter(user=ctx.business_user).first()
+    business_user = request.user
 
     categories = list(
-        ProductCategory.objects.filter(user=ctx.business_user)
+        ProductCategory.objects.filter(user=business_user)
         .values('id', 'category_name', 'parent_category_id')
     )
 
-    # Customers are only sent when the actor may choose one. A customer-mode visitor is
-    # locked to themselves, so the business's customer list never reaches their browser.
-    customers = []
-    if ctx.can_choose_customer:
-        customers = list(
-            Customer.objects.filter(user=ctx.business_user)
-            .order_by('customer_name')
-            .values('id', 'customer_name', 'customer_phone', 'customer_gst')
-        )
+    customers = list(
+        Customer.objects.filter(user=business_user)
+        .order_by('customer_name')
+        .values('id', 'customer_name', 'customer_phone', 'customer_gst')
+    )
 
     # Free-text tag fields: offer a filter only when this business actually uses one.
     def _cart_distinct(field):
         return list(
-            Product.objects.filter(user=ctx.business_user)
+            Product.objects.filter(user=business_user)
             .exclude(**{field + '__isnull': True})
             .exclude(**{field: ''})
             .values_list(field, flat=True)
@@ -779,75 +756,39 @@ def quotation_cart(request):
     # a shop that files products by division and never sets a category would otherwise
     # open on a single "Uncategorized" heap.
     has_categorised_products = Product.objects.filter(
-        user=ctx.business_user, product_category__isnull=False
+        user=business_user, product_category__isnull=False
     ).exists()
     default_group_by = 'category' if has_categorised_products else ('division' if divisions else 'category')
 
-    fixed = ctx.fixed_customer
-
-    # Public actors arrive from the mobile app, so wear its shell and its bottom nav —
-    # the desktop base would strand them on a page with no way back, and its links
-    # would drop the cid / users_filter params that identify them.
-    if ctx.actor == 'customer':
-        base_template, navbar_template = 'mobile_v1/base.html', 'mobile_v1/navbarC.html'
-    elif ctx.actor == 'employee':
-        base_template, navbar_template = 'mobile_v1/base.html', 'mobile_v1/navbarE.html'
-    else:
-        base_template, navbar_template = 'base.html', None
-
     return render(request, 'quotations/quotation_cart.html', {
-        'base_template': base_template,
-        'navbar_template': navbar_template,
         'divisions': divisions,
         'model_categories': model_categories,
         'colours': colours,
-        'has_categories': has_categorised_products,
         'default_group_by': default_group_by,
-        'actor': ctx.actor,
-        'is_public': ctx.actor != 'staff',
-        'can_choose_customer': ctx.can_choose_customer,
-        'fixed_customer': fixed,
-        'business_profile': business_profile,
 
         # Rendered into the page rather than fetched by the browser: the querysets are
         # scoped and field-whitelisted here, on the server, so nothing the client can
         # call will hand out another business's data or the product cost price.
-        'products_json': json.dumps(cart_product_payload(ctx.business_user)),
+        'products_json': json.dumps(cart_product_payload(business_user)),
         'categories_json': json.dumps(categories),
         'customers_json': json.dumps(customers),
-        'fixed_customer_json': json.dumps({
-            'id': fixed.id,
-            'customer_name': fixed.customer_name,
-            'customer_phone': fixed.customer_phone or '',
-            'customer_gst': (fixed.customer_gst or '').strip(),
-        } if fixed else None),
-
-        # Echoed onto the checkout POST so the mode survives the round-trip.
-        'cart_query': request.GET.urlencode(),
     })
 
 
+@login_required
 def quotation_cart_checkout(request):
     """
     Turn a Quotation Cart into a DRAFT Quotation.
 
     The client sends only product ids, quantities and per-line discounts. Rates and
     GST% are re-read from the Product table and every amount is recomputed here —
-    the totals the browser displays are a preview and are never trusted, since the
-    cart lives in localStorage and this endpoint is destined to be public.
+    the totals the browser displays are only a preview and are never trusted, since
+    the cart lives in localStorage.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
 
-    try:
-        ctx = resolve_cart_context(request)
-    except CartAccessError as err:
-        return JsonResponse({'success': False, 'message': str(err)}, status=403)
-
-    if ctx.business_user is None:
-        return JsonResponse({'success': False, 'message': 'Choose a business first.'}, status=400)
-
-    business_user = ctx.business_user
+    business_user = request.user
 
     try:
         payload = json.loads(request.body)
@@ -861,12 +802,7 @@ def quotation_cart_checkout(request):
     customer_input = payload.get('customer') or {}
     existing_customer = None
 
-    if ctx.fixed_customer is not None:
-        # Customer mode: the buyer is whoever the cid resolved to. Anything the
-        # browser sent about the customer is ignored, so a customer holding their own
-        # code cannot raise a quotation billed to somebody else.
-        existing_customer = ctx.fixed_customer
-    elif customer_input.get('id'):
+    if customer_input.get('id'):
         # Picked from the dropdown: read the details straight off the saved Customer
         # rather than trusting whatever the browser echoed back.
         try:
@@ -876,144 +812,28 @@ def quotation_cart_checkout(request):
         except (Customer.DoesNotExist, ValueError, TypeError):
             return JsonResponse({'success': False, 'message': 'Selected customer not found'}, status=400)
 
-    if existing_customer:
-        customer_name = existing_customer.customer_name
-        customer_phone = existing_customer.customer_phone or ''
-        customer_address = existing_customer.customer_address or ''
-        customer_gst = (existing_customer.customer_gst or '').strip().upper()
-    else:
-        customer_name = (customer_input.get('name') or '').strip()
-        if not customer_name:
-            return JsonResponse({'success': False, 'message': 'Customer name is required'}, status=400)
-
-        customer_phone = (customer_input.get('phone') or '').strip()
-        customer_address = (customer_input.get('address') or '').strip()
-        customer_gst = (customer_input.get('gst') or '').strip().upper()
-
-        if customer_gst and len(customer_gst) != 15:
-            return JsonResponse({'success': False, 'message': 'Customer GST must be 15 characters'}, status=400)
-
-    # Same rule as quotation_create() and invoice_create(): GST mode defaults to GST,
-    # but a GST quotation needs the customer's GSTIN, so a customer without one is
-    # silently downgraded to non-GST. The quotation number is drawn from the matching
-    # series below, after is_gst is settled, so the downgrade cannot mis-number it.
-    is_gst = bool(payload.get('is_gst', True))
-
-    auto_downgraded_to_non_gst = is_gst and not customer_gst
-    if auto_downgraded_to_non_gst:
-        is_gst = False
-
-    quotation_data = {
-        'customer_name': customer_name,
-        'customer_address': customer_address,
-        'customer_phone': customer_phone,
-        'customer_gst': customer_gst,
-        'vehicle_number': '',
-        'igstcheck': False,
-        'items': [],
-    }
-
-    total_gross = total_discount = 0.0
-    total_without_gst = total_sgst = total_cgst = total_igst = total_with_gst = 0.0
-
-    for line in items:
-        try:
-            product = Product.objects.get(id=line.get('id'), user=business_user)
-        except (Product.DoesNotExist, ValueError, TypeError):
-            return JsonResponse(
-                {'success': False, 'message': 'A product in your cart no longer exists. Please refresh.'},
-                status=400,
-            )
-
-        try:
-            qty = int(float(line.get('qty', 0)))
-        except (ValueError, TypeError):
-            qty = 0
-        if qty < 1:
-            return JsonResponse(
-                {'success': False, 'message': f'Invalid quantity for {product.model_no}'},
-                status=400,
-            )
-
-        # Discount is a staff-only override. For customers and employees the client's
-        # discount is ignored (discount=None falls back to the product's own), so a
-        # forged payload cannot mark down the price — the read-only field is only the
-        # visible half of this rule.
-        line_discount = line.get('discount') if ctx.actor == 'staff' else None
-
-        item_entry = build_quotation_item(
-            product, qty,
-            igstcheck=quotation_data['igstcheck'],
-            discount=line_discount,
+    try:
+        result = create_cart_draft_quotation(
+            business_user, items,
+            existing_customer=existing_customer,
+            customer_fields=customer_input,
+            is_gst=payload.get('is_gst', True),
+            allow_discount=True,
+            created_by_customer=False,
+            actor_label='staff',
         )
+    except CartError as err:
+        return JsonResponse({'success': False, 'message': str(err)}, status=400)
 
-        # Gross and discount are not stored on the quotation, but the cart shows them
-        # as summary rows, so report them back for the confirmation dialog.
-        gross = item_entry['invoice_rate_with_gst'] * qty
-        total_gross += gross
-        total_discount += gross - item_entry['invoice_amt_without_gst']
-
-        total_without_gst += item_entry['invoice_amt_without_gst']
-        total_sgst += item_entry['invoice_amt_sgst']
-        total_cgst += item_entry['invoice_amt_cgst']
-        total_igst += item_entry['invoice_amt_igst']
-        total_with_gst += item_entry['invoice_amt_with_gst']
-
-        quotation_data['items'].append(item_entry)
-
-    quotation_data['invoice_total_amt_without_gst'] = round(total_without_gst, 2)
-    quotation_data['invoice_total_amt_sgst'] = round(total_sgst, 2)
-    quotation_data['invoice_total_amt_cgst'] = round(total_cgst, 2)
-    quotation_data['invoice_total_amt_igst'] = round(total_igst, 2)
-    quotation_data['invoice_total_amt_with_gst'] = round(total_with_gst, 2)
-
-    today = datetime.date.today()
-
-    with transaction.atomic():
-        # select_for_update holds the row lock until commit so two concurrent
-        # checkouts cannot read the same Max() and claim the same number.
-        max_number = Quotation.objects.select_for_update().filter(
-            user=business_user, is_gst=is_gst
-        ).aggregate(Max('quotation_number'))['quotation_number__max']
-
-        customer = existing_customer
-        if customer is None:
-            customer, _ = Customer.objects.get_or_create(
-                user=business_user,
-                customer_name=customer_name.upper(),
-                defaults={
-                    'customer_address': customer_address,
-                    'customer_phone': customer_phone,
-                    'customer_gst': customer_gst,
-                },
-            )
-
-        new_quotation = Quotation(
-            user=business_user,
-            quotation_number=(max_number or 0) + 1,
-            quotation_date=today,
-            valid_until=today + datetime.timedelta(days=30),
-            quotation_customer=customer,
-            quotation_json=json.dumps(quotation_data),
-            is_gst=is_gst,
-            # Always DRAFT: a public checkout must not touch inventory or books until
-            # a human at the business approves it.
-            status='DRAFT',
-            created_from_cart=True,
-            created_by_customer=(ctx.actor == 'customer'),
-            notes=f'Created from Quotation Cart ({ctx.actor})',
-        )
-        new_quotation.save()
-
-    # A public visitor has no business viewing the internal quotation page.
-    redirect_url = reverse('quotation_viewer', args=[new_quotation.id]) if ctx.actor == 'staff' else None
+    new_quotation = result['quotation']
+    quotation_data = result['quotation_data']
+    is_gst = result['is_gst']
 
     business_profile = UserProfile.objects.filter(user=business_user).first()
     business_title = (business_profile.business_title if business_profile else '') or ''
     business_phone = (business_profile.business_phone if business_profile else '') or ''
 
-    # The SMS / WhatsApp always goes to the shop, whoever built the cart: the shop is
-    # the party that has to act on the quotation.
+    # The SMS / WhatsApp goes to the shop — the party that has to act on the quotation.
     share_phone, share_to = business_phone, business_title
 
     return JsonResponse({
@@ -1022,13 +842,13 @@ def quotation_cart_checkout(request):
         'quotation_number': new_quotation.quotation_number,
         'quotation_label': ('' if is_gst else 'QT-') + str(new_quotation.quotation_number),
         'is_gst': is_gst,
-        'gst_downgraded': auto_downgraded_to_non_gst,
-        'customer_name': customer_name,
-        'customer_phone': customer_phone,
-        'actor': ctx.actor,
+        'gst_downgraded': result['gst_downgraded'],
+        'customer_name': result['customer_name'],
+        'customer_phone': result['customer_phone'],
+        'actor': 'staff',
         'share_phone': share_phone,
         'share_to': share_to,
-        'quotation_date': today.strftime('%d-%m-%Y'),
+        'quotation_date': new_quotation.quotation_date.strftime('%d-%m-%Y'),
         'business_title': business_title,
         'business_phone': business_phone,
         'business_brand': (business_profile.business_brand if business_profile else '') or '',
@@ -1043,16 +863,8 @@ def quotation_cart_checkout(request):
             for i in quotation_data['items']
         ],
         # The server's own figures — what the quotation was actually saved with.
-        'totals': {
-            'gross': round(total_gross, 2),
-            'discount': round(total_discount, 2),
-            'taxable': quotation_data['invoice_total_amt_without_gst'],
-            'cgst': quotation_data['invoice_total_amt_cgst'],
-            'sgst': quotation_data['invoice_total_amt_sgst'],
-            'igst': quotation_data['invoice_total_amt_igst'],
-            'grand_total': quotation_data['invoice_total_amt_with_gst'],
-        },
-        'redirect_url': redirect_url,
+        'totals': result['totals'],
+        'redirect_url': reverse('quotation_viewer', args=[new_quotation.id]),
     })
 
 @login_required

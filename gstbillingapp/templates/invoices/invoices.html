@@ -306,6 +306,15 @@ function pushToBooks(invoiceId) {
 }	
 
 async function printInvoices() {
+	// Open the print window NOW, inside the click gesture, so the browser (esp.
+	// Incognito) doesn't block it as a pop-up. Filling it happens after the fetch.
+	var win = window.open('', '_blank');
+	if (!win) {
+		alert('Please allow pop-ups for this site to print.');
+		return;
+	}
+	win.document.write('<html><head><title>Preparing…</title></head><body style="font-family:Arial;padding:24px;color:#333;">Preparing invoices for printing…</body></html>');
+
 	try {
 		var params = {
 			invoice_type: $('#invoiceTypeFilter').val() || 'all',
@@ -322,8 +331,9 @@ async function printInvoices() {
 		while (true) {
 			var pagedQs = qs + '&start=' + start + '&length=' + batch;
 			var resp = await fetch('/invoices/ajax?' + pagedQs);
+			if (!resp.ok) throw new Error('Server returned ' + resp.status);
 			var json = await resp.json();
-			if (json.error) { alert('Error: ' + json.error); return; }
+			if (json.error) { win.close(); alert('Error: ' + json.error); return; }
 			var rows = json.data || [];
 			allRows = allRows.concat(rows);
 			if (rows.length < batch) break;
@@ -336,7 +346,7 @@ async function printInvoices() {
 		var customerText = $('#customerFilter option:selected').text() || 'All Customers';
 		var dateText = $('#dateFilter option:selected').text();
 		var total = $('#total-invoice-amount').text() || '';
-		var win = window.open('', '_blank');
+		win.document.open();   // clear the "Preparing…" placeholder before writing the report
 		var css = '';
 		css += '<style>';
 		css += 'body{font-family: Arial, Helvetica, sans-serif; margin:12px;}';
@@ -385,7 +395,8 @@ async function printInvoices() {
 		setTimeout(function(){ win.print(); win.close(); }, 250);
 	} catch (err) {
 		console.error(err);
-		alert('Unable to fetch records for printing. See console for details.');
+		try { win.close(); } catch (e) {}
+		alert('Unable to prepare the print view: ' + (err && err.message ? err.message : err) + '. See console for details.');
 	}
 }
 </script>

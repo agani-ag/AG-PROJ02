@@ -69,8 +69,9 @@
 </form>
 		{% if employee %}
 			<a class="btn btn-info" href="#" onclick="employeeMobileLink('{{ employee.id }}')" title="Mobile access link"><i class="fas fa-mobile-alt"></i></a>
+			<a class="btn btn-dark" href="#" onclick="revokeAccess('{{ employee.id }}')" title="Revoke mobile access"><i class="fas fa-ban"></i></a>
 		{% endif %}
-		<a class="btn btn-danger" href="{% url 'employees' %}" title="Back To Employees"><i class="fas fa-cancel"></i></a>
+		<a class="btn btn-danger" href="{% url 'employees' %}" title="Back To Employees"><i class="fas fa-reply"></i></a>
 	</div>
 
 {% endblock %}
@@ -87,6 +88,19 @@ function employeeMobileLink(id) {
 			confirmButtonText: 'Copy link',
 			preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(d.url)
 		});
+	});
+}
+
+function revokeAccess(id) {
+	Swal.fire({
+		title: 'Revoke access?', text: 'The current link and any active session stop working.',
+		icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Yes, revoke!'
+	}).then(r => {
+		if (r.isConfirmed) {
+			var token = document.querySelector('[name=csrfmiddlewaretoken]').value;
+			fetch('/employees/' + id + '/revoke', { method: 'POST', headers: { 'X-CSRFToken': token } })
+				.then(() => Swal.fire('Revoked!', 'Generate a new mobile link to restore access.', 'success'));
+		}
 	});
 }
 

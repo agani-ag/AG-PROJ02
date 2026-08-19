@@ -1,13 +1,14 @@
 {% extends "m/base.html" %}
 {% block title %}Invoices{% endblock %}
 {% block heading %}My Invoices{% endblock %}
-{% block subhead %}{% if rows %}<div class="sub">{{ rows|length }} invoice{{ rows|length|pluralize }}</div>{% endif %}{% endblock %}
+{% block subhead %}{% if rows %}<div class="sub" id="inv-count">{{ rows|length }} invoice{{ rows|length|pluralize }}</div>{% endif %}{% endblock %}
 {% block content %}
 
 {% if rows %}
-<div class="list">
+{% include "m/_searchbar.html" with target="#inv-list" empty="#inv-empty" count="#inv-count" noun="invoice" noun_pl="invoices" placeholder="Search number or date…" %}
+<div class="list" id="inv-list">
     {% for r in rows %}
-    <a href="{% url 'm_customer_invoice' r.id %}" class="row">
+    <a href="{% url 'm_customer_invoice' r.id %}" class="row" data-s="{{ r.number }} {{ r.date|date:'d M Y'|lower }}">
         <span class="lbl" style="display:flex;gap:11px;align-items:center">
             <span class="ico ic-blue"><svg class="i"><use href="#ic-receipt"/></svg></span>
             <span>
@@ -19,6 +20,7 @@
     </a>
     {% endfor %}
 </div>
+<div class="empty" id="inv-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
 {% else %}
 <div class="empty"><svg class="i"><use href="#ic-receipt"/></svg><div>No invoices yet.</div></div>
 {% endif %}

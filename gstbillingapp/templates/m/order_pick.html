@@ -1,0 +1,26 @@
+{% extends "m/base.html" %}
+{% block title %}New order{% endblock %}
+{% block heading %}New order{% endblock %}
+{% block subhead %}<div class="sub">Choose a customer to order for</div>{% endblock %}
+{% block content %}
+
+{% if rows %}
+{% include "m/_searchbar.html" with target="#lst" empty="#lst-empty" placeholder="Search name or phone…" %}
+<div class="list" id="lst">
+    {% for r in rows %}
+    <a href="{% url 'm_order' %}?customer={{ r.id }}" class="row" data-s="{{ r.name|lower }} {{ r.phone|default:'' }}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-user"/></svg></span>
+            <span style="min-width:0"><span class="b">{{ r.name }}</span><div class="sub">{{ r.phone|default:"—" }}</div></span>
+        </span>
+        <svg class="i" style="stroke:var(--faint);transform:rotate(180deg)"><use href="#ic-reply"/></svg>
+    </a>
+    {% endfor %}
+</div>
+<div class="empty" id="lst-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-people"/></svg><div>No customers yet.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="orders" %}{% endblock %}

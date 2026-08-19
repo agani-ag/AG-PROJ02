@@ -121,7 +121,7 @@ class UserProfileForm(ModelForm):
 
     class Meta:
         model = UserProfile
-        fields = ['business_title', 'business_address', 'business_email', 'business_phone', 'link_to_project1',
+        fields = ['business_title', 'business_address', 'business_email', 'business_phone',
                   'business_gst', 'business_brand', 'business_latitude', 'business_longitude', 'bankdetails']
     
     def __init__(self, *args, **kwargs):

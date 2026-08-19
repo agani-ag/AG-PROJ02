@@ -43,7 +43,6 @@ def customer_add(request):
         else:
             new_customer = customer_form.save(commit=False)
             new_customer.user = request.user
-            # new_customer.customer_password = make_password(CPASSWORD)
             new_customer.customer_password = CPASSWORD
             new_customer.is_mobile_user = request.POST.get('is_mobile_user') == 'on'
             new_customer.save()
@@ -62,7 +61,6 @@ def customer_add(request):
 def customer_edit(request, customer_id):
     customer_obj = get_object_or_404(Customer, user=request.user, id=customer_id)
     if not customer_obj.customer_password:
-        # customer_obj.customer_password = make_password(CPASSWORD)
         customer_obj.customer_password = CPASSWORD
         customer_obj.save()
     if request.method == "POST":
@@ -135,7 +133,6 @@ def customer_default_password(request):
     if request.method == "POST":
         customer_userid = request.POST["customer_userid"]
         customer_obj = get_object_or_404(Customer, customer_userid=customer_userid)
-        # customer_obj.customer_password = make_password(CPASSWORD)
         customer_obj.customer_password = CPASSWORD
         customer_obj.save()
         return JsonResponse({'status': 'success', 'message': f"{customer_userid.upper()} customer's password reset to default."})
@@ -150,7 +147,6 @@ def customerall_userid_set(request):
         customer_obj = Customer.objects.filter(user_id=customer_user)
         for customer in customer_obj:
             if not customer.customer_password:
-                # customer.customer_password = make_password(CPASSWORD)
                 customer.customer_password = CPASSWORD
             customer.is_mobile_user = True
             customer.save()

@@ -198,6 +198,29 @@
         toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(this._t);this._t=setTimeout(()=>t.classList.remove('show'),2200);},
         wa(p,t){let x=(p||'').replace(/\D/g,'');if(x.length===10)x='91'+x;window.open('https://wa.me/'+x+'?text='+encodeURIComponent(t||''),'_blank');}
     };
+
+    /* Type-to-search: one delegated handler drives every list. An <input data-filter="#id">
+       hides rows without a matching data-s under that container; optional data-empty shows
+       an empty state, and data-count updates a live tally. No per-screen JS needed. */
+    document.addEventListener('input', function(e){
+        var inp = e.target;
+        if(!inp.getAttribute || inp.getAttribute('data-filter')===null) return;
+        var list = document.querySelector(inp.getAttribute('data-filter'));
+        if(!list) return;
+        var q = (inp.value||'').toLowerCase().trim();
+        var rows = list.querySelectorAll('[data-s]'), shown = 0;
+        for(var i=0;i<rows.length;i++){
+            var m = !q || rows[i].getAttribute('data-s').indexOf(q) >= 0;
+            rows[i].style.display = m ? '' : 'none'; if(m) shown++;
+        }
+        var es = inp.getAttribute('data-empty');
+        if(es){ var ee = document.querySelector(es); if(ee) ee.style.display = shown ? 'none' : 'block'; }
+        var cs = inp.getAttribute('data-count');
+        if(cs){ var ce = document.querySelector(cs); if(ce){
+            var noun = inp.getAttribute('data-noun') || 'result';
+            ce.textContent = shown + ' ' + (shown===1 ? noun : (inp.getAttribute('data-noun-pl') || noun+'s'));
+        }}
+    });
     </script>
     {% block includejs %}{% endblock %}
 </body>

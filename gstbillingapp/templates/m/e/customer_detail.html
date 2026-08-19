@@ -15,6 +15,7 @@
         <button class="btn btn-sm btn-green" style="flex:1" onclick="remind()"><svg class="i" style="stroke:#fff"><use href="#ic-phone"/></svg> Remind</button>
     </div>
     {% endif %}
+    <a class="btn btn-acc mt" href="{% url 'm_order' %}?customer={{ c.id }}"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> New order</a>
 </div>
 
 <div class="panel">

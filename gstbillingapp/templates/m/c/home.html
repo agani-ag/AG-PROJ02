@@ -62,7 +62,7 @@
 {% endif %}
 
 <div class="sec"><h2 class="t">Quick actions</h2></div>
-<a href="/quotation/cart?cid={{ primary.customer_userid }}" class="btn btn-acc" style="margin-bottom:12px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> Place an order</a>
+<a href="{% url 'm_order' %}" class="btn btn-acc" style="margin-bottom:12px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> Place an order</a>
 <div class="qa">
     <a href="{% url 'm_customer_invoices' %}"><span class="ico ic-blue"><svg class="i"><use href="#ic-receipt"/></svg></span><span class="b">Invoices</span></a>
     <a href="{% url 'm_customer_orders' %}"><span class="ico ic-amber"><svg class="i"><use href="#ic-cart"/></svg></span><span class="b">My orders</span></a>

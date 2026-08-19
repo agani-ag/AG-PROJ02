@@ -10,7 +10,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 # Models
 from ..models import (
     Customer, Product, Invoice,
-    UserProfile, Book, BookLog, Quotation
+    UserProfile, Book, BookLog, Quotation, Employee
 )
 
 # Utility functions
@@ -29,8 +29,6 @@ from ..utils import find_matching_customer
 import json
 import datetime
 import num2words
-import urllib.request
-import urllib.error
 import html
 
 
@@ -363,6 +361,11 @@ def invoice_viewer(request, invoice_id):
     context['user_profile'] = user_profile
     context['nav_hide'] = request.GET.get('nav') or ''
 
+    # Invoice → employee attribution (local Employee model). The picker only shows
+    # when this business actually has active staff to credit.
+    context['assigned_employee'] = invoice_obj.assigned_employee
+    context['has_employees'] = Employee.objects.filter(business=request.user, is_active=True).exists()
+
     # Debug JSON editor: ?debug=1 / ?debug=true. Absent → normal view, no change.
     debug_mode = str(request.GET.get('debug', '')).lower() in ('1', 'true', 'yes')
     context['debug_mode'] = debug_mode
@@ -662,42 +665,55 @@ def customerInvoiceFilter(request):
 
 
 @login_required
-@csrf_exempt
-def invoice_employee_mapping_proxy(request):
-    """Proxy view to forward invoice-employee-mapping requests to the external project, bypassing CORS."""
-    try:
-        user_profile = UserProfile.objects.get(user=request.user)
-    except UserProfile.DoesNotExist:
-        return JsonResponse({'error': 'User profile not found.'}, status=400)
+def invoice_assign_employee(request, invoice_id):
+    """
+    Credit an invoice to one of this business's own staff (local Employee model).
 
-    base_url = user_profile.link_to_project1
-    if not base_url:
-        return JsonResponse({'error': 'External project URL not configured.'}, status=400)
+    GET  → the active employees to choose from + who (if anyone) is already assigned.
+    POST → {employee_id} assigns; a blank employee_id clears the assignment.
 
-    api_url = base_url.rstrip('/') + '/api/invoice-employee-mapping'
+    Replaces the old external-project proxy: attribution now lives in this database.
+    """
+    from django.utils import timezone
+
+    invoice = get_object_or_404(Invoice, user=request.user, id=invoice_id)
 
     if request.method == 'GET':
-        try:
-            req = urllib.request.Request(api_url, method='GET')
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode())
-            return JsonResponse(data)
-        except (urllib.error.URLError, Exception) as e:
-            return JsonResponse({'error': str(e)}, status=502)
+        employees = list(
+            Employee.objects.filter(business=request.user, is_active=True)
+            .order_by('name').values('id', 'name')
+        )
+        current = None
+        if invoice.assigned_employee_id:
+            current = {'id': invoice.assigned_employee_id, 'name': invoice.assigned_employee.name}
+        return JsonResponse({'employees': employees, 'current': current})
 
-    elif request.method == 'POST':
-        try:
-            body = request.body
-            req = urllib.request.Request(
-                api_url,
-                data=body,
-                headers={'Content-Type': 'application/json'},
-                method='POST'
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode())
-            return JsonResponse(data)
-        except (urllib.error.URLError, Exception) as e:
-            return JsonResponse({'error': str(e)}, status=502)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed.'}, status=405)
 
-    return JsonResponse({'error': 'Method not allowed.'}, status=405)
+    try:
+        emp_id = (json.loads(request.body) or {}).get('employee_id')
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Malformed request.'}, status=400)
+
+    # Blank clears the assignment.
+    if not emp_id:
+        invoice.assigned_employee = None
+        invoice.assigned_employee_at = None
+        invoice.save(update_fields=['assigned_employee', 'assigned_employee_at'])
+        return JsonResponse({'ok': True, 'cleared': True})
+
+    try:
+        employee = Employee.objects.get(id=emp_id, business=request.user, is_active=True)
+    except (Employee.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({'error': 'Employee not found.'}, status=400)
+
+    was_assigned = invoice.assigned_employee_id is not None
+    invoice.assigned_employee = employee
+    invoice.assigned_employee_at = timezone.now()
+    invoice.save(update_fields=['assigned_employee', 'assigned_employee_at'])
+    return JsonResponse({
+        'ok': True,
+        'reassigned': was_assigned,
+        'employee': {'id': employee.id, 'name': employee.name},
+    })

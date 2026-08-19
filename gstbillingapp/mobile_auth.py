@@ -21,6 +21,13 @@ from .models import Customer, Employee, UserProfile
 
 _SALT = "gstbillingapp.mobile.v2"
 
+# The magic-link identity is kept in its OWN cookie, not the shared Django session,
+# so a desktop logout / user-switch in the same browser can't sign the phone out.
+# It carries the signed token itself (unforgeable), refreshed on every hit for a
+# sliding window; a version bump still revokes it via _load_identity().
+_COOKIE = "m_auth"
+_COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
+
 
 # ---------------- minting ----------------
 def mint_customer_token(customer):
@@ -41,16 +48,6 @@ def verify_mobile_token(token, max_age=None):
 
 
 # ---------------- business group ----------------
-def businesses_in_group(user):
-    """Users sharing this user's business_gst (the GST group); just the user if none."""
-    prof = UserProfile.objects.filter(user=user).first()
-    gst = prof.business_gst if prof else None
-    if not gst:
-        return User.objects.filter(id=user.id)
-    ids = list(UserProfile.objects.filter(business_gst=gst).values_list("user_id", flat=True))
-    return User.objects.filter(id__in=ids)
-
-
 # ---------------- identity + accessibility ----------------
 def _load_identity(payload):
     if not payload:
@@ -86,16 +83,20 @@ def _accessible(identity):
 
 
 def resolve_mobile_actor(request):
-    payload = verify_mobile_token(request.GET.get("t"))
+    # Priority: a fresh ?t= link → the durable m_auth cookie → the legacy session.
+    token = request.GET.get("t") or request.COOKIES.get(_COOKIE)
+    payload = verify_mobile_token(token)
     identity = _load_identity(payload) if payload else None
-    if identity:
-        request.session["m_kind"] = payload["r"]
-        request.session["m_id"] = payload["id"]
-        request.session["m_v"] = payload["v"]
-    else:
+    if identity and token:
+        # Remember it so the decorator can (re)persist the cookie on the response.
+        request._mobile_token = token
+
+    if not identity:
+        # Backward-compat: sessions established before the m_auth cookie existed.
         kind, rid = request.session.get("m_kind"), request.session.get("m_id")
         if kind and rid is not None:
             identity = _load_identity({"r": kind, "id": rid, "v": request.session.get("m_v")})
+
     if not identity:
         return None
 
@@ -139,9 +140,20 @@ def mobile_login_required(role=None):
             if not actor or (role and actor["role"] != role):
                 return render(request, "m/denied.html", status=403)
             request.mobile_actor = actor
+
             if request.GET.get("t"):
-                return redirect(request.path)  # drop token from URL/history
-            return view(request, *args, **kwargs)
+                resp = redirect(request.path)  # drop token from URL/history
+            else:
+                resp = view(request, *args, **kwargs)
+
+            # (Re)persist the durable auth cookie so a lost session self-heals and the
+            # sliding window keeps a regular user signed in. httponly: JS can't read it;
+            # secure only on HTTPS so dev over HTTP still works.
+            token = getattr(request, "_mobile_token", None)
+            if token:
+                resp.set_cookie(_COOKIE, token, max_age=_COOKIE_MAX_AGE,
+                                httponly=True, samesite="Lax", secure=request.is_secure())
+            return resp
 
         return _wrapped
 

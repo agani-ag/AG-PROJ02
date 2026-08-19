@@ -6,9 +6,19 @@ from django.shortcuts import render, redirect, get_object_or_404
 
 from django.contrib.auth.models import User
 
-from ..models import Employee, Customer
+from ..models import Employee, Customer, Invoice
 from ..forms import EmployeeForm
 from ..mobile_auth import mint_employee_token, mint_customer_token
+
+import json
+
+
+def _invoice_total(invoice_json):
+    """The grand total stored inside an invoice's JSON (amounts live there, not in columns)."""
+    try:
+        return round(float(json.loads(invoice_json).get('invoice_total_amt_with_gst', 0) or 0), 2)
+    except (ValueError, TypeError):
+        return 0.0
 
 
 def _all_businesses():
@@ -83,6 +93,54 @@ def employee_delete(request, pk):
         get_object_or_404(Employee, pk=pk, business=request.user).delete()
         messages.success(request, "Employee removed.")
     return redirect("employees")
+
+
+@login_required
+def employee_invoices(request, pk):
+    """
+    An employee's owned invoices — the ones credited to them via 'Map to Employee'.
+    Native replacement for the external app's employee_invoices report: month and
+    date-range filters, grand total and count. Amounts are read from invoice_json.
+    """
+    emp = get_object_or_404(Employee, pk=pk, business=request.user)
+    qs = Invoice.objects.filter(user=request.user, assigned_employee=emp).order_by('-invoice_date', '-id')
+
+    # Distinct months present, for the filter dropdown.
+    months_list = [
+        {'value': d.strftime('%Y-%m'), 'label': d.strftime('%B %Y')}
+        for d in qs.dates('invoice_date', 'month', order='DESC')
+    ]
+
+    selected_month = request.GET.get('month', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    if selected_month:
+        try:
+            year, month = selected_month.split('-')
+            qs = qs.filter(invoice_date__year=int(year), invoice_date__month=int(month))
+        except ValueError:
+            pass
+    if date_from:
+        qs = qs.filter(invoice_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(invoice_date__lte=date_to)
+
+    rows, grand_total = [], 0.0
+    for inv in qs.select_related('invoice_customer'):
+        amount = _invoice_total(inv.invoice_json)
+        grand_total += amount
+        rows.append({
+            'id': inv.id, 'number': inv.invoice_number, 'date': inv.invoice_date,
+            'is_gst': inv.is_gst, 'amount': amount,
+            'customer': inv.invoice_customer.customer_name if inv.invoice_customer else 'N/A',
+        })
+
+    return render(request, 'employees/employee_invoices.html', {
+        'employee': emp, 'rows': rows, 'months_list': months_list,
+        'selected_month': selected_month, 'date_from': date_from, 'date_to': date_to,
+        'grand_total': round(grand_total, 2), 'record_count': len(rows),
+    })
 
 
 @login_required

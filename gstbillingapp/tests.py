@@ -148,6 +148,18 @@ class MobileAuthTests(TestCase):
         self.assertContains(resp2, "BETA STORE")                       # name (upper-cased on save)
         self.assertContains(resp2, "1500")                             # outstanding shown
 
+    def test_auth_survives_session_wipe(self):
+        # The magic-link identity lives in its own m_auth cookie, so a desktop logout
+        # (which flushes the shared Django session) must NOT sign the phone out.
+        from .mobile_auth import mint_customer_token, _COOKIE
+        self.client.get("/m/customer/", {"t": mint_customer_token(self.customer)})
+        self.assertIn(_COOKIE, self.client.cookies)                    # durable cookie set
+        s = self.client.session
+        s.flush()                                                      # simulate desktop logout
+        resp = self.client.get("/m/customer/")                         # rides the m_auth cookie
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "BETA STORE")
+
     def test_invalid_token_denied(self):
         resp = self.client.get("/m/customer/", {"t": "tampered.token.value"})
         self.assertEqual(resp.status_code, 403)
@@ -246,6 +258,175 @@ class MobileScreensTests(TestCase):
         foreign = Customer.objects.create(user=stranger, customer_name="Foreign")
         self._emp()
         self.assertEqual(self.client.get(reverse("m_employee_customer", args=[foreign.id])).status_code, 404)
+
+    def test_my_sales_filter(self):
+        self.inv.assigned_employee = self.emp
+        self.inv.save(update_fields=["assigned_employee"])
+        self._emp()
+        # "My sales" filters to invoices credited to this employee, with a total.
+        r = self.client.get(reverse("m_employee_invoices"), {"mine": "1"})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.context["mine"])
+        self.assertEqual(len(r.context["rows"]), 1)
+        self.assertAlmostEqual(r.context["my_total"], 500.0)
+        # "All" view still shows it, flagged as mine.
+        r2 = self.client.get(reverse("m_employee_invoices"))
+        self.assertTrue(r2.context["rows"][0]["mine"])
+
+
+class MobileOrderTests(TestCase):
+    """Mobile order flow (/m/order): customer self-order + employee order-for-customer."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile, Employee, Product, Quotation
+        cls.Quotation = Quotation
+        cls.owner = User.objects.create_user("mo_owner", password="x")
+        UserProfile.objects.create(user=cls.owner, business_title="Mobile Shop", business_phone="9000000000")
+        cls.emp = Employee.objects.create(business=cls.owner, name="Rep", email="rep@x.local")
+        cls.cust = Customer.objects.create(user=cls.owner, customer_name="Buyer One", customer_phone="9111111111")
+        cls.p1 = Product.objects.create(user=cls.owner, model_no="M1", product_name="Widget",
+                                        product_rate_with_gst=118, product_gst_percentage=18, product_discount=0)
+        cls.p2 = Product.objects.create(user=cls.owner, model_no="M2", product_name="Gadget",
+                                        product_rate_with_gst=236, product_gst_percentage=18, product_discount=0)
+
+    def _cust_session(self):
+        from .mobile_auth import mint_customer_token
+        self.client.get("/m/customer/", {"t": mint_customer_token(self.cust)})
+
+    def _emp_session(self):
+        from .mobile_auth import mint_employee_token
+        self.client.get("/m/employee/", {"t": mint_employee_token(self.emp)})
+
+    def test_order_screen_renders_for_customer(self):
+        self._cust_session()
+        r = self.client.get(reverse("m_order"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "WIDGET")             # product name upper-cased on save
+
+    def test_employee_without_customer_sees_picker(self):
+        self._emp_session()
+        r = self.client.get(reverse("m_order"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "BUYER ONE")          # customer picker (name upper-cased on save)
+
+    def test_customer_checkout_creates_draft(self):
+        self._cust_session()
+        r = self.client.post(reverse("m_order_checkout"),
+                             data=json.dumps({"items": [{"id": self.p1.id, "qty": 2}], "is_gst": False}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        d = r.json()
+        self.assertTrue(d["ok"])
+        q = self.Quotation.objects.get(id=d["quotation_id"])
+        self.assertEqual(q.status, "DRAFT")
+        self.assertTrue(q.created_by_customer)
+        self.assertEqual(q.quotation_customer_id, self.cust.id)
+
+    def test_employee_checkout_for_customer(self):
+        self._emp_session()
+        r = self.client.post(reverse("m_order_checkout"),
+                             data=json.dumps({"items": [{"id": self.p2.id, "qty": 1}],
+                                              "is_gst": False, "customer": self.cust.id}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        d = r.json()
+        self.assertTrue(d["ok"])
+        q = self.Quotation.objects.get(id=d["quotation_id"])
+        self.assertFalse(q.created_by_customer)
+        self.assertEqual(q.quotation_customer_id, self.cust.id)
+        self.assertEqual(q.order_employee_id, self.emp.id)   # order credited to the field-staff
+
+    def test_price_is_recomputed_server_side(self):
+        # A tampered qty of 0 is rejected; prices never come from the client.
+        self._cust_session()
+        r = self.client.post(reverse("m_order_checkout"),
+                             data=json.dumps({"items": [{"id": self.p1.id, "qty": 0}]}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(r.json()["ok"])
+
+    def test_employee_cannot_order_for_foreign_customer(self):
+        stranger = User.objects.create_user("mo_stranger", password="x")
+        foreign = Customer.objects.create(user=stranger, customer_name="Foreign")
+        self._emp_session()
+        r = self.client.post(reverse("m_order_checkout"),
+                             data=json.dumps({"items": [{"id": self.p1.id, "qty": 1}],
+                                              "customer": foreign.id}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
+
+class InvoiceAssignEmployeeTests(TestCase):
+    """Native invoice → employee attribution (replaces the old external proxy)."""
+
+    def setUp(self):
+        from .models import Employee, UserProfile
+        self.owner = User.objects.create_user("ia_owner", password="x")
+        UserProfile.objects.create(user=self.owner, business_title="Shop")
+        self.emp = Employee.objects.create(business=self.owner, name="Ravi")
+        self.cust = Customer.objects.create(user=self.owner, customer_name="C")
+        self.inv = Invoice.objects.create(
+            user=self.owner, invoice_number=1, invoice_date=date.today(),
+            invoice_customer=self.cust, is_gst=False,
+            invoice_json=json.dumps({"invoice_total_amt_with_gst": 100, "items": []}),
+        )
+        self.client.force_login(self.owner)
+
+    def _url(self):
+        return reverse("invoice_assign_employee", args=[self.inv.id])
+
+    def test_get_lists_employees(self):
+        d = self.client.get(self._url()).json()
+        self.assertEqual(len(d["employees"]), 1)
+        self.assertIsNone(d["current"])
+
+    def test_assign_then_clear(self):
+        r = self.client.post(self._url(), data=json.dumps({"employee_id": self.emp.id}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.assigned_employee_id, self.emp.id)
+        self.assertIsNotNone(self.inv.assigned_employee_at)
+        # Blank clears it.
+        r2 = self.client.post(self._url(), data=json.dumps({"employee_id": ""}),
+                              content_type="application/json")
+        self.assertTrue(r2.json()["cleared"])
+        self.inv.refresh_from_db()
+        self.assertIsNone(self.inv.assigned_employee_id)
+
+    def test_cannot_assign_foreign_employee(self):
+        from .models import Employee
+        other = User.objects.create_user("ia_other", password="x")
+        foreign = Employee.objects.create(business=other, name="X")
+        r = self.client.post(self._url(), data=json.dumps({"employee_id": foreign.id}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
+    def test_foreign_invoice_404(self):
+        other = User.objects.create_user("ia_stranger", password="x")
+        foreign_inv = Invoice.objects.create(
+            user=other, invoice_number=1, invoice_date=date.today(), is_gst=False,
+            invoice_json=json.dumps({"invoice_total_amt_with_gst": 1, "items": []}),
+        )
+        r = self.client.get(reverse("invoice_assign_employee", args=[foreign_inv.id]))
+        self.assertEqual(r.status_code, 404)
+
+    def test_employee_statement_lists_assigned_with_total(self):
+        self.inv.assigned_employee = self.emp
+        self.inv.save(update_fields=["assigned_employee"])
+        r = self.client.get(reverse("employee_invoices", args=[self.emp.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.context["record_count"], 1)
+        self.assertAlmostEqual(r.context["grand_total"], 100.0)   # from invoice_json
+        self.assertContains(r, "RAVI")                            # employee name (upper-cased)
+
+    def test_statement_scoped_to_business(self):
+        other = User.objects.create_user("ia_boss2", password="x")
+        from .models import Employee
+        foreign_emp = Employee.objects.create(business=other, name="Z")
+        r = self.client.get(reverse("employee_invoices", args=[foreign_emp.id]))
+        self.assertEqual(r.status_code, 404)
 
 
 class EmployeeManagementTests(TestCase):

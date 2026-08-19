@@ -6,8 +6,13 @@ from django.urls import path
 
 from .views.m import customer as c
 from .views.m import employee as e
+from .views.m import order as o
 
 urlpatterns = [
+    # ---- Order flow (customer self-order / employee order-for-customer) ----
+    path('order', o.order, name='m_order'),
+    path('order/checkout', o.order_checkout, name='m_order_checkout'),
+
     # ---- Customer ----
     path('customer/', c.home, name='m_customer_home'),
     path('customer/books', c.books, name='m_customer_books'),

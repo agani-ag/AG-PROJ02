@@ -100,13 +100,27 @@ def record_payment(request, customer_id):
 @mobile_login_required("employee")
 def invoices(request):
     u = _user(request)
+    emp = _emp(request)
+    mine = request.GET.get("mine") == "1"
+
+    qs = Invoice.objects.filter(user=u).select_related("invoice_customer")
+    if mine and emp:
+        qs = qs.filter(assigned_employee=emp)
+
     rows = [{
         "id": inv.id, "number": inv.invoice_number, "date": inv.invoice_date,
         "amount": _inv_total(inv.invoice_json), "is_gst": inv.is_gst,
         "customer": inv.invoice_customer.customer_name if inv.invoice_customer else "N/A",
-    } for inv in Invoice.objects.filter(user=u).select_related("invoice_customer")
-                 .order_by("-invoice_date", "-id")[:100]]
-    return render(request, "m/e/invoices.html", {"rows": rows})
+        # Flag the ones credited to THIS employee, so "All" can badge them.
+        "mine": emp is not None and inv.assigned_employee_id == emp.id,
+    } for inv in qs.order_by("-invoice_date", "-id")[:100]]
+
+    # Total credited to this employee (across the visible set) for the "my sales" header.
+    my_total = round(sum(r["amount"] for r in rows if r["mine"]), 2)
+    return render(request, "m/e/invoices.html", {
+        "rows": rows, "mine": mine, "my_total": my_total,
+        "my_count": sum(1 for r in rows if r["mine"]),
+    })
 
 
 @mobile_login_required("employee")

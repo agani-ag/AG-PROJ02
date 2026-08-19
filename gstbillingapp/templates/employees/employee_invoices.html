@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="row align-items-center mb-2">
+	<div class="col">
+		<h2 class="mb-0">{{ employee.name }} — Sales</h2>
+		<small class="text-muted">Invoices credited to this employee</small>
+	</div>
+	<div class="col text-right">
+		<a href="{% url 'employees' %}" class="btn btn-secondary btn-sm btn-curve" title="Back to Employees"><i class="fas fa-arrow-left"></i> Employees</a>
+	</div>
+</div>
+
+<!-- Summary -->
+<div class="row mb-3">
+	<div class="col-md-6 mb-2">
+		<div class="card border-success">
+			<div class="card-body py-2 d-flex justify-content-between align-items-center">
+				<span class="text-muted">Total credited</span>
+				<span class="h4 mb-0 text-success">&#8377; {{ grand_total|floatformat:2 }}</span>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-6 mb-2">
+		<div class="card">
+			<div class="card-body py-2 d-flex justify-content-between align-items-center">
+				<span class="text-muted">Invoices</span>
+				<span class="h4 mb-0">{{ record_count }}</span>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Filters -->
+<form method="get" class="form-row align-items-end mb-3">
+	<div class="form-group col-md-3">
+		<label class="mb-1"><small>Month</small></label>
+		<select name="month" class="form-control form-control-sm" onchange="this.form.submit()">
+			<option value="">All months</option>
+			{% for m in months_list %}
+			<option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>{{ m.label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div class="form-group col-md-3">
+		<label class="mb-1"><small>From</small></label>
+		<input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+	</div>
+	<div class="form-group col-md-3">
+		<label class="mb-1"><small>To</small></label>
+		<input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+	</div>
+	<div class="form-group col-md-3">
+		<button type="submit" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-filter"></i> Apply</button>
+		<a href="{% url 'employee_invoices' employee.id %}" class="btn btn-light btn-sm btn-curve">Reset</a>
+		<button type="button" class="btn btn-warning btn-sm btn-curve" onclick="printStatement()"><i class="fas fa-print"></i> Print</button>
+	</div>
+</form>
+
+<table class="table table-bordered" id="emp-invoice-table">
+	<thead class="thead-dark">
+		<tr>
+			<th>Invoice</th>
+			<th>Date</th>
+			<th>Customer</th>
+			<th class="text-right">Amount</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for r in rows %}
+		<tr onclick="window.location.href='{% url 'invoice_viewer' r.id %}'" style="cursor: pointer;">
+			<td>{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %}</td>
+			<td>{{ r.date|date:"d M Y" }}</td>
+			<td>{{ r.customer }}</td>
+			<td class="text-right">&#8377; {{ r.amount|floatformat:2 }}</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+
+{% endblock %}
+
+{% block includejs %}
+<script type="text/javascript">
+var empInvoiceTable;
+$(document).ready(function () {
+	empInvoiceTable = $('#emp-invoice-table').DataTable({
+		"order": [],
+		"paging": true,
+		"language": { "emptyTable": "No invoices credited to this employee{% if selected_month or date_from or date_to %} for this filter{% endif %}." }
+	});
+});
+
+// Cell HTML -> plain text (strips the customer link etc.).
+function _text(htmlStr) {
+	var d = document.createElement('div');
+	d.innerHTML = htmlStr || '';
+	return (d.textContent || '').trim();
+}
+
+// Letterhead print of the whole filtered statement (all rows, not just the visible page).
+function printStatement() {
+	// Open the window inside the click gesture so it isn't blocked (esp. Incognito).
+	var win = window.open('', '_blank');
+	if (!win) { alert('Please allow pop-ups for this site to print.'); return; }
+
+	var bodyRows = '';
+	var data = empInvoiceTable.rows({ search: 'applied' }).data();
+	for (var i = 0; i < data.length; i++) {
+		var c = data[i];   // [invoice, date, customer, amount] cell HTML
+		bodyRows += '<tr>'
+			+ '<td style="text-align:center">' + (i + 1) + '</td>'
+			+ '<td>' + _text(c[0]) + '</td>'
+			+ '<td>' + _text(c[1]) + '</td>'
+			+ '<td>' + _text(c[2]) + '</td>'
+			+ '<td style="text-align:right">' + _text(c[3]) + '</td></tr>';
+	}
+	if (!bodyRows) {
+		bodyRows = '<tr><td colspan="5" style="text-align:center;color:#666;padding:16px;">No invoices for this filter.</td></tr>';
+	}
+
+	var filters = '';
+	{% if selected_month %}filters += '<span style="margin:0 12px;"><strong>Month:</strong> {{ selected_month|escapejs }}</span>';{% endif %}
+	{% if date_from %}filters += '<span style="margin:0 12px;"><strong>From:</strong> {{ date_from|escapejs }}</span>';{% endif %}
+	{% if date_to %}filters += '<span style="margin:0 12px;"><strong>To:</strong> {{ date_to|escapejs }}</span>';{% endif %}
+
+	var doc = '<html><head><title>{{ employee.name|escapejs }} - Sales</title><style>'
+		+ 'body{font-family:Arial,Helvetica,sans-serif;margin:16px;color:#111;}'
+		+ 'table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;}'
+		+ 'th,td{border:1px solid #ddd;padding:8px;text-align:left;}'
+		+ 'thead th{background:#343a40;color:#fff;}'
+		+ '@media print{@page{size:A4 portrait;margin:8mm;}}'
+		+ '</style></head><body>'
+		+ '<div style="text-align:center;margin-bottom:16px;">'
+		+ '<h2 style="margin:0;">{{ request.user.userprofile.business_title|default:""|escapejs }}</h2>'
+		+ '<p style="margin:4px 0;color:#666;font-size:13px;">{{ request.user.userprofile.business_address|default:""|escapejs }}</p>'
+		+ '<hr style="margin:10px 0;">'
+		+ '<h4 style="margin:0;">{{ employee.name|escapejs }} &mdash; Sales</h4>'
+		+ '<div style="margin-top:8px;font-size:13px;">'
+		+ '<span style="margin:0 12px;"><strong>Total credited:</strong> &#8377; {{ grand_total|floatformat:2 }}</span>'
+		+ '<span style="margin:0 12px;"><strong>Invoices:</strong> {{ record_count }}</span>'
+		+ filters
+		+ '</div><hr style="margin-top:10px;"></div>'
+		+ '<table><thead><tr><th style="text-align:center;">S.No</th><th>Invoice</th><th>Date</th><th>Customer</th><th style="text-align:right;">Amount</th></tr></thead>'
+		+ '<tbody>' + bodyRows + '</tbody></table>'
+		+ '</body></html>';
+
+	win.document.open();
+	win.document.write(doc);
+	win.document.close();
+	win.focus();
+	setTimeout(function () { win.print(); win.close(); }, 300);
+}
+</script>
+{% endblock %}

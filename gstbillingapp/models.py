@@ -22,7 +22,6 @@ class UserProfile(models.Model):
     business_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     business_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     bankdetails = models.ForeignKey('BankDetails', blank=True, null=True, on_delete=models.SET_NULL)
-    link_to_project1 = models.URLField(blank=True, null=True)
 
     def save(self, *args, **kwargs):
         if self.business_title:
@@ -35,8 +34,6 @@ class UserProfile(models.Model):
             self.business_gst = self.business_gst.upper()
         if self.business_brand:
             self.business_brand = self.business_brand.upper()
-        if self.link_to_project1:
-            self.link_to_project1 = self.link_to_project1.lower()
 
         super().save(*args, **kwargs)
     
@@ -46,21 +43,6 @@ class UserProfile(models.Model):
     def __str__(self):
         return self.user.username
 
-
-class Plan(models.Model):
-    plan_name = models.TextField(max_length=20, blank=True, null=True)
-    plan_value = models.IntegerField(blank=True, null=True)
-    monthly_invoice_limit = models.IntegerField(blank=True, null=True)
-
-
-class BillingProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    plan = models.ForeignKey(Plan, blank=True, null=True, on_delete=models.SET_NULL)
-    plan_start_date = models.DateField(blank=True, null=True)
-    plan_end_date = models.DateField(blank=True, null=True)
-
-    def __str__(self):
-        return self.user.username
 
 # ======================= Invoice Data models =================================
 
@@ -130,7 +112,13 @@ class Invoice(models.Model):
     inventory_reflected = models.BooleanField(default=True)
     books_reflected = models.BooleanField(default=True)
     is_gst = models.BooleanField(default=True)
-    
+    # Which staff member this invoice is credited to (local Employee model). Set from
+    # the invoice page's "Map to Employee" picker. Replaces the old external mapping.
+    assigned_employee = models.ForeignKey(
+        'Employee', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices'
+    )
+    assigned_employee_at = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return str(self.invoice_number) + " | " + str(self.invoice_date)
 
@@ -188,6 +176,10 @@ class Quotation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     created_by_customer = models.BooleanField(default=False)  # For customer self-orders
     created_from_cart = models.BooleanField(default=False)  # Checked out from the Quotation Cart page
+    # The field-staff member who raised this order on the mobile app, if any.
+    order_employee = models.ForeignKey(
+        'Employee', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders'
+    )
     notes = models.TextField(blank=True, null=True)
     
     class Meta:

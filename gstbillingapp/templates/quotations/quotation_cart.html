@@ -1,5 +1,5 @@
-{# Desktop shell for staff; the mobile shell (with its bottom nav) for cid / emp modes. #}
-{% extends base_template|default:"base.html" %}
+{# Staff-only Quotation Cart: builds a draft quotation for the logged-in user's business. #}
+{% extends "base.html" %}
 {% load static %}
 {% block title %}Quotation Cart{% endblock %}
 
@@ -146,54 +146,6 @@ body.modal-open .mobile-bottom-nav {
     </div>
 </div>
 
-<!-- Who this cart belongs to. Shown whenever the cart is opened by a code rather
-     than a login, so a public visitor can see the shop and the account up front. -->
-{% if is_public %}
-<div class="card mb-3 border-primary cart-identity">
-    <div class="card-body py-2 px-3">
-        <div class="row align-items-center">
-            <div class="col-md-6 col-12">
-                <small class="text-muted d-block">Business</small>
-                <strong class="text-primary">
-                    <i class="fas fa-store mr-1"></i>
-                    {{ business_profile.business_title|default:"—" }}
-                    {% if business_profile.business_brand %}
-                        <span class="badge badge-primary ml-1">{{ business_profile.business_brand }}</span>
-                    {% endif %}
-                </strong>
-                {% if business_profile.business_phone %}
-                    <small class="d-block">
-                        <!-- tel: so a tap on mobile dials the shop -->
-                        <a href="tel:{{ business_profile.business_phone }}" class="text-muted">
-                            <i class="fas fa-phone-alt mr-1"></i>{{ business_profile.business_phone }}
-                        </a>
-                    </small>
-                {% endif %}
-            </div>
-
-            <div class="col-md-6 col-12 mt-2 mt-md-0 text-md-right">
-                {% if fixed_customer %}
-                    <small class="text-muted d-block">Quotation for</small>
-                    <strong>
-                        <i class="fas fa-user mr-1"></i>{{ fixed_customer.customer_name }}
-                    </strong>
-                    <small class="text-muted d-block">
-                        {% if fixed_customer.customer_gst %}
-                            GST: {{ fixed_customer.customer_gst }}
-                        {% else %}
-                            No GST No — quotations will be NON-GST
-                        {% endif %}
-                    </small>
-                {% else %}
-                    <span class="badge badge-info">Employee Mode</span>
-                    <small class="text-muted d-block">Pick a customer at checkout</small>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
 <!-- Filter Row. Each tag filter (division / model category / colour) only renders
      when the business actually uses that field; filters wrap and the count/refresh
      sits on its own line below. -->
@@ -321,25 +273,11 @@ body.modal-open .mobile-bottom-nav {
     </div>
 </div>
 
-{% if navbar_template %}
-    <!-- Clear the fixed bottom nav so it never covers the last row of products. -->
-    <div style="height:80px;"></div>
-    {% include navbar_template %}
-{% endif %}
-
 {% endblock %}
 
 {% block includejs %}
 <script type="text/javascript">
-/* The cart mode (staff / ?cid=... / ?u=emp...) lives in the query string, so carry it
-   onto the checkout POST — otherwise the server would not know who is checking out. */
-const CART_QUERY = "{{ cart_query|escapejs }}";
-const CHECKOUT_API = "{% url 'quotation_cart_checkout' %}" + (CART_QUERY ? "?" + CART_QUERY : "");
-
-const ACTOR = "{{ actor|escapejs }}";
-const CAN_CHOOSE_CUSTOMER = {{ can_choose_customer|yesno:"true,false" }};
-/* Only staff may set a line discount. Customers and employees see it read-only. */
-const DISCOUNT_EDITABLE = (ACTOR === "staff");
+const CHECKOUT_API = "{% url 'quotation_cart_checkout' %}";
 
 /* Products, categories and customers are rendered by the server, already scoped to
    this business and field-whitelisted — the browser never queries for them, so it
@@ -347,11 +285,9 @@ const DISCOUNT_EDITABLE = (ACTOR === "staff");
 const allProducts = {{ products_json|safe }};
 const allCategories = {{ categories_json|safe }};
 const allCustomers = {{ customers_json|safe }};
-const FIXED_CUSTOMER = {{ fixed_customer_json|safe }};
 
-/* Keyed per business AND per actor, so a shared phone does not carry one customer's
-   cart over to the next. */
-const CART_KEY = "quotation_cart_" + ACTOR + "_" + (FIXED_CUSTOMER ? "c" + FIXED_CUSTOMER.id : "u{{ request.user.id|default:'anon' }}");
+/* Keyed per staff user, so one browser shared between accounts keeps carts apart. */
+const CART_KEY = "quotation_cart_u{{ request.user.id }}";
 
 /* Grouping dimension. Defaults to whichever one this business actually populates —
    a shop that only uses divisions would otherwise open on one "Uncategorized" heap. */
@@ -421,8 +357,7 @@ function loadData() {
     $('#loadingIndicator').hide();
 }
 
-/* Refresh re-renders the page so the catalog comes fresh from the server, keeping
-   the current mode (?cid=... / ?u=emp...) intact. */
+/* Refresh re-renders the page so the catalog comes fresh from the server. */
 function refreshCatalog() {
     window.location.reload();
 }
@@ -951,7 +886,7 @@ function renderCartSidebar() {
                     '<div class="col-4 px-1">' +
                         '<label style="font-size:0.7em;">Disc %</label>' +
                         '<input type="number" min="0" max="100" step="0.01" value="' + item.discount + '" ' +
-                            'class="form-control" ' + (DISCOUNT_EDITABLE ? '' : 'readonly ') +
+                            'class="form-control" ' +
                             'oninput="onDiscountInput(' + item.id + ', this)" onchange="onDiscountCommit(' + item.id + ', this)">' +
                     '</div>' +
                     '<div class="col-4 pl-1">' +
@@ -1068,10 +1003,7 @@ function onQtyCommit(id, el) {
     refreshCardActions();
 }
 
-/* Discount is staff-only. The field is rendered read-only for customers and employees,
-   but guard here too so a hand-crafted event cannot move the price. */
 function onDiscountInput(id, el) {
-    if (!DISCOUNT_EDITABLE) return;
     var item = cart.find(function(p) { return p.id === id; });
     if (!item) return;
 
@@ -1081,7 +1013,6 @@ function onDiscountInput(id, el) {
 }
 
 function onDiscountCommit(id, el) {
-    if (!DISCOUNT_EDITABLE) return;
     var item = cart.find(function(p) { return p.id === id; });
     if (!item) return;
 
@@ -1260,34 +1191,23 @@ function checkout() {
 
     var totals = calculateTotals();
 
-    /* Customer mode: the buyer is fixed by the link, so there is nothing to pick and
-       no customer list in the page. Staff/employee get the dropdown. */
-    var customerSection;
-    if (!CAN_CHOOSE_CUSTOMER && FIXED_CUSTOMER) {
-        customerSection =
-            '<div class="alert alert-info py-2 text-left" style="font-size:0.9em;">' +
-                '<i class="fas fa-user mr-1"></i> Quotation for: <strong>' +
-                esc(FIXED_CUSTOMER.customer_name) + '</strong>' +
-            '</div>';
-    } else {
-        var customerOptions = allCustomers.map(function(c) {
-            return '<option value="' + c.id + '">' + esc(c.customer_name) +
-                   (c.customer_phone ? ' — ' + esc(c.customer_phone) : '') + '</option>';
-        }).join('');
+    var customerOptions = allCustomers.map(function(c) {
+        return '<option value="' + c.id + '">' + esc(c.customer_name) +
+               (c.customer_phone ? ' — ' + esc(c.customer_phone) : '') + '</option>';
+    }).join('');
 
-        customerSection =
-            '<select id="swal-customer" class="swal2-input" style="width:100%;">' +
-                '<option value="">-- Select Existing Customer --</option>' +
-                customerOptions +
-                '<option value="__new__">+ New Customer</option>' +
-            '</select>' +
-            '<div id="swal-customer-fields" style="display:none;">' +
-                '<input id="swal-name" class="swal2-input" placeholder="Customer Name *">' +
-                '<input id="swal-phone" class="swal2-input" placeholder="Phone">' +
-                '<input id="swal-address" class="swal2-input" placeholder="Address">' +
-                '<input id="swal-gst" class="swal2-input" placeholder="GST No (15 chars, optional)">' +
-            '</div>';
-    }
+    var customerSection =
+        '<select id="swal-customer" class="swal2-input" style="width:100%;">' +
+            '<option value="">-- Select Existing Customer --</option>' +
+            customerOptions +
+            '<option value="__new__">+ New Customer</option>' +
+        '</select>' +
+        '<div id="swal-customer-fields" style="display:none;">' +
+            '<input id="swal-name" class="swal2-input" placeholder="Customer Name *">' +
+            '<input id="swal-phone" class="swal2-input" placeholder="Phone">' +
+            '<input id="swal-address" class="swal2-input" placeholder="Address">' +
+            '<input id="swal-gst" class="swal2-input" placeholder="GST No (15 chars, optional)">' +
+        '</div>';
 
     Swal.fire({
         title: 'Checkout',
@@ -1316,25 +1236,20 @@ function checkout() {
             var gstInput = document.getElementById('swal-gst');
             var gstToggle = document.getElementById('swal-is-gst');
 
-            /* The GSTIN currently in play: the fixed customer's, the picked one's, or typed. */
+            /* The GSTIN currently in play: the picked customer's, or typed for a new one. */
             function currentGst() {
-                if (!select) return FIXED_CUSTOMER ? FIXED_CUSTOMER.customer_gst : null;
                 if (select.value === '__new__') return gstInput.value;
                 var picked = allCustomers.find(function(c) { return String(c.id) === select.value; });
                 return picked ? picked.customer_gst : null;
             }
 
-            /* No dropdown in customer mode — the customer is settled, so just reflect
-               their GST status on the toggle. */
-            if (select) {
-                select.addEventListener('change', function() {
-                    /* An existing customer's details are already on the server, so the
-                       fields stay hidden — nothing to fill in. */
-                    fields.style.display = (select.value === '__new__') ? 'block' : 'none';
-                    syncGstToggle(currentGst());
-                });
-                gstInput.addEventListener('input', function() { syncGstToggle(currentGst()); });
-            }
+            select.addEventListener('change', function() {
+                /* An existing customer's details are already on the server, so the
+                   fields stay hidden — nothing to fill in. */
+                fields.style.display = (select.value === '__new__') ? 'block' : 'none';
+                syncGstToggle(currentGst());
+            });
+            gstInput.addEventListener('input', function() { syncGstToggle(currentGst()); });
 
             gstToggle.addEventListener('change', function() { showGstStatus(currentGst()); });
 
@@ -1344,12 +1259,6 @@ function checkout() {
         preConfirm: function() {
             var isGst = document.getElementById('swal-is-gst').checked;
             var select = document.getElementById('swal-customer');
-
-            /* Customer mode: the server takes the customer from the cid, so send none. */
-            if (!select) {
-                return { customer: {}, is_gst: isGst };
-            }
-
             var choice = select.value;
 
             if (!choice) {
@@ -1480,16 +1389,10 @@ function checkout() {
                                   ' — you will pick the contact.' +
                               '</small>') +
 
-                        '<small class="text-muted">' +
-                            (data.redirect_url
-                                ? 'A new cart has been started.'
-                                : 'Sent for approval. A new cart has been started.') +
-                        '</small>' +
+                        '<small class="text-muted">A new cart has been started.</small>' +
                     '</div>',
-                /* Public actors get no link into the internal quotation page — the
-                   server withholds redirect_url for them. */
-                showCancelButton: !!data.redirect_url,
-                confirmButtonText: data.redirect_url ? 'View Quotation' : 'New Cart',
+                showCancelButton: true,
+                confirmButtonText: 'View Quotation',
                 cancelButtonText: 'New Cart',
                 confirmButtonColor: '#28a745',
                 cancelButtonColor: '#6c757d',
@@ -1503,7 +1406,7 @@ function checkout() {
                         .addEventListener('click', function() { shareSMS(data); });
                 }
             }).then(function(choice) {
-                if (choice.isConfirmed && data.redirect_url) {
+                if (choice.isConfirmed) {
                     window.location.href = data.redirect_url;
                 }
                 /* Otherwise stay put — the cart is already empty and ready to reuse. */

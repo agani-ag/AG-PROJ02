@@ -1,23 +1,42 @@
 {% extends "m/base.html" %}
 {% block title %}Invoices{% endblock %}
-{% block heading %}Invoices{% endblock %}
-{% block subhead %}{% if rows %}<div class="sub">{{ rows|length }} invoice{{ rows|length|pluralize }}</div>{% endif %}{% endblock %}
+{% block heading %}{% if mine %}My Sales{% else %}Invoices{% endif %}{% endblock %}
+{% block subhead %}{% if rows %}<div class="sub" id="inv-count">{{ rows|length }} invoice{{ rows|length|pluralize }}</div>{% endif %}{% endblock %}
+{% block includecss %}
+.seg{display:flex;gap:6px;background:var(--card);border-radius:14px;padding:4px;box-shadow:var(--sh);margin-bottom:12px}
+.seg a{flex:1;text-align:center;padding:9px 0;border-radius:11px;font-size:13.5px;font-weight:700;color:var(--soft)}
+.seg a.on{background:var(--acc);color:#fff}
+{% endblock %}
 {% block content %}
 
+<div class="seg">
+    <a href="{% url 'm_employee_invoices' %}" class="{% if not mine %}on{% endif %}">All invoices</a>
+    <a href="{% url 'm_employee_invoices' %}?mine=1" class="{% if mine %}on{% endif %}">My sales</a>
+</div>
+
+{% if mine %}
+<div class="panel between" style="margin-bottom:12px">
+    <span class="muted">Credited to me</span>
+    <span class="kpi" style="font-size:20px;color:var(--green)">&#8377; {{ my_total|floatformat:2 }}</span>
+</div>
+{% endif %}
+
 {% if rows %}
-<div class="list">
+{% include "m/_searchbar.html" with target="#inv-list" empty="#inv-empty" count="#inv-count" noun="invoice" noun_pl="invoices" placeholder="Search number or customer…" %}
+<div class="list" id="inv-list">
     {% for r in rows %}
-    <div class="row">
+    <div class="row" data-s="{{ r.number }} {{ r.customer|lower }} {{ r.date|date:'d M Y'|lower }}">
         <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
             <span class="ico ic-blue"><svg class="i"><use href="#ic-receipt"/></svg></span>
-            <span style="min-width:0"><span class="b">{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %} · {{ r.customer }}</span><div class="sub">{{ r.date|date:"d M Y" }}</div></span>
+            <span style="min-width:0"><span class="b">{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %} · {{ r.customer }}</span><div class="sub">{{ r.date|date:"d M Y" }}{% if r.mine and not mine %} · <span style="color:var(--green);font-weight:700">Mine</span>{% endif %}</div></span>
         </span>
         <span class="b tabnum" style="white-space:nowrap">&#8377; {{ r.amount|floatformat:2 }}</span>
     </div>
     {% endfor %}
 </div>
+<div class="empty" id="inv-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
 {% else %}
-<div class="empty"><svg class="i"><use href="#ic-receipt"/></svg><div>No invoices yet.</div></div>
+<div class="empty"><svg class="i"><use href="#ic-receipt"/></svg><div>{% if mine %}No invoices credited to you yet.{% else %}No invoices yet.{% endif %}</div></div>
 {% endif %}
 
 {% endblock %}

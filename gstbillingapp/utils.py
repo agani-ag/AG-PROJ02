@@ -446,13 +446,6 @@ def add_customer_userid(customer):
     customer.save()
 
 
-def customer_already_exists(user, customer_phone, customer_email, customer_gst):
-    if Customer.objects.filter(user=user, customer_phone=customer_phone).exists() or \
-       Customer.objects.filter(user=user, customer_email=customer_email).exists() or \
-       Customer.objects.filter(user=user, customer_gst=customer_gst).exists():
-        return True
-    return False
-
 # ================ Utility Methods ===========================
 def parse_code_GS(input_code):
     if not input_code:
@@ -468,108 +461,7 @@ def parse_code_GS(input_code):
     result = {key.upper(): int(value) for key, value in matches}
     return result
 
-# ================ Quotation Cart identity =====================
-
-class CartContext:
-    """
-    Who is using the Quotation Cart, and what they are allowed to do.
-
-    business_user  - whose products, prices and quotation numbers are used
-    fixed_customer - the customer the quotation MUST be billed to (customer mode),
-                     or None when the actor may choose one
-    actor          - 'staff' | 'customer' | 'employee'
-    """
-
-    def __init__(self, business_user, actor, fixed_customer=None, businesses=None):
-        self.business_user = business_user
-        self.actor = actor
-        self.fixed_customer = fixed_customer
-        # Employee mode with several businesses in users_filter: the cart must ask
-        # which one before it can load a catalog, since a quotation belongs to one.
-        self.businesses = businesses or []
-
-    @property
-    def can_choose_customer(self):
-        return self.fixed_customer is None
-
-    @property
-    def needs_business_choice(self):
-        return self.business_user is None and len(self.businesses) > 1
-
-
-class CartAccessError(Exception):
-    """The request does not identify anyone who may use the cart."""
-
-
-def resolve_cart_context(request):
-    """
-    Work out who is using the cart. Every cart surface (page, product feed, checkout)
-    goes through this instead of reading request.user, so the three entry points can
-    never disagree about whose data is in play.
-
-        staff     - logged in, no params            -> picks any of their customers
-        customer  - ?cid=GS1C22                     -> LOCKED to customer 22 of business 1
-        employee  - ?u=emp&users_filter=1[,4,...]   -> picks a customer of the chosen business
-
-    Raises CartAccessError when the request identifies nobody.
-    """
-    from django.contrib.auth.models import User
-
-    # --- Customer mode: the cid encodes business (GS) and customer (C). ---
-    cid = request.GET.get('cid')
-    if cid:
-        parsed = parse_code_GS(cid)
-        business_id = (parsed or {}).get('GS')
-        customer_id = (parsed or {}).get('C')
-        if not business_id or not customer_id:
-            raise CartAccessError('Invalid customer code.')
-
-        # Scoping the lookup by user__id is what stops a tampered code from pairing
-        # one business's id with another business's customer.
-        customer = Customer.objects.filter(id=customer_id, user__id=business_id).first()
-        if not customer:
-            raise CartAccessError('Customer not found for this code.')
-
-        return CartContext(customer.user, 'customer', fixed_customer=customer)
-
-    # --- Employee mode: business ids arrive in users_filter, as on the other
-    #     mobile employee pages. ---
-    if request.GET.get('u') == 'emp':
-        raw = request.GET.get('users_filter', '')
-        ids = [int(uid) for uid in raw.split(',') if uid.strip().isdigit()]
-
-        # select_related: the picker reads each business's profile (title/brand/phone).
-        businesses = User.objects.select_related('userprofile')
-        if ids:
-            businesses = businesses.filter(id__in=ids)
-        else:
-            # No users_filter (or an empty one) means every business, as on the other
-            # mobile employee pages. A quotation still belongs to exactly one, so the
-            # employee is sent to the picker rather than writing against "all".
-            businesses = businesses.filter(userprofile__isnull=False)
-
-        businesses = list(businesses.order_by('userprofile__business_title'))
-        if not businesses:
-            raise CartAccessError('No such business.')
-
-        if len(businesses) == 1:
-            return CartContext(businesses[0], 'employee')
-
-        # Several to choose from: the caller must pick one before a catalog loads.
-        chosen = request.GET.get('business')
-        if chosen and chosen.isdigit():
-            picked = next((b for b in businesses if b.id == int(chosen)), None)
-            if picked:
-                return CartContext(picked, 'employee', businesses=businesses)
-
-        return CartContext(None, 'employee', businesses=businesses)
-
-    # --- Staff mode: an ordinary logged-in session. ---
-    if request.user.is_authenticated:
-        return CartContext(request.user, 'staff')
-
-    raise CartAccessError('Sign in, or open the cart with a valid customer code.')
-
+# ================ Quotation Cart =====================
 
 def cart_product_payload(business_user):
     """
@@ -588,6 +480,169 @@ def cart_product_payload(business_user):
     return list(Product.objects.filter(user=business_user).values(*fields))
 
 
+class CartError(ValueError):
+    """A cart/order could not be turned into a quotation. `str(err)` is user-safe."""
+
+
+def create_cart_draft_quotation(business_user, items, *, existing_customer=None,
+                                customer_fields=None, is_gst=True,
+                                allow_discount=True, created_by_customer=False,
+                                actor_label='staff', order_employee=None):
+    """
+    Server-authoritative core shared by the staff Quotation Cart and the mobile order
+    flow. The client only ever sends product ids, quantities and (for staff/employee)
+    per-line discounts — rate and GST% are ALWAYS re-read from the Product table here,
+    so a tampered payload cannot reprice a line. Saves a DRAFT quotation and returns
+    the created object plus the recomputed totals.
+
+    Customer is either `existing_customer` (a saved Customer, trusted over any echoed
+    fields) or, when None, built from `customer_fields` {name, phone, address, gst}.
+    Raises CartError(user-safe message) on any validation failure.
+    """
+    from django.db import transaction
+    from django.db.models import Max
+    from .models import Quotation
+
+    if not items:
+        raise CartError('Cart is empty')
+
+    # A GST quotation needs the customer's GSTIN, so a customer without one is silently
+    # downgraded to non-GST — same rule as quotation_create() / invoice_create().
+    if existing_customer is not None:
+        customer_name = existing_customer.customer_name
+        customer_phone = existing_customer.customer_phone or ''
+        customer_address = existing_customer.customer_address or ''
+        customer_gst = (existing_customer.customer_gst or '').strip().upper()
+    else:
+        fields = customer_fields or {}
+        customer_name = (fields.get('name') or '').strip()
+        if not customer_name:
+            raise CartError('Customer name is required')
+        customer_phone = (fields.get('phone') or '').strip()
+        customer_address = (fields.get('address') or '').strip()
+        customer_gst = (fields.get('gst') or '').strip().upper()
+        if customer_gst and len(customer_gst) != 15:
+            raise CartError('Customer GST must be 15 characters')
+
+    is_gst = bool(is_gst)
+    auto_downgraded_to_non_gst = is_gst and not customer_gst
+    if auto_downgraded_to_non_gst:
+        is_gst = False
+
+    quotation_data = {
+        'customer_name': customer_name,
+        'customer_address': customer_address,
+        'customer_phone': customer_phone,
+        'customer_gst': customer_gst,
+        'vehicle_number': '',
+        'igstcheck': False,
+        'items': [],
+    }
+
+    total_gross = total_discount = 0.0
+    total_without_gst = total_sgst = total_cgst = total_igst = total_with_gst = 0.0
+
+    for line in items:
+        try:
+            product = Product.objects.get(id=line.get('id'), user=business_user)
+        except (Product.DoesNotExist, ValueError, TypeError):
+            raise CartError('A product in your cart no longer exists. Please refresh.')
+
+        try:
+            qty = int(float(line.get('qty', 0)))
+        except (ValueError, TypeError):
+            qty = 0
+        if qty < 1:
+            raise CartError(f'Invalid quantity for {product.model_no}')
+
+        # Discount is only honoured for actors allowed to set one (staff/employee).
+        # Otherwise the product's own discount is used, so a forged payload from a
+        # customer cannot mark down the price.
+        line_discount = line.get('discount') if allow_discount else None
+
+        item_entry = build_quotation_item(
+            product, qty,
+            igstcheck=quotation_data['igstcheck'],
+            discount=line_discount,
+        )
+
+        gross = item_entry['invoice_rate_with_gst'] * qty
+        total_gross += gross
+        total_discount += gross - item_entry['invoice_amt_without_gst']
+
+        total_without_gst += item_entry['invoice_amt_without_gst']
+        total_sgst += item_entry['invoice_amt_sgst']
+        total_cgst += item_entry['invoice_amt_cgst']
+        total_igst += item_entry['invoice_amt_igst']
+        total_with_gst += item_entry['invoice_amt_with_gst']
+
+        quotation_data['items'].append(item_entry)
+
+    quotation_data['invoice_total_amt_without_gst'] = round(total_without_gst, 2)
+    quotation_data['invoice_total_amt_sgst'] = round(total_sgst, 2)
+    quotation_data['invoice_total_amt_cgst'] = round(total_cgst, 2)
+    quotation_data['invoice_total_amt_igst'] = round(total_igst, 2)
+    quotation_data['invoice_total_amt_with_gst'] = round(total_with_gst, 2)
+
+    today = datetime.date.today()
+
+    with transaction.atomic():
+        # select_for_update holds the row lock until commit so two concurrent
+        # checkouts cannot read the same Max() and claim the same number.
+        max_number = Quotation.objects.select_for_update().filter(
+            user=business_user, is_gst=is_gst
+        ).aggregate(Max('quotation_number'))['quotation_number__max']
+
+        customer = existing_customer
+        if customer is None:
+            customer, _ = Customer.objects.get_or_create(
+                user=business_user,
+                customer_name=customer_name.upper(),
+                defaults={
+                    'customer_address': customer_address,
+                    'customer_phone': customer_phone,
+                    'customer_gst': customer_gst,
+                },
+            )
+
+        new_quotation = Quotation(
+            user=business_user,
+            quotation_number=(max_number or 0) + 1,
+            quotation_date=today,
+            valid_until=today + datetime.timedelta(days=30),
+            quotation_customer=customer,
+            quotation_json=json.dumps(quotation_data),
+            is_gst=is_gst,
+            # Always DRAFT: the cart never touches inventory or books until a human
+            # at the business approves it.
+            status='DRAFT',
+            created_from_cart=True,
+            created_by_customer=created_by_customer,
+            order_employee=order_employee,
+            notes=f'Created from Quotation Cart ({actor_label})',
+        )
+        new_quotation.save()
+
+    return {
+        'quotation': new_quotation,
+        'quotation_data': quotation_data,
+        'customer': customer,
+        'is_gst': is_gst,
+        'gst_downgraded': auto_downgraded_to_non_gst,
+        'customer_name': customer_name,
+        'customer_phone': customer_phone,
+        'totals': {
+            'gross': round(total_gross, 2),
+            'discount': round(total_discount, 2),
+            'taxable': quotation_data['invoice_total_amt_without_gst'],
+            'cgst': quotation_data['invoice_total_amt_cgst'],
+            'sgst': quotation_data['invoice_total_amt_sgst'],
+            'igst': quotation_data['invoice_total_amt_igst'],
+            'grand_total': quotation_data['invoice_total_amt_with_gst'],
+        },
+    }
+
+
 def _escape_md(text):
     """Escape special characters for Telegram MarkdownV2 format."""
     if not text:
@@ -600,16 +655,6 @@ def _escape_md(text):
 
 # ================= Location Methods ===========================
 import math
-
-def distance_meters(lat1, lng1, lat2, lng2):
-    R = 6371000
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lng2 - lng1)
-
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 # ================= Purchases Log Utilities ====================================
 def get_change_type_change(change_type, change):

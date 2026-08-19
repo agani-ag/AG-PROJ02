@@ -2,16 +2,15 @@ from django.contrib import admin
 
 # Model imports
 from .models import (
-    Customer, Invoice, Product, UserProfile, 
-    BillingProfile, Inventory, InventoryLog, 
+    Customer, Invoice, Product, UserProfile,
+    Inventory, InventoryLog,
     BookLog, Book, PurchaseLog, VendorPurchase,
     ExpenseTracker, BankDetails,
     ProductCategory, Quotation, Asset
 )
 
-# User and Billing Profile
+# User Profile
 admin.site.register(UserProfile)
-admin.site.register(BillingProfile)
 
 # Core Models
 admin.site.register(Book)

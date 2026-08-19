@@ -33,7 +33,7 @@
 </div>
 
 <div class="sec"><h2 class="t">Actions</h2></div>
-<a href="/quotation/cart?u=emp&users_filter={{ uid }}" class="btn btn-acc" style="margin-bottom:12px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> New bill / order</a>
+<a href="{% url 'm_order' %}" class="btn btn-acc" style="margin-bottom:12px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> New order</a>
 <div class="qa">
     <a href="{% url 'm_employee_collections' %}"><span class="ico ic-green"><svg class="i"><use href="#ic-wallet"/></svg></span><span class="b">Collections</span></a>
     <a href="{% url 'm_employee_customers' %}"><span class="ico ic-blue"><svg class="i"><use href="#ic-people"/></svg></span><span class="b">Customers</span></a>
