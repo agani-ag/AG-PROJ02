@@ -22,5 +22,4 @@ urlpatterns = [
     path('', include('gstbillingapp.urls')),
     path('m/', include('gstbillingapp.m_urls')),
     path('mobile/v1/', include('gstbillingapp.mobile_urls_v1')),
-    path('', include('social_django.urls', namespace='social'))
 ]

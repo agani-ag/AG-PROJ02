@@ -78,8 +78,11 @@
             Accounts
           </a>
           <div class="dropdown-menu dropdown-menu-right" aria-labelledby="accountsDropdown">
-            <h6 class="dropdown-header">Purchases</h6>
+            <h6 class="dropdown-header">Users</h6>
             <a class="dropdown-item" href="{% url 'vendors_purchase' %}">Vendors</a>
+            <a class="dropdown-item" href="{% url 'employees' %}">Employees</a>
+            <div class="dropdown-divider"></div>
+            <h6 class="dropdown-header">Purchases</h6>
             <a class="dropdown-item" href="{% url 'purchases_logs' %}">Purchases Logs</a>
             <a class="dropdown-item" href="{% url 'purchases_logs_overdue' %}">Purchases Overdue</a>
             <div class="dropdown-divider"></div>
@@ -144,19 +147,11 @@
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" href="#" id="profileDropdown" role="button" data-toggle="dropdown"
             aria-haspopup="true" aria-expanded="false">Settings
-            <span class="badge badge-danger badge-pill position-absolute notification-count-badge" 
-                style="top: 5px; right: -5px; display: none; font-size: 0.65rem;">0</span>
           </a>
           <div class="dropdown-menu dropdown-menu-right" aria-labelledby="profileDropdown">
             <a class="dropdown-item" href="{% url 'user_profile' %}">Profile</a>
             <a class="dropdown-item" href="#" onclick="passSwitchkey()">Switch User</a>
             <a class="dropdown-item" href="{% url 'logout_view' %}">Logout</a>
-            <div class="dropdown-divider"></div>
-            <h6 class="dropdown-header">Features</h6>
-            <a class="dropdown-item" href="{% url 'employees' %}">Employees</a>
-            <a class="dropdown-item" href="{% url 'notifications_page' %}">Notifications
-              <span class="badge badge-danger badge-pill notification-count-badge">0</span>
-            </a>
           </div>
         </li>
 
@@ -175,146 +170,6 @@
   }
 </style>
 <script>
-  // WebSocket for real-time notifications
-  let notificationSocket = null;
-  let reconnectInterval = null;
-  
-  function connectNotificationWebSocket() {
-    // Close existing connection if any
-    if (notificationSocket) {
-      notificationSocket.close();
-    }
-    
-    // Determine WebSocket protocol
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/notifications/`;
-    
-    try {
-      notificationSocket = new WebSocket(wsUrl);
-      
-      notificationSocket.onopen = function(e) {
-        console.log('Notification WebSocket connected');
-        // Clear reconnect interval if connected
-        if (reconnectInterval) {
-          clearInterval(reconnectInterval);
-          reconnectInterval = null;
-        }
-      };
-      
-      notificationSocket.onmessage = function(e) {
-        const data = JSON.parse(e.data);
-        
-        if (data.type === 'unread_count') {
-          // Update badge with new count
-          updateNotificationBadge(data.count);
-        } else if (data.type === 'notification') {
-          // New notification received
-          updateNotificationBadge(null); // Will fetch current count
-          // Optional: Show toast notification
-          showToastNotification(data.notification);
-        }
-      };
-      
-      notificationSocket.onclose = function(e) {
-        console.log('Notification WebSocket disconnected');
-        // Attempt to reconnect after 5 seconds
-        if (!reconnectInterval) {
-          reconnectInterval = setInterval(function() {
-            console.log('Attempting to reconnect WebSocket...');
-            connectNotificationWebSocket();
-          }, 5000);
-        }
-      };
-      
-      notificationSocket.onerror = function(e) {
-        console.error('Notification WebSocket error:', e);
-      };
-      
-    } catch (error) {
-      console.error('Failed to create WebSocket:', error);
-      // Fallback to polling if WebSocket fails
-      startPollingFallback();
-    }
-  }
-  
-  function updateNotificationBadge(count) {
-    const badges = document.querySelectorAll('.notification-count-badge');
-
-    function applyCount(value) {
-      badges.forEach(badge => {
-        if (value > 0) {
-          badge.textContent = value;
-          badge.style.display = 'inline-block';
-        } else {
-          badge.style.display = 'none';
-        }
-      });
-    }
-
-    if (count === null) {
-      fetch('/notifications/api/count/')
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            applyCount(data.unread_count);
-          } else {
-            applyCount(0);
-          }
-        })
-        .catch(error => {
-          console.error('Error fetching notification count:', error);
-          applyCount(0);
-        });
-    } else {
-      applyCount(count);
-    }
-  }
-  
-  function showToastNotification(notification) {
-    // Optional: Show browser notification or toast
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(notification.title, {
-        body: notification.message,
-        icon: '/static/gstbillingapp/images/logo.png'
-      });
-    }
-  }
-  
-  function startPollingFallback() {
-    // Fallback to polling if WebSocket fails
-    console.log('Using polling fallback for notifications');
-    setInterval(function() {
-      fetch('/notifications/api/count/')
-        .then(response => response.json())
-        .then(data => {
-          if (data.success && data.unread_count > 0) {
-            updateNotificationBadge(data.unread_count);
-          }
-        })
-        .catch(error => console.error('Error in polling fallback:', error));
-    }, 30000); // Poll every 30 seconds as fallback
-  }
-
-  // Connect WebSocket when page loads
-  document.addEventListener('DOMContentLoaded', function() {
-    connectNotificationWebSocket();
-    
-    // Request notification permission (optional)
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  });
-  
-  // Close WebSocket when page unloads
-  window.addEventListener('beforeunload', function() {
-    if (notificationSocket) {
-      notificationSocket.close();
-    }
-    if (reconnectInterval) {
-      clearInterval(reconnectInterval);
-    }
-  });
-
   function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {

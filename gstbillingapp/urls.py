@@ -5,7 +5,7 @@ from django.urls import path, include
 from .views import (
     asset, auth, bank_details, books, customers,
     expense_tracker, features, graphs, invoices,
-    inventory, notifications, products, profile,
+    inventory, products, profile,
     purchases, quotation, reports, vendor_purchase,
     views, insights, employee,
 )
@@ -191,12 +191,4 @@ urlpatterns = [
     path('graphs/expense-tracker', graphs.expense_tracker_graph, name='expense_tracker_graph'),
     path('graphs/customer-location-map', graphs.customer_location_map, name='customer_location_map'),
     
-    # Notification URLs
-    path('notifications/', notifications.notifications_page, name='notifications_page'),
-    path('notifications/api/', notifications.notifications_api, name='notifications_api'),
-    path('notifications/api/count/', notifications.notification_count_api, name='notification_count_api'),
-    path('notifications/<int:notification_id>/mark-read/', notifications.notification_mark_read, name='notification_mark_read'),
-    path('notifications/mark-all-read/', notifications.notification_mark_all_read, name='notification_mark_all_read'),
-    path('notifications/<int:notification_id>/delete/', notifications.notification_delete, name='notification_delete'),
-    path('notifications/delete-all-read/', notifications.notification_delete_all_read, name='notification_delete_all_read'),
 ]

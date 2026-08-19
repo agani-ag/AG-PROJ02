@@ -5,7 +5,7 @@ from .models import (
     Customer, Invoice, Product, UserProfile, 
     BillingProfile, Inventory, InventoryLog, 
     BookLog, Book, PurchaseLog, VendorPurchase,
-    ExpenseTracker, BankDetails, Notification,
+    ExpenseTracker, BankDetails,
     ProductCategory, Quotation, Asset
 )
 
@@ -93,12 +93,3 @@ class QuotationAdmin(admin.ModelAdmin):
         self.message_user(request, f'{updated} order(s) marked as Delivered.')
     mark_as_delivered.short_description = "Mark selected orders as Delivered"
 
-# Notification System
-@admin.register(Notification)
-class NotificationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'notification_type', 'title', 'is_read', 'is_deleted', 'created_at')
-    list_filter = ('notification_type', 'is_read', 'is_deleted', 'created_at')
-    search_fields = ('title', 'message', 'user__username')
-    readonly_fields = ('created_at', 'read_at')
-    date_hierarchy = 'created_at'
-    ordering = ('-created_at',)

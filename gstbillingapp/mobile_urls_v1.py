@@ -15,7 +15,6 @@ urlpatterns = [
     path('customer/profile', customer.customer_profile, name='v1customerprofile'),
     path('customer/update-location', customer.customer_update_location, name='v1customerupdatelocation'),
     path('customer/invoices', customer.customer_invoices, name='v1customerinvoices'),
-    path('customer/notifications', customer.customer_notifications, name='v1customernotifications'),
     path('customer/invoice_viewer/<int:invoice_id>', customer.customer_invoice_viewer, name='v1customerinvoiceviewer'),
     
     # Customer Ordering URLs
@@ -36,7 +35,6 @@ urlpatterns = [
     path('customers', customer.customers, name='v1customers'),
     path('collection-calendar', customer.collection_calendar, name='v1collectioncalendar'),
     path('purchaselogs', customer.purchase_logs, name='v1purchaselogs'),
-    path('notifications', customer.notifications, name='v1notifications'),
     path('expensestracker', customer.expenses_tracker, name='v1expensestracker'),
     path('purchaselogs/overdue', customer.purchase_logs_overdue, name='v1purchaseoverduelogs'),
     
@@ -51,8 +49,6 @@ urlpatterns = [
     # API URLs
     path('customers/api', customer.customersapi, name='v1customersapi'),
     path('customer/api/books/add', customer.customers_book_add_api, name='v1customersbookaddapi'),
-    path('api/notifications/count', customer.notifications_count_api, name='v1notificationscountapi'),
     path('product/api/add-stock', customer.product_inventory_stock_add, name='v1productinventorystockaddapi'),
-    path('api/notifications/mark-read', customer.notification_mark_read_api, name='v1notificationsmarkreadapi'),
     path('customer/api/reset-password', customer.customers_reset_password_api, name='v1customersresetpasswordapi'),
 ]

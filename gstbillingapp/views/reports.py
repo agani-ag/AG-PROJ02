@@ -4,11 +4,6 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum, Count, Avg, F, Q, Case, When, FloatField
 from django.db.models.functions import ExtractMonth, ExtractYear
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from datetime import date, datetime, timedelta
 import json
 import calendar

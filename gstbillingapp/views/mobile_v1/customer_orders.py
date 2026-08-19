@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 
 # Models
 from ...models import (
-    Customer, Quotation, Product, UserProfile, Notification, ProductCategory
+    Customer, Quotation, Product, UserProfile, ProductCategory
 )
 
 # Python imports
@@ -534,41 +534,6 @@ def customer_update_order(request, quotation_id):
             quotation.updated_at = timezone.now()
             quotation.save()
             
-            # Create notification for business owner
-            notification = Notification(
-                user=business_user,
-                notification_type='ORDER',
-                title=f'Order Updated by {customer.customer_name}',
-                message=f'Order #{quotation.quotation_number} updated to ₹{total_amount_with_gst:.2f}',
-                link_url=f'/quotation/{quotation.id}/',
-                link_text='View Order'
-            )
-            notification.save()
-            
-            # Send WebSocket notification
-            try:
-                from asgiref.sync import async_to_sync
-                from channels.layers import get_channel_layer
-                
-                channel_layer = get_channel_layer()
-                if channel_layer:
-                    async_to_sync(channel_layer.group_send)(
-                        f"notifications_user_{business_user.id}",
-                        {
-                            'type': 'new_notification',
-                            'notification': {
-                                'id': notification.id,
-                                'type': notification.notification_type,
-                                'title': notification.title,
-                                'message': notification.message,
-                                'link_url': notification.link_url,
-                                'link_text': notification.link_text,
-                                'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                            }
-                        }
-                    )
-            except Exception as e:
-                print(f"WebSocket notification failed: {e}")
         
         return JsonResponse({
             'success': True,
@@ -663,18 +628,6 @@ def customer_order_received(request, quotation_id):
         quotation.status = 'CONVERTED'
         quotation.save()
         
-        # Create notification for business owner
-        try:
-            Notification.objects.create(
-                user=quotation.user,
-                notification_type='ORDER',
-                title=f'Order #{quotation.quotation_number} Received',
-                message=f'{customer.customer_name} has confirmed receipt of Order #{quotation.quotation_number}',
-                reference_id=quotation.id,
-                reference_type='quotation'
-            )
-        except:
-            pass  # Notification is optional
         
         return JsonResponse({
             'success': True,
@@ -788,41 +741,6 @@ def customer_create_order(request):
             )
             new_quotation.save()
             
-            # Create notification for business owner
-            notification = Notification(
-                user=business_user,
-                notification_type='ORDER',
-                title=f'New Order from {customer.customer_name}',
-                message=f'Order #{new_quotation.quotation_number} placed for â‚¹{total_amount_with_gst:.2f}',
-                link_url=f'/quotation/{new_quotation.id}/',
-                link_text='View Order'
-            )
-            notification.save()
-            
-            # Send WebSocket notification
-            try:
-                from asgiref.sync import async_to_sync
-                from channels.layers import get_channel_layer
-                
-                channel_layer = get_channel_layer()
-                if channel_layer:
-                    async_to_sync(channel_layer.group_send)(
-                        f"notifications_user_{business_user.id}",
-                        {
-                            'type': 'new_notification',
-                            'notification': {
-                                'id': notification.id,
-                                'type': notification.notification_type,
-                                'title': notification.title,
-                                'message': notification.message,
-                                'link_url': notification.link_url,
-                                'link_text': notification.link_text,
-                                'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                            }
-                        }
-                    )
-            except Exception as e:
-                print(f"WebSocket notification failed: {e}")
         
         return JsonResponse({
             'success': True,
