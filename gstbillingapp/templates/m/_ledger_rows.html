@@ -1,0 +1,10 @@
+{% load money %}
+{% for l in logs %}
+<div class="row"{% if not l.is_active %} style="opacity:.7"{% endif %}>
+    <span class="lbl" style="display:flex;gap:11px;align-items:center">
+        <span class="ico {% if l.change_type == 0 %}ic-green{% elif l.change_type == 1 %}ic-red{% elif l.change_type == 2 %}ic-amber{% else %}ic-blue{% endif %}"><svg class="i"><use href="#{% if l.change_type == 0 %}ic-check{% elif l.change_type == 1 %}ic-receipt{% elif l.change_type == 2 %}ic-reply{% else %}ic-box{% endif %}"/></svg></span>
+        <span style="min-width:0"><span class="b">{{ l.get_change_type_display }}</span><div class="sub">{{ l.date|date:"d M Y" }}{% if l.description %} · {{ l.description }}{% endif %}{% if not l.is_active %} · <span style="color:var(--amber);font-weight:700">Pending approval</span>{% endif %}</div></span>
+    </span>
+    <span class="b tabnum" style="color:{% if l.change_type == 0 %}var(--green){% elif l.change_type == 1 %}var(--red){% elif l.change_type == 2 %}var(--amber){% else %}var(--blue){% endif %};white-space:nowrap">{% if l.change < 0 %}&minus;{% else %}+{% endif %}&#8377; {{ l.change|inr|cut:"-" }}</span>
+</div>
+{% endfor %}

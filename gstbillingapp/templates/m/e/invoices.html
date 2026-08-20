@@ -1,7 +1,7 @@
 {% extends "m/base.html" %}
+{% load money %}
 {% block title %}Invoices{% endblock %}
-{% block heading %}{% if mine %}My Sales{% else %}Invoices{% endif %}{% endblock %}
-{% block subhead %}{% if rows %}<div class="sub" id="inv-count">{{ rows|length }} invoice{{ rows|length|pluralize }}</div>{% endif %}{% endblock %}
+{% block heading %}{% if mine %}My Invoices{% else %}Invoices{% endif %}{% endblock %}
 {% block includecss %}
 .seg{display:flex;gap:6px;background:var(--card);border-radius:14px;padding:4px;box-shadow:var(--sh);margin-bottom:12px}
 .seg a{flex:1;text-align:center;padding:9px 0;border-radius:11px;font-size:13.5px;font-weight:700;color:var(--soft)}
@@ -9,35 +9,24 @@
 {% endblock %}
 {% block content %}
 
+{% if has_mine %}
 <div class="seg">
     <a href="{% url 'm_employee_invoices' %}" class="{% if not mine %}on{% endif %}">All invoices</a>
-    <a href="{% url 'm_employee_invoices' %}?mine=1" class="{% if mine %}on{% endif %}">My sales</a>
-</div>
-
-{% if mine %}
-<div class="panel between" style="margin-bottom:12px">
-    <span class="muted">Credited to me</span>
-    <span class="kpi" style="font-size:20px;color:var(--green)">&#8377; {{ my_total|floatformat:2 }}</span>
+    <a href="{% url 'm_employee_invoices' %}?mine=1" class="{% if mine %}on{% endif %}">Related to me</a>
 </div>
 {% endif %}
 
-{% if rows %}
-{% include "m/_searchbar.html" with target="#inv-list" empty="#inv-empty" count="#inv-count" noun="invoice" noun_pl="invoices" placeholder="Search number or customer…" %}
-<div class="list" id="inv-list">
-    {% for r in rows %}
-    <div class="row" data-s="{{ r.number }} {{ r.customer|lower }} {{ r.date|date:'d M Y'|lower }}">
-        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
-            <span class="ico ic-blue"><svg class="i"><use href="#ic-receipt"/></svg></span>
-            <span style="min-width:0"><span class="b">{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %} · {{ r.customer }}</span><div class="sub">{{ r.date|date:"d M Y" }}{% if r.mine and not mine %} · <span style="color:var(--green);font-weight:700">Mine</span>{% endif %}</div></span>
-        </span>
-        <span class="b tabnum" style="white-space:nowrap">&#8377; {{ r.amount|floatformat:2 }}</span>
+<div data-mpaged="{% url 'm_employee_invoices_data' %}{% if mine %}?mine=1{% endif %}" data-mpaged-list="#inv-list" data-mpaged-offset="{{ rows|length }}">
+    <div style="position:relative;margin-bottom:12px">
+        <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+        <input class="field" data-mpaged-search placeholder="Search number or customer…" autocomplete="off" inputmode="search" style="margin:0;padding-left:42px">
     </div>
-    {% endfor %}
+    <div class="list" id="inv-list">
+        {% include "m/_invoice_rows.html" with rows=rows link_name="m_employee_invoice" show_customer=True show_mine=show_mine %}
+    </div>
+    <div class="empty" data-mpaged-empty {% if rows %}style="display:none"{% endif %}><svg class="i"><use href="#ic-receipt"/></svg><div>{% if mine %}No invoices related to you.{% else %}No invoices found.{% endif %}</div></div>
+    <button class="btn" data-mpaged-more style="{% if not has_more %}display:none;{% endif %}margin-bottom:14px">Load more</button>
 </div>
-<div class="empty" id="inv-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
-{% else %}
-<div class="empty"><svg class="i"><use href="#ic-receipt"/></svg><div>{% if mine %}No invoices credited to you yet.{% else %}No invoices yet.{% endif %}</div></div>
-{% endif %}
 
 {% endblock %}
 {% block nav %}{% include "m/nav_employee.html" with active="invoices" %}{% endblock %}

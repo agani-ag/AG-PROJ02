@@ -1,4 +1,5 @@
 {% extends "m/base.html" %}
+{% load money %}
 {% block title %}Home{% endblock %}
 
 {% block chrome %}
@@ -7,7 +8,7 @@
     <h1 class="nm">{{ profile.business_brand|default:profile.business_title|default:"SyncUp" }}</h1>
     <div class="due">
         <div class="l">Total receivables · {{ due_count }} customer{{ due_count|pluralize }}</div>
-        <div class="v">&#8377; {{ due_total|floatformat:2 }}</div>
+        <div class="v">&#8377; {{ due_total|inr }}</div>
     </div>
 </div>
 {% endblock %}
@@ -21,25 +22,95 @@
     <a href="{% url 'm_employee_invoices' %}" class="stat c-blue">
         <div class="chip"><svg class="i"><use href="#ic-receipt"/></svg></div>
         <p class="l">Sales</p>
-        <div class="v">&#8377; {{ sales|floatformat:0 }}</div>
+        <div class="v">&#8377; {{ sales|inr0 }}</div>
         <p class="c">{{ inv_count }} invoice{{ inv_count|pluralize }}</p>
     </a>
     <a href="{% url 'm_employee_collections' %}" class="stat c-green">
         <div class="chip"><svg class="i"><use href="#ic-check"/></svg></div>
         <p class="l">Collected</p>
-        <div class="v">&#8377; {{ coll|floatformat:0 }}</div>
+        <div class="v">&#8377; {{ coll|inr0 }}</div>
         <p class="c">today</p>
     </a>
 </div>
 
-<div class="sec"><h2 class="t">Actions</h2></div>
-<a href="{% url 'm_order' %}" class="btn btn-acc" style="margin-bottom:12px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> New order</a>
-<div class="qa">
-    <a href="{% url 'm_employee_collections' %}"><span class="ico ic-green"><svg class="i"><use href="#ic-wallet"/></svg></span><span class="b">Collections</span></a>
-    <a href="{% url 'm_employee_customers' %}"><span class="ico ic-blue"><svg class="i"><use href="#ic-people"/></svg></span><span class="b">Customers</span></a>
-    <a href="{% url 'm_employee_invoices' %}"><span class="ico ic-amber"><svg class="i"><use href="#ic-receipt"/></svg></span><span class="b">Invoices</span></a>
-    <a href="{% url 'm_employee_orders' %}"><span class="ico ic-grey"><svg class="i"><use href="#ic-cart"/></svg></span><span class="b">Orders</span></a>
+<div class="sec"><h2 class="t">Today's tasks</h2><p class="s">What needs your attention</p></div>
+<div class="list">
+    <a href="{% url 'm_employee_collections' %}" class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-green"><svg class="i"><use href="#ic-wallet"/></svg></span>
+            <span style="min-width:0"><span class="b">Collections due today</span><div class="sub">{% if tasks.collect_today %}&#8377; {{ tasks.collect_today_amt }} to collect{% else %}Nothing scheduled today{% endif %}</div></span>
+        </span>
+        <span class="badge {% if tasks.collect_today %}b-green{% else %}b-grey{% endif %}">{{ tasks.collect_today }}</span>
+    </a>
+    <a href="{% url 'm_employee_customers' %}" class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-red"><svg class="i"><use href="#ic-receipt"/></svg></span>
+            <span style="min-width:0"><span class="b">Customers with dues</span><div class="sub">&#8377; {{ tasks.dues_amt }} outstanding</div></span>
+        </span>
+        <span class="badge {% if tasks.dues_count %}b-red{% else %}b-grey{% endif %}">{{ tasks.dues_count }}</span>
+    </a>
+    <a href="{% url 'm_employee_customers' %}" class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-amber"><svg class="i"><use href="#ic-clock"/></svg></span>
+            <span style="min-width:0"><span class="b">Over credit limit</span><div class="sub">Accounts needing attention</div></span>
+        </span>
+        <span class="badge {% if tasks.over_limit %}b-amber{% else %}b-grey{% endif %}">{{ tasks.over_limit }}</span>
+    </a>
 </div>
+
+{% if is_admin %}
+{% if pending_count %}
+<a href="{% url 'm_employee_approvals' %}" class="btn btn-acc" style="margin:14px 0 4px;background:linear-gradient(135deg,var(--amber),#ffb648);box-shadow:0 6px 16px rgba(255,149,0,.28)">
+    <svg class="i" style="stroke:#fff"><use href="#ic-clock"/></svg> {{ pending_count }} payment{{ pending_count|pluralize }} awaiting your approval
+</a>
+{% endif %}
+
+<div class="sec"><h2 class="t">Overall Summary</h2><p class="s">All-time totals</p></div>
+<div class="panel" style="padding:6px 16px">
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-blue"><svg class="i"><use href="#ic-receipt"/></svg></span><span class="nm">Total invoices</span></span>
+        <span class="b tabnum">{{ financial.invoices }}</span>
+    </div>
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-red"><svg class="i"><use href="#ic-cart"/></svg></span><span class="nm">Customer purchases</span></span>
+        <span class="b tabnum c-red">&#8377; {{ financial.purchases }}</span>
+    </div>
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-green"><svg class="i"><use href="#ic-check"/></svg></span><span class="nm">Payments received</span></span>
+        <span class="b tabnum c-green">&#8377; {{ financial.payments }}</span>
+    </div>
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-amber"><svg class="i"><use href="#ic-reply"/></svg></span><span class="nm">Returns</span></span>
+        <span class="b tabnum c-amber">&#8377; {{ financial.returns }}</span>
+    </div>
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-blue"><svg class="i"><use href="#ic-box"/></svg></span><span class="nm">Others</span></span>
+        <span class="b tabnum c-blue">&#8377; {{ financial.others }}</span>
+    </div>
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-red"><svg class="i"><use href="#ic-wallet"/></svg></span><span class="nm">Outstanding balance</span></span>
+        <span class="right">
+            <span class="badge {% if financial.balance_receivable %}b-red{% else %}b-green{% endif %}">{% if financial.balance_receivable %}Receivable{% else %}Advance{% endif %}</span>
+            <div class="b tabnum">&#8377; {{ financial.balance }}</div>
+        </span>
+    </div>
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-grey"><svg class="i"><use href="#ic-chart"/></svg></span><span class="nm">Total expenses</span></span>
+        <span class="b tabnum">&#8377; {{ financial.expenses }} <span class="badge b-grey">{{ financial.expense_count }}</span></span>
+    </div>
+</div>
+
+<div class="sec"><h2 class="t">Payment Collection</h2><p class="s">Completion rates</p></div>
+<div class="panel">
+    {% for c in collection %}
+    <div class="prog">
+        <div class="top"><span>{{ c.label }}</span><span class="b">{{ c.pct }}%</span></div>
+        <div class="bar"><span class="{{ c.fill }}" style="width:{{ c.pct }}%"></span></div>
+        <div class="vals"><span>&#8377; {{ c.paid }}</span><span class="c-red">&#8377; {{ c.billed }}</span></div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 
 {% endblock %}
 {% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

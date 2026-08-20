@@ -1,40 +1,192 @@
 {% extends "base.html" %}
-
-
 {% load static %}
-<!doctype html>
 
-{% block title %}
-GSTSync
-{% endblock %}
+{% block title %}GSTSync{% endblock %}
 
 {% block metatags %}
 <meta name="description" content="Create GST invoice/bills for free. Automatic inventory Management and Books management.">
 <meta name="google-site-verification" content="MJbX1a9Fs1MIE1tnpRnp4At9OzVMxoumTAvOWUlG8-w" />
 <link rel="canonical" href="https://billgst.in/" />
-
 <meta property="og:title" content="BillGST - Simplest GST invoicing | Inventory Management | Book keeping" />
 <meta property="og:url" content="https://billgst.in" />
-<meta property="og:image" content="https://billgst.in{% static 'gstbillingapp/images/screenshot_interface.png' %}" />
+{% endblock %}
+
+{% block includecss %}
+<style>
+	.home-hero{
+		position:relative;overflow:hidden;border-radius:20px;color:#fff;
+		background:linear-gradient(135deg,#0a63c9 0%,#0d6efd 55%,#3d8bfd 100%);
+		padding:38px 34px;margin:6px 0 26px;
+		box-shadow:0 14px 34px rgba(13,110,253,.28);
+	}
+	.home-hero::after{
+		content:"";position:absolute;right:-70px;top:-70px;width:280px;height:280px;border-radius:50%;
+		background:rgba(255,255,255,.10);
+	}
+	.home-hero::before{
+		content:"";position:absolute;right:60px;bottom:-90px;width:200px;height:200px;border-radius:50%;
+		background:rgba(255,255,255,.07);
+	}
+	.home-hero .eyebrow{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;opacity:.85;margin:0}
+	.home-hero h1{font-size:34px;font-weight:800;letter-spacing:-.5px;margin:6px 0 4px}
+	.home-hero p.tag{font-size:16px;opacity:.92;margin:0 0 22px;max-width:560px}
+	.home-hero .cta{display:flex;flex-wrap:wrap;gap:12px}
+	.home-hero .btn-cta{
+		display:inline-flex;align-items:center;gap:9px;font-weight:700;border:0;border-radius:12px;
+		padding:12px 20px;font-size:15px;text-decoration:none;transition:transform .12s ease, box-shadow .15s ease;
+	}
+	.home-hero .btn-cta:active{transform:translateY(1px)}
+	.home-hero .btn-white{background:#fff;color:#0d6efd;box-shadow:0 6px 16px rgba(0,0,0,.15)}
+	.home-hero .btn-white:hover{color:#0a58ca}
+	.home-hero .btn-ghost{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.35)}
+	.home-hero .btn-ghost:hover{background:rgba(255,255,255,.26);color:#fff}
+
+	.sec-title{font-size:15px;font-weight:800;letter-spacing:.02em;color:#5b6472;text-transform:uppercase;margin:26px 2px 14px}
+
+	.tile{
+		display:flex;align-items:flex-start;gap:14px;height:100%;
+		background:#fff;border:1px solid #eceef2;border-radius:16px;padding:18px;
+		text-decoration:none;color:inherit;transition:transform .14s ease, box-shadow .18s ease, border-color .18s ease;
+	}
+	.tile:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(20,22,30,.10);border-color:#dfe3ea;text-decoration:none;color:inherit}
+	.tile .ic{
+		flex:none;width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+		font-size:20px;color:#fff;
+	}
+	.tile .nm{font-weight:700;font-size:15.5px;margin:2px 0 2px;color:#1f2733}
+	.tile .ds{font-size:12.5px;color:#7a8494;margin:0;line-height:1.35}
+	.bg-blue{background:linear-gradient(135deg,#0d6efd,#3d8bfd)}
+	.bg-indigo{background:linear-gradient(135deg,#5b53d6,#7b73f0)}
+	.bg-amber{background:linear-gradient(135deg,#f0900f,#ffb648)}
+	.bg-green{background:linear-gradient(135deg,#1a9f4b,#33c46a)}
+	.bg-teal{background:linear-gradient(135deg,#0a9aa6,#1fc0cf)}
+	.bg-orange{background:linear-gradient(135deg,#e2632a,#ff8a4c)}
+	.bg-purple{background:linear-gradient(135deg,#8a3ffc,#b07bff)}
+	.bg-red{background:linear-gradient(135deg,#e11d48,#fb5b78)}
+	.bg-slate{background:linear-gradient(135deg,#425466,#64778c)}
+	.bg-pink{background:linear-gradient(135deg,#d6337f,#f56ba9)}
+
+	.pill-links{display:flex;flex-wrap:wrap;gap:10px}
+	.pill-links a{
+		display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e6e9ef;border-radius:999px;
+		padding:9px 16px;font-weight:600;font-size:13.5px;color:#334155;text-decoration:none;transition:.14s;
+	}
+	.pill-links a:hover{border-color:#0d6efd;color:#0d6efd;text-decoration:none}
+</style>
 {% endblock %}
 
 {% block content %}
-
-<div class="jumbotron">
-	<h2 class="display-6"><b>GST Sync</b></h2>
-	<h4 class="display-8">Smart Invoicing. Easy GST. Better ERP.</h4>
-	<a class="btn btn-primary btn-lg" href="{% url 'invoice_create' %}" role="button"><i class="fas fa-sign-in"></i></a>
-	<hr class="my-4">
-	<div class="col d-flex align-items-stretch">
-		<div class="card text-white bg-primary mb-3">
-			<div class="card-body">
-			<img class="img-fluid" src="{% static 'gstbillingapp/images/screenshot_interface.png' %}" alt="Simple Interface">
-			</div>
-		</div>
+<div class="home-hero">
+	<p class="eyebrow">GST Sync</p>
+	<h1 id="greeting">Welcome{% if user.userprofile.business_brand or user.userprofile.business_title %}, {{ user.userprofile.business_brand|default:user.userprofile.business_title }}{% endif %}</h1>
+	<p class="tag">Smart Invoicing &middot; Easy GST &middot; Better ERP. Everything to run your business in one place.</p>
+	<div class="cta">
+		<a class="btn-cta btn-white" href="{% url 'invoice_create' %}"><i class="fas fa-file-invoice"></i> New Invoice</a>
+		<a class="btn-cta btn-ghost" href="{% url 'quotation_create' %}"><i class="fas fa-file-signature"></i> New Quotation</a>
+		<a class="btn-cta btn-ghost" href="{% url 'quotation_cart' %}"><i class="fas fa-shopping-cart"></i> Quotation Cart</a>
 	</div>
 </div>
 
+<div class="sec-title">Billing &amp; Catalog</div>
+<div class="row">
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'invoice_create' %}">
+			<span class="ic bg-blue"><i class="fas fa-file-invoice"></i></span>
+			<span><span class="nm">Create Invoice</span><p class="ds">Raise a GST / non-GST bill</p></span>
+		</a>
+	</div>
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'quotation_create' %}">
+			<span class="ic bg-indigo"><i class="fas fa-file-signature"></i></span>
+			<span><span class="nm">New Quotation</span><p class="ds">Draft an estimate for a customer</p></span>
+		</a>
+	</div>
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'products' %}">
+			<span class="ic bg-green"><i class="fas fa-box"></i></span>
+			<span><span class="nm">Products</span><p class="ds">Manage your product catalog</p></span>
+		</a>
+	</div>
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'inventory' %}">
+			<span class="ic bg-orange"><i class="fas fa-warehouse"></i></span>
+			<span><span class="nm">Inventory</span><p class="ds">Track stock &amp; movements</p></span>
+		</a>
+	</div>
+</div>
+
+<div class="sec-title">People &amp; Accounts</div>
+<div class="row">
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'customers' %}">
+			<span class="ic bg-teal"><i class="fas fa-users"></i></span>
+			<span><span class="nm">Customers</span><p class="ds">Ledgers, dues &amp; contacts</p></span>
+		</a>
+	</div>
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'employees' %}">
+			<span class="ic bg-purple"><i class="fas fa-user-tie"></i></span>
+			<span><span class="nm">Employees</span><p class="ds">Field-staff &amp; mobile access</p></span>
+		</a>
+	</div>
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'vendors_purchase' %}">
+			<span class="ic bg-slate"><i class="fas fa-truck"></i></span>
+			<span><span class="nm">Vendors &amp; Purchases</span><p class="ds">Suppliers and purchase logs</p></span>
+		</a>
+	</div>
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'expense_tracker' %}">
+			<span class="ic bg-pink"><i class="fas fa-receipt"></i></span>
+			<span><span class="nm">Expenses</span><p class="ds">Record &amp; track spending</p></span>
+		</a>
+	</div>
+</div>
+
+<div class="sec-title">Insights</div>
+<div class="row">
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'bi_dashboard' %}">
+			<span class="ic bg-red"><i class="fas fa-chart-line"></i></span>
+			<span><span class="nm">BI Dashboard</span><p class="ds">Sales &amp; performance at a glance</p></span>
+		</a>
+	</div>
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'ar_aging_report' %}">
+			<span class="ic bg-amber"><i class="fas fa-hourglass-half"></i></span>
+			<span><span class="nm">AR Aging</span><p class="ds">Who owes you, and how long</p></span>
+		</a>
+	</div>
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'customer_analysis' %}">
+			<span class="ic bg-blue"><i class="fas fa-chart-pie"></i></span>
+			<span><span class="nm">Customer Analysis</span><p class="ds">Understand your customers</p></span>
+		</a>
+	</div>
+	<div class="col-6 col-md-4 col-lg-3 mb-3">
+		<a class="tile" href="{% url 'user_profile' %}">
+			<span class="ic bg-slate"><i class="fas fa-cog"></i></span>
+			<span><span class="nm">Business Profile</span><p class="ds">Settings, bank &amp; branding</p></span>
+		</a>
+	</div>
+</div>
+
+<div class="sec-title">Jump to</div>
+<div class="pill-links mb-4">
+	<a href="{% url 'invoices' %}"><i class="fas fa-file-invoice"></i> Invoices</a>
+	<a href="{% url 'quotations' %}"><i class="fas fa-file-alt"></i> Quotations</a>
+	<a href="{% url 'books' %}"><i class="fas fa-book"></i> Books</a>
+	<a href="{% url 'purchases_logs_overdue' %}"><i class="fas fa-exclamation-triangle"></i> Overdue Purchases</a>
+	<a href="{% url 'bank_details' %}"><i class="fas fa-university"></i> Bank Details</a>
+	<a href="{% url 'assets' %}"><i class="fas fa-boxes"></i> Assets</a>
+</div>
+
+<script>
+	(function(){
+		var h = new Date().getHours();
+		var g = h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
+		var el = document.getElementById('greeting');
+		if (el) el.textContent = el.textContent.replace('Welcome', g);
+	})();
+</script>
 {% endblock %}
-
-
-

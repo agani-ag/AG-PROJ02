@@ -13,6 +13,7 @@
 		</div>
 		<form method="POST">
 			{% csrf_token %}
+			<input type="hidden" name="next" value="{{ next }}">
 			<table class="table">
 				<tbody class="two-col-form">
 					<tr>

@@ -1,49 +1,81 @@
 {% extends "m/base.html" %}
+{% load money %}
 {% block title %}Home{% endblock %}
 
 {% block chrome %}
-<div class="hero">
+<div class="hero" style="padding-bottom:20px">
     <p class="hi" id="greeting">Welcome</p>
     <h1 class="nm">{{ primary.customer_name }}</h1>
-    <div class="due">
-        <div class="l">{% if multi %}Total due — all shops{% else %}Amount due{% endif %}</div>
-        <div class="v">{% if group_total %}&#8377; {{ group_total|floatformat:2 }}{% else %}No dues 🎉{% endif %}</div>
-    </div>
 </div>
 {% endblock %}
 
 {% block content %}
 
-<div class="sec"><h2 class="t">This month</h2><p class="s">{% now "F Y" %}</p></div>
-<div class="stats">
-    <a href="{% url 'm_customer_books' %}" class="stat c-red">
-        <div class="chip"><svg class="i"><use href="#ic-receipt"/></svg></div>
-        <p class="l">Purchased</p>
-        <div class="v">&#8377; {{ m_purchased|floatformat:0 }}</div>
-        <p class="c">{{ m_pcount }} transaction{{ m_pcount|pluralize }}</p>
-    </a>
-    <a href="{% url 'm_customer_books' %}" class="stat c-green">
-        <div class="chip"><svg class="i"><use href="#ic-check"/></svg></div>
-        <p class="l">Paid</p>
-        <div class="v">&#8377; {{ m_paid|floatformat:0 }}</div>
-        <p class="c">{{ m_paycount }} payment{{ m_paycount|pluralize }}</p>
-    </a>
+<div class="sec"><h2 class="t">Balance Overview</h2></div>
+<div class="panel">
+    <div class="between">
+        <span class="lbl" style="display:flex;align-items:center;gap:9px"><span class="ico ic-red"><svg class="i"><use href="#ic-wallet"/></svg></span><span class="b">Total outstanding</span></span>
+        <span class="badge b-grey">{{ balance_overview.pct }}%</span>
+    </div>
+    <div class="kpi" style="color:var(--red);margin:8px 0 10px">&#8377; {{ balance_overview.outstanding }}</div>
+    <div class="bar"><span class="fill-red" style="width:{{ balance_overview.pct }}%"></span></div>
+    <div class="vals" style="display:flex;justify-content:space-between;margin-top:7px;font-size:12px;color:var(--soft)">
+        <span>Paid: &#8377; {{ balance_overview.paid }}</span><span>Total: &#8377; {{ balance_overview.billed }}</span>
+    </div>
 </div>
 
-{% if purchased %}
-<div class="sec"><h2 class="t">Payment progress</h2><p class="s">All time</p></div>
+<div class="sec"><h2 class="t">Payment Progress</h2><p class="s">Track your payment completion</p></div>
 <div class="panel">
+    {% for c in payment_progress %}
     <div class="prog">
-        <div class="top"><span>Overall</span><span class="b">{{ progress }}%</span></div>
-        <div class="bar"><span class="fill-green" style="width:{{ progress }}%"></span></div>
-        <div class="vals"><span>Paid &#8377; {{ paid|floatformat:0 }}</span><span>of &#8377; {{ purchased|floatformat:0 }}</span></div>
+        <div class="top"><span>{{ c.label }}</span><span class="b">{{ c.pct }}%</span></div>
+        <div class="bar"><span class="{{ c.fill }}" style="width:{{ c.pct }}%"></span></div>
+        <div class="vals"><span>Paid: &#8377; {{ c.paid }}</span><span>Total: &#8377; {{ c.billed }}</span></div>
     </div>
-    <div class="prog">
-        <div class="top"><span>This month</span><span class="b">{{ m_progress }}%</span></div>
-        <div class="bar"><span class="fill-blue" style="width:{{ m_progress }}%"></span></div>
-        <div class="vals"><span>Paid &#8377; {{ m_paid|floatformat:0 }}</span><span>of &#8377; {{ m_purchased|floatformat:0 }}</span></div>
+    {% endfor %}
+</div>
+
+<div class="sec"><h2 class="t">Overall Summary</h2><p class="s">{{ fy }}</p></div>
+<div class="panel" style="padding:6px 16px">
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-red"><svg class="i"><use href="#ic-receipt"/></svg></span><span class="nm">Total purchased</span> <span class="badge b-red">{{ transaction.purchased_count }}</span></span>
+        <span class="b tabnum">&#8377; {{ transaction.purchased }}</span>
+    </div>
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-green"><svg class="i"><use href="#ic-check"/></svg></span><span class="nm">Total paid</span> <span class="badge b-green">{{ transaction.paid_count }}</span></span>
+        <span class="b tabnum c-green">&#8377; {{ transaction.paid }}</span>
+    </div>
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-amber"><svg class="i"><use href="#ic-reply"/></svg></span><span class="nm">Total returned</span> <span class="badge b-amber">{{ transaction.returned_count }}</span></span>
+        <span class="b tabnum c-amber">&#8377; {{ transaction.returned }}</span>
+    </div>
+    <div class="srow">
+        <span class="lbl"><span class="ico ic-blue"><svg class="i"><use href="#ic-box"/></svg></span><span class="nm">Other transactions</span> <span class="badge b-blue">{{ transaction.others_count }}</span></span>
+        <span class="b tabnum c-blue">&#8377; {{ transaction.others }}</span>
     </div>
 </div>
+
+{% if overdue %}
+<div class="sec"><h2 class="t">Overdue Bills</h2><p class="s"><span id="ov-count">{{ overdue_count }}</span> bill<span id="ov-plural">{{ overdue_count|pluralize }}</span> · &#8377; <span id="ov-amt">{{ overdue_amount }}</span> owed</p></div>
+<div class="list" id="ov-list">
+    {% for o in overdue %}
+    <div class="row" data-days="{{ o.days }}" data-owed="{{ o.owed }}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-red"><svg class="i"><use href="#ic-receipt"/></svg></span>
+            <span style="min-width:0">
+                <span class="b">{{ o.date|date:"d/m/Y" }} <span class="badge b-red">{{ o.days }} days</span></span>
+                <div class="sub">{{ o.date|timesince }} ago</div>
+            </span>
+        </span>
+        <span class="right" style="white-space:nowrap">
+            <div class="b tabnum">&#8377; {{ o.amount }}</div>
+            {% if o.balance_after %}<span class="badge b-amber">&#8377; {{ o.balance_after }}</span>{% endif %}
+        </span>
+    </div>
+    {% endfor %}
+</div>
+<div class="empty" id="ov-empty" style="display:none"><svg class="i"><use href="#ic-check"/></svg><div>No bills 90+ days overdue.</div></div>
+<button type="button" id="ov-toggle" class="btn" style="margin-bottom:14px" onclick="toggleOverdue()">Show only 90+ days overdue</button>
 {% endif %}
 
 {% if multi %}
@@ -55,20 +87,15 @@
             <span class="ico ic-blue" style="width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center"><svg class="i" style="width:16px;height:16px"><use href="#ic-building"/></svg></span>
             <span><span class="b">{{ p.brand|default:p.title }}</span></span>
         </span>
-        {% if p.due %}<span class="badge b-red">&#8377; {{ p.due|floatformat:2 }}</span>{% else %}<span class="badge b-green">clear</span>{% endif %}
+        {% if p.due %}<span class="badge b-red">&#8377; {{ p.due|inr }}</span>{% else %}<span class="badge b-green" title="Cleared" style="padding:3px 8px"><svg class="i" style="width:13px;height:13px;stroke:var(--green);vertical-align:middle"><use href="#ic-check"/></svg></span>{% endif %}
     </a>
     {% endfor %}
+    <div class="row" style="border-top:2px solid var(--line)">
+        <span class="b">Total due — all shops</span>
+        <span class="b tabnum" style="color:{% if group_total %}var(--red){% else %}var(--green){% endif %};font-size:16px">{% if group_total %}&#8377; {{ group_total|inr }}{% else %}No dues{% endif %}</span>
+    </div>
 </div>
 {% endif %}
-
-<div class="sec"><h2 class="t">Quick actions</h2></div>
-<a href="{% url 'm_order' %}" class="btn btn-acc" style="margin-bottom:12px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> Place an order</a>
-<div class="qa">
-    <a href="{% url 'm_customer_invoices' %}"><span class="ico ic-blue"><svg class="i"><use href="#ic-receipt"/></svg></span><span class="b">Invoices</span></a>
-    <a href="{% url 'm_customer_orders' %}"><span class="ico ic-amber"><svg class="i"><use href="#ic-cart"/></svg></span><span class="b">My orders</span></a>
-    <a href="{% url 'm_customer_books' %}"><span class="ico ic-green"><svg class="i"><use href="#ic-book"/></svg></span><span class="b">Ledger</span></a>
-    <a href="{% url 'm_customer_profile' %}"><span class="ico ic-grey"><svg class="i"><use href="#ic-user"/></svg></span><span class="b">Profile</span></a>
-</div>
 
 {% endblock %}
 {% block nav %}{% include "m/nav_customer.html" with active="home" %}{% endblock %}
@@ -79,5 +106,23 @@
     if(h>=5&&h<12)g="Good morning";else if(h>=12&&h<17)g="Good afternoon";else if(h>=17&&h<21)g="Good evening";else g="Good night";
     document.getElementById('greeting').textContent=g+',';
 })();
+
+// Overdue "90+ days" filter — client-side, no reload. Recomputes count + total owed.
+var ov90 = false;
+function toggleOverdue(){
+    ov90 = !ov90;
+    var rows = document.querySelectorAll('#ov-list .row'), shown = 0, total = 0;
+    for (var i = 0; i < rows.length; i++){
+        var days = parseInt(rows[i].getAttribute('data-days'), 10) || 0;
+        var vis = !ov90 || days >= 90;
+        rows[i].style.display = vis ? '' : 'none';
+        if (vis){ shown++; total += parseFloat(rows[i].getAttribute('data-owed')) || 0; }
+    }
+    document.getElementById('ov-count').textContent = shown;
+    document.getElementById('ov-plural').textContent = shown === 1 ? '' : 's';
+    document.getElementById('ov-amt').textContent = total.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    document.getElementById('ov-empty').style.display = shown ? 'none' : 'block';
+    document.getElementById('ov-toggle').textContent = ov90 ? 'Show all overdue bills' : 'Show only 90+ days overdue';
+}
 </script>
 {% endblock %}

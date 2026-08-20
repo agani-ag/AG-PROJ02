@@ -1,14 +1,14 @@
 {% extends "m/base.html" %}
 {% load money %}
 {% block title %}Invoice{% endblock %}
-{% block back %}<a class="back" href="{% url 'm_customer_invoices' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Invoices</a>{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_invoices' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Invoices</a>{% endblock %}
 {% block heading %}Invoice {% if inv.is_gst %}#{{ inv.invoice_number }}{% else %}INV-{{ inv.invoice_number }}{% endif %}{% endblock %}
 {% block content %}
 
 <div class="panel">
     <div class="between">
         <div>
-            <div class="b" style="font-size:16px">{{ profile.business_title|default:"" }}</div>
+            <div class="b" style="font-size:16px">{{ customer }}</div>
             <div class="sub">{{ inv.invoice_date|date:"d M Y" }}</div>
         </div>
         <div class="right">
@@ -47,13 +47,16 @@
 
 <a class="btn" href="{% url 'm_invoice_print' inv.id %}" style="margin-bottom:10px"><svg class="i"><use href="#ic-print"/></svg> Original invoice · Print / Save</a>
 
-{% if profile.business_phone %}
-<button class="btn btn-green" onclick="shareInv()"><svg class="i" style="stroke:#fff"><use href="#ic-message"/></svg> Message</button>
+{% if customer_phone %}
+<div class="between" style="gap:10px">
+    <a class="btn btn-sm" href="tel:{{ customer_phone }}" style="flex:1"><svg class="i"><use href="#ic-phone"/></svg> Call</a>
+    <button class="btn btn-sm btn-green" style="flex:1" onclick="shareInv()"><svg class="i" style="stroke:#fff"><use href="#ic-message"/></svg> Message</button>
+</div>
 <script>
-function shareInv(){ M.sms("{{ profile.business_phone|escapejs }}",
-    "Regarding Invoice {% if inv.is_gst %}#{{ inv.invoice_number }}{% else %}INV-{{ inv.invoice_number }}{% endif %} dated {{ inv.invoice_date|date:'d-m-Y' }}, total {{ d.invoice_total_amt_with_gst|inr }} — {{ profile.business_brand|default:profile.business_title|escapejs }}."); }
+function shareInv(){ M.sms("{{ customer_phone|escapejs }}",
+    "Dear {{ customer|escapejs }}, regarding Invoice {% if inv.is_gst %}#{{ inv.invoice_number }}{% else %}INV-{{ inv.invoice_number }}{% endif %} dated {{ inv.invoice_date|date:'d-m-Y' }}, total {{ d.invoice_total_amt_with_gst|inr }} — {{ profile.business_brand|default:profile.business_title|escapejs }}."); }
 </script>
 {% endif %}
 
 {% endblock %}
-{% block nav %}{% include "m/nav_customer.html" with active="invoices" %}{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="invoices" %}{% endblock %}

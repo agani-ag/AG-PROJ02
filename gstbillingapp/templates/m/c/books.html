@@ -1,4 +1,5 @@
 {% extends "m/base.html" %}
+{% load money %}
 {% block title %}Ledger{% endblock %}
 {% block heading %}My Ledger{% endblock %}
 {% block content %}
@@ -6,30 +7,25 @@
 <div class="panel">
     <div class="muted sm">{% if outstanding %}Amount due{% elif advance %}Advance balance{% else %}Balance{% endif %}</div>
     <div class="kpi" style="color:{% if outstanding %}var(--red){% else %}var(--green){% endif %}">
-        {% if outstanding %}&#8377; {{ outstanding|floatformat:2 }}{% elif advance %}&#8377; {{ advance|floatformat:2 }}{% else %}No dues{% endif %}
+        {% if outstanding %}&#8377; {{ outstanding|inr }}{% elif advance %}&#8377; {{ advance|inr }}{% else %}No dues{% endif %}
     </div>
 </div>
 
-{% if logs %}
-<div class="list">
-    {% for l in logs %}
-    <div class="row">
-        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
-            <span class="ico {% if l.change < 0 %}ic-red{% else %}ic-green{% endif %}"><svg class="i"><use href="#{% if l.change < 0 %}ic-receipt{% else %}ic-check{% endif %}"/></svg></span>
-            <span style="min-width:0">
-                <span class="b">{{ l.get_change_type_display }}</span>
-                <div class="sub">{{ l.date|date:"d M Y" }}{% if l.description %} · {{ l.description }}{% endif %}</div>
-            </span>
-        </span>
-        <span class="b tabnum" style="color:{% if l.change < 0 %}var(--red){% else %}var(--green){% endif %};white-space:nowrap">
-            {% if l.change < 0 %}&minus;{% else %}+{% endif %}&#8377; {{ l.change|floatformat:2|cut:"-" }}
-        </span>
+<div data-mpaged="{% url 'm_customer_books_data' %}" data-mpaged-list="#led-list" data-mpaged-offset="{{ logs|length }}">
+    <div class="filt">
+        <button class="on" data-t="all">All</button>
+        <button data-t="1">Purchased</button>
+        <button data-t="0">Paid</button>
+        <button data-t="2">Returned</button>
+        <button data-t="3">Others</button>
     </div>
-    {% endfor %}
+    <div class="list" id="led-list">
+        {% include "m/_ledger_rows.html" with logs=logs %}
+    </div>
+    <div class="empty" data-mpaged-empty {% if logs %}style="display:none"{% endif %}><svg class="i"><use href="#ic-book"/></svg><div>No ledger entries.</div></div>
+    <button class="btn" data-mpaged-more style="{% if not has_more %}display:none;{% endif %}margin-bottom:14px">Load more</button>
+    <div class="ledtotal" data-mpaged-total style="display:none"><span class="l">Total</span><span class="v">&#8377; 0</span></div>
 </div>
-{% else %}
-<div class="empty"><svg class="i"><use href="#ic-book"/></svg><div>No ledger entries yet.</div></div>
-{% endif %}
 
 {% endblock %}
 {% block nav %}{% include "m/nav_customer.html" with active="books" %}{% endblock %}

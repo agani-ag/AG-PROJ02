@@ -21,25 +21,47 @@ def _invoice_total(invoice_json):
         return 0.0
 
 
-def _all_businesses():
-    """Every business in the system (any user with a profile), brand-first order."""
-    return (User.objects.filter(userprofile__isnull=False)
-            .select_related("userprofile")
-            .order_by("userprofile__business_brand", "userprofile__business_title"))
+def _business_by_code(code):
+    """A shareable business for a pasted code (its business_uid), or None.
+
+    Sharing is opt-in: a business is only reachable by code when it has turned on
+    `sharing_enabled`, so a guessed code can't attach a business that never agreed.
+    """
+    code = (code or "").strip().upper()
+    if not code:
+        return None
+    return (User.objects.filter(userprofile__business_uid__iexact=code,
+                                userprofile__sharing_enabled=True)
+            .select_related("userprofile").first())
 
 
-def _set_businesses(request, emp):
-    """Store the chosen coverage — any business the operator picked."""
-    allowed = set(_all_businesses().values_list("id", flat=True))
-    chosen = [int(x) for x in request.POST.getlist("businesses") if x.isdigit() and int(x) in allowed]
-    emp.businesses.set(chosen)
+def _set_businesses_by_code(request, emp):
+    """Set the employee's extra shared businesses from the pasted share codes.
+
+    The employer's own business is always covered (see Employee.covered_businesses),
+    so the M2M holds only the ADDITIONAL shared businesses — never the home one.
+    """
+    ids = []
+    for code in request.POST.getlist("business_codes"):
+        biz = _business_by_code(code)
+        if biz and biz.id != emp.business_id:
+            ids.append(biz.id)
+    emp.businesses.set(ids)
 
 
-def _group_context(request, emp=None):
-    return {
-        "group_businesses": _all_businesses(),
-        "selected_ids": set(emp.businesses.values_list("id", flat=True)) if emp else set(),
-    }
+def _shared_context(emp=None):
+    """The employee's shared businesses (excluding the home business). Each carries an
+    `active` flag: a business that has since turned sharing OFF is shown but inert."""
+    shared = []
+    if emp:
+        for b in emp.businesses.exclude(id=emp.business_id).select_related("userprofile"):
+            p = getattr(b, "userprofile", None)
+            shared.append({
+                "code": (p.business_uid if p else "") or "",
+                "name": (p.business_brand or p.business_title if p else None) or b.username,
+                "active": bool(p and p.sharing_enabled),
+            })
+    return {"shared_businesses": shared}
 
 
 @login_required
@@ -51,21 +73,17 @@ def employees(request):
 
 @login_required
 def employee_add(request):
-    context = dict(_group_context(request))
     if request.method == "POST":
         form = EmployeeForm(request.POST)
         if form.is_valid():
             emp = form.save(commit=False)
             emp.business = request.user
             emp.save()
-            _set_businesses(request, emp)
+            _set_businesses_by_code(request, emp)
             messages.success(request, f"Employee '{emp.name}' added.")
             return redirect("employees")
-        context["error_message"] = form.errors
-        context["form"] = form
-        return render(request, "employees/employee_edit.html", context)
-    context["form"] = EmployeeForm()
-    return render(request, "employees/employee_edit.html", context)
+        return render(request, "employees/employee_edit.html", {"error_message": form.errors, "form": form})
+    return render(request, "employees/employee_edit.html", {"form": EmployeeForm()})
 
 
 @login_required
@@ -75,16 +93,31 @@ def employee_edit(request, pk):
         form = EmployeeForm(request.POST, instance=emp)
         if form.is_valid():
             form.save()
-            _set_businesses(request, emp)
+            _set_businesses_by_code(request, emp)
             messages.success(request, "Employee updated.")
             return redirect("employees")
-        context = {"employee": emp, "error_message": form.errors}
-        context.update(_group_context(request, emp))
-        context["form"] = form
+        context = {"employee": emp, "error_message": form.errors, "form": form}
+        context.update(_shared_context(emp))
         return render(request, "employees/employee_edit.html", context)
     context = {"employee": emp, "form": EmployeeForm(instance=emp)}
-    context.update(_group_context(request, emp))
+    context.update(_shared_context(emp))
     return render(request, "employees/employee_edit.html", context)
+
+
+@login_required
+def business_share_lookup(request):
+    """Validate a pasted share code → the business it unlocks (for the employee form)."""
+    biz = _business_by_code(request.GET.get("code"))
+    if not biz:
+        return JsonResponse({"ok": False, "message": "No shared business found for that code."})
+    if biz.id == request.user.id:
+        return JsonResponse({"ok": False, "message": "That's your own business — already covered."})
+    p = getattr(biz, "userprofile", None)
+    return JsonResponse({
+        "ok": True,
+        "code": (p.business_uid if p else "") or "",
+        "name": (p.business_brand or p.business_title if p else None) or biz.username,
+    })
 
 
 @login_required

@@ -1,4 +1,5 @@
 {% extends "m/base.html" %}
+{% load money %}
 {% block title %}Collections{% endblock %}
 {% block heading %}Collections{% endblock %}
 {% block includecss %}
@@ -15,7 +16,7 @@
 </div>
 
 {% if total_due %}
-<div class="panel between"><span class="muted">Total due this day</span><span class="kpi" style="font-size:20px;color:var(--red)">&#8377; {{ total_due|floatformat:2 }}</span></div>
+<div class="panel between"><span class="muted">Total due this day</span><span class="kpi" style="font-size:20px;color:var(--red)">&#8377; {{ total_due|inr }}</span></div>
 {% endif %}
 
 {% if rows %}
@@ -28,7 +29,7 @@
             <span style="min-width:0"><span class="b">{{ r.name }}</span><div class="sub">{{ r.place|default:r.phone|default:"—" }}</div></span>
         </a>
         <span class="right" style="display:flex;align-items:center;gap:8px">
-            {% if r.bal < 0 %}<span class="badge b-red">&#8377; {{ r.bal|floatformat:2|cut:"-" }}</span>{% else %}<span class="sub">clear</span>{% endif %}
+            {% if r.bal < 0 %}<span class="badge b-red">&#8377; {{ r.bal|inr|cut:"-" }}</span>{% else %}<span class="badge b-green" title="Cleared" style="padding:3px 8px"><svg class="i" style="width:13px;height:13px;stroke:var(--green);vertical-align:middle"><use href="#ic-check"/></svg></span>{% endif %}
             {% if r.phone %}<a class="btn btn-green" href="tel:{{ r.phone }}" style="padding:8px 10px;width:auto"><svg class="i" style="stroke:#fff;width:15px;height:15px"><use href="#ic-phone"/></svg></a>{% endif %}
         </span>
     </div>

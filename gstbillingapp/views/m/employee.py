@@ -4,15 +4,32 @@ import datetime
 
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
+from django.template.loader import render_to_string
+from django.views.decorators.csrf import csrf_exempt
+
+from django.db.models import Sum, Case, When, F, FloatField
 
 from ...mobile_auth import mobile_login_required
-from ...models import Customer, Book, BookLog, Invoice, Quotation
+from ...models import Customer, Book, BookLog, Invoice, Quotation, ExpenseTracker
 from ...utils import recalculate_book_current_balance
+from ...templatetags.money import format_inr
+from ._paged import PAGE, invoice_page, ledger_page
 
 
 def _user(request):
     # The business this employee is scoped to (the owner's User).
     return request.mobile_actor["user"]
+
+
+def _book_totals(log_qs):
+    """All four ledger movement totals (as positive numbers) for a BookLog queryset."""
+    a = log_qs.aggregate(
+        purchases=Sum(Case(When(change_type=1, then=F("change")), output_field=FloatField())),
+        payments=Sum(Case(When(change_type=0, then=F("change")), output_field=FloatField())),
+        returns=Sum(Case(When(change_type=2, then=F("change")), output_field=FloatField())),
+        others=Sum(Case(When(change_type=3, then=F("change")), output_field=FloatField())),
+    )
+    return {k: abs(a[k] or 0) for k in a}
 
 
 def _emp(request):
@@ -34,16 +51,102 @@ def home(request):
     sales = sum(_inv_total(j) for j in invs.values_list("invoice_json", flat=True))
     pays = BookLog.objects.filter(parent_book__user=u, is_active=True, change_type=0, date__date=today)
     coll = sum(abs(p.change) for p in pays)
-    books = Book.objects.filter(user=u)
-    due_total = sum(-float(b.current_balance) for b in books if (b.current_balance or 0) < 0)
-    due_count = sum(1 for b in books if (b.current_balance or 0) < 0)
+    books = list(Book.objects.filter(user=u))
+    # Round to paise so a sub-paisa residual reads as cleared — consistent with the
+    # customers list, so the "with dues" counts match.
+    bal_map = {b.customer_id: round(float(b.current_balance or 0), 2) for b in books}
+    due_total = sum(-bal for bal in bal_map.values() if bal < 0)
+    due_count = sum(1 for bal in bal_map.values() if bal < 0)
+
+    # ---- Today's tasks: actionable field-work for the employee ----
+    # Customer.DAYS is Sun=0..Sat=6; Python weekday() is Mon=0..Sun=6 → convert.
+    model_today = (today.weekday() + 1) % 7
+    custs = list(Customer.objects.filter(user=u).only("id", "collection_day", "credit_limit"))
+    collect_today_count = collect_today_amt = 0
+    over_limit = 0
+    for c in custs:
+        bal = bal_map.get(c.id, 0.0)
+        if c.collection_day == model_today and bal < 0:
+            collect_today_count += 1
+            collect_today_amt += -bal
+        lim = float(c.credit_limit or 0)
+        if lim > 0 and bal < -lim:
+            over_limit += 1
+
+    tasks = {
+        "collect_today": collect_today_count, "collect_today_amt": format_inr(collect_today_amt, 0),
+        "dues_count": due_count, "dues_amt": format_inr(due_total, 0),
+        "over_limit": over_limit,
+    }
+
+    # The full-business dashboard (financials + collections) is admin-only. A regular
+    # employee sees today's tally and their task list.
+    is_admin = bool(request.mobile_actor.get("is_admin"))
+    if not is_admin:
+        return render(request, "m/e/home.html", {
+            "profile": getattr(u, "userprofile", None), "today": today, "uid": u.id,
+            "employee": _emp(request), "is_admin": False,
+            "sales": round(sales, 2), "coll": round(coll, 2),
+            "inv_count": invs.count(),
+            "cust_count": len(custs),
+            "due_total": round(due_total, 2), "due_count": due_count,
+            "tasks": tasks,
+        })
+
+    # ---- Financial overview (all-time) + collection progress, scoped to this business ----
+    cur_start = today.replace(day=1)
+    last_end = cur_start - datetime.timedelta(days=1)
+    last_start = last_end.replace(day=1)
+
+    all_logs = BookLog.objects.filter(parent_book__user=u, is_active=True)
+    tot = _book_totals(all_logs)
+    cur = _book_totals(all_logs.filter(date__date__gte=cur_start))
+    last = _book_totals(all_logs.filter(date__date__gte=last_start, date__date__lt=cur_start))
+
+    balance = tot["purchases"] - (tot["payments"] + tot["returns"] + tot["others"])
+    total_invoices = Invoice.objects.filter(user=u).count()
+    exp_qs = ExpenseTracker.objects.filter(user=u)
+    total_expenses = exp_qs.aggregate(t=Sum("amount"))["t"] or 0
+    pending_count = BookLog.objects.filter(parent_book__user=u, is_active=False, change_type=0).count()
+
+    def money(v):
+        return format_inr(v, 0)
+
+    def pct(paid, billed):
+        return round(min(100.0, paid / billed * 100), 1) if billed > 0 else 0.0
+
+    def fill(p):
+        return "fill-green" if p >= 80 else ("fill-blue" if p >= 50 else "fill-red")
+
+    financial = {
+        "invoices": format_inr(total_invoices, 0),
+        "purchases": money(tot["purchases"]),
+        "payments": money(tot["payments"]),
+        "returns": money(tot["returns"]),
+        "others": money(tot["others"]),
+        "balance": money(abs(balance)),
+        "balance_receivable": balance >= 0,
+        "expenses": money(total_expenses),
+        "expense_count": exp_qs.count(),
+    }
+
+    collection = []
+    for label, m in (("This month", cur), ("Last month", last), ("Overall", tot)):
+        p = pct(m["payments"], m["purchases"])
+        collection.append({
+            "label": label, "pct": p, "fill": fill(p),
+            "paid": money(m["payments"]), "billed": money(m["purchases"]),
+        })
+
     return render(request, "m/e/home.html", {
         "profile": getattr(u, "userprofile", None), "today": today, "uid": u.id,
-        "employee": _emp(request),
+        "employee": _emp(request), "is_admin": True,
         "sales": round(sales, 2), "coll": round(coll, 2),
         "inv_count": invs.count(),
-        "cust_count": Customer.objects.filter(user=u).count(),
+        "cust_count": len(custs),
         "due_total": round(due_total, 2), "due_count": due_count,
+        "tasks": tasks, "pending_count": pending_count,
+        "financial": financial, "collection": collection,
     })
 
 
@@ -53,7 +156,8 @@ def customers(request):
     balances = {b.customer_id: float(b.current_balance or 0) for b in Book.objects.filter(user=u)}
     rows = [{
         "id": c.id, "name": c.customer_name, "phone": c.customer_phone,
-        "bal": balances.get(c.id, 0.0),
+        # Round so a sub-paisa residual (e.g. 0.001) reads as cleared, not "₹ 0.00".
+        "bal": round(balances.get(c.id, 0.0), 2),
     } for c in Customer.objects.filter(user=u).order_by("customer_name")]
     return render(request, "m/e/customers.html", {"rows": rows})
 
@@ -63,15 +167,19 @@ def customer_detail(request, customer_id):
     u = _user(request)
     c = get_object_or_404(Customer, id=customer_id, user=u)
     book = Book.objects.filter(user=u, customer=c).first()
-    logs = list(BookLog.objects.filter(parent_book=book, is_active=True)
-                .order_by("-date", "-id")[:60]) if book else []
     bal = float(book.current_balance) if book else 0.0
+    # Include pending (inactive) entries too, so a staff member sees their just-recorded
+    # payment awaiting approval — the template badges them.
+    qs = (BookLog.objects.filter(parent_book=book).order_by("-date", "-id")
+          if book else BookLog.objects.none())
+    logs, has_more, _ = ledger_page(qs, 0, "all")
     return render(request, "m/e/customer_detail.html", {
-        "c": c, "logs": logs, "balance": bal,
+        "c": c, "logs": logs, "balance": bal, "has_more": has_more,
         "outstanding": round(-bal, 2) if bal < 0 else 0.0,
     })
 
 
+@csrf_exempt
 @mobile_login_required("employee")
 def record_payment(request, customer_id):
     u = _user(request)
@@ -86,15 +194,67 @@ def record_payment(request, customer_id):
     if amount <= 0:
         return JsonResponse({"ok": False, "message": "Enter a valid amount"}, status=400)
     emp = _emp(request)
+    is_admin = bool(request.mobile_actor.get("is_admin"))
     book, _ = Book.objects.get_or_create(user=u, customer=c)
+    # An admin's payment posts straight to the ledger; a regular employee's is held
+    # inactive (pending) until an admin approves it, so it doesn't move the balance yet.
     log = BookLog(parent_book=book, change_type=0, change=amount,
                   description=(data.get("note") or "Payment (mobile)"),
-                  createdby=(emp.name if emp else u.username))
+                  createdby=(emp.name if emp else u.username),
+                  is_active=is_admin)
     log.save()
-    recalculate_book_current_balance(book)
-    book.last_log = log
-    book.save()
-    return JsonResponse({"ok": True, "balance": float(book.current_balance)})
+    if is_admin:
+        recalculate_book_current_balance(book)
+        book.last_log = log
+        book.save()
+        return JsonResponse({"ok": True, "pending": False, "balance": float(book.current_balance)})
+    return JsonResponse({"ok": True, "pending": True,
+                         "message": "Payment recorded — pending admin approval."})
+
+
+@mobile_login_required("employee")
+def approvals(request):
+    """Admin-only: pending (inactive) mobile payments awaiting approval."""
+    if not request.mobile_actor.get("is_admin"):
+        return render(request, "m/denied.html", status=403)
+    u = _user(request)
+    pending = (BookLog.objects.filter(parent_book__user=u, is_active=False, change_type=0)
+               .select_related("parent_book__customer").order_by("-date", "-id")[:100])
+    rows = [{
+        "id": lg.id,
+        "customer": lg.parent_book.customer.customer_name if lg.parent_book and lg.parent_book.customer else "—",
+        "amount": format_inr(abs(lg.change), 2),
+        "by": lg.createdby, "date": lg.date, "note": lg.description,
+    } for lg in pending]
+    return render(request, "m/e/approvals.html", {"rows": rows})
+
+
+@csrf_exempt
+@mobile_login_required("employee")
+def approval_act(request, log_id):
+    """Admin-only: approve (activate) or reject (delete) a pending payment."""
+    if not request.mobile_actor.get("is_admin"):
+        return JsonResponse({"ok": False}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"ok": False}, status=405)
+    u = _user(request)
+    lg = get_object_or_404(BookLog, id=log_id, parent_book__user=u, is_active=False)
+    try:
+        action = (json.loads(request.body) or {}).get("action")
+    except (ValueError, TypeError):
+        action = None
+    if action == "approve":
+        lg.is_active = True
+        lg.save()
+        book = lg.parent_book
+        recalculate_book_current_balance(book)
+        book.last_log = lg
+        book.save()
+        return JsonResponse({"ok": True, "approved": True})
+    if action == "reject":
+        lg.delete()
+        return JsonResponse({"ok": True, "rejected": True})
+    return JsonResponse({"ok": False, "message": "Unknown action"}, status=400)
 
 
 @mobile_login_required("employee")
@@ -103,24 +263,65 @@ def invoices(request):
     emp = _emp(request)
     mine = request.GET.get("mine") == "1"
 
-    qs = Invoice.objects.filter(user=u).select_related("invoice_customer")
+    # Show the All / Related-to-me toggle only when the employee actually has invoices
+    # related to them — otherwise the tab is pointless.
+    has_mine = emp is not None and Invoice.objects.filter(user=u, assigned_employee=emp).exists()
+    if mine and not has_mine:
+        mine = False   # nothing related → fall back to the full list
+    rows, has_more = invoice_page(_emp_invoice_qs(u, emp, mine), 0, "", employee=emp)
+    return render(request, "m/e/invoices.html", {
+        "rows": rows, "mine": mine, "has_more": has_more,
+        "show_mine": not mine, "has_mine": has_mine,
+    })
+
+
+def _emp_invoice_qs(u, emp, mine):
+    qs = (Invoice.objects.filter(user=u).select_related("invoice_customer")
+          .order_by("-invoice_date", "-id"))
     if mine and emp:
         qs = qs.filter(assigned_employee=emp)
+    return qs
 
-    rows = [{
-        "id": inv.id, "number": inv.invoice_number, "date": inv.invoice_date,
-        "amount": _inv_total(inv.invoice_json), "is_gst": inv.is_gst,
+
+@mobile_login_required("employee")
+def invoices_data(request):
+    u = _user(request)
+    emp = _emp(request)
+    mine = request.GET.get("mine") == "1"
+    rows, has_more = invoice_page(_emp_invoice_qs(u, emp, mine),
+                                  request.GET.get("offset"), request.GET.get("q"), employee=emp)
+    html = render_to_string("m/_invoice_rows.html",
+                            {"rows": rows, "link_name": "m_employee_invoice",
+                             "show_customer": True, "show_mine": not mine}, request)
+    return JsonResponse({"html": html, "added": len(rows), "has_more": has_more})
+
+
+@mobile_login_required("employee")
+def invoice_detail(request, invoice_id):
+    u = _user(request)
+    inv = get_object_or_404(Invoice, id=invoice_id, user=u)
+    try:
+        data = json.loads(inv.invoice_json)
+    except (ValueError, TypeError):
+        data = {"items": []}
+    return render(request, "m/e/invoice_detail.html", {
+        "inv": inv, "d": data,
         "customer": inv.invoice_customer.customer_name if inv.invoice_customer else "N/A",
-        # Flag the ones credited to THIS employee, so "All" can badge them.
-        "mine": emp is not None and inv.assigned_employee_id == emp.id,
-    } for inv in qs.order_by("-invoice_date", "-id")[:100]]
-
-    # Total credited to this employee (across the visible set) for the "my sales" header.
-    my_total = round(sum(r["amount"] for r in rows if r["mine"]), 2)
-    return render(request, "m/e/invoices.html", {
-        "rows": rows, "mine": mine, "my_total": my_total,
-        "my_count": sum(1 for r in rows if r["mine"]),
+        "customer_phone": inv.invoice_customer.customer_phone if inv.invoice_customer else "",
+        "profile": getattr(u, "userprofile", None),
     })
+
+
+@mobile_login_required("employee")
+def customer_ledger_data(request, customer_id):
+    u = _user(request)
+    c = get_object_or_404(Customer, id=customer_id, user=u)
+    book = Book.objects.filter(user=u, customer=c).first()
+    qs = (BookLog.objects.filter(parent_book=book).order_by("-date", "-id")
+          if book else BookLog.objects.none())
+    logs, has_more, total = ledger_page(qs, request.GET.get("offset"), request.GET.get("type"))
+    html = render_to_string("m/_ledger_rows.html", {"logs": logs}, request)
+    return JsonResponse({"html": html, "added": len(logs), "has_more": has_more, "total": total})
 
 
 @mobile_login_required("employee")

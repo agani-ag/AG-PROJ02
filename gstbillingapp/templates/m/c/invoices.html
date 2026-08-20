@@ -1,29 +1,20 @@
 {% extends "m/base.html" %}
+{% load money %}
 {% block title %}Invoices{% endblock %}
 {% block heading %}My Invoices{% endblock %}
-{% block subhead %}{% if rows %}<div class="sub" id="inv-count">{{ rows|length }} invoice{{ rows|length|pluralize }}</div>{% endif %}{% endblock %}
 {% block content %}
 
-{% if rows %}
-{% include "m/_searchbar.html" with target="#inv-list" empty="#inv-empty" count="#inv-count" noun="invoice" noun_pl="invoices" placeholder="Search number or date…" %}
-<div class="list" id="inv-list">
-    {% for r in rows %}
-    <a href="{% url 'm_customer_invoice' r.id %}" class="row" data-s="{{ r.number }} {{ r.date|date:'d M Y'|lower }}">
-        <span class="lbl" style="display:flex;gap:11px;align-items:center">
-            <span class="ico ic-blue"><svg class="i"><use href="#ic-receipt"/></svg></span>
-            <span>
-                <span class="b">{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %}</span>
-                <div class="sub">{{ r.date|date:"d M Y" }}</div>
-            </span>
-        </span>
-        <span class="b tabnum">&#8377; {{ r.amount|floatformat:2 }}</span>
-    </a>
-    {% endfor %}
+<div data-mpaged="{% url 'm_customer_invoices_data' %}" data-mpaged-list="#inv-list" data-mpaged-offset="{{ rows|length }}">
+    <div style="position:relative;margin-bottom:12px">
+        <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+        <input class="field" data-mpaged-search placeholder="Search invoice number…" autocomplete="off" inputmode="search" style="margin:0;padding-left:42px">
+    </div>
+    <div class="list" id="inv-list">
+        {% include "m/_invoice_rows.html" with rows=rows link_name="m_customer_invoice" %}
+    </div>
+    <div class="empty" data-mpaged-empty {% if rows %}style="display:none"{% endif %}><svg class="i"><use href="#ic-receipt"/></svg><div>No invoices found.</div></div>
+    <button class="btn" data-mpaged-more style="{% if not has_more %}display:none;{% endif %}margin-bottom:14px">Load more</button>
 </div>
-<div class="empty" id="inv-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
-{% else %}
-<div class="empty"><svg class="i"><use href="#ic-receipt"/></svg><div>No invoices yet.</div></div>
-{% endif %}
 
 {% endblock %}
 {% block nav %}{% include "m/nav_customer.html" with active="invoices" %}{% endblock %}

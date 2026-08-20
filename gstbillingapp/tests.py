@@ -135,7 +135,8 @@ class MobileAuthTests(TestCase):
         cls.customer = Customer.objects.create(
             user=cls.owner, customer_name="Beta Store", customer_phone="9876543210",
         )
-        Book.objects.create(user=cls.owner, customer=cls.customer, current_balance=-1500)
+        book = Book.objects.create(user=cls.owner, customer=cls.customer, current_balance=-1500)
+        BookLog.objects.create(parent_book=book, change_type=1, change=1500)   # ₹1500 purchase → owes 1500
         cls.emp = Employee.objects.create(business=cls.owner, name="Rep One", email="rep1@syncup.local")
 
     def test_customer_token_grants_access_and_shows_dues(self):
@@ -146,7 +147,7 @@ class MobileAuthTests(TestCase):
         resp2 = self.client.get("/m/customer/")                        # rides the session
         self.assertEqual(resp2.status_code, 200)
         self.assertContains(resp2, "BETA STORE")                       # name (upper-cased on save)
-        self.assertContains(resp2, "1500")                             # outstanding shown
+        self.assertContains(resp2, "1,500")                            # outstanding shown (Indian format)
 
     def test_auth_survives_session_wipe(self):
         # The magic-link identity lives in its own m_auth cookie, so a desktop logout
@@ -242,15 +243,49 @@ class MobileScreensTests(TestCase):
                            ("m_employee_collections", []), ("m_employee_orders", [])]:
             self.assertEqual(self.client.get(reverse(name, args=args)).status_code, 200, name)
 
-    def test_record_payment_updates_balance(self):
+    def _pay(self, amount=200):
+        return self.client.post(reverse("m_employee_record_payment", args=[self.cust.id]),
+                                data=json.dumps({"amount": amount, "note": "part"}),
+                                content_type="application/json")
+
+    def test_employee_payment_is_pending(self):
+        # A regular employee's payment is held pending — balance does NOT move.
         self._emp()
-        r = self.client.post(reverse("m_employee_record_payment", args=[self.cust.id]),
-                             data=json.dumps({"amount": 200, "note": "part"}),
-                             content_type="application/json")
-        self.assertEqual(r.status_code, 200)
-        self.assertTrue(r.json()["ok"])
+        r = self._pay(200)
+        self.assertTrue(r.json()["pending"])
         self.book.refresh_from_db()
-        self.assertAlmostEqual(self.book.current_balance, -300.0)  # owed 500, paid 200
+        self.assertAlmostEqual(self.book.current_balance, -500.0)   # unchanged until approved
+
+    def test_admin_payment_posts_immediately(self):
+        self.emp.is_admin = True
+        self.emp.save()
+        self._emp()
+        r = self._pay(200)
+        self.assertFalse(r.json()["pending"])
+        self.book.refresh_from_db()
+        self.assertAlmostEqual(self.book.current_balance, -300.0)   # applied at once
+
+    def test_admin_approves_pending_payment(self):
+        from .models import BookLog
+        # Employee records a pending payment...
+        self._emp()
+        self._pay(200)
+        pending = BookLog.objects.get(parent_book=self.book, is_active=False, change_type=0)
+        self.book.refresh_from_db()
+        self.assertAlmostEqual(self.book.current_balance, -500.0)
+        # ...then an admin approves it → it posts to the ledger.
+        self.emp.is_admin = True
+        self.emp.save()
+        self._emp()
+        r = self.client.post(reverse("m_employee_approval_act", args=[pending.id]),
+                             data=json.dumps({"action": "approve"}), content_type="application/json")
+        self.assertTrue(r.json()["approved"])
+        self.book.refresh_from_db()
+        self.assertAlmostEqual(self.book.current_balance, -300.0)
+
+    def test_regular_employee_cannot_open_approvals(self):
+        self._emp()
+        self.assertEqual(self.client.get(reverse("m_employee_approvals")).status_code, 403)
 
     def test_employee_customer_scoped(self):
         # employee of one business can't open another business's customer
@@ -258,6 +293,19 @@ class MobileScreensTests(TestCase):
         foreign = Customer.objects.create(user=stranger, customer_name="Foreign")
         self._emp()
         self.assertEqual(self.client.get(reverse("m_employee_customer", args=[foreign.id])).status_code, 404)
+
+    def test_admin_sees_dashboard_regular_does_not(self):
+        # Regular employee: only today's tally, no business financials.
+        self._emp()
+        r = self.client.get(reverse("m_employee_home"))
+        self.assertNotContains(r, "Overall Summary")
+        self.assertNotContains(r, "Payment Collection")
+        # Promote to admin → full dashboard appears.
+        self.emp.is_admin = True
+        self.emp.save()
+        r2 = self.client.get(reverse("m_employee_home"))
+        self.assertContains(r2, "Overall Summary")
+        self.assertContains(r2, "Payment Collection")
 
     def test_my_sales_filter(self):
         self.inv.assigned_employee = self.emp
@@ -267,8 +315,8 @@ class MobileScreensTests(TestCase):
         r = self.client.get(reverse("m_employee_invoices"), {"mine": "1"})
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.context["mine"])
-        self.assertEqual(len(r.context["rows"]), 1)
-        self.assertAlmostEqual(r.context["my_total"], 500.0)
+        self.assertEqual(len(r.context["rows"]), 1)          # only the related invoice
+        self.assertAlmostEqual(r.context["rows"][0]["amount"], 500.0)
         # "All" view still shows it, flagged as mine.
         r2 = self.client.get(reverse("m_employee_invoices"))
         self.assertTrue(r2.context["rows"][0]["mine"])
@@ -460,6 +508,50 @@ class EmployeeManagementTests(TestCase):
         cust = Customer.objects.create(user=self.owner, customer_name="C")
         d2 = self.client.get(reverse("customer_mobile_link", args=[cust.id])).json()
         self.assertIn("/m/customer/?t=", d2["url"])
+
+    def test_share_code_grants_coverage(self):
+        from .models import Employee, UserProfile
+        # A second business that has opted into sharing.
+        other = User.objects.create_user("shareboss", password="x")
+        UserProfile.objects.create(user=other, business_title="Other Co",
+                                   business_uid="GS999", sharing_enabled=True)
+        UserProfile.objects.filter(user=self.owner).update(business_uid="GS1")
+        emp = Employee.objects.create(business=self.owner, name="Rep")
+
+        # Lookup validates the code.
+        d = self.client.get(reverse("business_share_lookup"), {"code": "gs999"}).json()
+        self.assertTrue(d["ok"]); self.assertEqual(d["code"], "GS999")
+
+        # Saving the employee with the code attaches that business.
+        self.client.post(reverse("employee_edit", args=[emp.id]), {
+            "name": "Rep", "is_active": "on", "business_codes": ["GS999"],
+        })
+        emp.refresh_from_db()
+        covered = set(emp.covered_businesses().values_list("id", flat=True))
+        self.assertEqual(covered, {self.owner.id, other.id})   # home + shared
+
+    def test_turning_sharing_off_revokes_coverage(self):
+        from .models import Employee, UserProfile
+        other = User.objects.create_user("shareboss2", password="x")
+        op = UserProfile.objects.create(user=other, business_title="Other Co",
+                                        business_uid="GS888", sharing_enabled=True)
+        emp = Employee.objects.create(business=self.owner, name="Rep")
+        emp.businesses.set([other])                      # granted while sharing was on
+        self.assertIn(other.id, emp.covered_businesses().values_list("id", flat=True))
+        # The shared business turns sharing OFF → coverage is revoked immediately,
+        # even though the stale M2M row remains.
+        op.sharing_enabled = False
+        op.save()
+        self.assertNotIn(other.id, emp.covered_businesses().values_list("id", flat=True))
+        self.assertIn(self.owner.id, emp.covered_businesses().values_list("id", flat=True))
+
+    def test_share_code_requires_opt_in(self):
+        from .models import UserProfile
+        stranger = User.objects.create_user("noshare", password="x")
+        UserProfile.objects.create(user=stranger, business_title="No Share",
+                                   business_uid="GS777", sharing_enabled=False)
+        d = self.client.get(reverse("business_share_lookup"), {"code": "GS777"}).json()
+        self.assertFalse(d["ok"])   # sharing not enabled → code is inert
 
     def test_revoke_bumps_version(self):
         from .models import Employee

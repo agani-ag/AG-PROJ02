@@ -125,6 +125,7 @@ def resolve_mobile_actor(request):
     }
     if identity["role"] == "employee":
         actor["employee"] = identity["employee"]
+        actor["is_admin"] = identity["employee"].is_admin
     else:
         actor["primary"] = identity["primary"]
         actor["siblings"] = by_business

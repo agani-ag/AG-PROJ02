@@ -17,6 +17,7 @@
             --acc:#0078d4;--acc2:#0a63c9;
             --red:#ff3b30;--redbg:#ffecea;--green:#34c759;--greenbg:#e7f8ec;
             --amber:#ff9500;--amberbg:#fff2e0;--blue:#007aff;--bluebg:#e7f1ff;
+            --purple:#8a3ffc;--purplebg:#f1e9ff;--teal:#0a9aa6;--tealbg:#e0f6f8;--pink:#e0398a;--pinkbg:#ffe7f2;
             --nav-h:62px;--r:22px;--sh:0 1px 2px rgba(20,22,30,.03),0 4px 16px rgba(20,22,30,.05)}
         html,body{margin:0;overscroll-behavior-y:contain}
         body{background:var(--bg);color:var(--ink);
@@ -78,6 +79,7 @@
         .ic-red{background:var(--redbg);color:var(--red)}.ic-green{background:var(--greenbg);color:var(--green)}
         .ic-amber{background:var(--amberbg);color:var(--amber)}.ic-blue{background:var(--bluebg);color:var(--blue)}
         .ic-grey{background:var(--line);color:var(--soft)}
+        .ic-purple{background:var(--purplebg);color:var(--purple)}.ic-teal{background:var(--tealbg);color:var(--teal)}.ic-pink{background:var(--pinkbg);color:var(--pink)}
         .srow .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .sub{font-size:12px;color:var(--soft)}
         .ico{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none}
@@ -95,7 +97,7 @@
         .prog .vals{display:flex;justify-content:space-between;margin-top:6px;font-size:12px;color:var(--soft)}
 
         /* badges & buttons */
-        .badge{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px}
+        .badge{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px;white-space:nowrap}
         .b-red{background:var(--redbg);color:var(--red)}.b-green{background:var(--greenbg);color:var(--green)}
         .b-amber{background:var(--amberbg);color:var(--amber)}.b-blue{background:var(--bluebg);color:var(--blue)}.b-grey{background:var(--line);color:var(--soft)}
         .btn{display:flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:14px;padding:14px 16px;
@@ -136,6 +138,20 @@
         .bizsel a{flex:0 0 auto;padding:7px 13px;border-radius:20px;background:var(--bg);color:var(--soft);font-size:12.5px;font-weight:700;white-space:nowrap}
         .bizsel a.on{background:var(--acc);color:#fff}
 
+        /* horizontal chip filter (ledger modes, etc.) */
+        .filt{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;-webkit-overflow-scrolling:touch}
+        .filt button{flex:0 0 auto;border:0;padding:7px 14px;border-radius:20px;background:var(--card);color:var(--soft);font-size:12.5px;font-weight:700;white-space:nowrap;box-shadow:var(--sh)}
+        .filt button.on{background:var(--acc);color:#fff}
+
+        /* frozen grand-total bar (shown when a chip filter narrows to one mode) */
+        .ledtotal{position:fixed;left:0;right:0;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));z-index:25;
+            display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 20px;
+            background:#161a20;color:#fff;box-shadow:0 -4px 18px rgba(0,0,0,.22)}
+        .ledtotal .l{font-size:13.5px;font-weight:700;opacity:.9}
+        .ledtotal .v{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+        /* Extra clearance so the fixed total bar never covers the last row / Load more. */
+        body.ledtotal-open{padding-bottom:calc(var(--nav-h) + 66px + env(safe-area-inset-bottom))}
+
         #toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 20px);transform:translateX(-50%);background:#161a20;color:#fff;padding:11px 18px;border-radius:22px;font-size:13px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none;max-width:88%}
         #toast.show{opacity:.96}
         {% block includecss %}{% endblock %}
@@ -147,6 +163,7 @@
         <symbol id="ic-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></symbol>
         <symbol id="ic-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/></symbol>
         <symbol id="ic-receipt" viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6"/></symbol>
+        <symbol id="ic-print" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></symbol>
         <symbol id="ic-cart" viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7z"/><path d="M9 7a3 3 0 0 1 6 0"/></symbol>
         <symbol id="ic-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
         <symbol id="ic-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M16 6a3.5 3.5 0 0 1 0 7"/></symbol>
@@ -156,6 +173,7 @@
         <symbol id="ic-chart" viewBox="0 0 24 24"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 16l4-5 3 3 5-7"/></symbol>
         <symbol id="ic-building" viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M15 9h2a2 2 0 0 1 2 2v10"/><path d="M8 7h2M8 11h2M8 15h2"/></symbol>
         <symbol id="ic-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a12 12 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
+        <symbol id="ic-message" viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-5 4V6a1 1 0 0 1 1-1z"/><path d="M8 9h8M8 12h5"/></symbol>
         <symbol id="ic-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
         <symbol id="ic-box" viewBox="0 0 24 24"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></symbol>
         <symbol id="ic-reply" viewBox="0 0 24 24"><path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 5 5v1"/></symbol>
@@ -196,7 +214,8 @@
         money2(n){return '₹' + (Number(n)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});},
         async post(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':this.csrf},body:JSON.stringify(b||{})});return r.json();},
         toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(this._t);this._t=setTimeout(()=>t.classList.remove('show'),2200);},
-        wa(p,t){let x=(p||'').replace(/\D/g,'');if(x.length===10)x='91'+x;window.open('https://wa.me/'+x+'?text='+encodeURIComponent(t||''),'_blank');}
+        wa(p,t){let x=(p||'').replace(/\D/g,'');if(x.length===10)x='91'+x;window.open('https://wa.me/'+x+'?text='+encodeURIComponent(t||''),'_blank');},
+        sms(p,t){let x=(p||'').replace(/[^\d+]/g,'');window.location.href='sms:'+x+'?body='+encodeURIComponent(t||'');}
     };
 
     /* Type-to-search: one delegated handler drives every list. An <input data-filter="#id">
@@ -220,6 +239,92 @@
             var noun = inp.getAttribute('data-noun') || 'result';
             ce.textContent = shown + ' ' + (shown===1 ? noun : (inp.getAttribute('data-noun-pl') || noun+'s'));
         }}
+    });
+
+    /* Chip filter: a <div class="filt" data-list="#id" [data-empty="#id"]> whose
+       buttons carry data-t="<value>" (or "all") show only rows with a matching
+       data-type under the list. One delegated handler, reused across screens. */
+    document.addEventListener('click', function(e){
+        var btn = e.target.closest ? e.target.closest('.filt [data-t]') : null;
+        if(!btn) return;
+        var group = btn.closest('.filt');
+        var list = document.querySelector(group.getAttribute('data-list'));
+        if(!list) return;
+        group.querySelectorAll('[data-t]').forEach(function(b){ b.classList.remove('on'); });
+        btn.classList.add('on');
+        var t = btn.getAttribute('data-t');
+        var rows = list.querySelectorAll('[data-type]'), shown = 0, total = 0;
+        for(var i=0;i<rows.length;i++){
+            var vis = t === 'all' || rows[i].getAttribute('data-type') === t;
+            rows[i].style.display = vis ? '' : 'none';
+            if(vis){ shown++; total += Math.abs(parseFloat(rows[i].getAttribute('data-amt')) || 0); }
+        }
+        var es = group.getAttribute('data-empty');
+        if(es){ var ee = document.querySelector(es); if(ee) ee.style.display = shown ? 'none' : 'block'; }
+        // Frozen grand-total bar — only for a specific mode, never for "All".
+        var ts = group.getAttribute('data-total');
+        if(ts){
+            var bar = document.querySelector(ts);
+            if(bar){
+                if(t === 'all'){ bar.style.display = 'none'; document.body.classList.remove('ledtotal-open'); }
+                else {
+                    bar.querySelector('.l').textContent = 'Total ' + btn.textContent.trim();
+                    bar.querySelector('.v').textContent = '₹ ' + total.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    bar.style.display = 'flex';
+                    document.body.classList.add('ledtotal-open');
+                }
+            }
+        }
+    });
+
+    /* Paged list: server-side search / mode-filter + "Load more". A container
+       [data-mpaged="url"] with data-mpaged-list="#id" and data-mpaged-offset; inside it
+       an optional [data-mpaged-search] input, .filt chips, [data-mpaged-empty] element,
+       a [data-mpaged-total] bar, and a [data-mpaged-more] button. The endpoint returns
+       {html, added, has_more, total}. */
+    document.querySelectorAll('[data-mpaged]').forEach(function(root){
+        var url = root.getAttribute('data-mpaged');
+        var list = document.querySelector(root.getAttribute('data-mpaged-list'));
+        if(!list) return;
+        var moreBtn = root.querySelector('[data-mpaged-more]');
+        var emptyEl = root.querySelector('[data-mpaged-empty]');
+        var totalBar = root.querySelector('[data-mpaged-total]');
+        var st = { offset: parseInt(root.getAttribute('data-mpaged-offset') || '0', 10), q: '', type: 'all', label: '', busy: false };
+
+        function go(reset){
+            if(st.busy) return; st.busy = true;
+            if(moreBtn && !reset) moreBtn.textContent = 'Loading…';
+            var off = reset ? 0 : st.offset;
+            var u = url + (url.indexOf('?') < 0 ? '?' : '&') + 'offset=' + off + '&q=' + encodeURIComponent(st.q) + '&type=' + encodeURIComponent(st.type);
+            fetch(u).then(function(r){ return r.json(); }).then(function(d){
+                if(reset){ list.innerHTML = d.html; st.offset = d.added || 0; }
+                else { list.insertAdjacentHTML('beforeend', d.html); st.offset += d.added || 0; }
+                if(moreBtn){ moreBtn.textContent = 'Load more'; moreBtn.style.display = d.has_more ? '' : 'none'; }
+                if(emptyEl) emptyEl.style.display = st.offset === 0 ? 'block' : 'none';
+                if(totalBar){
+                    if(st.type === 'all' || d.total == null){ totalBar.style.display = 'none'; document.body.classList.remove('ledtotal-open'); }
+                    else {
+                        totalBar.querySelector('.l').textContent = 'Total ' + st.label;
+                        totalBar.querySelector('.v').textContent = '₹ ' + d.total;
+                        totalBar.style.display = 'flex';
+                        document.body.classList.add('ledtotal-open');
+                    }
+                }
+                st.busy = false;
+            }).catch(function(){ st.busy = false; if(moreBtn) moreBtn.textContent = 'Load more'; });
+        }
+
+        var search = root.querySelector('[data-mpaged-search]'), t;
+        if(search) search.addEventListener('input', function(){
+            clearTimeout(t); t = setTimeout(function(){ st.q = search.value.trim(); go(true); }, 300);
+        });
+        root.querySelectorAll('.filt [data-t]').forEach(function(btn){
+            btn.addEventListener('click', function(){
+                root.querySelectorAll('.filt [data-t]').forEach(function(b){ b.classList.remove('on'); });
+                btn.classList.add('on'); st.type = btn.getAttribute('data-t'); st.label = btn.textContent.trim(); go(true);
+            });
+        });
+        if(moreBtn) moreBtn.addEventListener('click', function(){ go(false); });
     });
     </script>
     {% block includejs %}{% endblock %}

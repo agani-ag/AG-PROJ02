@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% load static %}
+{% load money %}
 
 {% block content %}
 <div class="row align-items-center mb-2">
 	<div class="col">
-		<h2 class="mb-0">{{ employee.name }} — Sales</h2>
-		<small class="text-muted">Invoices credited to this employee</small>
+		<h2 class="mb-0">{{ employee.name }} — Invoices</h2>
+		<small class="text-muted">Invoices related to this employee</small>
 	</div>
 	<div class="col text-right">
 		<a href="{% url 'employees' %}" class="btn btn-secondary btn-sm btn-curve" title="Back to Employees"><i class="fas fa-arrow-left"></i> Employees</a>
@@ -15,18 +15,18 @@
 <!-- Summary -->
 <div class="row mb-3">
 	<div class="col-md-6 mb-2">
-		<div class="card border-success">
+		<div class="card">
 			<div class="card-body py-2 d-flex justify-content-between align-items-center">
-				<span class="text-muted">Total credited</span>
-				<span class="h4 mb-0 text-success">&#8377; {{ grand_total|floatformat:2 }}</span>
+				<span class="text-muted">Total invoice value</span>
+				<span class="h4 mb-0">&#8377; {{ grand_total|inr }}</span>
 			</div>
 		</div>
 	</div>
 	<div class="col-md-6 mb-2">
-		<div class="card">
+		<div class="card border-primary">
 			<div class="card-body py-2 d-flex justify-content-between align-items-center">
-				<span class="text-muted">Invoices</span>
-				<span class="h4 mb-0">{{ record_count }}</span>
+				<span class="text-muted">Invoices related</span>
+				<span class="h4 mb-0 text-primary">{{ record_count }}</span>
 			</div>
 		</div>
 	</div>
@@ -73,7 +73,7 @@
 			<td>{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %}</td>
 			<td>{{ r.date|date:"d M Y" }}</td>
 			<td>{{ r.customer }}</td>
-			<td class="text-right">&#8377; {{ r.amount|floatformat:2 }}</td>
+			<td class="text-right" data-order="{{ r.amount }}">&#8377; {{ r.amount|inr }}</td>
 		</tr>
 		{% endfor %}
 	</tbody>
@@ -88,7 +88,7 @@ $(document).ready(function () {
 	empInvoiceTable = $('#emp-invoice-table').DataTable({
 		"order": [],
 		"paging": true,
-		"language": { "emptyTable": "No invoices credited to this employee{% if selected_month or date_from or date_to %} for this filter{% endif %}." }
+		"language": { "emptyTable": "No invoices related to this employee{% if selected_month or date_from or date_to %} for this filter{% endif %}." }
 	});
 });
 
@@ -125,7 +125,7 @@ function printStatement() {
 	{% if date_from %}filters += '<span style="margin:0 12px;"><strong>From:</strong> {{ date_from|escapejs }}</span>';{% endif %}
 	{% if date_to %}filters += '<span style="margin:0 12px;"><strong>To:</strong> {{ date_to|escapejs }}</span>';{% endif %}
 
-	var doc = '<html><head><title>{{ employee.name|escapejs }} - Sales</title><style>'
+	var doc = '<html><head><title>{{ employee.name|escapejs }} - Invoices</title><style>'
 		+ 'body{font-family:Arial,Helvetica,sans-serif;margin:16px;color:#111;}'
 		+ 'table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;}'
 		+ 'th,td{border:1px solid #ddd;padding:8px;text-align:left;}'
@@ -136,10 +136,10 @@ function printStatement() {
 		+ '<h2 style="margin:0;">{{ request.user.userprofile.business_title|default:""|escapejs }}</h2>'
 		+ '<p style="margin:4px 0;color:#666;font-size:13px;">{{ request.user.userprofile.business_address|default:""|escapejs }}</p>'
 		+ '<hr style="margin:10px 0;">'
-		+ '<h4 style="margin:0;">{{ employee.name|escapejs }} &mdash; Sales</h4>'
+		+ '<h4 style="margin:0;">{{ employee.name|escapejs }} &mdash; Invoices</h4>'
 		+ '<div style="margin-top:8px;font-size:13px;">'
-		+ '<span style="margin:0 12px;"><strong>Total credited:</strong> &#8377; {{ grand_total|floatformat:2 }}</span>'
-		+ '<span style="margin:0 12px;"><strong>Invoices:</strong> {{ record_count }}</span>'
+		+ '<span style="margin:0 12px;"><strong>Invoices related:</strong> {{ record_count }}</span>'
+		+ '<span style="margin:0 12px;"><strong>Total invoice value:</strong> &#8377; {{ grand_total|inr }}</span>'
 		+ filters
 		+ '</div><hr style="margin-top:10px;"></div>'
 		+ '<table><thead><tr><th style="text-align:center;">S.No</th><th>Invoice</th><th>Date</th><th>Customer</th><th style="text-align:right;">Amount</th></tr></thead>'

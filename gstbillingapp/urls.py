@@ -32,6 +32,7 @@ urlpatterns = [
     path('employees/<int:pk>/delete', employee.employee_delete, name='employee_delete'),
     path('employees/<int:pk>/mobile-link', employee.employee_mobile_link, name='employee_mobile_link'),
     path('employees/<int:pk>/invoices', employee.employee_invoices, name='employee_invoices'),
+    path('employees/share-lookup', employee.business_share_lookup, name='business_share_lookup'),
     path('employees/<int:pk>/revoke', employee.employee_revoke, name='employee_revoke'),
     path('customers/<int:customer_id>/mobile-link', employee.customer_mobile_link, name='customer_mobile_link'),
 

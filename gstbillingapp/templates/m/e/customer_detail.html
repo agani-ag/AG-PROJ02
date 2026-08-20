@@ -1,4 +1,5 @@
 {% extends "m/base.html" %}
+{% load money %}
 {% block title %}{{ c.customer_name }}{% endblock %}
 {% block back %}<a class="back" href="{% url 'm_employee_customers' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Customers</a>{% endblock %}
 {% block heading %}{{ c.customer_name }}{% endblock %}
@@ -7,12 +8,12 @@
 <div class="panel">
     <div class="muted sm">{% if outstanding %}Amount due{% else %}Balance{% endif %}</div>
     <div class="kpi" style="color:{% if outstanding %}var(--red){% else %}var(--green){% endif %}">
-        {% if outstanding %}&#8377; {{ outstanding|floatformat:2 }}{% elif balance > 0 %}&#8377; {{ balance|floatformat:2 }} adv{% else %}No dues{% endif %}
+        {% if outstanding %}&#8377; {{ outstanding|inr }}{% elif balance > 0 %}&#8377; {{ balance|inr }} adv{% else %}No dues{% endif %}
     </div>
     {% if c.customer_phone %}
     <div class="between mt" style="gap:10px">
         <a class="btn btn-sm" href="tel:{{ c.customer_phone }}" style="flex:1"><svg class="i"><use href="#ic-phone"/></svg> Call</a>
-        <button class="btn btn-sm btn-green" style="flex:1" onclick="remind()"><svg class="i" style="stroke:#fff"><use href="#ic-phone"/></svg> Remind</button>
+        <button class="btn btn-sm btn-green" style="flex:1" onclick="remind()"><svg class="i" style="stroke:#fff"><use href="#ic-message"/></svg> Remind</button>
     </div>
     {% endif %}
     <a class="btn btn-acc mt" href="{% url 'm_order' %}?customer={{ c.id }}"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> New order</a>
@@ -27,16 +28,20 @@
 
 {% if logs %}
 <div class="sec"><h2 class="t" style="font-size:15px">Recent entries</h2></div>
-<div class="list">
-    {% for l in logs %}
-    <div class="row">
-        <span class="lbl" style="display:flex;gap:11px;align-items:center">
-            <span class="ico {% if l.change < 0 %}ic-red{% else %}ic-green{% endif %}"><svg class="i"><use href="#{% if l.change < 0 %}ic-receipt{% else %}ic-check{% endif %}"/></svg></span>
-            <span><span class="b">{{ l.get_change_type_display }}</span><div class="sub">{{ l.date|date:"d M Y" }}</div></span>
-        </span>
-        <span class="b tabnum" style="color:{% if l.change < 0 %}var(--red){% else %}var(--green){% endif %}">{% if l.change < 0 %}&minus;{% else %}+{% endif %}&#8377; {{ l.change|floatformat:2|cut:"-" }}</span>
+<div data-mpaged="{% url 'm_employee_customer_ledger' c.id %}" data-mpaged-list="#led-list" data-mpaged-offset="{{ logs|length }}">
+    <div class="filt">
+        <button class="on" data-t="all">All</button>
+        <button data-t="1">Purchased</button>
+        <button data-t="0">Paid</button>
+        <button data-t="2">Returned</button>
+        <button data-t="3">Others</button>
     </div>
-    {% endfor %}
+    <div class="list" id="led-list">
+        {% include "m/_ledger_rows.html" with logs=logs %}
+    </div>
+    <div class="empty" data-mpaged-empty style="display:none"><svg class="i"><use href="#ic-book"/></svg><div>No entries of this type.</div></div>
+    <button class="btn" data-mpaged-more style="{% if not has_more %}display:none;{% endif %}margin-bottom:14px">Load more</button>
+    <div class="ledtotal" data-mpaged-total style="display:none"><span class="l">Total</span><span class="v">&#8377; 0</span></div>
 </div>
 {% endif %}
 
@@ -46,9 +51,14 @@ async function pay(){
     if(!a||a<=0){M.toast('Enter a valid amount');return;}
     var n=document.getElementById('pay-note').value;
     var r=await M.post("{% url 'm_employee_record_payment' c.id %}",{amount:a,note:n});
-    if(r.ok){M.toast('Payment saved');setTimeout(()=>location.reload(),700);}else{M.toast(r.message||'Failed');}
+    if(r.ok){
+        // Pending (employee) or saved (admin) — reload either way so the entry shows
+        // in Recent entries (pending ones are badged "Pending approval").
+        M.toast(r.pending ? 'Recorded — pending admin approval' : 'Payment saved');
+        setTimeout(()=>location.reload(), 800);
+    } else { M.toast(r.message||'Failed'); }
 }
-function remind(){M.wa("{{ c.customer_phone|escapejs }}","Dear {{ c.customer_name|escapejs }}, our records show an outstanding balance of {{ outstanding|floatformat:2 }}. Kindly arrange payment. Thank you.");}
+function remind(){M.sms("{{ c.customer_phone|escapejs }}","Dear {{ c.customer_name|escapejs }}, our records show an outstanding balance of {{ outstanding|inr }}. Kindly arrange payment. Thank you.");}
 </script>
 
 {% endblock %}

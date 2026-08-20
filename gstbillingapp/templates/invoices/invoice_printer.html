@@ -280,11 +280,11 @@
 			<button onclick="shareInvoiceWhatsApp();" title="Send to customer on WhatsApp" class="btn btn-success btn-curve d-print-none"><i class="fab fa-whatsapp"></i></button>
 		{% endif %}
 		{% if has_employees %}
-			<button onclick="mapInvoiceToEmployee();" class="btn btn-warning btn-curve d-print-none" title="{% if assigned_employee %}Credited to {{ assigned_employee.name }} — tap to change{% else %}Credit invoice to a staff member{% endif %}">
+			<button onclick="mapInvoiceToEmployee();" class="btn btn-warning btn-curve d-print-none" title="{% if assigned_employee %}Assigned to {{ assigned_employee.name }} — tap to change{% else %}Relate this invoice to a staff member{% endif %}">
 				<i class="fas fa-user-tag"></i>{% if assigned_employee %} <span class="d-none d-md-inline">{{ assigned_employee.name }}</span>{% endif %}
 			</button>
 		{% endif %}
-		<a href="{% url 'invoices' %}" class="btn btn-danger btn-curve d-print-none" title="Cancel Invoice"><i class="fas fa-times"></i></a>
+		{% if not mobile %}<a href="{% url 'invoices' %}" class="btn btn-danger btn-curve d-print-none" title="Cancel Invoice"><i class="fas fa-times"></i></a>{% endif %}
 	</div>
 
 	<!-- C14: one-tap WhatsApp share to the customer (free wa.me click-to-chat, no API). -->
@@ -360,7 +360,7 @@
 				.then(res => res.json())
 				.then(data => {
 					if (!data.employees || data.employees.length === 0) {
-						Swal.fire('No staff', 'Add employees first to credit invoices.', 'info');
+						Swal.fire('No staff', 'Add employees first to relate invoices to them.', 'info');
 						return;
 					}
 					var currentId = data.current ? String(data.current.id) : '';
@@ -369,7 +369,7 @@
 					).join('');
 
 					Swal.fire({
-						title: '<i class="fas fa-user-tag" style="color:#667eea;margin-right:8px;"></i>Credit to staff',
+						title: '<i class="fas fa-user-tag" style="color:#667eea;margin-right:8px;"></i>Relate to staff',
 						html: `
 							<div style="text-align:left;margin-top:12px;">
 								<label style="font-weight:600;font-size:13px;color:#666;margin-bottom:6px;display:block;">Employee</label>
@@ -402,11 +402,11 @@
 							.then(resp => {
 								if (resp.error) { Swal.fire('Error', resp.error, 'error'); return; }
 								if (resp.cleared) {
-									Swal.fire({ icon: 'success', title: 'Cleared', text: 'This invoice is no longer credited to anyone.', confirmButtonColor: '#667eea' })
+									Swal.fire({ icon: 'success', title: 'Cleared', text: 'This invoice is no longer related to anyone.', confirmButtonColor: '#667eea' })
 										.then(() => location.reload());
 								} else {
-									Swal.fire({ icon: 'success', title: resp.reassigned ? 'Updated' : 'Credited',
-										text: 'Invoice credited to ' + resp.employee.name + '.', confirmButtonColor: '#667eea' })
+									Swal.fire({ icon: 'success', title: resp.reassigned ? 'Updated' : 'Related',
+										text: 'Invoice related to ' + resp.employee.name + '.', confirmButtonColor: '#667eea' })
 										.then(() => location.reload());
 								}
 							})

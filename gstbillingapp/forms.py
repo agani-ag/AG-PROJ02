@@ -122,7 +122,8 @@ class UserProfileForm(ModelForm):
     class Meta:
         model = UserProfile
         fields = ['business_title', 'business_address', 'business_email', 'business_phone',
-                  'business_gst', 'business_brand', 'business_latitude', 'business_longitude', 'bankdetails']
+                  'business_gst', 'business_brand', 'business_latitude', 'business_longitude', 'bankdetails',
+                  'sharing_enabled']
     
     def __init__(self, *args, **kwargs):
         super(UserProfileForm, self).__init__(*args, **kwargs)
@@ -211,4 +212,4 @@ class ChequeLeafForm(ModelForm):
 class EmployeeForm(ModelForm):
     class Meta:
         model = Employee
-        fields = ['name', 'email', 'phone', 'address', 'is_active']
+        fields = ['name', 'email', 'phone', 'address', 'is_active', 'is_admin']

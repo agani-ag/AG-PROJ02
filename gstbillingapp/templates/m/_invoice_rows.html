@@ -1,0 +1,10 @@
+{% load money %}
+{% for r in rows %}
+{% if link_name %}<a href="{% url link_name r.id %}" class="row">{% else %}<div class="row">{% endif %}
+    <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+        <span class="ico {{ r.color|default:'ic-blue' }}"><svg class="i"><use href="#ic-receipt"/></svg></span>
+        <span style="min-width:0"><span class="b">{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %}{% if show_customer %} · {{ r.customer }}{% endif %}</span><div class="sub">{{ r.date|date:"d M Y" }}{% if r.mine and show_mine %} · <span style="color:var(--acc);font-weight:700">Mine</span>{% endif %}</div></span>
+    </span>
+    <span class="b tabnum" style="white-space:nowrap">&#8377; {{ r.amount|inr }}</span>
+{% if link_name %}</a>{% else %}</div>{% endif %}
+{% endfor %}

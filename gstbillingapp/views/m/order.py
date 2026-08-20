@@ -14,6 +14,7 @@ import json
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
 
 from ...mobile_auth import mobile_login_required
 from ...models import Customer, ProductCategory
@@ -57,6 +58,7 @@ def order(request):
     })
 
 
+@csrf_exempt
 @mobile_login_required()
 def order_checkout(request):
     if request.method != "POST":

@@ -1,4 +1,5 @@
 {% extends "m/base.html" %}
+{% load money %}
 {% block title %}Profile{% endblock %}
 {% block heading %}My Profile{% endblock %}
 {% block content %}
@@ -9,17 +10,45 @@
     {% if c.customer_place %}<div class="sub">{{ c.customer_place }}</div>{% endif %}
 </div>
 
+<div class="sec"><h2 class="t" style="font-size:15px">Your details</h2></div>
 <div class="list">
-    <div class="row"><span class="muted">Phone</span><span class="b">{{ c.customer_phone|default:"—" }}</span></div>
-    <div class="row"><span class="muted">GST</span><span class="b">{{ c.customer_gst|default:"—" }}</span></div>
+    {% if c.customer_phone %}<div class="row"><span class="muted">Phone</span><span class="b">{{ c.customer_phone }}</span></div>{% endif %}
+    {% if c.customer_email %}<div class="row"><span class="muted">Email</span><span class="b">{{ c.customer_email }}</span></div>{% endif %}
+    {% if c.customer_gst %}<div class="row"><span class="muted">GST</span><span class="b">{{ c.customer_gst }}</span></div>{% endif %}
+    {% if c.customer_address %}
     <div class="row" style="display:block">
         <div class="muted sm">Address</div>
-        <div class="mt">{{ c.customer_address|default:"—" }}</div>
+        <div class="mt">{{ c.customer_address }}</div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="sec"><h2 class="t" style="font-size:15px">Shop</h2></div>
+<div class="list">
+    <div class="row">
+        <span class="lbl" style="display:flex;align-items:center;gap:10px"><span class="ico ic-blue" style="width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center"><svg class="i" style="width:16px;height:16px"><use href="#ic-building"/></svg></span><span class="b">{{ business_brand|default:business_title|default:"—" }}</span></span>
+        {% if business_phone %}<a class="btn btn-sm" href="tel:{{ business_phone }}" style="padding:8px 12px"><svg class="i"><use href="#ic-phone"/></svg> Call</a>{% endif %}
     </div>
 </div>
 
-{% if c.customer_phone %}
-<a class="btn" href="tel:{{ c.customer_phone }}"><svg class="i"><use href="#ic-phone"/></svg> Call</a>
+{% if bank.upi_id or bank %}
+<div class="sec"><h2 class="t" style="font-size:15px">Pay {{ business_brand|default:business_title }}</h2>{% if due %}<p class="s">&#8377; {{ due_fmt }} due</p>{% endif %}</div>
+
+{% if bank.upi_id %}
+<a class="btn btn-acc" href="upi://pay?pa={{ bank.upi_id }}&pn={{ business_title|urlencode }}&cu=INR" style="margin-bottom:12px">
+    <svg class="i" style="stroke:#fff"><use href="#ic-wallet"/></svg> Pay via UPI
+</a>
+{% endif %}
+
+{% if bank %}
+<div class="panel" style="padding:6px 16px">
+    <div class="srow"><span class="lbl"><span class="nm">Account name</span></span><span class="b" style="text-align:right">{{ bank.account_name|default:"—" }}</span></div>
+    <div class="srow"><span class="lbl"><span class="nm">Account no.</span></span><span class="b tabnum">{{ bank.account_number|default:"—" }}</span></div>
+    <div class="srow"><span class="lbl"><span class="nm">Bank</span></span><span class="b" style="text-align:right">{{ bank.bank_name|default:"—" }}</span></div>
+    <div class="srow"><span class="lbl"><span class="nm">IFSC</span></span><span class="b tabnum">{{ bank.ifsc_code|default:"—" }}</span></div>
+    <div class="srow"><span class="lbl"><span class="nm">Branch</span></span><span class="b" style="text-align:right">{{ bank.branch_name|default:"—" }}</span></div>
+</div>
+{% endif %}
 {% endif %}
 
 {% endblock %}

@@ -3,17 +3,17 @@
 {% load static %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid mt-4">
     <div class="row">
-        <div class="col-12 col-md-8 mx-auto">
+        <div class="col-12 col-xl-10 mx-auto">
             <!-- Profile Card -->
             <div class="card shadow-lg">
                 <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                     <h4 class="mb-0">Business Profile</h4>
 					<div>
 						<a href="{% url 'user_profile_edit' %}" class="btn btn-light btn-sm"><b><i class="fas fa-pen-to-square"></i></b></a>
-                    	<a href="{% url 'logout_view' %}" class="btn btn-light btn-sm"><b><i class="fas fa-right-from-bracket"></i></b></a>
                     	<a href="{% url 'download_sqlite' %}" class="btn btn-light btn-sm"><b><i class="fas fa-download"></i></b></a>
+                    	<a href="{% url 'logout_view' %}" class="btn btn-light btn-sm"><b><i class="fas fa-right-from-bracket"></i></b></a>
 					</div>
                 </div>
                 <div class="card-body">
@@ -44,8 +44,16 @@
                                 <td>{% if user_profile.business_brand %}{{ user_profile.business_brand }}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
                             </tr>
                             <tr>
-                                <th scope="row" class="text-right">UserID:</th>
-                                <td class="text-success">{{ user_profile.business_uid }}</td>
+                                <th scope="row" class="text-right">Share Code:</th>
+                                <td>
+                                    {% if user_profile.sharing_enabled %}
+                                        <span class="badge badge-success">Sharing ON</span>
+                                        <code id="shareCode" style="font-size:1em;">{{ user_profile.business_uid }}</code>
+                                        <button type="button" class="btn btn-outline-primary btn-sm btn-curve" onclick="copyShareCode()" title="Copy share code"><i class="fas fa-copy"></i></button>
+                                    {% else %}
+                                        <span class="badge badge-secondary">Sharing OFF</span>
+                                    {% endif %}
+                                </td>
                             </tr>
                             <tr>
                                 <th scope="row" class="text-right">Latitude:</th>
@@ -88,6 +96,18 @@
 </div>
 {% endblock %}
 {% block includejs %}
+<script>
+    function copyShareCode() {
+        var code = document.getElementById('shareCode');
+        if (!code) return;
+        var text = code.textContent.trim();
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(function () {
+                if (window.Swal) Swal.fire({ icon: 'success', title: 'Copied!', text: 'Share code ' + text + ' copied.', timer: 1400, showConfirmButton: false });
+            });
+        }
+    }
+</script>
 <script>
     var latitude = {{ user_profile.business_latitude }};
     var longitude = {{ user_profile.business_longitude }};

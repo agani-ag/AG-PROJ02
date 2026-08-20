@@ -116,6 +116,52 @@
     <link href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.2.1/styles/ag-grid.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.2.1/styles/ag-theme-alpine.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.2.1/dist/ag-grid-community.min.noStyle.js"></script>
+    <!-- AG GRID full-screen support: a toggle is auto-added to every grid on the page -->
+    <style>
+        .grid-fs-btn{position:absolute;top:6px;right:6px;z-index:20;border:0;border-radius:6px;padding:6px 9px;
+            background:rgba(52,58,64,.85);color:#fff;cursor:pointer;font-size:13px;line-height:1;
+            box-shadow:0 1px 4px rgba(0,0,0,.25);transition:background .15s}
+        .grid-fs-btn:hover{background:#343a40}
+        [class*="ag-theme-"]:fullscreen{width:100vw !important;height:100vh !important;background:#fff;padding:8px}
+        [class*="ag-theme-"]:-webkit-full-screen{width:100vw !important;height:100vh !important;background:#fff;padding:8px}
+    </style>
+    <script>
+    (function(){
+        function attach(){
+            document.querySelectorAll('[class*="ag-theme-"]').forEach(function(grid){
+                if(grid.dataset.fsReady) return;
+                // Only real grid containers ag-Grid has actually rendered into.
+                if(!grid.querySelector('.ag-root-wrapper')) return;
+                grid.dataset.fsReady='1';
+                if(getComputedStyle(grid).position==='static') grid.style.position='relative';
+                var btn=document.createElement('button');
+                btn.type='button'; btn.className='grid-fs-btn'; btn.title='Toggle full screen';
+                btn.innerHTML='<i class="fas fa-expand"></i>';
+                btn.addEventListener('click',function(e){
+                    e.preventDefault(); e.stopPropagation();
+                    var on=document.fullscreenElement||document.webkitFullscreenElement;
+                    if(on){ (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+                    else{ (grid.requestFullscreen||grid.webkitRequestFullscreen).call(grid); }
+                });
+                grid.appendChild(btn);
+            });
+        }
+        function onFsChange(){
+            var on=document.fullscreenElement||document.webkitFullscreenElement;
+            document.querySelectorAll('.grid-fs-btn i').forEach(function(i){
+                i.className=on?'fas fa-compress':'fas fa-expand';
+            });
+            // Nudge ag-Grid to recompute its viewport for the new size.
+            setTimeout(function(){ window.dispatchEvent(new Event('resize')); },60);
+        }
+        document.addEventListener('fullscreenchange',onFsChange);
+        document.addEventListener('webkitfullscreenchange',onFsChange);
+        // Grids initialise after their page scripts run; poll briefly to catch them all.
+        window.addEventListener('load',function(){
+            var tries=0, t=setInterval(function(){ attach(); if(++tries>12) clearInterval(t); },400);
+        });
+    })();
+    </script>
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Buttons -->

@@ -2,6 +2,7 @@
 from django.contrib.auth import login, logout
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.utils.http import url_has_allowed_host_and_scheme
 
 # Project imports
 from gstbilling import settings
@@ -10,14 +11,25 @@ from gstbilling import settings
 from ..forms import UserProfileForm
 
 
+def _safe_next(request):
+    """The ?next=/... target if it's a safe same-site path, else None."""
+    nxt = request.POST.get("next") or request.GET.get("next")
+    if nxt and url_has_allowed_host_and_scheme(
+        nxt, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return nxt
+    return None
+
+
 # ================= User Management =============================
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect("invoice_create")
+        return redirect(_safe_next(request) or "invoice_create")
     context = {}
     if request.GET.get("admin"):
         context["admin"] = True
     context["admin_password"] = settings.PRODUCT
+    context["next"] = request.GET.get("next") or request.POST.get("next") or ""
     auth_form = AuthenticationForm(request)
     if request.method == "POST":
         auth_form = AuthenticationForm(request, data=request.POST)
@@ -25,7 +37,8 @@ def login_view(request):
             user = auth_form.get_user()
             if user:
                 login(request, user)
-                return redirect("invoice_create")
+                # Honour ?next=/... so a deep link resumes where the user was headed.
+                return redirect(_safe_next(request) or "invoice_create")
         else:
             context["error_message"] = auth_form.get_invalid_login_error()
     context["auth_form"] = auth_form

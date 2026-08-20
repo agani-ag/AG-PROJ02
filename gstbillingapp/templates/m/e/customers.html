@@ -1,21 +1,31 @@
 {% extends "m/base.html" %}
+{% load money %}
 {% block title %}Customers{% endblock %}
 {% block heading %}Customers{% endblock %}
 {% block subhead %}{% if rows %}<div class="sub" id="cust-count">{{ rows|length }} customer{{ rows|length|pluralize }}</div>{% endif %}{% endblock %}
 {% block content %}
 
 {% if rows %}
-{% include "m/_searchbar.html" with target="#cust-list" empty="#cust-empty" count="#cust-count" noun="customer" noun_pl="customers" placeholder="Search name or phone…" %}
+<div style="position:relative;margin-bottom:12px">
+    <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+    <input class="field" placeholder="Search name or phone…" oninput="custSearch(this.value)" autocomplete="off" inputmode="search" style="margin:0;padding-left:42px">
+</div>
+<div class="filt" id="cust-filt">
+    <button class="on" onclick="custSetType(this,'all')">All</button>
+    <button onclick="custSetType(this,'owing')">With dues</button>
+    <button onclick="custSetType(this,'clear')">Cleared</button>
+    <button onclick="custSetType(this,'advance')">Advance</button>
+</div>
 <div class="list" id="cust-list">
     {% for r in rows %}
-    <a href="{% url 'm_employee_customer' r.id %}" class="row" data-s="{{ r.name|lower }} {{ r.phone|default:'' }}">
+    <a href="{% url 'm_employee_customer' r.id %}" class="row" data-s="{{ r.name|lower }} {{ r.phone|default:'' }}" data-type="{% if r.bal < 0 %}owing{% elif r.bal > 0 %}advance{% else %}clear{% endif %}">
         <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
             <span class="ico ic-blue"><svg class="i"><use href="#ic-user"/></svg></span>
             <span style="min-width:0"><span class="b">{{ r.name }}</span><div class="sub">{{ r.phone|default:"—" }}</div></span>
         </span>
-        {% if r.bal < 0 %}<span class="badge b-red">&#8377; {{ r.bal|floatformat:2|cut:"-" }}</span>
-        {% elif r.bal > 0 %}<span class="badge b-green">&#8377; {{ r.bal|floatformat:2 }}</span>
-        {% else %}<span class="sub">clear</span>{% endif %}
+        {% if r.bal < 0 %}<span class="badge b-red">&#8377; {{ r.bal|inr|cut:"-" }}</span>
+        {% elif r.bal > 0 %}<span class="badge b-green">&#8377; {{ r.bal|inr }}</span>
+        {% else %}<span class="badge b-green" title="Cleared" style="padding:3px 8px"><svg class="i" style="width:13px;height:13px;stroke:var(--green);vertical-align:middle"><use href="#ic-check"/></svg></span>{% endif %}
     </a>
     {% endfor %}
 </div>
@@ -23,6 +33,30 @@
 {% else %}
 <div class="empty"><svg class="i"><use href="#ic-people"/></svg><div>No customers yet.</div></div>
 {% endif %}
+
+<script>
+// Combined search + status filter (they must agree on which rows to show).
+var custQ = '', custT = 'all';
+function custSearch(v){ custQ = (v || '').toLowerCase().trim(); custApply(); }
+function custSetType(btn, t){
+    custT = t;
+    document.querySelectorAll('#cust-filt button').forEach(function(b){ b.classList.remove('on'); });
+    btn.classList.add('on');
+    custApply();
+}
+function custApply(){
+    var rows = document.querySelectorAll('#cust-list .row'), shown = 0;
+    for (var i = 0; i < rows.length; i++){
+        var mQ = !custQ || rows[i].getAttribute('data-s').indexOf(custQ) >= 0;
+        var mT = custT === 'all' || rows[i].getAttribute('data-type') === custT;
+        var vis = mQ && mT;
+        rows[i].style.display = vis ? '' : 'none'; if (vis) shown++;
+    }
+    document.getElementById('cust-empty').style.display = shown ? 'none' : 'block';
+    var c = document.getElementById('cust-count');
+    if (c) c.textContent = shown + (shown === 1 ? ' customer' : ' customers');
+}
+</script>
 
 {% endblock %}
 {% block nav %}{% include "m/nav_employee.html" with active="customers" %}{% endblock %}

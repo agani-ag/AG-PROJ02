@@ -22,6 +22,9 @@ class UserProfile(models.Model):
     business_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     business_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     bankdetails = models.ForeignKey('BankDetails', blank=True, null=True, on_delete=models.SET_NULL)
+    # When on, this business can be covered by another business's employee who pastes
+    # its share code (business_uid). Off means the code is inert — opt-in sharing.
+    sharing_enabled = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if self.business_title:
@@ -581,6 +584,9 @@ class Employee(models.Model):
     phone = models.CharField(max_length=14, blank=True, null=True)
     address = models.TextField(max_length=600, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    # Admin privilege: an admin employee sees the full business dashboard (financials,
+    # collection progress) on mobile; a regular employee sees only operational screens.
+    is_admin = models.BooleanField(default=False)
     # Bumped to revoke this employee's mobile access link (baked into the signed token).
     token_version = models.IntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -589,10 +595,18 @@ class Employee(models.Model):
         ordering = ["name"]
 
     def covered_businesses(self):
-        """The businesses this employee can access — the chosen set, or the home
-        business when none were picked."""
-        qs = self.businesses.all()
-        return qs if qs.exists() else User.objects.filter(id=self.business_id)
+        """The businesses this employee can access: always their home business, plus
+        any shared business (the `businesses` M2M) that STILL has sharing enabled.
+
+        Sharing is re-checked here, not just when the link was granted — so a business
+        turning sharing OFF immediately revokes every external employee, even though the
+        stale M2M row remains."""
+        ids = set(
+            self.businesses.filter(userprofile__sharing_enabled=True)
+            .values_list("id", flat=True)
+        )
+        ids.add(self.business_id)   # home business is always covered, no sharing needed
+        return User.objects.filter(id__in=ids).select_related("userprofile")
 
     def save(self, *args, **kwargs):
         if self.name:

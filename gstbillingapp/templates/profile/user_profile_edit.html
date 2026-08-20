@@ -218,6 +218,24 @@
 		</div>
 	</div>
 
+	<!-- Business Sharing -->
+	<div class="section-card">
+		<div class="section-header">
+			<i class="fas fa-share-alt"></i> Business Sharing
+		</div>
+		<div class="section-body">
+			<label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+				{{ user_profile_form.sharing_enabled }}
+				<span><b>Enable business sharing</b></span>
+			</label>
+			<small class="text-muted d-block mt-2">
+				When enabled, another business can grant its employees access to <b>your</b> business by pasting your
+				share code below. Your code is your UserID: <b>{{ user_profile.business_uid|default:"—" }}</b>.
+				Turn this off any time to stop sharing.
+			</small>
+		</div>
+	</div>
+
 	<!-- Location -->
 	<div class="section-card">
 		<div class="section-header">
