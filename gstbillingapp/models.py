@@ -211,6 +211,31 @@ class Quotation(models.Model):
             return True  # Invoice was deleted, allow deletion
         return self.status != 'CONVERTED'
 
+    @property
+    def order_source(self):
+        """Where the quotation came from, so desktop staff can tell a mobile order that
+        needs verifying from one they raised themselves. Short code:
+          'desktop'  — created directly on the desktop (quotation_create).
+          'customer' — placed by the customer from the mobile app.
+          'employee' — placed by field-staff (for a customer) from the mobile app.
+          'app'      — from the app but neither flag set (legacy)."""
+        if not self.created_from_cart:
+            return 'desktop'
+        if self.created_by_customer:
+            return 'customer'
+        if self.order_employee_id:
+            return 'employee'
+        return 'app'
+
+    @property
+    def order_source_label(self):
+        return {
+            'desktop': 'Desktop',
+            'customer': 'Customer app',
+            'employee': 'Employee app',
+            'app': 'Mobile app',
+        }[self.order_source]
+
 class ProductCategory(models.Model):
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     category_name = models.CharField(max_length=100)

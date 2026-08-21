@@ -1,6 +1,6 @@
 {% extends "m/base.html" %}
 {% block title %}New order{% endblock %}
-{% block heading %}New order{% endblock %}
+{% block heading %}Add products{% endblock %}
 {% block subhead %}<div class="sub">For <span class="b">{{ buyer.customer_name }}</span></div>{% endblock %}
 
 {% block includecss %}
@@ -14,38 +14,21 @@
 .prod .pr{font-weight:800;font-size:14px;margin-top:2px}
 .addbtn{flex:none;width:38px;height:38px;border-radius:12px;border:0;background:var(--bluebg);color:var(--acc);display:flex;align-items:center;justify-content:center;box-shadow:var(--sh)}
 .addbtn:active{transform:scale(.94)}
-.step{flex:none;display:flex;align-items:center;gap:0;background:var(--bg);border-radius:12px;overflow:hidden}
+.step{flex:none;display:flex;align-items:center;background:var(--bg);border-radius:12px;overflow:hidden}
 .step button{width:34px;height:38px;border:0;background:transparent;color:var(--acc);font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center}
 .step button:active{background:rgba(0,0,0,.05)}
-.step .q{min-width:30px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums}
+.step .q{width:52px;min-width:52px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;border:0;background:transparent;color:var(--ink);font-size:15px;padding:0;-moz-appearance:textfield}
+.step .q::-webkit-outer-spin-button,.step .q::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .orderbar{position:fixed;left:0;right:0;bottom:0;z-index:40;padding:12px 14px calc(12px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);box-shadow:0 -3px 16px rgba(0,0,0,.08);transform:translateY(120%);transition:transform .22s ease}
 .orderbar.show{transform:translateY(0)}
 .orderbar .b1{display:flex;align-items:center;gap:12px;max-width:640px;margin:0 auto}
 .orderbar .sum{flex:1;min-width:0}
 .orderbar .sum .c{font-size:12px;color:var(--soft)}
 .orderbar .sum .t{font-size:20px;font-weight:800;letter-spacing:-.4px}
-.sheet-bg{position:fixed;inset:0;background:rgba(10,12,18,.42);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
-.sheet-bg.show{opacity:1;pointer-events:auto}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;background:var(--bg);border-radius:26px 26px 0 0;padding:8px 16px calc(18px + env(safe-area-inset-bottom));max-height:86vh;overflow-y:auto;transform:translateY(100%);transition:transform .26s cubic-bezier(.3,.9,.3,1);max-width:640px;margin:0 auto}
-.sheet.show{transform:translateY(0)}
-.sheet .grip{width:38px;height:4px;border-radius:3px;background:var(--line);margin:8px auto 12px}
-.sheet h3{margin:0 0 12px;font-size:19px;font-weight:800;letter-spacing:-.3px}
-.sitem{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
-.sitem .nm{font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sitem .amt{font-weight:700;font-variant-numeric:tabular-nums}
-.trow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}
-.trow.big{font-size:17px;font-weight:800;padding-top:12px;border-top:1px solid var(--line);margin-top:6px}
-.gstrow{display:flex;align-items:center;justify-content:space-between;background:var(--card);border-radius:14px;padding:13px 15px;box-shadow:var(--sh);margin:14px 0}
-.sw{position:relative;width:46px;height:28px;flex:none}
-.sw input{opacity:0;width:0;height:0}
-.sw .tr{position:absolute;inset:0;background:var(--line);border-radius:20px;transition:.2s}
-.sw .tr::before{content:"";position:absolute;height:22px;width:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.sw input:checked + .tr{background:var(--acc)}
-.sw input:checked + .tr::before{transform:translateX(18px)}
 {% endblock %}
 
 {% block content %}
-<div id="cfg" data-role="{{ role }}" data-customer="{{ buyer.id }}" data-gst="{{ gst_available|yesno:'1,0' }}" style="display:none"></div>
+<div id="cfg" data-role="{{ role }}" data-customer="{{ buyer.id }}" style="display:none"></div>
 
 <div style="position:relative;margin-bottom:12px">
     <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
@@ -57,33 +40,12 @@
 <div class="list"><div id="plist"></div></div>
 <div class="empty" id="empty" style="display:none"><svg class="i"><use href="#ic-box"/></svg><div>No products found.</div></div>
 
-<!-- sticky cart bar -->
+<!-- sticky cart bar -> dedicated cart page -->
 <div class="orderbar" id="bar">
     <div class="b1">
         <div class="sum"><div class="c" id="barcount">0 items</div><div class="t" id="bartotal">₹0</div></div>
-        <button class="btn btn-acc" style="width:auto;padding:13px 22px" onclick="openSheet()">Review</button>
+        <a class="btn btn-acc" style="width:auto;padding:13px 22px" href="{% url 'm_order_cart' %}{% if role != 'customer' %}?customer={{ buyer.id }}{% endif %}"><svg class="i" style="stroke:#fff"><use href="#ic-cart"/></svg> View cart</a>
     </div>
-</div>
-
-<!-- checkout sheet -->
-<div class="sheet-bg" id="sheetbg" onclick="closeSheet()"></div>
-<div class="sheet" id="sheet">
-    <div class="grip"></div>
-    <h3>Review order</h3>
-    <div id="sitems"></div>
-    <div style="margin-top:12px">
-        <div class="trow"><span class="muted">Items total</span><span id="t_gross" class="tabnum">₹0</span></div>
-        <div class="trow big"><span>Estimated total</span><span id="t_total" class="tabnum">₹0</span></div>
-        <div class="sm muted" style="margin-top:4px">Final amount is confirmed by the shop.</div>
-    </div>
-    {% if gst_available %}
-    <label class="gstrow">
-        <span><span class="b">GST order</span><div class="sub">{{ buyer.customer_gst }}</div></span>
-        <span class="sw"><input type="checkbox" id="gst" checked><span class="tr"></span></span>
-    </label>
-    {% endif %}
-    <button class="btn btn-acc" id="place" style="margin-top:6px" onclick="place()">Place order</button>
-    <button class="btn" style="margin-top:10px;background:transparent;box-shadow:none;color:var(--soft)" onclick="closeSheet()">Keep shopping</button>
 </div>
 
 <script>
@@ -92,17 +54,22 @@ const PRODUCTS = {{ products_json|safe }};
 const CATS = {{ categories_json|safe }};
 const CART_KEY = 'm_order_' + CFG.role + '_' + CFG.customer;
 
-let cart = loadCart();       // {productId: qty}
-let activeCat = '';          // '' = all
+let cart = loadCart();
+let activeCat = '';
 
 function loadCart(){ try{ var c = JSON.parse(localStorage.getItem(CART_KEY)); return (c && typeof c==='object') ? c : {}; }catch(e){ return {}; } }
-function saveCart(){ localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
-function pmap(){ var m={}; PRODUCTS.forEach(function(p){ m[p.id]=p; }); return m; }
-const PM = pmap();
-
+function saveCart(){ try{ localStorage.setItem(CART_KEY, JSON.stringify(cart)); }catch(e){} }
+const PM = (function(){ var m={}; PRODUCTS.forEach(function(p){ m[p.id]=p; }); return m; })();
 function price(p){ return Number(p.product_rate_with_gst)||0; }
+// Canonical line amount — matches calculate_item_amounts() on the server (rate is
+// GST-exclusive; product discount first, then GST added), so the cart bar total is real.
+function lineAmt(p, qty){
+    var rate=Number(p.product_rate_with_gst)||0, gst=Number(p.product_gst_percentage)||0, disc=Number(p.product_discount)||0;
+    var base=(rate - rate*disc/100)*qty;
+    return Math.round(base*(1+gst/100)*100)/100;
+}
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-/* ---- catalog render (search + category) ---- */
 function buildChips(){
     var used = {}; PRODUCTS.forEach(function(p){ if(p.product_category_id) used[p.product_category_id]=1; });
     var html = '<button class="on" data-c="" onclick="setCat(this,\'\')">All</button>';
@@ -115,7 +82,6 @@ function setCat(btn, id){
     btn.classList.add('on');
     render();
 }
-function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function render(){
     var q = (document.getElementById('q').value||'').toLowerCase().trim();
@@ -129,7 +95,7 @@ function render(){
         shown++;
         var qty = cart[p.id]||0;
         var ctrl = qty>0
-            ? '<div class="step"><button onclick="dec('+p.id+')">&minus;</button><span class="q" id="q_'+p.id+'">'+qty+'</span><button onclick="inc('+p.id+')">+</button></div>'
+            ? '<div class="step"><button onclick="dec('+p.id+')">&minus;</button><input class="q" type="number" inputmode="numeric" min="1" value="'+qty+'" onchange="setQty('+p.id+',this.value)" onfocus="this.select()"><button onclick="inc('+p.id+')">+</button></div>'
             : '<button class="addbtn" onclick="inc('+p.id+')"><svg class="i"><use href="#ic-plus"/></svg></button>';
         var sub = [p.model_no, p.product_colour].filter(Boolean).map(esc).join(' · ');
         out += '<div class="prod" data-id="'+p.id+'">'
@@ -142,69 +108,25 @@ function render(){
     document.getElementById('empty').style.display = shown ? 'none' : 'block';
 }
 
-/* ---- cart ops ---- */
 function inc(id){ cart[id]=(cart[id]||0)+1; saveCart(); render(); bar(); }
 function dec(id){ cart[id]=(cart[id]||0)-1; if(cart[id]<=0) delete cart[id]; saveCart(); render(); bar(); }
+// Typed quantity (for large counts like 200/500). Blank or <1 removes the line.
+function setQty(id, v){ var n=Math.floor(Number(v)); if(!n||n<1){ delete cart[id]; } else { cart[id]=Math.min(n,99999); } saveCart(); render(); bar(); }
 
-function totals(){
-    var count=0, gross=0;
-    for(var id in cart){ var p=PM[id]; if(!p) continue; count+=cart[id]; gross += price(p)*cart[id]; }
-    return {count:count, gross:gross};
-}
 function bar(){
-    var t = totals();
+    var count=0, gross=0;
+    for(var id in cart){ var p=PM[id]; if(!p) continue; count+=cart[id]; gross += lineAmt(p, cart[id]); }
     var el = document.getElementById('bar');
-    if(t.count>0){
-        document.getElementById('barcount').textContent = t.count + (t.count===1?' item':' items');
-        document.getElementById('bartotal').textContent = M.money2(t.gross);
+    if(count>0){
+        document.getElementById('barcount').textContent = count + (count===1?' item':' items');
+        document.getElementById('bartotal').textContent = M.money2(Math.round(gross*100)/100);
         el.classList.add('show');
-    } else { el.classList.remove('show'); closeSheet(); }
+    } else { el.classList.remove('show'); }
 }
 
-/* ---- checkout sheet ---- */
-function openSheet(){
-    var rows='';
-    for(var id in cart){ var p=PM[id]; if(!p) continue;
-        rows += '<div class="sitem"><span class="nm">'+esc(p.product_name||p.model_no)+'</span>'
-             + '<span class="muted sm">'+cart[id]+' &times; '+M.money2(price(p))+'</span>'
-             + '<span class="amt">'+M.money2(price(p)*cart[id])+'</span></div>';
-    }
-    document.getElementById('sitems').innerHTML = rows;
-    var t = totals();
-    document.getElementById('t_gross').textContent = M.money2(t.gross);
-    document.getElementById('t_total').textContent = M.money2(t.gross);
-    document.getElementById('sheetbg').classList.add('show');
-    document.getElementById('sheet').classList.add('show');
-}
-function closeSheet(){
-    document.getElementById('sheetbg').classList.remove('show');
-    document.getElementById('sheet').classList.remove('show');
-}
-
-async function place(){
-    var items = [];
-    for(var id in cart){ if(cart[id]>0) items.push({id:Number(id), qty:cart[id]}); }
-    if(!items.length){ M.toast('Cart is empty'); return; }
-    var gstEl = document.getElementById('gst');
-    var isGst = CFG.gst==='1' ? (gstEl ? gstEl.checked : true) : false;
-    var btn = document.getElementById('place');
-    btn.disabled = true; btn.textContent = 'Placing…';
-    try{
-        var r = await M.post("{% url 'm_order_checkout' %}", {items:items, is_gst:isGst, customer:Number(CFG.customer)});
-        if(r.ok){
-            localStorage.removeItem(CART_KEY);
-            M.toast('Order placed · ' + r.label);
-            setTimeout(function(){ location.href = r.order_url; }, 700);
-        } else {
-            M.toast(r.message||'Could not place order');
-            btn.disabled = false; btn.textContent = 'Place order';
-        }
-    }catch(e){
-        M.toast('Network error. Try again.');
-        btn.disabled = false; btn.textContent = 'Place order';
-    }
-}
-
-buildChips(); render(); bar();
+// window.M (money/toast helpers) is defined later in base.html, so wait for the full
+// document before the first render that uses it.
+function init(){ buildChips(); render(); bar(); }
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 </script>
 {% endblock %}

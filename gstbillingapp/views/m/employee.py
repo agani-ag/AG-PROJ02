@@ -11,7 +11,7 @@ from django.db.models import Sum, Case, When, F, FloatField
 
 from ...mobile_auth import mobile_login_required
 from ...models import Customer, Book, BookLog, Invoice, Quotation, ExpenseTracker
-from ...utils import recalculate_book_current_balance
+from ...utils import recalculate_book_current_balance, round_to_rupee
 from ...templatetags.money import format_inr
 from ._paged import PAGE, invoice_page, ledger_page
 
@@ -36,6 +36,43 @@ def _emp(request):
     return request.mobile_actor.get("employee")
 
 
+def _brand_nav(request, c):
+    """The SAME customer across the employee's covered businesses, for a customer-scoped
+    screen's brand switcher. Each entry carries that brand's own customer id, so switching
+    brand opens the right record instead of reusing this brand's id (which 404s).
+
+    A brand where this customer doesn't exist is simply omitted — so the switcher only
+    offers brands that actually have them, and hides entirely when only one does. Matching
+    is by phone, else GST, else exact name (all strong keys for these SMB customers)."""
+    businesses = request.mobile_actor.get("businesses", [])
+    if len(businesses) < 2:
+        return []
+    active_id = request.mobile_actor["active_business"].id
+    phone = (c.customer_phone or "").strip()
+    gst = (c.customer_gst or "").strip()
+    name = (c.customer_name or "").strip()
+    nav = []
+    for b in businesses:
+        if b.id == active_id:
+            match = c
+        else:
+            qs = Customer.objects.filter(user=b)
+            if phone:
+                match = qs.filter(customer_phone=phone).first()
+            elif gst:
+                match = qs.filter(customer_gst=gst).first()
+            else:
+                match = qs.filter(customer_name__iexact=name).first()
+            if not match:
+                continue
+        p = getattr(b, "userprofile", None)
+        nav.append({
+            "id": b.id, "cust_id": match.id, "active": b.id == active_id,
+            "name": (p.business_brand or p.business_title if p else None) or b.username,
+        })
+    return nav
+
+
 def _inv_total(js):
     try:
         return round(float(json.loads(js).get("invoice_total_amt_with_gst", 0) or 0), 2)
@@ -58,25 +95,27 @@ def home(request):
     due_total = sum(-bal for bal in bal_map.values() if bal < 0)
     due_count = sum(1 for bal in bal_map.values() if bal < 0)
 
+    # Overdue: same FIFO age the customers list uses, gated on actually owing — so this
+    # count exactly matches the "Overdue · 90+ days" filter the tile links to.
+    od = _overdue_days(u, today)
+    overdue_count = sum(1 for cid, bal in bal_map.items() if bal < 0 and od.get(cid, 0) >= 90)
+    overdue_amt = sum(-bal for cid, bal in bal_map.items() if bal < 0 and od.get(cid, 0) >= 90)
+
     # ---- Today's tasks: actionable field-work for the employee ----
     # Customer.DAYS is Sun=0..Sat=6; Python weekday() is Mon=0..Sun=6 → convert.
     model_today = (today.weekday() + 1) % 7
     custs = list(Customer.objects.filter(user=u).only("id", "collection_day", "credit_limit"))
     collect_today_count = collect_today_amt = 0
-    over_limit = 0
     for c in custs:
         bal = bal_map.get(c.id, 0.0)
         if c.collection_day == model_today and bal < 0:
             collect_today_count += 1
             collect_today_amt += -bal
-        lim = float(c.credit_limit or 0)
-        if lim > 0 and bal < -lim:
-            over_limit += 1
 
     tasks = {
         "collect_today": collect_today_count, "collect_today_amt": format_inr(collect_today_amt, 0),
         "dues_count": due_count, "dues_amt": format_inr(due_total, 0),
-        "over_limit": over_limit,
+        "overdue_count": overdue_count, "overdue_amt": format_inr(overdue_amt, 0),
     }
 
     # The full-business dashboard (financials + collections) is admin-only. A regular
@@ -150,15 +189,56 @@ def home(request):
     })
 
 
+def _overdue_days(u, today):
+    """Age (in days) of each customer's OLDEST still-uncovered purchase, via FIFO — the
+    same rule the customer's own home screen uses. Payments + returns + adjustments cover
+    purchases oldest-first; the first bill they can't cover is the overdue one, and its age
+    drives the Overdue filter's 30/60/90-day buckets. 0 = nothing overdue.
+
+    One pass over the business's active ledger logs (ordered by customer, then date), so the
+    whole list costs a single extra query, not one per customer."""
+    from collections import defaultdict
+    purch = defaultdict(list)   # customer_id -> [(amount, date), ...] oldest-first
+    credit = defaultdict(float)  # customer_id -> covering funds (paid + returned + others)
+    logs = (BookLog.objects.filter(parent_book__user=u, is_active=True)
+            .values_list("parent_book__customer_id", "change_type", "change", "date")
+            .order_by("parent_book__customer_id", "date", "id"))
+    for cid, ct, change, date in logs:
+        if cid is None:
+            continue
+        if ct == 1:                       # purchase (change stored negative)
+            purch[cid].append((abs(change or 0), date))
+        else:                             # 0 paid / 2 returned / 3 other (signed)
+            credit[cid] += (change or 0)
+    od = {}
+    for cid, plist in purch.items():
+        rem = credit.get(cid, 0.0)
+        age = 0
+        for amt, d in plist:
+            if rem + 0.01 >= amt:      # 1-paisa tolerance: don't let float noise "uncover" a bill
+                rem -= amt
+            else:
+                age = (today - d.date()).days if d else 0
+                break
+        od[cid] = max(age, 0)
+    return od
+
+
 @mobile_login_required("employee")
 def customers(request):
     u = _user(request)
     balances = {b.customer_id: float(b.current_balance or 0) for b in Book.objects.filter(user=u)}
-    rows = [{
-        "id": c.id, "name": c.customer_name, "phone": c.customer_phone,
+    od = _overdue_days(u, datetime.date.today())
+    rows = []
+    for c in Customer.objects.filter(user=u).order_by("customer_name"):
         # Round so a sub-paisa residual (e.g. 0.001) reads as cleared, not "₹ 0.00".
-        "bal": round(balances.get(c.id, 0.0), 2),
-    } for c in Customer.objects.filter(user=u).order_by("customer_name")]
+        bal = round(balances.get(c.id, 0.0), 2)
+        rows.append({
+            "id": c.id, "name": c.customer_name, "phone": c.customer_phone, "bal": bal,
+            # Overdue only applies to a customer who is actually owing — a cleared / in-advance
+            # customer (balance ≥ 0) is never overdue, even if FIFO float noise says otherwise.
+            "odays": od.get(c.id, 0) if bal < 0 else 0,
+        })
     return render(request, "m/e/customers.html", {"rows": rows})
 
 
@@ -176,6 +256,7 @@ def customer_detail(request, customer_id):
     return render(request, "m/e/customer_detail.html", {
         "c": c, "logs": logs, "balance": bal, "has_more": has_more,
         "outstanding": round(-bal, 2) if bal < 0 else 0.0,
+        "brand_nav": _brand_nav(request, c), "brand_url": "m_employee_customer",
     })
 
 
@@ -193,6 +274,7 @@ def record_payment(request, customer_id):
         return JsonResponse({"ok": False, "message": "Bad request"}, status=400)
     if amount <= 0:
         return JsonResponse({"ok": False, "message": "Enter a valid amount"}, status=400)
+    amount = round_to_rupee(amount)     # whole-rupee ledger entries
     emp = _emp(request)
     is_admin = bool(request.mobile_actor.get("is_admin"))
     book, _ = Book.objects.get_or_create(user=u, customer=c)
@@ -313,6 +395,46 @@ def invoice_detail(request, invoice_id):
 
 
 @mobile_login_required("employee")
+def customer_map(request, customer_id):
+    """In-app Leaflet map for a customer. Shows the pin if set; lets the employee
+    place/adjust it (tap, drag, or GPS) and save — including first-time capture for
+    a customer that has no location yet."""
+    u = _user(request)
+    c = get_object_or_404(Customer, id=customer_id, user=u)
+    profile = getattr(u, "userprofile", None)
+    return render(request, "m/e/customer_map.html", {
+        "c": c,
+        # Fallback map centre when the customer has no pin yet: the business HQ, else
+        # a neutral default. The template only drops a marker once one actually exists.
+        "biz_lat": profile.business_latitude if profile else None,
+        "biz_lng": profile.business_longitude if profile else None,
+        "brand_nav": _brand_nav(request, c), "brand_url": "m_employee_customer_map",
+    })
+
+
+@csrf_exempt
+@mobile_login_required("employee")
+def customer_set_location(request, customer_id):
+    u = _user(request)
+    c = get_object_or_404(Customer, id=customer_id, user=u)
+    if request.method != "POST":
+        return JsonResponse({"ok": False}, status=405)
+    try:
+        data = json.loads(request.body)
+        lat = float(data.get("lat"))
+        lng = float(data.get("lng"))
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "message": "Bad coordinates"}, status=400)
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        return JsonResponse({"ok": False, "message": "Coordinates out of range"}, status=400)
+    # DecimalField(9,6): keep 6 dp, matching the desktop customer form.
+    c.customer_latitude = round(lat, 6)
+    c.customer_longitude = round(lng, 6)
+    c.save(update_fields=["customer_latitude", "customer_longitude"])
+    return JsonResponse({"ok": True, "lat": float(c.customer_latitude), "lng": float(c.customer_longitude)})
+
+
+@mobile_login_required("employee")
 def customer_ledger_data(request, customer_id):
     u = _user(request)
     c = get_object_or_404(Customer, id=customer_id, user=u)
@@ -347,8 +469,42 @@ def collections(request):
 
 
 @mobile_login_required("employee")
+def collections_route(request):
+    """Optimised collection-run map for a day: HQ → the day's located customers, ordered
+    nearest-first (with farthest / reverse toggles), drawn as a real driving route. Only
+    customers that have coordinates can be routed; the rest are counted so staff know to
+    capture their location."""
+    u = _user(request)
+    profile = getattr(u, "userprofile", None)
+    today = datetime.date.today()
+    model_today = (today.weekday() + 1) % 7
+    day = request.GET.get("day")
+    sel = int(day) if (day and day.isdigit() and 0 <= int(day) <= 6) else model_today
+    balances = {b.customer_id: float(b.current_balance or 0) for b in Book.objects.filter(user=u)}
+    located, missing = [], 0
+    for c in Customer.objects.filter(user=u, collection_day=sel).order_by("customer_name"):
+        if c.customer_latitude is not None and c.customer_longitude is not None:
+            located.append({
+                "id": c.id, "name": c.customer_name, "place": c.customer_place or "",
+                "lat": float(c.customer_latitude), "lng": float(c.customer_longitude),
+                "bal": round(balances.get(c.id, 0.0), 2),
+            })
+        else:
+            missing += 1
+    hq_lat = float(profile.business_latitude) if profile and profile.business_latitude is not None else None
+    hq_lng = float(profile.business_longitude) if profile and profile.business_longitude is not None else None
+    return render(request, "m/e/collections_route.html", {
+        "sel": sel, "day_label": dict(Customer.DAYS).get(sel, ""),
+        "located": located, "count": len(located), "missing": missing,
+        "hq_lat": hq_lat, "hq_lng": hq_lng,
+        "hq_name": (profile.business_brand or profile.business_title) if profile else "HQ",
+    })
+
+
+@mobile_login_required("employee")
 def orders(request):
     u = _user(request)
-    rows = list(Quotation.objects.filter(user=u).select_related("quotation_customer")
+    # Only orders placed through the app — desktop-created quotations stay on the desktop.
+    rows = list(Quotation.objects.filter(user=u, created_from_cart=True).select_related("quotation_customer")
                 .order_by("-quotation_date", "-id")[:100])
     return render(request, "m/e/orders.html", {"rows": rows})

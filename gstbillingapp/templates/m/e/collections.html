@@ -2,9 +2,11 @@
 {% load money %}
 {% block title %}Collections{% endblock %}
 {% block heading %}Collections{% endblock %}
+{% block action %}<a class="act" href="{% url 'm_employee_collections_route' %}?day={{ sel }}" title="Route map"><svg class="i"><use href="#ic-route"/></svg></a>{% endblock %}
 {% block includecss %}
-.days{display:flex;gap:6px;overflow-x:auto;padding:2px 0 12px;-webkit-overflow-scrolling:touch}
-.days a{flex:0 0 auto;padding:8px 14px;border-radius:20px;background:var(--card);color:var(--soft);font-size:13px;font-weight:700;box-shadow:var(--sh)}
+.days{display:flex;gap:6px;overflow-x:auto;padding:2px 0 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+.days::-webkit-scrollbar{display:none}
+.days a{flex:0 0 auto;padding:8px 0;min-width:52px;text-align:center;border-radius:20px;background:var(--card);color:var(--soft);font-size:13px;font-weight:700;box-shadow:var(--sh)}
 .days a.on{background:var(--acc);color:#fff}
 {% endblock %}
 {% block content %}

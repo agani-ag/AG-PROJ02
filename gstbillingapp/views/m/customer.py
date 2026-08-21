@@ -223,7 +223,8 @@ def invoice_detail(request, invoice_id):
 @mobile_login_required("customer")
 def orders(request):
     c = _cust(request)
-    rows = list(Quotation.objects.filter(user=c.user, quotation_customer=c)
+    # Only orders placed through the app — desktop-created quotations stay on the desktop.
+    rows = list(Quotation.objects.filter(user=c.user, quotation_customer=c, created_from_cart=True)
                 .order_by("-quotation_date", "-id")[:100])
     return render(request, "m/c/orders.html", {"c": c, "rows": rows})
 

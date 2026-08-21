@@ -1,0 +1,177 @@
+{% extends "m/base.html" %}
+{% block title %}Location · {{ c.customer_name }}{% endblock %}
+{% block metatags %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css">
+{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_customer' c.id %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> {{ c.customer_name|truncatechars:22 }}</a>{% endblock %}
+{% block heading %}Location{% endblock %}
+{% block bizsel %}{% if brand_nav|length > 1 %}
+<div class="bizsel" id="bizsel">
+    {% for b in brand_nav %}<a href="{% url brand_url b.cust_id %}?biz={{ b.id }}" class="{% if b.active %}on{% endif %}">{{ b.name }}</a>{% endfor %}
+</div>
+{% endif %}{% endblock %}
+{% block includecss %}
+#map{height:54vh;min-height:300px;border-radius:var(--r);box-shadow:var(--sh);z-index:1}
+.leaflet-container{font:inherit}
+.coordbox{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--soft)}
+#routeinfo{margin-top:8px;padding:9px 12px;border-radius:12px;background:var(--bluebg);color:var(--acc);font-weight:700;font-size:13px;text-align:center}
+.leaflet-routing-container{display:none}
+{% endblock %}
+{% block content %}
+
+<div class="panel" style="padding:10px">
+    <div id="map"></div>
+    <div id="routeinfo" style="display:none"></div>
+</div>
+
+<!-- VIEW mode: read-only pin; GPS button routes you to the customer -->
+<div class="panel" id="viewpanel" style="display:none">
+    <div class="between">
+        <div>
+            <div class="b" style="font-size:14px">Saved location</div>
+            <div class="coordbox" id="coordv"></div>
+        </div>
+        <button class="btn btn-sm" style="width:auto;padding:8px 14px" onclick="enterEdit()"><svg class="i"><use href="#ic-edit"/></svg> Edit</button>
+    </div>
+    <button class="btn btn-sm mt" id="routebtn" onclick="toggleRoute()"><svg class="i"><use href="#ic-route"/></svg> Current GPS Location</button>
+</div>
+
+<!-- EDIT mode: tap / drag / GPS to place the pin, then save -->
+<div class="panel" id="editpanel" style="display:none">
+    <div class="b" style="font-size:14px" id="editttl">Set location</div>
+    <div class="coordbox" id="coorde" style="margin-bottom:10px"></div>
+    <div class="between" style="gap:10px">
+        <button class="btn btn-sm" style="flex:1" onclick="captureGPS()"><svg class="i"><use href="#ic-pin"/></svg> Current GPS Location</button>
+        <button class="btn btn-sm btn-acc" style="flex:1" onclick="saveLoc()"><svg class="i" style="stroke:#fff"><use href="#ic-check"/></svg> Save</button>
+    </div>
+    <button class="btn mt" onclick="cancelEdit()">Cancel</button>
+    <div class="sub" style="margin-top:10px;text-align:center">Tap the map or drag the pin to place the exact spot.</div>
+</div>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="customers" %}{% endblock %}
+{% block includejs %}
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.min.js"></script>
+<script>
+(function(){
+    var cLat = {{ c.customer_latitude|default:"null" }}, cLng = {{ c.customer_longitude|default:"null" }};
+    var bizLat = {{ biz_lat|default:"null" }}, bizLng = {{ biz_lng|default:"null" }};
+    var has = (cLat !== null && cLng !== null);
+
+    var center = has ? [cLat, cLng] : ((bizLat !== null && bizLng !== null) ? [bizLat, bizLng] : [20.5937, 78.9629]);
+    var zoom = has ? 16 : ((bizLat !== null && bizLng !== null) ? 13 : 5);
+
+    var map = L.map('map', {zoomControl:true}).setView(center, zoom);
+    var streets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        {subdomains:['mt0','mt1','mt2','mt3'], attribution:'&copy; Google', maxZoom:20}).addTo(map);
+    var sat = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        {subdomains:['mt0','mt1','mt2','mt3'], attribution:'&copy; Google', maxZoom:20});
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {attribution:'&copy; OpenStreetMap', maxZoom:19});
+    L.control.layers({'Streets':streets, 'Satellite':sat, 'OSM':osm}).addTo(map);
+
+    var editing = false, marker = null, cur = has ? {lat:cLat, lng:cLng} : null;
+    var routeCtrl = null, meMarker = null;
+
+    // ---- the customer pin ----
+    function place(lat, lng){
+        cur = {lat:lat, lng:lng};
+        if(!marker){
+            marker = L.marker([lat,lng], {draggable:editing}).addTo(map);
+            marker.on('dragend', function(){ var p = marker.getLatLng(); cur = {lat:p.lat, lng:p.lng}; showCoord(); });
+        } else { marker.setLatLng([lat,lng]); }
+        showCoord();
+    }
+    function showCoord(){
+        if(!cur) return;
+        var t = cur.lat.toFixed(6) + ', ' + cur.lng.toFixed(6);
+        var v = document.getElementById('coordv'), e = document.getElementById('coorde');
+        if(v) v.textContent = t;
+        if(e) e.textContent = t;
+    }
+    if(has) place(cLat, cLng);
+
+    // ---- mode switching ----
+    function clearRoute(){
+        if(routeCtrl){ map.removeControl(routeCtrl); routeCtrl = null; }
+        if(meMarker){ map.removeLayer(meMarker); meMarker = null; }
+        var ri = document.getElementById('routeinfo'); ri.style.display='none'; ri.innerHTML='';
+        var rb = document.getElementById('routebtn'); if(rb) rb.innerHTML = '<svg class="i"><use href="#ic-route"/></svg> Current GPS Location';
+    }
+    window.enterEdit = function(){
+        editing = true; clearRoute();
+        if(marker) marker.dragging && marker.dragging.enable();
+        document.getElementById('editttl').textContent = has ? 'Adjust location' : 'Set location';
+        document.getElementById('viewpanel').style.display='none';
+        document.getElementById('editpanel').style.display='';
+        setTimeout(function(){ map.invalidateSize(); }, 60);
+    };
+    window.cancelEdit = function(){
+        // Nothing to view for a customer with no saved pin → go back.
+        if(!has){ location.href = "{% url 'm_employee_customer' c.id %}"; return; }
+        location.reload();   // discard unsaved changes, restore the saved pin
+    };
+    function showView(){
+        editing = false;
+        if(marker) marker.dragging && marker.dragging.disable();
+        document.getElementById('editpanel').style.display='none';
+        document.getElementById('viewpanel').style.display='';
+        setTimeout(function(){ map.invalidateSize(); }, 60);
+    }
+
+    // ---- map interactions ----
+    map.on('click', function(e){ if(editing) place(e.latlng.lat, e.latlng.lng); });
+    setTimeout(function(){ map.invalidateSize(); }, 200);
+
+    // EDIT: GPS captures the pin
+    window.captureGPS = function(){
+        if(!navigator.geolocation){ M.toast('GPS not available'); return; }
+        M.toast('Locating…');
+        navigator.geolocation.getCurrentPosition(function(pos){
+            place(pos.coords.latitude, pos.coords.longitude);
+            map.setView([pos.coords.latitude, pos.coords.longitude], 17, {animate:true});
+        }, function(){ M.toast('Could not get GPS. Tap the map instead.'); },
+        {enableHighAccuracy:true, timeout:10000, maximumAge:0});
+    };
+
+    // VIEW: GPS routes current location → the customer destination (toggle)
+    window.toggleRoute = function(){
+        if(routeCtrl){ clearRoute(); return; }
+        if(!cur){ M.toast('No saved location'); return; }
+        if(!navigator.geolocation){ M.toast('GPS not available'); return; }
+        M.toast('Getting your location…');
+        navigator.geolocation.getCurrentPosition(function(pos){
+            var me = [pos.coords.latitude, pos.coords.longitude];
+            meMarker = L.marker(me, {icon: L.divIcon({className:'', iconSize:[18,18], iconAnchor:[9,9],
+                html:'<div style="background:#0078d4;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.4)"></div>'})})
+                .addTo(map).bindTooltip('You', {direction:'top', offset:[0,-8]});
+            routeCtrl = L.Routing.control({
+                waypoints: [L.latLng(me[0], me[1]), L.latLng(cur.lat, cur.lng)],
+                routeWhileDragging:false, addWaypoints:false, draggableWaypoints:false, show:false,
+                fitSelectedRoutes:true, lineOptions:{styles:[{color:'#0078d4', weight:5, opacity:.85}]},
+                createMarker:function(){ return null; }
+            }).on('routesfound', function(re){
+                var s = re.routes[0].summary;
+                var km = (s.totalDistance/1000).toFixed(1), min = Math.round(s.totalTime/60);
+                var ri = document.getElementById('routeinfo');
+                ri.style.display='block'; ri.innerHTML = km + ' km · about ' + min + ' min drive';
+            }).on('routingerror', function(){ M.toast('Could not fetch route'); }).addTo(map);
+            document.getElementById('routebtn').innerHTML = '<svg class="i"><use href="#ic-route"/></svg> Clear route';
+        }, function(){ M.toast('Could not get your GPS location.'); },
+        {enableHighAccuracy:true, timeout:10000, maximumAge:0});
+    };
+
+    window.saveLoc = async function(){
+        if(!cur){ M.toast('Set a location first'); return; }
+        var r = await M.post("{% url 'm_employee_customer_set_location' c.id %}", {lat:cur.lat, lng:cur.lng});
+        if(r && r.ok){ M.toast('Location saved'); setTimeout(function(){ location.href="{% url 'm_employee_customer' c.id %}"; }, 700); }
+        else { M.toast((r && r.message) || 'Failed to save'); }
+    };
+
+    // Start in view mode when there's a saved pin; straight into edit when there isn't.
+    if(has){ showView(); } else { enterEdit(); }
+})();
+</script>
+{% endblock %}

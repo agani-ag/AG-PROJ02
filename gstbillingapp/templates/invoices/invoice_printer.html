@@ -207,26 +207,13 @@
 								<tr>
 									<td colspan="2" class="text-center">
 										<div style="display:flex; align-items:center; justify-content:center;">
-
 											<div id="upi_qr_new"
 												style="margin-top:10px; padding-right:20px;"
 												data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}">
 											</div>
-
-											<div style="width:1px; height:180px; background:#ccc;"></div>
-
-											<div id="upi_qr"
-												style="margin-top:10px; padding-left:20px;"
-												data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am={{ invoice_data.invoice_total_amt_with_gst|floatformat:2 }}">
-											</div>
-
 										</div>
 									</td>
 								</tr>
-								<!-- <tr>
-									<td>UPI ID</td>
-									<td>{{ user_profile.bankdetails.upi_id }}</td>
-								</tr> -->
                             {% endif %}
 						</table>
 					{% endif %}
@@ -252,7 +239,14 @@
 								<td>{{ currency }} {{ invoice_data.invoice_total_amt_sgst|floatformat:2 }}</td>
 							</tr>
 						{% endif %}
-						
+
+						{% if invoice_data.invoice_round_off %}
+							<tr>
+								<td>Round Off: </td>
+								<td>{{ currency }} {{ invoice_data.invoice_round_off|floatformat:2 }}</td>
+							</tr>
+						{% endif %}
+
 						 <tr>
 							<td>Invoice Total: </td>
 							<td>{{ currency }} {{invoice_data.invoice_total_amt_with_gst|floatformat:2 }}</td>
@@ -284,7 +278,7 @@
 				<i class="fas fa-user-tag"></i>{% if assigned_employee %} <span class="d-none d-md-inline">{{ assigned_employee.name }}</span>{% endif %}
 			</button>
 		{% endif %}
-		{% if not mobile %}<a href="{% url 'invoices' %}" class="btn btn-danger btn-curve d-print-none" title="Cancel Invoice"><i class="fas fa-times"></i></a>{% endif %}
+		<a href="{% url 'invoices' %}" class="btn btn-danger btn-curve d-print-none" title="Cancel Invoice"><i class="fas fa-times"></i></a>
 	</div>
 
 	<!-- C14: one-tap WhatsApp share to the customer (free wa.me click-to-chat, no API). -->
@@ -416,22 +410,6 @@
 				.catch(() => Swal.fire('Error', 'Failed to load staff.', 'error'));
 		}
 	{% endif %}
-
-	// UPI QR Code Generation
-    const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
-    const qr = new QRCodeStyling({
-        width: 100,
-        height: 100,
-        data: upiQR,
-		image: "{% static 'gstbillingapp/images/MS-exact.jpg' %}",
-		imageOptions: {
-			crossOrigin: "anonymous",
-			margin: 1,
-			imageSize: 0.5
-		},
-        dotsOptions: { color: "#000", type: "rounded" }
-    });
-    qr.append(document.getElementById("upi_qr"));
 
 	// UPI QR Code Generation without amount
     const upiQR_new = document.getElementById("upi_qr_new").getAttribute("data-upi_id");

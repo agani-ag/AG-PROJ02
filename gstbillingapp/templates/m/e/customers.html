@@ -11,17 +11,23 @@
     <input class="field" placeholder="Search name or phone…" oninput="custSearch(this.value)" autocomplete="off" inputmode="search" style="margin:0;padding-left:42px">
 </div>
 <div class="filt" id="cust-filt">
-    <button class="on" onclick="custSetType(this,'all')">All</button>
-    <button onclick="custSetType(this,'owing')">With dues</button>
-    <button onclick="custSetType(this,'clear')">Cleared</button>
-    <button onclick="custSetType(this,'advance')">Advance</button>
+    <button class="on" onclick="custSetType(this,'all')">All<span class="si"></span></button>
+    <button onclick="custSetType(this,'owing')">With dues<span class="si"></span></button>
+    <button onclick="custSetType(this,'overdue')">Overdue<span class="si"></span></button>
+    <button onclick="custSetType(this,'advance')">Advance<span class="si"></span></button>
+    <button onclick="custSetType(this,'clear')">Cleared<span class="si"></span></button>
+</div>
+<div class="filt" id="cust-od" style="display:none">
+    <button class="on" onclick="custSetOd(this,30)">30+ days</button>
+    <button onclick="custSetOd(this,60)">60+ days</button>
+    <button onclick="custSetOd(this,90)">90+ days</button>
 </div>
 <div class="list" id="cust-list">
     {% for r in rows %}
-    <a href="{% url 'm_employee_customer' r.id %}" class="row" data-s="{{ r.name|lower }} {{ r.phone|default:'' }}" data-type="{% if r.bal < 0 %}owing{% elif r.bal > 0 %}advance{% else %}clear{% endif %}">
+    <a href="{% url 'm_employee_customer' r.id %}" class="row" data-s="{{ r.name|lower }} {{ r.phone|default:'' }}" data-type="{% if r.bal < 0 %}owing{% elif r.bal > 0 %}advance{% else %}clear{% endif %}" data-bal="{{ r.bal }}" data-odays="{{ r.odays }}">
         <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
             <span class="ico ic-blue"><svg class="i"><use href="#ic-user"/></svg></span>
-            <span style="min-width:0"><span class="b">{{ r.name }}</span><div class="sub">{{ r.phone|default:"—" }}</div></span>
+            <span style="min-width:0"><span class="b">{{ r.name }}</span><div class="sub">{{ r.phone|default:"—" }}{% if r.odays %} · <span style="color:var(--red);font-weight:700">{{ r.odays }}d overdue</span>{% endif %}</div></span>
         </span>
         {% if r.bal < 0 %}<span class="badge b-red">&#8377; {{ r.bal|inr|cut:"-" }}</span>
         {% elif r.bal > 0 %}<span class="badge b-green">&#8377; {{ r.bal|inr }}</span>
@@ -30,32 +36,111 @@
     {% endfor %}
 </div>
 <div class="empty" id="cust-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
+<div class="ledtotal" id="cust-total" style="display:none"><span class="l"></span><span class="v"></span></div>
 {% else %}
 <div class="empty"><svg class="i"><use href="#ic-people"/></svg><div>No customers yet.</div></div>
 {% endif %}
 
 <script>
-// Combined search + status filter (they must agree on which rows to show).
-var custQ = '', custT = 'all';
+// Combined search + status filter (they must agree on which rows to show). Tapping the
+// SAME chip again cycles its sort by amount: normal → ascending → descending → normal.
+// Switching to a different chip resets to normal order.
+var custIdx = {all:0, owing:1, overdue:2, advance:3, clear:4};
+var custQ = '', custT = 'all', custSort = 0, custOd = 30, custOrig = null;   // custSort: 0 none, 1 asc, 2 desc
 function custSearch(v){ custQ = (v || '').toLowerCase().trim(); custApply(); }
+// Apply an explicit (filter, sort) state — used by clicks AND by restore-on-load, and
+// remembered so switching brand (a full reload) keeps the same filter and sort.
+function custApplyState(t, s){
+    custT = t; custSort = s;
+    document.querySelectorAll('#cust-filt button').forEach(function(b){
+        b.classList.remove('on'); var x = b.querySelector('.si'); if (x) x.textContent = '';
+    });
+    var btn = document.querySelectorAll('#cust-filt button')[custIdx[t] || 0];
+    if (btn){ btn.classList.add('on'); var si = btn.querySelector('.si');
+        if (si) si.textContent = s === 1 ? ' ↑' : (s === 2 ? ' ↓' : ''); }
+    // The 30/60/90-day sub-selector only makes sense while the Overdue filter is active.
+    document.getElementById('cust-od').style.display = (t === 'overdue') ? '' : 'none';
+    try { sessionStorage.setItem('custFilter', t); sessionStorage.setItem('custSort', String(s)); } catch(e){}
+    custApply();
+}
 function custSetType(btn, t){
-    custT = t;
-    document.querySelectorAll('#cust-filt button').forEach(function(b){ b.classList.remove('on'); });
+    custApplyState(t, (t === custT) ? (custSort + 1) % 3 : 0);
+}
+function custSetOd(btn, days){
+    custOd = days;
+    document.querySelectorAll('#cust-od button').forEach(function(b){ b.classList.remove('on'); });
     btn.classList.add('on');
+    try { sessionStorage.setItem('custOd', String(days)); } catch(e){}
     custApply();
 }
 function custApply(){
-    var rows = document.querySelectorAll('#cust-list .row'), shown = 0;
-    for (var i = 0; i < rows.length; i++){
-        var mQ = !custQ || rows[i].getAttribute('data-s').indexOf(custQ) >= 0;
-        var mT = custT === 'all' || rows[i].getAttribute('data-type') === custT;
-        var vis = mQ && mT;
-        rows[i].style.display = vis ? '' : 'none'; if (vis) shown++;
+    var list = document.getElementById('cust-list');
+    if (!custOrig) custOrig = Array.prototype.slice.call(list.querySelectorAll('.row'));
+    var vis = [];
+    custOrig.forEach(function(r){
+        var mQ = !custQ || r.getAttribute('data-s').indexOf(custQ) >= 0;
+        var mT;
+        if (custT === 'all') mT = true;
+        else if (custT === 'overdue') mT = (parseInt(r.getAttribute('data-odays'), 10) || 0) >= custOd;
+        else mT = r.getAttribute('data-type') === custT;
+        var v = mQ && mT;
+        r.style.display = v ? '' : 'none';
+        if (v) vis.push(r);
+    });
+    // Reorder the DOM: sorted by |amount| when sorting, else back to the original order.
+    if (custSort !== 0){
+        vis.slice().sort(function(a, b){
+            var x = Math.abs(parseFloat(a.getAttribute('data-bal')) || 0);
+            var y = Math.abs(parseFloat(b.getAttribute('data-bal')) || 0);
+            return custSort === 1 ? x - y : y - x;
+        }).forEach(function(r){ list.appendChild(r); });
+    } else {
+        custOrig.forEach(function(r){ list.appendChild(r); });
     }
-    document.getElementById('cust-empty').style.display = shown ? 'none' : 'block';
+    document.getElementById('cust-empty').style.display = vis.length ? 'none' : 'block';
     var c = document.getElementById('cust-count');
-    if (c) c.textContent = shown + (shown === 1 ? ' customer' : ' customers');
+    if (c) c.textContent = vis.length + (vis.length === 1 ? ' customer' : ' customers');
+
+    // Frozen grand-total bar for the amount-bearing filters (With dues / Overdue / Advance).
+    var LBL = {owing:'Total outstanding', overdue:'Total overdue', advance:'Total advance'};
+    var bar = document.getElementById('cust-total');
+    if (bar && LBL[custT]){
+        var sum = 0;
+        vis.forEach(function(r){ sum += Math.abs(parseFloat(r.getAttribute('data-bal')) || 0); });
+        bar.querySelector('.l').textContent = LBL[custT];
+        bar.querySelector('.v').innerHTML = '&#8377; ' + sum.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+        bar.style.display = 'flex';
+        document.body.classList.add('ledtotal-open');
+    } else if (bar){
+        bar.style.display = 'none';
+        document.body.classList.remove('ledtotal-open');
+    }
 }
+// Restore state on load. A dashboard deep-link (?filter=owing) wins; otherwise fall back
+// to the last filter / sort / overdue-bucket chosen this session — so switching brand (a
+// full reload) keeps it. Reflect the remembered overdue bucket on its sub-chip.
+function custRestoreOd(){
+    var days = 30, map = {30:0, 60:1, 90:2};
+    // A dashboard link (?od=90) wins; otherwise the last bucket chosen this session.
+    var urlOd = parseInt(new URLSearchParams(location.search).get('od'), 10);
+    if (map[urlOd] != null) days = urlOd;
+    else { try { days = parseInt(sessionStorage.getItem('custOd') || '30', 10) || 30; } catch(e){} }
+    custOd = days;
+    try { sessionStorage.setItem('custOd', String(days)); } catch(e){}
+    document.querySelectorAll('#cust-od button').forEach(function(b){ b.classList.remove('on'); });
+    var b = document.querySelectorAll('#cust-od button')[map[days] != null ? map[days] : 0];
+    if (b) b.classList.add('on');
+}
+(function(){
+    custRestoreOd();
+    var f = new URLSearchParams(location.search).get('filter');
+    if (f && f in custIdx){ custApplyState(f, 0); return; }
+    try {
+        var sf = sessionStorage.getItem('custFilter'),
+            ss = parseInt(sessionStorage.getItem('custSort') || '0', 10) || 0;
+        if (sf && sf in custIdx && (sf !== 'all' || ss !== 0)) custApplyState(sf, ss);
+    } catch(e){}
+})();
 </script>
 
 {% endblock %}

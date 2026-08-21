@@ -27,12 +27,6 @@
         </a>
         {% endif %}
         
-        <!-- Quotation Cart -->
-        <a href="{% url 'quotation_cart' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="cart">
-            <i class="fas fa-shopping-basket"></i>
-            <span>Cart</span>
-        </a>
-
         <!-- Profile -->
         <a href="{% url 'v1customerprofile' %}?cid={{ request.GET.cid }}" class="nav-item" data-page="profile">
             <i class="fas fa-user-circle"></i>

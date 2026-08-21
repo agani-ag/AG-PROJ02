@@ -18,9 +18,8 @@ from ..utils import (
     update_products_from_invoice,
     update_inventory,
     auto_deduct_book_from_invoice,
-    cart_product_payload,
-    create_cart_draft_quotation,
     find_matching_customer,
+    apply_invoice_round_off,
     CartError,
 )
 
@@ -307,9 +306,19 @@ def quotations_ajax(request):
             else:
                 quotation_num = f'<span class="text-danger font-weight-bold">QT-NG{quotation.quotation_number}</span>'
 
-            # Flag quotations that came in through the Quotation Cart.
-            if quotation.created_from_cart:
-                quotation_num += ' <span class="badge badge-info" title="Created from Quotation Cart"><i class="fas fa-shopping-basket"></i> Cart</span>'
+            # Where the order came from, so staff can spot a mobile order that needs
+            # verifying vs one they raised on the desktop themselves.
+            src = quotation.order_source
+            if src == 'customer':
+                quotation_num += ' <span class="badge badge-info" title="Placed by the customer in the app"><i class="fas fa-mobile-alt"></i> Customer app</span>'
+            elif src == 'employee':
+                emp_name = quotation.order_employee.name if quotation.order_employee else ''
+                suffix = f' · {emp_name}' if emp_name else ''
+                quotation_num += f' <span class="badge badge-primary" title="Placed by field-staff in the app"><i class="fas fa-mobile-alt"></i> Employee app{suffix}</span>'
+            elif src == 'app':
+                quotation_num += ' <span class="badge badge-info" title="From the mobile app"><i class="fas fa-mobile-alt"></i> Mobile app</span>'
+            else:
+                quotation_num += ' <span class="badge badge-light border" title="Created on the desktop"><i class="fas fa-desktop"></i> Desktop</span>'
 
             # Customer
             if quotation.quotation_customer:
@@ -507,9 +516,11 @@ def quotation_convert_to_invoice(request, quotation_id):
                 'message': 'This quotation cannot be converted'
             }, status=400)
         
-        # Parse quotation data
+        # Parse quotation data, then round the grand total to the nearest rupee for the
+        # INVOICE (the quotation keeps its exact figure).
         quotation_data = json.loads(quotation.quotation_json)
-        
+        apply_invoice_round_off(quotation_data)
+
         # Get next invoice number
         user_profile = get_object_or_404(UserProfile, user=request.user)
         
@@ -544,7 +555,7 @@ def quotation_convert_to_invoice(request, quotation_id):
             invoice_number=next_invoice_number,
             invoice_date=datetime.date.today(),
             invoice_customer=quotation.quotation_customer,
-            invoice_json=quotation.quotation_json,  # Reuse quotation JSON
+            invoice_json=json.dumps(quotation_data),  # rounded grand total for the invoice
             is_gst=quotation.is_gst,
             inventory_reflected=False,
             books_reflected=False
@@ -611,9 +622,11 @@ def quotation_reconvert_to_invoice(request, quotation_id):
                 'message': 'Invoice still exists. Cannot reconvert.'
             }, status=400)
         
-        # Parse quotation data
+        # Parse quotation data, then round the grand total to the nearest rupee for the
+        # INVOICE (the quotation keeps its exact figure).
         quotation_data = json.loads(quotation.quotation_json)
-        
+        apply_invoice_round_off(quotation_data)
+
         # Get next invoice number
         user_profile = get_object_or_404(UserProfile, user=request.user)
         
@@ -648,7 +661,7 @@ def quotation_reconvert_to_invoice(request, quotation_id):
             invoice_number=next_invoice_number,
             invoice_date=datetime.date.today(),
             invoice_customer=quotation.quotation_customer,
-            invoice_json=quotation.quotation_json,  # Reuse quotation JSON
+            invoice_json=json.dumps(quotation_data),  # rounded grand total for the invoice
             is_gst=quotation.is_gst,
             inventory_reflected=False,
             books_reflected=False
@@ -718,154 +731,6 @@ def quotation_approve(request, quotation_id):
         'message': f'Quotation #{quotation.quotation_number} approved successfully'
     })
 
-
-@login_required
-def quotation_cart(request):
-    """
-    Quotation Cart — a fast, catalog-driven way for staff to build a draft
-    quotation. Logged-in staff only; the cart is scoped to their own business.
-    """
-    business_user = request.user
-
-    categories = list(
-        ProductCategory.objects.filter(user=business_user)
-        .values('id', 'category_name', 'parent_category_id')
-    )
-
-    customers = list(
-        Customer.objects.filter(user=business_user)
-        .order_by('customer_name')
-        .values('id', 'customer_name', 'customer_phone', 'customer_gst')
-    )
-
-    # Free-text tag fields: offer a filter only when this business actually uses one.
-    def _cart_distinct(field):
-        return list(
-            Product.objects.filter(user=business_user)
-            .exclude(**{field + '__isnull': True})
-            .exclude(**{field: ''})
-            .values_list(field, flat=True)
-            .distinct().order_by(field)
-        )
-
-    divisions = _cart_distinct('product_division_category')
-    model_categories = _cart_distinct('product_model_category')
-    colours = _cart_distinct('product_colour')
-
-    # Default the grouping to whichever dimension this business actually populates:
-    # a shop that files products by division and never sets a category would otherwise
-    # open on a single "Uncategorized" heap.
-    has_categorised_products = Product.objects.filter(
-        user=business_user, product_category__isnull=False
-    ).exists()
-    default_group_by = 'category' if has_categorised_products else ('division' if divisions else 'category')
-
-    return render(request, 'quotations/quotation_cart.html', {
-        'divisions': divisions,
-        'model_categories': model_categories,
-        'colours': colours,
-        'default_group_by': default_group_by,
-
-        # Rendered into the page rather than fetched by the browser: the querysets are
-        # scoped and field-whitelisted here, on the server, so nothing the client can
-        # call will hand out another business's data or the product cost price.
-        'products_json': json.dumps(cart_product_payload(business_user)),
-        'categories_json': json.dumps(categories),
-        'customers_json': json.dumps(customers),
-    })
-
-
-@login_required
-def quotation_cart_checkout(request):
-    """
-    Turn a Quotation Cart into a DRAFT Quotation.
-
-    The client sends only product ids, quantities and per-line discounts. Rates and
-    GST% are re-read from the Product table and every amount is recomputed here —
-    the totals the browser displays are only a preview and are never trusted, since
-    the cart lives in localStorage.
-    """
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
-
-    business_user = request.user
-
-    try:
-        payload = json.loads(request.body)
-    except (ValueError, TypeError):
-        return JsonResponse({'success': False, 'message': 'Malformed request'}, status=400)
-
-    items = payload.get('items') or []
-    if not items:
-        return JsonResponse({'success': False, 'message': 'Cart is empty'}, status=400)
-
-    customer_input = payload.get('customer') or {}
-    existing_customer = None
-
-    if customer_input.get('id'):
-        # Picked from the dropdown: read the details straight off the saved Customer
-        # rather than trusting whatever the browser echoed back.
-        try:
-            existing_customer = Customer.objects.get(
-                id=customer_input['id'], user=business_user
-            )
-        except (Customer.DoesNotExist, ValueError, TypeError):
-            return JsonResponse({'success': False, 'message': 'Selected customer not found'}, status=400)
-
-    try:
-        result = create_cart_draft_quotation(
-            business_user, items,
-            existing_customer=existing_customer,
-            customer_fields=customer_input,
-            is_gst=payload.get('is_gst', True),
-            allow_discount=True,
-            created_by_customer=False,
-            actor_label='staff',
-        )
-    except CartError as err:
-        return JsonResponse({'success': False, 'message': str(err)}, status=400)
-
-    new_quotation = result['quotation']
-    quotation_data = result['quotation_data']
-    is_gst = result['is_gst']
-
-    business_profile = UserProfile.objects.filter(user=business_user).first()
-    business_title = (business_profile.business_title if business_profile else '') or ''
-    business_phone = (business_profile.business_phone if business_profile else '') or ''
-
-    # The SMS / WhatsApp goes to the shop — the party that has to act on the quotation.
-    share_phone, share_to = business_phone, business_title
-
-    return JsonResponse({
-        'success': True,
-        'quotation_id': new_quotation.id,
-        'quotation_number': new_quotation.quotation_number,
-        'quotation_label': ('' if is_gst else 'QT-') + str(new_quotation.quotation_number),
-        'is_gst': is_gst,
-        'gst_downgraded': result['gst_downgraded'],
-        'customer_name': result['customer_name'],
-        'customer_phone': result['customer_phone'],
-        'actor': 'staff',
-        'share_phone': share_phone,
-        'share_to': share_to,
-        'quotation_date': new_quotation.quotation_date.strftime('%d-%m-%Y'),
-        'business_title': business_title,
-        'business_phone': business_phone,
-        'business_brand': (business_profile.business_brand if business_profile else '') or '',
-        'item_count': len(quotation_data['items']),
-        # Model no + qty + line total, for the SMS / WhatsApp message.
-        'items': [
-            {
-                'model_no': i['invoice_model_no'],
-                'qty': i['invoice_qty'],
-                'amount': i['invoice_amt_with_gst'],
-            }
-            for i in quotation_data['items']
-        ],
-        # The server's own figures — what the quotation was actually saved with.
-        'totals': result['totals'],
-        'redirect_url': reverse('quotation_viewer', args=[new_quotation.id]),
-    })
 
 @login_required
 def quotation_update_customer(request, quotation_id):

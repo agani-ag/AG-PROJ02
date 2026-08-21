@@ -16,6 +16,7 @@ from ..models import (
 # Utility functions
 from ..utils import invoice_data_validator
 from ..utils import invoice_data_processor
+from ..utils import apply_invoice_round_off
 from ..utils import update_products_from_invoice
 from ..utils import update_inventory
 from ..utils import add_customer_book
@@ -91,6 +92,9 @@ def invoice_create(request):
             return render(request, 'invoices/invoice_create.html', context)
 
         invoice_data_processed = invoice_data_processor(invoice_data)
+        # Round the grand total to the nearest rupee (new invoices only). Done here, not in
+        # invoice_data_processor, because that helper is shared with quotation_create.
+        apply_invoice_round_off(invoice_data_processed)
         # save customer
         # Prefer the hidden customer-id (set when a customer is picked from the list);
         # otherwise fall back to a name (+ phone) match. The fallback used to require an

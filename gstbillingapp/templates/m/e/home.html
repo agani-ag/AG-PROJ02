@@ -5,7 +5,7 @@
 {% block chrome %}
 <div class="hero">
     <p class="hi" id="greeting">Welcome</p>
-    <h1 class="nm">{{ profile.business_brand|default:profile.business_title|default:"SyncUp" }}</h1>
+    <h1 class="nm">{{ employee.name|default:profile.business_brand|default:profile.business_title|default:"SyncUp" }}</h1>
     <div class="due">
         <div class="l">Total receivables · {{ due_count }} customer{{ due_count|pluralize }}</div>
         <div class="v">&#8377; {{ due_total|inr }}</div>
@@ -15,7 +15,7 @@
 
 {% block content %}
 
-{% if employee %}<div class="muted sm" style="margin:2px 2px 8px">Hi, {{ employee.name }} · {{ today|date:"d M Y" }}</div>{% endif %}
+<div class="muted sm" style="margin:2px 2px 8px">{{ profile.business_brand|default:profile.business_title|default:"SyncUp" }} · {{ today|date:"d M Y" }}</div>
 
 <div class="sec"><h2 class="t">Today</h2><p class="s">{% now "F Y" %}</p></div>
 <div class="stats">
@@ -42,19 +42,19 @@
         </span>
         <span class="badge {% if tasks.collect_today %}b-green{% else %}b-grey{% endif %}">{{ tasks.collect_today }}</span>
     </a>
-    <a href="{% url 'm_employee_customers' %}" class="row">
+    <a href="{% url 'm_employee_customers' %}?filter=owing" class="row">
         <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
             <span class="ico ic-red"><svg class="i"><use href="#ic-receipt"/></svg></span>
             <span style="min-width:0"><span class="b">Customers with dues</span><div class="sub">&#8377; {{ tasks.dues_amt }} outstanding</div></span>
         </span>
         <span class="badge {% if tasks.dues_count %}b-red{% else %}b-grey{% endif %}">{{ tasks.dues_count }}</span>
     </a>
-    <a href="{% url 'm_employee_customers' %}" class="row">
+    <a href="{% url 'm_employee_customers' %}?filter=overdue&od=90" class="row">
         <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
             <span class="ico ic-amber"><svg class="i"><use href="#ic-clock"/></svg></span>
-            <span style="min-width:0"><span class="b">Over credit limit</span><div class="sub">Accounts needing attention</div></span>
+            <span style="min-width:0"><span class="b">Overdue · 90+ days</span><div class="sub">{% if tasks.overdue_count %}&#8377; {{ tasks.overdue_amt }} overdue{% else %}Nothing overdue{% endif %}</div></span>
         </span>
-        <span class="badge {% if tasks.over_limit %}b-amber{% else %}b-grey{% endif %}">{{ tasks.over_limit }}</span>
+        <span class="badge {% if tasks.overdue_count %}b-amber{% else %}b-grey{% endif %}">{{ tasks.overdue_count }}</span>
     </a>
 </div>
 

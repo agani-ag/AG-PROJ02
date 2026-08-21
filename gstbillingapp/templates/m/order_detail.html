@@ -1,0 +1,72 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block title %}Order{% endblock %}
+{% block back %}<a class="back" href="{% if role == 'customer' %}{% url 'm_customer_orders' %}{% else %}{% url 'm_employee_orders' %}{% endif %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Orders</a>{% endblock %}
+{% block heading %}Order {% if q.is_gst %}#{{ q.quotation_number }}{% else %}QT-{{ q.quotation_number }}{% endif %}{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <div class="between">
+        <div style="min-width:0">
+            <div class="b" style="font-size:16px">{{ customer }}</div>
+            <div class="sub">{{ q.quotation_date|date:"d M Y" }}</div>
+        </div>
+        <div class="right" style="flex:none">
+            {% if q.status == "DELIVERED" or q.status == "CONVERTED" %}<span class="badge b-green">{{ q.get_status_display }}</span>
+            {% elif q.status == "DRAFT" %}<span class="badge b-amber">Pending</span>
+            {% else %}<span class="badge b-blue">{{ q.get_status_display }}</span>{% endif %}
+            <div class="b" style="font-size:18px;white-space:nowrap;margin-top:6px">&#8377; {{ d.invoice_total_amt_with_gst|inr }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="list">
+    {% for it in d.items %}
+    <div class="row">
+        <span class="lbl" style="min-width:0">
+            <span style="min-width:0">
+                <span class="b">{% firstof it.invoice_product it.invoice_model_no "Item" %}</span>
+                <div class="sub">{% if it.invoice_model_no %}{{ it.invoice_model_no }} · {% endif %}Qty {{ it.invoice_qty }}</div>
+            </span>
+        </span>
+        <span class="b tabnum" style="white-space:nowrap">&#8377; {{ it.invoice_amt_with_gst|inr }}</span>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="panel">
+    <div class="between sm"><span class="muted">Taxable</span><span class="tabnum">&#8377; {{ d.invoice_total_amt_without_gst|inr }}</span></div>
+    {% if d.igstcheck %}
+    <div class="between sm mt"><span class="muted">IGST</span><span class="tabnum">&#8377; {{ d.invoice_total_amt_igst|inr }}</span></div>
+    {% else %}
+    <div class="between sm mt"><span class="muted">CGST</span><span class="tabnum">&#8377; {{ d.invoice_total_amt_cgst|inr }}</span></div>
+    <div class="between sm mt"><span class="muted">SGST</span><span class="tabnum">&#8377; {{ d.invoice_total_amt_sgst|inr }}</span></div>
+    {% endif %}
+    <div class="between mt" style="border-top:1px solid var(--line);padding-top:10px">
+        <span class="b">Grand total</span><span class="b tabnum" style="font-size:17px">&#8377; {{ d.invoice_total_amt_with_gst|inr }}</span>
+    </div>
+</div>
+
+{% if editable %}
+<button class="btn btn-acc" onclick="editOrder()"><svg class="i" style="stroke:#fff"><use href="#ic-edit"/></svg> Edit order</button>
+<button class="btn" style="margin-top:10px;background:var(--redbg);color:var(--red);box-shadow:none" onclick="cancelOrder()"><svg class="i" style="stroke:var(--red)"><use href="#ic-trash"/></svg> Cancel order</button>
+<script>
+var LINES = {{ edit_lines_json|safe }};
+var CART_KEY = 'm_order_{{ role }}_{{ buyer_id }}';
+function editOrder(){
+    var cart = {}; LINES.forEach(function(l){ if(l.id) cart[l.id] = l.qty; });
+    if(!Object.keys(cart).length){ M.toast('This order can’t be edited on mobile'); return; }
+    try{ localStorage.setItem(CART_KEY, JSON.stringify(cart)); }catch(e){}
+    location.href = "{% url 'm_order_cart' %}?edit={{ q.id }}{% if role != 'customer' %}&customer={{ buyer_id }}{% endif %}";
+}
+async function cancelOrder(){
+    if(!confirm('Cancel this order? This cannot be undone.')) return;
+    var r = await M.post("{% url 'm_order_cancel' q.id %}", {});
+    if(r.ok){ M.toast('Order cancelled'); setTimeout(function(){ location.href = r.order_url; }, 600); }
+    else { M.toast(r.message||'Could not cancel'); }
+}
+</script>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% if role == 'customer' %}{% include "m/nav_customer.html" with active="orders" %}{% else %}{% include "m/nav_employee.html" with active="orders" %}{% endif %}{% endblock %}

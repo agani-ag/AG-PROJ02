@@ -3,6 +3,11 @@
 {% block title %}{{ c.customer_name }}{% endblock %}
 {% block back %}<a class="back" href="{% url 'm_employee_customers' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Customers</a>{% endblock %}
 {% block heading %}{{ c.customer_name }}{% endblock %}
+{% block bizsel %}{% if brand_nav|length > 1 %}
+<div class="bizsel" id="bizsel">
+    {% for b in brand_nav %}<a href="{% url brand_url b.cust_id %}?biz={{ b.id }}" class="{% if b.active %}on{% endif %}">{{ b.name }}</a>{% endfor %}
+</div>
+{% endif %}{% endblock %}
 {% block content %}
 
 <div class="panel">
@@ -16,6 +21,7 @@
         <button class="btn btn-sm btn-green" style="flex:1" onclick="remind()"><svg class="i" style="stroke:#fff"><use href="#ic-message"/></svg> Remind</button>
     </div>
     {% endif %}
+    <a class="btn mt" href="{% url 'm_employee_customer_map' c.id %}"><svg class="i"><use href="#ic-pin"/></svg> {% if c.customer_latitude and c.customer_longitude %}Location · Open map{% else %}Set location{% endif %}</a>
     <a class="btn btn-acc mt" href="{% url 'm_order' %}?customer={{ c.id }}"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> New order</a>
 </div>
 

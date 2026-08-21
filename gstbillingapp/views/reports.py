@@ -1826,7 +1826,11 @@ def overdue_report_api(request):
                 if log.change_type == 1:
                     total_purchased += abs(log.change)
                 elif log.change_type in [0, 2, 3]:
-                    total_settled += abs(log.change)
+                    # Signed, not abs: Paid/Returned are always positive, but "Other" (type 3)
+                    # is a signed adjustment — a negative Other is a CHARGE that raises what's
+                    # owed, so abs() would wrongly treat it as a settlement. This matches
+                    # recalculate_book_current_balance and the mobile overdue FIFO.
+                    total_settled += log.change
 
             outstanding = total_purchased - total_settled
             if outstanding <= 0.01:

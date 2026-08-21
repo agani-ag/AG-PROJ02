@@ -7,18 +7,18 @@
 {% include "m/_searchbar.html" with target="#ord-list" empty="#ord-empty" placeholder="Search number or status…" %}
 <div class="list" id="ord-list">
     {% for o in rows %}
-    <div class="row" data-s="qt-{{ o.quotation_number }} {{ o.quotation_number }} {{ o.get_status_display|lower }} {{ o.quotation_date|date:'d M Y'|lower }}">
+    <a class="row" href="{% url 'm_order_detail' o.id %}" style="color:inherit" data-s="qt-{{ o.quotation_number }} {{ o.quotation_number }} {{ o.get_status_display|lower }} {{ o.quotation_date|date:'d M Y'|lower }}">
         <span class="lbl" style="display:flex;gap:11px;align-items:center">
             <span class="ico ic-amber"><svg class="i"><use href="#ic-cart"/></svg></span>
             <span>
                 <span class="b">QT-{{ o.quotation_number }}</span>
-                <div class="sub">{{ o.quotation_date|date:"d M Y" }}</div>
+                <div class="sub">{{ o.quotation_date|date:"d M Y" }}{% if o.order_source == 'desktop' %} · By shop{% elif o.order_source == 'employee' %} · By staff{% endif %}</div>
             </span>
         </span>
         {% if o.status == "DELIVERED" or o.status == "CONVERTED" %}<span class="badge b-green">{{ o.get_status_display }}</span>
-        {% elif o.status == "DRAFT" %}<span class="badge b-grey">Pending</span>
+        {% elif o.status == "DRAFT" %}<span class="badge b-amber">Pending</span>
         {% else %}<span class="badge b-blue">{{ o.get_status_display }}</span>{% endif %}
-    </div>
+    </a>
     {% endfor %}
 </div>
 <div class="empty" id="ord-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>

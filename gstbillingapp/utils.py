@@ -110,6 +110,8 @@ def build_quotation_item(product, qty, igstcheck=False, discount=None):
     )
 
     return {
+        # Product id kept so a cart order can be reopened and edited (map line → product).
+        'product_id': product.id,
         'invoice_model_no': product.model_no or '',
         'invoice_product': product.product_name or '',
         'invoice_hsn': product.product_hsn or '',
@@ -126,6 +128,36 @@ def build_quotation_item(product, qty, igstcheck=False, discount=None):
         # Kept for existing order-history consumers that read invoice_amt.
         'invoice_amt': amounts['amt_with_gst'],
     }
+
+
+def apply_invoice_round_off(data):
+    """Round an invoice's grand total to the nearest whole rupee — 0.50 and above rounds
+    up, below rounds down — and record the adjustment as `invoice_round_off`. Applied ONLY
+    when an invoice is created (never retroactively to existing invoices).
+
+    Mutates and returns `data`. The amount-in-words, the UPI amount and the customer's
+    ledger all read invoice_total_amt_with_gst, so they pick up the rounded figure with no
+    further change."""
+    try:
+        raw = float(data.get('invoice_total_amt_with_gst', 0) or 0)
+    except (ValueError, TypeError):
+        return data
+    rounded = float(int(raw + 0.5))     # round half up — the grand total is always positive
+    data['invoice_round_off'] = round(rounded - raw, 2)
+    data['invoice_total_amt_with_gst'] = rounded
+    return data
+
+
+def round_to_rupee(value):
+    """Round a money amount to the nearest whole rupee (0.50 and above rounds up),
+    preserving sign. Used to keep MANUALLY-entered ledger movements (payments, purchases,
+    adjustments) free of paise. Not applied at model level — the roundoff_books command
+    still posts deliberate sub-rupee 'Other' deltas."""
+    try:
+        x = float(value or 0)
+    except (ValueError, TypeError):
+        return 0.0
+    return float(int(x + 0.5)) if x >= 0 else -float(int(-x + 0.5))
 
 
 #  ================= Invoice JSON debug-edit ====================
@@ -484,25 +516,11 @@ class CartError(ValueError):
     """A cart/order could not be turned into a quotation. `str(err)` is user-safe."""
 
 
-def create_cart_draft_quotation(business_user, items, *, existing_customer=None,
-                                customer_fields=None, is_gst=True,
-                                allow_discount=True, created_by_customer=False,
-                                actor_label='staff', order_employee=None):
-    """
-    Server-authoritative core shared by the staff Quotation Cart and the mobile order
-    flow. The client only ever sends product ids, quantities and (for staff/employee)
-    per-line discounts — rate and GST% are ALWAYS re-read from the Product table here,
-    so a tampered payload cannot reprice a line. Saves a DRAFT quotation and returns
-    the created object plus the recomputed totals.
-
-    Customer is either `existing_customer` (a saved Customer, trusted over any echoed
-    fields) or, when None, built from `customer_fields` {name, phone, address, gst}.
-    Raises CartError(user-safe message) on any validation failure.
-    """
-    from django.db import transaction
-    from django.db.models import Max
-    from .models import Quotation
-
+def _compute_cart_quotation(business_user, items, *, existing_customer=None,
+                            customer_fields=None, is_gst=True, allow_discount=True):
+    """Pure (no-DB) core: validate the cart items, re-read every rate/GST% from the
+    Product table, and build the quotation_json + recomputed totals. Shared by create
+    and update so a draft and its edit price identically. Raises CartError."""
     if not items:
         raise CartError('Cart is empty')
 
@@ -584,6 +602,50 @@ def create_cart_draft_quotation(business_user, items, *, existing_customer=None,
     quotation_data['invoice_total_amt_igst'] = round(total_igst, 2)
     quotation_data['invoice_total_amt_with_gst'] = round(total_with_gst, 2)
 
+    return {
+        'quotation_data': quotation_data,
+        'is_gst': is_gst,
+        'gst_downgraded': auto_downgraded_to_non_gst,
+        'customer_name': customer_name,
+        'customer_phone': customer_phone,
+        'customer_address': customer_address,
+        'customer_gst': customer_gst,
+        'totals': {
+            'gross': round(total_gross, 2),
+            'discount': round(total_discount, 2),
+            'taxable': quotation_data['invoice_total_amt_without_gst'],
+            'cgst': quotation_data['invoice_total_amt_cgst'],
+            'sgst': quotation_data['invoice_total_amt_sgst'],
+            'igst': quotation_data['invoice_total_amt_igst'],
+            'grand_total': quotation_data['invoice_total_amt_with_gst'],
+        },
+    }
+
+
+def create_cart_draft_quotation(business_user, items, *, existing_customer=None,
+                                customer_fields=None, is_gst=True,
+                                allow_discount=True, created_by_customer=False,
+                                actor_label='staff', order_employee=None):
+    """
+    Server-authoritative core shared by the mobile order flow. The client only ever
+    sends product ids, quantities and (for staff/employee) per-line discounts — rate
+    and GST% are ALWAYS re-read from the Product table, so a tampered payload cannot
+    reprice a line. Saves a DRAFT quotation and returns it plus the recomputed totals.
+
+    Customer is either `existing_customer` (trusted over any echoed fields) or, when
+    None, built from `customer_fields` {name, phone, address, gst}.
+    Raises CartError(user-safe message) on any validation failure.
+    """
+    from django.db import transaction
+    from django.db.models import Max
+    from .models import Quotation
+
+    comp = _compute_cart_quotation(
+        business_user, items, existing_customer=existing_customer,
+        customer_fields=customer_fields, is_gst=is_gst, allow_discount=allow_discount,
+    )
+    quotation_data = comp['quotation_data']
+    is_gst = comp['is_gst']
     today = datetime.date.today()
 
     with transaction.atomic():
@@ -597,11 +659,11 @@ def create_cart_draft_quotation(business_user, items, *, existing_customer=None,
         if customer is None:
             customer, _ = Customer.objects.get_or_create(
                 user=business_user,
-                customer_name=customer_name.upper(),
+                customer_name=comp['customer_name'].upper(),
                 defaults={
-                    'customer_address': customer_address,
-                    'customer_phone': customer_phone,
-                    'customer_gst': customer_gst,
+                    'customer_address': comp['customer_address'],
+                    'customer_phone': comp['customer_phone'],
+                    'customer_gst': comp['customer_gst'],
                 },
             )
 
@@ -628,18 +690,39 @@ def create_cart_draft_quotation(business_user, items, *, existing_customer=None,
         'quotation_data': quotation_data,
         'customer': customer,
         'is_gst': is_gst,
-        'gst_downgraded': auto_downgraded_to_non_gst,
-        'customer_name': customer_name,
-        'customer_phone': customer_phone,
-        'totals': {
-            'gross': round(total_gross, 2),
-            'discount': round(total_discount, 2),
-            'taxable': quotation_data['invoice_total_amt_without_gst'],
-            'cgst': quotation_data['invoice_total_amt_cgst'],
-            'sgst': quotation_data['invoice_total_amt_sgst'],
-            'igst': quotation_data['invoice_total_amt_igst'],
-            'grand_total': quotation_data['invoice_total_amt_with_gst'],
-        },
+        'gst_downgraded': comp['gst_downgraded'],
+        'customer_name': comp['customer_name'],
+        'customer_phone': comp['customer_phone'],
+        'totals': comp['totals'],
+    }
+
+
+def update_cart_draft_quotation(quotation, items, *, is_gst=None, allow_discount=True):
+    """Recompute and replace a still-pending (DRAFT) cart order's lines in place, keeping
+    its number and customer. Used when a buyer edits an order before the shop converts it.
+    Raises CartError if the order is no longer editable or a line is invalid."""
+    from django.db import transaction
+
+    if quotation.status != 'DRAFT':
+        raise CartError('This order can no longer be edited.')
+    if is_gst is None:
+        is_gst = quotation.is_gst
+
+    comp = _compute_cart_quotation(
+        quotation.user, items, existing_customer=quotation.quotation_customer,
+        is_gst=is_gst, allow_discount=allow_discount,
+    )
+
+    with transaction.atomic():
+        quotation.quotation_json = json.dumps(comp['quotation_data'])
+        quotation.is_gst = comp['is_gst']
+        quotation.save(update_fields=['quotation_json', 'is_gst'])
+
+    return {
+        'quotation': quotation,
+        'is_gst': comp['is_gst'],
+        'gst_downgraded': comp['gst_downgraded'],
+        'totals': comp['totals'],
     }
 
 

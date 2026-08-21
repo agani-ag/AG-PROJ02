@@ -7,13 +7,13 @@
 
 <div class="panel">
     <div class="between">
-        <div>
+        <div style="min-width:0">
             <div class="b" style="font-size:16px">{{ customer }}</div>
             <div class="sub">{{ inv.invoice_date|date:"d M Y" }}</div>
         </div>
-        <div class="right">
+        <div class="right" style="flex:none">
             <div class="sub">Total</div>
-            <div class="b" style="font-size:18px">&#8377; {{ d.invoice_total_amt_with_gst|inr }}</div>
+            <div class="b" style="font-size:18px;white-space:nowrap">&#8377; {{ d.invoice_total_amt_with_gst|inr }}</div>
         </div>
     </div>
 </div>
@@ -44,8 +44,6 @@
         <span class="b">Grand total</span><span class="b tabnum" style="font-size:17px">&#8377; {{ d.invoice_total_amt_with_gst|inr }}</span>
     </div>
 </div>
-
-<a class="btn" href="{% url 'm_invoice_print' inv.id %}" style="margin-bottom:10px"><svg class="i"><use href="#ic-print"/></svg> Original invoice · Print / Save</a>
 
 {% if customer_phone %}
 <div class="between" style="gap:10px">

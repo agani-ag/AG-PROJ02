@@ -1,0 +1,128 @@
+{% extends "m/base.html" %}
+{% block title %}Cart{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_order' %}{% if role != 'customer' %}?customer={{ buyer.id }}{% endif %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Add items</a>{% endblock %}
+{% block heading %}{% if edit_id %}Edit order{% else %}Cart{% endif %}{% endblock %}
+{% block subhead %}<div class="sub">For <span class="b">{{ buyer.customer_name }}</span></div>{% endblock %}
+{% block includecss %}
+.citem{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+.citem:last-child{border-bottom:0}
+.citem .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.citem .meta{font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.citem .ln{font-weight:800;font-size:14px;margin-top:3px;font-variant-numeric:tabular-nums}
+.step{flex:none;display:flex;align-items:center;background:var(--bg);border-radius:12px;overflow:hidden}
+.step button{width:34px;height:38px;border:0;background:transparent;color:var(--acc);font-size:20px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.step button:active{background:rgba(0,0,0,.05)}
+.step .q{width:52px;min-width:52px;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;border:0;background:transparent;color:var(--ink);font-size:15px;padding:0;-moz-appearance:textfield}
+.step .q::-webkit-outer-spin-button,.step .q::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.rm{flex:none;width:34px;height:34px;border-radius:10px;border:0;background:var(--redbg);color:var(--red);display:flex;align-items:center;justify-content:center}
+.rm:active{transform:scale(.94)}
+.trow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}
+.trow.big{font-size:17px;font-weight:800;padding-top:12px;border-top:1px solid var(--line);margin-top:6px}
+.gstrow{display:flex;align-items:center;justify-content:space-between;background:var(--card);border-radius:14px;padding:13px 15px;box-shadow:var(--sh);margin:12px 0}
+.sw{position:relative;width:46px;height:28px;flex:none}
+.sw input{opacity:0;width:0;height:0}
+.sw .tr{position:absolute;inset:0;background:var(--line);border-radius:20px;transition:.2s}
+.sw .tr::before{content:"";position:absolute;height:22px;width:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.sw input:checked + .tr{background:var(--acc)}
+.sw input:checked + .tr::before{transform:translateX(18px)}
+{% endblock %}
+{% block content %}
+<div id="cfg" data-role="{{ role }}" data-customer="{{ buyer.id }}" data-gst="{{ gst_available|yesno:'1,0' }}" data-edit="{{ edit_id }}" style="display:none"></div>
+
+<div class="panel"><div id="citems"></div></div>
+
+<div class="empty" id="empty" style="display:none">
+    <svg class="i"><use href="#ic-cart"/></svg><div>Your cart is empty.</div>
+    <a class="btn btn-acc" style="max-width:220px;margin:14px auto 0" href="{% url 'm_order' %}{% if role != 'customer' %}?customer={{ buyer.id }}{% endif %}">Browse products</a>
+</div>
+
+<div id="checkout" style="display:none">
+    <div class="panel">
+        <div class="trow"><span class="muted">Items total</span><span id="t_gross" class="tabnum">₹0</span></div>
+        <div class="trow big"><span>Estimated total</span><span id="t_total" class="tabnum">₹0</span></div>
+        <div class="sm muted" style="margin-top:4px">Final amount is confirmed by the shop.</div>
+    </div>
+    {% if gst_available %}
+    <label class="gstrow">
+        <span><span class="b">GST order</span><div class="sub">{{ buyer.customer_gst }}</div></span>
+        <span class="sw"><input type="checkbox" id="gst" checked><span class="tr"></span></span>
+    </label>
+    {% endif %}
+    <button class="btn btn-acc" id="place" onclick="place()">{% if edit_id %}Update order{% else %}Place order{% endif %}</button>
+    <a class="btn" style="margin-top:10px;background:transparent;box-shadow:none;color:var(--soft)" href="{% url 'm_order' %}{% if role != 'customer' %}?customer={{ buyer.id }}{% endif %}">Add more items</a>
+</div>
+
+<script>
+const CFG = document.getElementById('cfg').dataset;
+const PRODUCTS = {{ products_json|safe }};
+const CART_KEY = 'm_order_' + CFG.role + '_' + CFG.customer;
+const PM = (function(){ var m={}; PRODUCTS.forEach(function(p){ m[p.id]=p; }); return m; })();
+
+let cart = loadCart();
+function loadCart(){ try{ var c = JSON.parse(localStorage.getItem(CART_KEY)); return (c && typeof c==='object') ? c : {}; }catch(e){ return {}; } }
+function saveCart(){ try{ localStorage.setItem(CART_KEY, JSON.stringify(cart)); }catch(e){} }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function price(p){ return Number(p.product_rate_with_gst)||0; }
+// Canonical line amount — MUST match calculate_item_amounts() on the server: the rate is
+// GST-exclusive, the product's own discount comes off first, then GST is added on top.
+function lineAmt(p, qty){
+    var rate=Number(p.product_rate_with_gst)||0, gst=Number(p.product_gst_percentage)||0, disc=Number(p.product_discount)||0;
+    var base=(rate - rate*disc/100)*qty;
+    return Math.round(base*(1+gst/100)*100)/100;
+}
+function round2(n){ return Math.round(n*100)/100; }
+
+function render(){
+    var rows='', gross=0, count=0;
+    for(var id in cart){ var p=PM[id]; if(!p||cart[id]<1) continue;
+        var qty=cart[id], line=lineAmt(p,qty); gross+=line; count+=qty;
+        var disc=Number(p.product_discount)||0;
+        var sub=[p.model_no,p.product_colour].filter(Boolean).map(esc).join(' · ');
+        rows += '<div class="citem" data-id="'+id+'">'
+            + '<div style="flex:1;min-width:0"><div class="nm">'+esc(p.product_name||p.model_no||'Item')+'</div>'
+            + (sub?'<div class="meta">'+sub+'</div>':'')
+            + '<div class="ln">'+M.money2(line)+' <span class="muted sm" style="font-weight:600">('+M.money2(price(p))+'/unit'+(disc>0?' · '+disc+'% off':'')+', incl. GST)</span></div></div>'
+            + '<div class="step"><button onclick="dec('+id+')">&minus;</button><input class="q" type="number" inputmode="numeric" min="1" value="'+qty+'" onchange="setQty('+id+',this.value)" onfocus="this.select()"><button onclick="inc('+id+')">+</button></div>'
+            + '<button class="rm" onclick="remove('+id+')"><svg class="i" style="width:16px;height:16px;stroke:var(--red)"><use href="#ic-trash"/></svg></button>'
+            + '</div>';
+    }
+    var empty = count===0;
+    document.getElementById('citems').parentNode.style.display = empty ? 'none' : '';
+    document.getElementById('empty').style.display = empty ? 'block' : 'none';
+    document.getElementById('checkout').style.display = empty ? 'none' : '';
+    document.getElementById('citems').innerHTML = rows;
+    if(!empty){
+        document.getElementById('t_gross').textContent = M.money2(round2(gross));
+        document.getElementById('t_total').textContent = M.money2(round2(gross));
+    }
+}
+function inc(id){ cart[id]=(cart[id]||0)+1; saveCart(); render(); }
+function dec(id){ cart[id]=(cart[id]||0)-1; if(cart[id]<=0) delete cart[id]; saveCart(); render(); }
+function remove(id){ delete cart[id]; saveCart(); render(); }
+// Typed quantity for large counts (200/500). Blank or <1 removes the line.
+function setQty(id, v){ var n=Math.floor(Number(v)); if(!n||n<1){ delete cart[id]; } else { cart[id]=Math.min(n,99999); } saveCart(); render(); }
+
+async function place(){
+    var items=[]; for(var id in cart){ if(cart[id]>0) items.push({id:Number(id), qty:cart[id]}); }
+    if(!items.length){ M.toast('Cart is empty'); return; }
+    var gstEl=document.getElementById('gst');
+    var isGst = CFG.gst==='1' ? (gstEl?gstEl.checked:true) : false;
+    var btn=document.getElementById('place'); var editing = CFG.edit && CFG.edit!=='';
+    btn.disabled=true; var was=btn.textContent; btn.textContent = editing?'Updating…':'Placing…';
+    try{
+        var url = editing ? "{% url 'm_order_update' 0 %}".replace('/0/update', '/'+CFG.edit+'/update') : "{% url 'm_order_checkout' %}";
+        var body = editing ? {items:items, is_gst:isGst} : {items:items, is_gst:isGst, customer:Number(CFG.customer)};
+        var r = await M.post(url, body);
+        if(r.ok){
+            localStorage.removeItem(CART_KEY);
+            M.toast((editing?'Order updated · ':'Order placed · ') + r.label);
+            setTimeout(function(){ location.href = r.detail_url || r.order_url; }, 700);
+        } else { M.toast(r.message||'Could not save order'); btn.disabled=false; btn.textContent=was; }
+    }catch(e){ M.toast('Network error. Try again.'); btn.disabled=false; btn.textContent=was; }
+}
+
+// window.M is defined later in base.html — defer the first render until it exists.
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', render); else render();
+</script>
+{% endblock %}
+{% block nav %}{% if role == 'customer' %}{% include "m/nav_customer.html" with active="orders" %}{% else %}{% include "m/nav_employee.html" with active="orders" %}{% endif %}{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block title %}Route · {{ day_label|title }}{% endblock %}
+{% block metatags %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css">
+{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_collections' %}?day={{ sel }}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Collections</a>{% endblock %}
+{% block heading %}Collection route{% endblock %}
+{% block subhead %}<div class="sub">{{ day_label|title }} · {{ count }} stop{{ count|pluralize }}{% if missing %} · <span style="color:var(--amber)">{{ missing }} without location</span>{% endif %}</div>{% endblock %}
+{% block includecss %}
+#map{height:52vh;min-height:300px;border-radius:var(--r);box-shadow:var(--sh);z-index:1}
+.leaflet-container{font:inherit}
+.leaflet-routing-container{display:none}
+#routeinfo{margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--bluebg);color:var(--acc);font-weight:700;font-size:13px;text-align:center}
+.stop{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--line);color:inherit}
+.stop:last-child{border-bottom:0}
+.stop .n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+{% endblock %}
+{% block content %}
+
+{% if located %}
+<div class="filt" id="mode">
+    <button class="on" onclick="setMode(this,'nearest')">Nearest first</button>
+    <button onclick="setMode(this,'farthest')">Farthest first</button>
+    <button onclick="setMode(this,'reverse')">Reverse</button>
+</div>
+
+<div class="panel" style="padding:10px">
+    <div id="map"></div>
+    <div id="routeinfo" style="display:none"></div>
+</div>
+
+<button class="btn btn-sm mt" onclick="startFromGPS()" style="margin-bottom:6px"><svg class="i"><use href="#ic-pin"/></svg> Start from my location</button>
+
+<div class="sec"><h2 class="t" style="font-size:15px">Stops in order</h2></div>
+<div class="list" id="stops"></div>
+
+{% if missing %}
+<div class="panel" style="margin-top:12px;background:var(--amberbg)">
+    <div class="sm" style="color:#8a5a00"><b>{{ missing }}</b> customer{{ missing|pluralize }} on this day {{ missing|pluralize:"has,have" }} no saved location and {{ missing|pluralize:"isn't,aren't" }} on the route. Open a customer → <b>Set location</b> to add them.</div>
+</div>
+{% endif %}
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-pin"/></svg><div>No customers with a saved location for {{ day_label|title }}.{% if missing %}<br>{{ missing }} on this day need their location set.{% endif %}</div></div>
+{% endif %}
+
+{{ located|json_script:"stops-data" }}
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="collections" %}{% endblock %}
+{% block includejs %}
+{% if located %}
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.min.js"></script>
+<script>
+(function(){
+    var STOPS = JSON.parse(document.getElementById('stops-data').textContent);
+    var HQ = { lat: {{ hq_lat|default:"null" }}, lng: {{ hq_lng|default:"null" }}, name: "{{ hq_name|escapejs }}" };
+    var CUST = "{% url 'm_employee_customer' 0 %}".slice(0, -1);   // -> /m/employee/customer/
+    var mode = 'nearest';
+    var start = (HQ.lat !== null && HQ.lng !== null) ? {lat:HQ.lat, lng:HQ.lng, name:HQ.name, hq:true} : null;
+
+    var map = L.map('map', {zoomControl:true}).setView([20.5937, 78.9629], 5);
+    var streets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        {subdomains:['mt0','mt1','mt2','mt3'], attribution:'&copy; Google', maxZoom:20}).addTo(map);
+    var sat = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        {subdomains:['mt0','mt1','mt2','mt3'], attribution:'&copy; Google', maxZoom:20});
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {attribution:'&copy; OpenStreetMap', maxZoom:19});
+    L.control.layers({'Streets':streets, 'Satellite':sat, 'OSM':osm}).addTo(map);
+    var markers = L.layerGroup().addTo(map), routeCtrl = null;
+
+    function dist2(a, b){ return Math.pow(a.lat-b.lat,2) + Math.pow(a.lng-b.lng,2); }
+    function order(list, s, farthest){
+        var out = [], rem = list.slice(), cur = {lat:s.lat, lng:s.lng};
+        while (rem.length){
+            var pick = 0, best = farthest ? -1 : Infinity;
+            for (var i=0;i<rem.length;i++){ var d = dist2(rem[i], cur);
+                if (farthest ? d > best : d < best){ best = d; pick = i; } }
+            out.push(rem[pick]); cur = rem[pick]; rem.splice(pick,1);
+        }
+        return out;
+    }
+    function ordered(){
+        var s = start || STOPS[0];
+        var pool = start ? STOPS.slice() : STOPS.slice(1);
+        var head = start ? [] : [STOPS[0]];
+        if (mode === 'farthest') return head.concat(order(pool, s, true));
+        if (mode === 'reverse')  return head.concat(order(pool, s, false)).reverse();
+        return head.concat(order(pool, s, false));
+    }
+    function pin(color, html){ return L.divIcon({className:'', iconSize:[28,28], iconAnchor:[14,14],
+        html:'<div style="background:'+color+';width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:12px">'+html+'</div>'}); }
+
+    function draw(){
+        var list = ordered();
+        markers.clearLayers();
+        if (routeCtrl){ map.removeControl(routeCtrl); routeCtrl = null; }
+        var s = start || {lat:list[0].lat, lng:list[0].lng, name:list[0].name+' (start)'};
+        var bounds = [[s.lat, s.lng]];
+        L.marker([s.lat, s.lng], {icon: pin('#34c759','★')}).addTo(markers)
+            .bindTooltip(s.name || 'Start', {direction:'top', offset:[0,-16]});
+        list.forEach(function(c, i){
+            var col = c.bal > 0 ? '#34c759' : (c.bal < -10 ? '#ff3b30' : '#ff9500');
+            L.marker([c.lat, c.lng], {icon: pin('#0078d4', i+1)}).addTo(markers)
+                .bindTooltip(c.name + '<br><b style="color:'+col+'">₹'+Math.abs(c.bal).toFixed(2)+(c.bal<0?' due':'')+'</b>', {direction:'top', offset:[0,-14]});
+            bounds.push([c.lat, c.lng]);
+        });
+        map.fitBounds(bounds, {padding:[40,40]});
+
+        var wp = [L.latLng(s.lat, s.lng)];
+        list.forEach(function(c){ wp.push(L.latLng(c.lat, c.lng)); });
+        routeCtrl = L.Routing.control({ waypoints: wp, show:false, addWaypoints:false,
+            routeWhileDragging:false, fitSelectedRoutes:false, draggableWaypoints:false,
+            lineOptions:{styles:[{color:'#0078d4', weight:5, opacity:.8}]}, createMarker:function(){ return null; } })
+        .on('routesfound', function(e){
+            var sm = e.routes[0].summary, ri = document.getElementById('routeinfo');
+            ri.style.display='block';
+            ri.innerHTML = (sm.totalDistance/1000).toFixed(1)+' km · ~'+Math.round(sm.totalTime/60)+' min · '+list.length+' stops';
+        }).on('routingerror', function(){
+            var ri = document.getElementById('routeinfo'); ri.style.display='block';
+            ri.innerHTML = 'Showing '+list.length+' stops (route unavailable)';
+        }).addTo(map);
+
+        // Ordered stop list
+        var h = '';
+        list.forEach(function(c, i){
+            var col = c.bal < -10 ? 'b-red' : (c.bal > 0 ? 'b-green' : 'b-grey');
+            var amt = c.bal < 0 ? '&#8377; '+Math.abs(c.bal).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) : (c.bal>0 ? 'Adv' : '—');
+            h += '<a class="stop" href="'+CUST+c.id+'">'
+               + '<span class="n">'+(i+1)+'</span>'
+               + '<span style="flex:1;min-width:0"><span class="b" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+c.name+'</span>'
+               + (c.place ? '<span class="sub">'+c.place+'</span>' : '')+'</span>'
+               + '<span class="badge '+col+'" style="white-space:nowrap">'+amt+'</span></a>';
+        });
+        document.getElementById('stops').innerHTML = h;
+    }
+
+    window.setMode = function(btn, m){
+        mode = m;
+        document.querySelectorAll('#mode button').forEach(function(b){ b.classList.remove('on'); });
+        btn.classList.add('on');
+        draw();
+    };
+    window.startFromGPS = function(){
+        if (!navigator.geolocation){ M.toast('GPS not available'); return; }
+        M.toast('Locating…');
+        navigator.geolocation.getCurrentPosition(function(pos){
+            start = {lat:pos.coords.latitude, lng:pos.coords.longitude, name:'My location', hq:false};
+            M.toast('Route from your location');
+            draw();
+        }, function(){ M.toast('Could not get your GPS location.'); },
+        {enableHighAccuracy:true, timeout:10000, maximumAge:0});
+    };
+
+    setTimeout(function(){ map.invalidateSize(); draw(); }, 150);
+})();
+</script>
+{% endif %}
+{% endblock %}

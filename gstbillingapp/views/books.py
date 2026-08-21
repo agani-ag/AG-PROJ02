@@ -16,7 +16,8 @@ from ..forms import BookLogForm, BookLogFullForm
 
 # Utility functions
 from ..utils import (
-    recalculate_book_current_balance
+    recalculate_book_current_balance,
+    round_to_rupee
 )
 
 # Python imports
@@ -98,6 +99,7 @@ def book_logs_add(request, book_id):
 
         book_log = book_log_form.save(commit=False)
         book_log.parent_book = book
+        book_log.change = round_to_rupee(book_log.change)   # whole-rupee ledger entries
         if invoice:
             book_log.associated_invoice = invoice
         book_log.save()
@@ -336,6 +338,7 @@ def book_logs_full_add(request):
         if book_log_form.is_valid():
             book_log = book_log_form.save(commit=False)
             book = book_log.parent_book
+            book_log.change = round_to_rupee(book_log.change)   # whole-rupee ledger entries
             book_log.save()
             recalculate_book_current_balance(book)
             return redirect('book_logs_full')
@@ -386,7 +389,7 @@ def book_logs_pending(request):
             book_logs_new = BookLog(
                 parent_book = booklog.parent_book,
                 change_type = 3,
-                change = booklog_change,
+                change = round_to_rupee(booklog_change),   # whole-rupee ledger entries
                 description = booklog_description
             )
             book_logs_new.save()
