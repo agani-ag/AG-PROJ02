@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 
 {% block title %}Business Intelligence Dashboard - GST Sync{% endblock %}
 
@@ -126,7 +127,7 @@
         <div class="card bg-success text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-rupee-sign"></i> Total Revenue</h6>
-                <h3>₹ {{ total_revenue|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ total_revenue|default:0|inrs }}</h3>
                 <small>All-time revenue generated</small>
             </div>
         </div>
@@ -135,7 +136,7 @@
         <div class="card bg-danger text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-exclamation-circle"></i> Total Outstanding</h6>
-                <h3>₹ {{ total_outstanding|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ total_outstanding|default:0|inrs }}</h3>
                 <small>Pending receivables</small>
             </div>
         </div>
@@ -146,7 +147,7 @@
                 <h6 class="card-title"><i class="fas fa-hand-holding-usd"></i> Cash Received
                     <span class="badge badge-light">This Month</span>
                 </h6>
-                <h3>₹ {{ cash_received_month|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ cash_received_month|default:0|inrs }}</h3>
                 <small>Monthly cash inflow</small>
             </div>
         </div>
@@ -155,7 +156,7 @@
         <div class="card bg-orange text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-clock"></i> Pending Amount</h6>
-                <h3>₹ {{ pending_amount|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ pending_amount|default:0|inrs }}</h3>
                 <small>Awaiting payment</small>
             </div>
         </div>
@@ -225,10 +226,10 @@
                     <tr>
                         <td>{{ forloop.counter }}</td>
                         <td>{{ customer.name }}</td>
-                        <td class="text-right">₹ {{ customer.total_revenue|default:0|floatformat:2|intcomma }}</td>
-                        <td class="text-right">₹ {{ customer.outstanding|default:0|floatformat:2|intcomma }}</td>
+                        <td class="text-right">₹ {{ customer.total_revenue|default:0|inrs }}</td>
+                        <td class="text-right">₹ {{ customer.outstanding|default:0|inrs }}</td>
                         <td class="text-right">{{ customer.risk_score|default:"-" }}</td>
-                        <td class="text-right">₹ {{ customer.ltv|default:0|floatformat:2|intcomma }}</td>
+                        <td class="text-right">₹ {{ customer.ltv|default:0|inrs }}</td>
                     </tr>
                     {% empty %}
                     <tr>
@@ -267,7 +268,7 @@
                         <td>{{ forloop.counter }}</td>
                         <td>{{ customer.name }}</td>
                         <td class="text-right">{{ customer.late_payment_pct|default:0|floatformat:1 }}%</td>
-                        <td class="text-right">₹ {{ customer.avg_invoice_value|default:0|floatformat:2|intcomma }}</td>
+                        <td class="text-right">₹ {{ customer.avg_invoice_value|default:0|inrs }}</td>
                         <td class="text-right">{{ customer.return_frequency|default:0 }}</td>
                         <td>
                             {% if customer.risk_level == "High" %}
@@ -303,7 +304,7 @@
         <div class="card bg-violet text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-calculator"></i> Average LTV</h6>
-                <h3>₹ {{ avg_ltv|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ avg_ltv|default:0|inrs }}</h3>
                 <small>Across all customers</small>
             </div>
         </div>
@@ -339,7 +340,7 @@
         <div class="card bg-primary text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-bullseye"></i> Next Month Revenue Forecast</h6>
-                <h3>₹ {{ forecast_revenue|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ forecast_revenue|default:0|inrs }}</h3>
                 <small>Projected revenue for next month</small>
             </div>
         </div>
@@ -348,7 +349,7 @@
         <div class="card bg-success text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-money-bill-wave"></i> Expected Cash Flow</h6>
-                <h3>₹ {{ forecast_cashflow|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ forecast_cashflow|default:0|inrs }}</h3>
                 <small>Anticipated cash inflow next month</small>
             </div>
         </div>
@@ -377,7 +378,7 @@
                     <tr>
                         <td>{{ forloop.counter }}</td>
                         <td>{{ month.name }}</td>
-                        <td class="text-right">₹ {{ month.revenue|default:0|floatformat:2|intcomma }}</td>
+                        <td class="text-right">₹ {{ month.revenue|default:0|inrs }}</td>
                     </tr>
                     {% empty %}
                     <tr>
@@ -410,7 +411,7 @@
         <div class="card bg-violet text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-receipt"></i> Avg Invoice Value</h6>
-                <h3>₹ {{ avg_invoice_value|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ avg_invoice_value|default:0|inrs }}</h3>
                 <small>Per invoice average</small>
             </div>
         </div>

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 
 {% block title %}Accounts Receivable Aging Report - GST Sync{% endblock %}
 
@@ -178,7 +179,7 @@
         <div class="card bg-danger text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-rupee-sign"></i> Total Outstanding</h6>
-                <h3>₹ {{ total_outstanding|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ total_outstanding|default:0|inrs }}</h3>
                 <small>All pending receivables</small>
             </div>
         </div>
@@ -187,7 +188,7 @@
         <div class="card bg-orange text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-clock"></i> Total Overdue (30+ days)</h6>
-                <h3>₹ {{ total_overdue|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ total_overdue|default:0|inrs }}</h3>
                 <small>Past due date</small>
             </div>
         </div>
@@ -205,7 +206,7 @@
         <div class="card bg-violet text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-exclamation-triangle"></i> Critical (90+ days)</h6>
-                <h3>₹ {{ total_critical_overdue|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ total_critical_overdue|default:0|inrs }}</h3>
                 <small>High risk amount</small>
             </div>
         </div>
@@ -285,14 +286,14 @@
                                 {{ customer.name }}</a>
                             <br><small class="text-muted">{{ customer.phone }}</small>
                         </td>
-                        <td class="font-weight-bold">₹ {{ customer.total_outstanding|floatformat:2|intcomma }}</td>
+                        <td class="font-weight-bold">₹ {{ customer.total_outstanding|inrs }}</td>
                         {% for amount in customer.bucket_amounts %}
                         <td class="{% if forloop.counter0 >= 6 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
-                            {% if amount > 0 %}₹ {{ amount|floatformat:0|intcomma }}{% else %}-{% endif %}
+                            {% if amount > 0 %}₹ {{ amount|inrs }}{% else %}-{% endif %}
                         </td>
                         {% endfor %}
                         <td class="text-danger font-weight-bold">
-                            {% if customer.overdue_amount > 0 %}₹ {{ customer.overdue_amount|floatformat:2|intcomma }}{% else %}-{% endif %}
+                            {% if customer.overdue_amount > 0 %}₹ {{ customer.overdue_amount|inrs }}{% else %}-{% endif %}
                         </td>
                         <td class="text-center">
                             {% if customer.risk_level == "High" %}
@@ -315,13 +316,13 @@
                     <tr class="total-row">
                         <td class="sticky-col"></td>
                         <td class="sticky-col-2 text-left font-weight-bold">TOTAL</td>
-                        <td class="font-weight-bold">₹ {{ total_outstanding|floatformat:2|intcomma }}</td>
+                        <td class="font-weight-bold">₹ {{ total_outstanding|inrs }}</td>
                         {% for total in bucket_totals %}
                         <td class="{% if forloop.counter0 >= 6 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
-                            {% if total > 0 %}₹ {{ total|floatformat:0|intcomma }}{% else %}-{% endif %}
+                            {% if total > 0 %}₹ {{ total|inrs }}{% else %}-{% endif %}
                         </td>
                         {% endfor %}
-                        <td class="text-danger font-weight-bold">₹ {{ total_overdue|floatformat:2|intcomma }}</td>
+                        <td class="text-danger font-weight-bold">₹ {{ total_overdue|inrs }}</td>
                         <td></td>
                     </tr>
                     {% endif %}
@@ -361,8 +362,8 @@
                         <td>{{ forloop.counter }}</td>
                         <td><a href="{% url 'book_logs' customer.book_id %}" style="text-decoration: none;color: black;">{{ customer.name }}</a></td>
                         <td>{{ customer.phone }}</td>
-                        <td class="text-right">₹ {{ customer.total_outstanding|floatformat:2|intcomma }}</td>
-                        <td class="text-right text-danger">₹ {{ customer.overdue_amount|floatformat:2|intcomma }}</td>
+                        <td class="text-right">₹ {{ customer.total_outstanding|inrs }}</td>
+                        <td class="text-right text-danger">₹ {{ customer.overdue_amount|inrs }}</td>
                         <td>
                             {% if customer.risk_level == "High" %}
                                 <span class="badge badge-danger">High</span>

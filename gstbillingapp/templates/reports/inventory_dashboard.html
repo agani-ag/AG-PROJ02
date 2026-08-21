@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 
 {% block title %}Product & Inventory Intelligence Dashboard - GST Sync{% endblock %}
 
@@ -135,7 +136,7 @@
         <div class="card bg-success text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-rupee-sign"></i> Total Stock Value</h6>
-                <h3>₹ {{ total_stock_value|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ total_stock_value|default:0|inrs }}</h3>
                 <small>Current inventory valuation</small>
             </div>
         </div>
@@ -223,7 +224,7 @@
                         <td>{{ cat.name }}</td>
                         <td class="text-right">{{ cat.product_count|intcomma }}</td>
                         <td class="text-right">{{ cat.total_stock|intcomma }}</td>
-                        <td class="text-right">₹ {{ cat.stock_value|default:0|floatformat:2|intcomma }}</td>
+                        <td class="text-right">₹ {{ cat.stock_value|default:0|inrs }}</td>
                         <td>
                             {% if cat.health == "Critical" %}
                                 <span class="badge badge-danger">Critical</span>
@@ -553,7 +554,7 @@
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-arrow-up"></i> Highest Value Product</h6>
                 <h3>{{ highest_value_product|default:"N/A" }}</h3>
-                <small>₹ {{ highest_value_rate|default:0|floatformat:2|intcomma }}</small>
+                <small>₹ {{ highest_value_rate|default:0|inrs }}</small>
             </div>
         </div>
     </div>
@@ -561,7 +562,7 @@
         <div class="card bg-violet text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-calculator"></i> Average Product Rate</h6>
-                <h3>₹ {{ avg_product_rate|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ avg_product_rate|default:0|inrs }}</h3>
                 <small>Avg rate with GST</small>
             </div>
         </div>

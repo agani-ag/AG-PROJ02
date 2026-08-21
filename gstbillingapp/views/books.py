@@ -17,8 +17,9 @@ from ..forms import BookLogForm, BookLogFullForm
 # Utility functions
 from ..utils import (
     recalculate_book_current_balance,
-    round_to_rupee
+    round_to_rupee,
 )
+from ..templatetags.money import format_inr_smart
 
 # Python imports
 import json
@@ -299,7 +300,7 @@ def book_logs_full_ajax(request):
                 'DT_RowClass': row_class,
                 'date': date_str,
                 'type': item.get_change_type_display(),
-                'change': str(item.change),
+                'change': format_inr_smart(item.change),
                 'description': item.description or '',
                 'customer': customer_link,
                 'actions': actions_html

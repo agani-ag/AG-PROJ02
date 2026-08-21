@@ -2,6 +2,7 @@
 {% load tz %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 {% block content %}
 
 	<div class="row mb-3">
@@ -25,7 +26,7 @@
 			<div class="card bg-danger text-white h-100">
 				<div class="card-body d-flex flex-column">
 					<h6 class="card-title"><i class="fas fa-receipt"></i> Total Debit</h6>
-					<h3 class="mt-auto">₹ {{ total_debit | default:0 | floatformat:2 | intcomma }}</h3>
+					<h3 class="mt-auto">₹ {{ total_debit | default:0 | inrs }}</h3>
 					<a href="?filter=debit" class="stretched-link"></a>
 				</div>
 			</div>
@@ -35,7 +36,7 @@
 			<div class="card bg-success text-white h-100">
 				<div class="card-body d-flex flex-column">
 					<h6 class="card-title"><i class="fas fa-circle-check"></i> Total Credit</h6>
-					<h3 class="mt-auto">₹ {{ total_credit | default:0 | floatformat:2 | intcomma }}</h3>
+					<h3 class="mt-auto">₹ {{ total_credit | default:0 | inrs }}</h3>
 					<a href="?filter=credit" class="stretched-link"></a>
 				</div>
 			</div>
@@ -76,7 +77,7 @@
 		{% else %}
 			<span class="text-danger"><a href="?filter=transactions" class="text-danger">
 		{% endif %}
-			₹ {{ total_transactions | default:0 | floatformat:2 | intcomma }} </a></span>
+			₹ {{ total_transactions | default:0 | inrs }} </a></span>
 		<span>({{ total_transactions_word }})</span>
 	</p>
 
@@ -103,7 +104,7 @@
 					<small class="text-muted">{{ log.date|naturaltime }}</small>
 				</td>
 				<td>{{log.get_change_type_display}}</td>
-				<td>{% if log.change %}₹ {{log.change}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+				<td>{% if log.change %}₹ {{log.change|inrs}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 				<td>{% if log.category %}{{log.category}}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
 				<td>
 					<div class="btn-group" role="group" aria-label="Basic example">
@@ -162,9 +163,9 @@
 							'<h4 style="margin:0;">Asset Logs - {{ asset.name|escapejs }}</h4>' +
 							'<p style="margin:4px 0; color:#666;">Category: {{ asset.category|escapejs }}</p>' +
 							'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
-								'<span style="color:#dc3545;"><strong>Total Debit:</strong> ₹ {{ total_debit|default:0|floatformat:2 }}</span>' +
-								'<span style="color:#28a745;"><strong>Total Credit:</strong> ₹ {{ total_credit|default:0|floatformat:2 }}</span>' +
-								'<span><strong>Net:</strong> ₹ {{ total_transactions|default:0|floatformat:2 }}</span>' +
+								'<span style="color:#dc3545;"><strong>Total Debit:</strong> ₹ {{ total_debit|default:0|inrs }}</span>' +
+								'<span style="color:#28a745;"><strong>Total Credit:</strong> ₹ {{ total_credit|default:0|inrs }}</span>' +
+								'<span><strong>Net:</strong> ₹ {{ total_transactions|default:0|inrs }}</span>' +
 							'</div>' +
 							'<hr style="margin-top:15px;">' +
 						'</div>';

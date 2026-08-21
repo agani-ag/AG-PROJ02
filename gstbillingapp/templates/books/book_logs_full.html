@@ -2,6 +2,7 @@
 {% load tz %}
 {% load humanize %}
 {% load static %}
+{% load money %}
 
 {% block content %}
 <h2>All Book Details</h2>
@@ -13,7 +14,7 @@
         <div class="card bg-danger text-white">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-receipt"></i> Total Sales</h6>
-                <h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
+                <h3>₹ {{ total_purchased | default:0 | inrs }}</h3>
             </div>
         </div>
     </div>
@@ -21,7 +22,7 @@
         <div class="card bg-success text-white">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-circle-check"></i> Total Paid</h6>
-                <h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
+                <h3>₹ {{ total_paid | default:0 | inrs }}</h3>
             </div>
         </div>
     </div>
@@ -29,7 +30,7 @@
         <div class="card bg-orange text-white">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
-                <h3>₹ {{ total_returned | default:0 | floatformat:2 | intcomma }}</h3>
+                <h3>₹ {{ total_returned | default:0 | inrs }}</h3>
             </div>
         </div>
     </div>
@@ -37,7 +38,7 @@
         <div class="card bg-violet text-white">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
-                <h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
+                <h3>₹ {{ total_others | default:0 | inrs }}</h3>
             </div>
         </div>
     </div>
@@ -48,9 +49,9 @@
     <div class="col-md-3">
         <strong>Total Balance :
             {% if total_balance > 0 %}
-                <span class="text-danger">₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</span>
+                <span class="text-danger">₹ {{ total_balance | default:0 | inrs }}</span>
             {% else %}
-                <span class="text-success">₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</span>
+                <span class="text-success">₹ {{ total_balance | default:0 | inrs }}</span>
             {% endif %}
         </strong><br>
         <span class="font-weight-bold" id="balanceWord">{{ total_balance_word }}</span>
@@ -269,10 +270,10 @@ $(document).ready(function() {
                         '<hr style="margin:10px 0;">' +
                         '<h4 style="margin:0;">All Book Details</h4>' +
                         '<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
-                            '<span style="color:#dc3545;"><strong>Total Sales:</strong> ₹ {{ total_purchased|default:0|floatformat:2 }}</span>' +
-                            '<span style="color:#28a745;"><strong>Total Paid:</strong> ₹ {{ total_paid|default:0|floatformat:2 }}</span>' +
-                            '<span style="color:#fd7e14;"><strong>Returned:</strong> ₹ {{ total_returned|default:0|floatformat:2 }}</span>' +
-                            '<span><strong>Balance:</strong> ₹ {{ total_balance|default:0|floatformat:2 }}</span>' +
+                            '<span style="color:#dc3545;"><strong>Total Sales:</strong> ₹ {{ total_purchased|default:0|inrs }}</span>' +
+                            '<span style="color:#28a745;"><strong>Total Paid:</strong> ₹ {{ total_paid|default:0|inrs }}</span>' +
+                            '<span style="color:#fd7e14;"><strong>Returned:</strong> ₹ {{ total_returned|default:0|inrs }}</span>' +
+                            '<span><strong>Balance:</strong> ₹ {{ total_balance|default:0|inrs }}</span>' +
                         '</div>' +
                         '<hr style="margin-top:10px;">' +
                     '</div>';
@@ -350,10 +351,12 @@ $(document).ready(function() {
     function updateSummaryCards(totals) {
         // Format numbers with commas
         const formatNumber = (num) => {
+            var n = Number(num) || 0;
+            var whole = Math.abs(n - Math.round(n)) < 0.005;   // drop .00 for whole rupees
             return new Intl.NumberFormat('en-IN', {
-                minimumFractionDigits: 2,
+                minimumFractionDigits: whole ? 0 : 2,
                 maximumFractionDigits: 2
-            }).format(num);
+            }).format(n);
         };
         
         // Update card values

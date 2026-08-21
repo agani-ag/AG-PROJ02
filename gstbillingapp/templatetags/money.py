@@ -47,3 +47,22 @@ def inr(value):
 def inr0(value):
     """Whole-rupee Indian format: {{ amount|inr0 }} -> 31,23,589"""
     return format_inr(value, decimals=0)
+
+
+def format_inr_smart(value):
+    """Indian format that drops a whole-rupee's .00 but KEEPS real paise on historical
+    values: 29800.0 -> '29,800', 29857.49 -> '29,857.49'."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return "0"
+    if abs(v - round(v)) < 0.005:        # effectively a whole rupee
+        return format_inr(v, decimals=0)
+    return format_inr(v, decimals=2)
+
+
+@register.filter(name="inrs")
+def inrs(value):
+    """Smart Indian money: whole rupees show no decimals, real paise are kept.
+    {{ amount|inrs }} -> 29,800  or  29,857.49"""
+    return format_inr_smart(value)

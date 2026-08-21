@@ -15,6 +15,7 @@ from ..models import (
     UserProfile, Customer, Invoice, Book, BookLog,
     Product, ProductCategory, Inventory, InventoryLog
 )
+from ..templatetags.money import format_inr_smart
 
 
 @login_required
@@ -1918,7 +1919,7 @@ def overdue_report_api(request):
             if u.get('business_brand'):
                 lines.append(f'🏷️  {_escape_md(u["business_brand"])}')
 
-            user_overdue_str = _escape_md(f'{r["total_overdue"]:,.2f}')           
+            user_overdue_str = _escape_md(format_inr_smart(r["total_overdue"]))
             lines.append(f'👥  Total Customers: *{r["actual_total_customers"]}*')
             lines.append(f'⚠️  Overdue Customers: *{r["overdue_customers"]}*')
             lines.append(f'💰  Total Overdue: *Rs\\.{user_overdue_str}*')
@@ -1929,7 +1930,7 @@ def overdue_report_api(request):
                 for idx, c in enumerate(r['customers'], 1):
                     cname = _escape_md(c['customer_name'])
                     phone = c.get('phone', False)
-                    amt = f'Rs.{c["overdue_amount"]:,.2f}'
+                    amt = f'Rs.{format_inr_smart(c["overdue_amount"])}'
                     lines.append(f'{_escape_md(str(idx))}\\. *{cname}*')
                     if phone:
                         lines.append(f'    📞  *{_escape_md(phone)}*')

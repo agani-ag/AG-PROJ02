@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 
 {% block title %}Overdue Report - GST Sync{% endblock %}
 
@@ -107,7 +108,7 @@
     <div class="row mb-3">
         <div class="col-6 col-md-3 mb-2">
             <div class="kpi-card">
-                <div class="kpi-value text-danger">₹ {{ total_overdue|floatformat:2|intcomma }}</div>
+                <div class="kpi-value text-danger">₹ {{ total_overdue|inrs }}</div>
                 <div class="kpi-label">Total Overdue ({{ selected_days }}+ days)</div>
             </div>
         </div>
@@ -121,7 +122,7 @@
             <div class="kpi-card">
                 <div class="kpi-value text-warning">
                     {% if total_customers > 0 %}
-                        ₹ {{ total_overdue|floatformat:0|intcomma }}
+                        ₹ {{ total_overdue|inrs }}
                     {% else %}
                         ₹ 0
                     {% endif %}
@@ -175,7 +176,7 @@
                                 </a>
                                 <br><small class="text-muted">{{ customer.phone }}</small>
                             </td>
-                            <td class="text-right text-danger font-weight-bold" style="font-size:.95rem;">₹ {{ customer.overdue_amount|floatformat:2|intcomma }}</td>
+                            <td class="text-right text-danger font-weight-bold" style="font-size:.95rem;">₹ {{ customer.overdue_amount|inrs }}</td>
                         </tr>
                         {% empty %}
                         <tr>
@@ -190,7 +191,7 @@
                         <tr class="total-row">
                             <td></td>
                             <td class="font-weight-bold">TOTAL ({{ total_customers }} customers)</td>
-                            <td class="text-right text-danger font-weight-bold" style="font-size:1rem;">₹ {{ total_overdue|floatformat:2|intcomma }}</td>
+                            <td class="text-right text-danger font-weight-bold" style="font-size:1rem;">₹ {{ total_overdue|inrs }}</td>
                         </tr>
                         {% endif %}
                     </tbody>

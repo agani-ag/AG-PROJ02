@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 
 {% block title %}Inventory Margin Report - GST Sync{% endblock %}
 
@@ -153,19 +154,19 @@
         </div>
         <div class="col mb-2" style="min-width:0;flex:1 1 0;">
             <div class="kpi-card">
-                <div class="kpi-value text-primary">₹ {{ total_stock_value|floatformat:2|intcomma }}</div>
+                <div class="kpi-value text-primary">₹ {{ total_stock_value|inrs }}</div>
                 <div class="kpi-label">Stock Value (Sale)</div>
             </div>
         </div>
         <div class="col mb-2" style="min-width:0;flex:1 1 0;">
             <div class="kpi-card">
-                <div class="kpi-value text-warning">₹ {{ total_purchase_value|floatformat:2|intcomma }}</div>
+                <div class="kpi-value text-warning">₹ {{ total_purchase_value|inrs }}</div>
                 <div class="kpi-label">Stock Value (Purchase)</div>
             </div>
         </div>
         <div class="col mb-2" style="min-width:0;flex:1 1 0;">
             <div class="kpi-card">
-                <div class="kpi-value {% if total_profit >= 0 %}text-success{% else %}text-danger{% endif %}">₹ {{ total_profit|floatformat:2|intcomma }}</div>
+                <div class="kpi-value {% if total_profit >= 0 %}text-success{% else %}text-danger{% endif %}">₹ {{ total_profit|inrs }}</div>
                 <div class="kpi-label">Total Profit</div>
             </div>
         </div>
@@ -208,16 +209,16 @@
                             <td><strong>{{ p.model_no }}</strong></td>
                             <td class="text-muted">{{ p.name }}</td>
                             <td class="text-right">{{ p.current_stock|intcomma }}</td>
-                            <td class="text-right">₹ {{ p.purchase_rate|floatformat:2|intcomma }}</td>
-                            <td class="text-right">₹ {{ p.sale_rate|floatformat:2|intcomma }}</td>
+                            <td class="text-right">₹ {{ p.purchase_rate|inrs }}</td>
+                            <td class="text-right">₹ {{ p.sale_rate|inrs }}</td>
                             <td class="text-right font-weight-bold {% if p.profit_unit >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
-                                ₹ {{ p.profit_unit|floatformat:2|intcomma }}
+                                ₹ {{ p.profit_unit|inrs }}
                             </td>
                             <td class="text-right {% if p.margin >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
                                 {{ p.margin }}%
                             </td>
                             <td class="text-right font-weight-bold {% if p.profit_total >= 0 %}profit-positive{% else %}profit-negative{% endif %}" style="font-size:.95rem;">
-                                ₹ {{ p.profit_total|floatformat:2|intcomma }}
+                                ₹ {{ p.profit_total|inrs }}
                             </td>
                         </tr>
                         {% empty %}
@@ -234,7 +235,7 @@
                             <td></td>
                             <td colspan="7" class="font-weight-bold">TOTAL ({{ total_products }} products)</td>
                             <td class="text-right font-weight-bold {% if total_profit >= 0 %}profit-positive{% else %}profit-negative{% endif %}" style="font-size:1rem;">
-                                ₹ {{ total_profit|floatformat:2|intcomma }}
+                                ₹ {{ total_profit|inrs }}
                             </td>
                         </tr>
                         {% endif %}

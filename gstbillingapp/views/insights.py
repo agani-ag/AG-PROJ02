@@ -23,6 +23,7 @@ from django.utils import timezone
 
 # Models
 from ..models import Customer, Book, BookLog, Invoice, ChequeLeaf
+from ..templatetags.money import format_inr_smart
 
 
 def _invoice_total(invoice_json_str):
@@ -88,10 +89,10 @@ def customer_insights(request):
 
     if outstanding > 0.01:
         status = 'owes'
-        balance_label = f'Owes ₹{outstanding:,.2f}'
+        balance_label = f'Owes ₹{format_inr_smart(outstanding)}'
     elif advance > 0.01:
         status = 'advance'
-        balance_label = f'Advance ₹{advance:,.2f}'
+        balance_label = f'Advance ₹{format_inr_smart(advance)}'
     else:
         status = 'clear'
         balance_label = 'No dues'

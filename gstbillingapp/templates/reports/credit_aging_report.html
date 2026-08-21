@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 
 {% block title %}Credit Aging Report - GST Sync{% endblock %}
 
@@ -191,8 +192,8 @@
         <div class="card bg-primary text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-university"></i> Total Credit Limit</h6>
-                <h3>₹ {{ total_credit_limit|default:0|floatformat:2|intcomma }}</h3>
-                <small>₹ {{ default_credit_limit|floatformat:0|intcomma }} per customer</small>
+                <h3>₹ {{ total_credit_limit|default:0|inrs }}</h3>
+                <small>₹ {{ default_credit_limit|inrs }} per customer</small>
             </div>
         </div>
     </div>
@@ -200,7 +201,7 @@
         <div class="card bg-danger text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-rupee-sign"></i> Total Utilized</h6>
-                <h3>₹ {{ total_utilized|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ total_utilized|default:0|inrs }}</h3>
                 <small>{{ avg_utilization|default:0 }}% avg utilization</small>
             </div>
         </div>
@@ -209,7 +210,7 @@
         <div class="card bg-orange text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-clock"></i> Overdue ({{ default_credit_period }}+ days)</h6>
-                <h3>₹ {{ total_overdue_beyond_credit|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ total_overdue_beyond_credit|default:0|inrs }}</h3>
                 <small>Beyond credit period</small>
             </div>
         </div>
@@ -218,7 +219,7 @@
         <div class="card bg-violet text-white h-100">
             <div class="card-body">
                 <h6 class="card-title"><i class="fas fa-skull-crossbones"></i> Bad Debt Risk (180+)</h6>
-                <h3>₹ {{ total_bad_debt_risk|default:0|floatformat:2|intcomma }}</h3>
+                <h3>₹ {{ total_bad_debt_risk|default:0|inrs }}</h3>
                 <small>Potential write-off</small>
             </div>
         </div>
@@ -307,7 +308,7 @@
         <div>
             <h4 class="section-title"><i class="fas fa-chart-bar"></i> Credit Limit Utilization</h4>
             <p class="text-muted mb-1" style="font-size: 0.85rem;">
-                <i class="fas fa-info-circle"></i> Default credit limit: ₹ {{ default_credit_limit|floatformat:0|intcomma }} | Credit period: {{ default_credit_period }} days
+                <i class="fas fa-info-circle"></i> Default credit limit: ₹ {{ default_credit_limit|inrs }} | Credit period: {{ default_credit_period }} days
             </p>
         </div>
         <button class="btn btn-sm btn-outline-dark mt-1" onclick="printTable('creditUtilTable','Credit Limit Utilization')"><i class="fas fa-print mr-1"></i>Print</button>
@@ -340,8 +341,8 @@
                                 {{ customer.name }}</a>
                             <br><small class="text-muted">{{ customer.phone }}</small>
                         </td>
-                        <td class="text-right">₹ {{ customer.credit_limit|floatformat:0|intcomma }}</td>
-                        <td class="text-right">₹ {{ customer.total_outstanding|floatformat:2|intcomma }}</td>
+                        <td class="text-right">₹ {{ customer.credit_limit|inrs }}</td>
+                        <td class="text-right">₹ {{ customer.total_outstanding|inrs }}</td>
                         <td class="text-center" style="min-width:100px;">
                             <div class="d-flex align-items-center justify-content-center">
                                 <span class="mr-1" style="font-size:0.75rem;">{{ customer.utilization_pct }}%</span>
@@ -352,10 +353,10 @@
                             </div>
                         </td>
                         <td class="text-right {% if customer.overdue_beyond_credit > 0 %}text-danger{% endif %}">
-                            {% if customer.overdue_beyond_credit > 0 %}₹ {{ customer.overdue_beyond_credit|floatformat:2|intcomma }}{% else %}-{% endif %}
+                            {% if customer.overdue_beyond_credit > 0 %}₹ {{ customer.overdue_beyond_credit|inrs }}{% else %}-{% endif %}
                         </td>
                         <td class="text-right {% if customer.bad_debt_amount > 0 %}text-danger font-weight-bold{% endif %}">
-                            {% if customer.bad_debt_amount > 0 %}₹ {{ customer.bad_debt_amount|floatformat:2|intcomma }}{% else %}-{% endif %}
+                            {% if customer.bad_debt_amount > 0 %}₹ {{ customer.bad_debt_amount|inrs }}{% else %}-{% endif %}
                         </td>
                         <td class="text-center">{{ customer.max_age_days }} days</td>
                         <td>
@@ -429,14 +430,14 @@
                                 {{ customer.name }}</a>
                             <br><small class="text-muted">{{ customer.phone }}</small>
                         </td>
-                        <td class="font-weight-bold">₹ {{ customer.total_outstanding|floatformat:2|intcomma }}</td>
+                        <td class="font-weight-bold">₹ {{ customer.total_outstanding|inrs }}</td>
                         {% for amount in customer.bucket_amounts %}
                         <td class="{% if forloop.counter0 >= 12 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
-                            {% if amount > 0 %}₹ {{ amount|floatformat:0|intcomma }}{% else %}-{% endif %}
+                            {% if amount > 0 %}₹ {{ amount|inrs }}{% else %}-{% endif %}
                         </td>
                         {% endfor %}
                         <td class="text-danger font-weight-bold">
-                            {% if customer.overdue_beyond_credit > 0 %}₹ {{ customer.overdue_beyond_credit|floatformat:2|intcomma }}{% else %}-{% endif %}
+                            {% if customer.overdue_beyond_credit > 0 %}₹ {{ customer.overdue_beyond_credit|inrs }}{% else %}-{% endif %}
                         </td>
                         <td class="text-center">
                             {% if customer.risk_level == "Critical" %}
@@ -461,13 +462,13 @@
                     <tr class="total-row">
                         <td class="sticky-col"></td>
                         <td class="sticky-col-2 text-left font-weight-bold">TOTAL</td>
-                        <td class="font-weight-bold">₹ {{ total_utilized|floatformat:2|intcomma }}</td>
+                        <td class="font-weight-bold">₹ {{ total_utilized|inrs }}</td>
                         {% for total in bucket_totals %}
                         <td class="{% if forloop.counter0 >= 12 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
-                            {% if total > 0 %}₹ {{ total|floatformat:0|intcomma }}{% else %}-{% endif %}
+                            {% if total > 0 %}₹ {{ total|inrs }}{% else %}-{% endif %}
                         </td>
                         {% endfor %}
-                        <td class="text-danger font-weight-bold">₹ {{ total_overdue_beyond_credit|floatformat:2|intcomma }}</td>
+                        <td class="text-danger font-weight-bold">₹ {{ total_overdue_beyond_credit|inrs }}</td>
                         <td></td>
                     </tr>
                     {% endif %}

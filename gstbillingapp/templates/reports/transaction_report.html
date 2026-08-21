@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 
 {% block title %}Transaction Report - GST Sync{% endblock %}
 
@@ -139,7 +140,7 @@
     <div class="row mb-3">
         <div class="col-6 col-md-4 mb-2">
             <div class="kpi-card">
-                <div class="kpi-value text-primary">₹ {{ grand_total|floatformat:2|intcomma }}</div>
+                <div class="kpi-value text-primary">₹ {{ grand_total|inrs }}</div>
                 <div class="kpi-label">Total Amount</div>
             </div>
         </div>
@@ -196,7 +197,7 @@
                                 </a>
                             </td>
                             <td class="text-muted">{{ c.phone }}</td>
-                            <td class="text-right font-weight-bold" style="font-size:.95rem;">₹ {{ c.amount|floatformat:2|intcomma }}</td>
+                            <td class="text-right font-weight-bold" style="font-size:.95rem;">₹ {{ c.amount|inrs }}</td>
                         </tr>
                         {% empty %}
                         <tr>
@@ -211,7 +212,7 @@
                         <tr class="total-row">
                             <td></td>
                             <td colspan="2" class="font-weight-bold">TOTAL ({{ total_customers }} customers)</td>
-                            <td class="text-right font-weight-bold" style="font-size:1rem;">₹ {{ grand_total|floatformat:2|intcomma }}</td>
+                            <td class="text-right font-weight-bold" style="font-size:1rem;">₹ {{ grand_total|inrs }}</td>
                         </tr>
                         {% endif %}
                     </tbody>

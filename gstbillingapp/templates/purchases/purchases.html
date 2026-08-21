@@ -2,6 +2,7 @@
 {% load tz %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 {% block content %}
 
 	<div>
@@ -24,7 +25,7 @@
 				<div class="card bg-danger text-white">
 					<div class="card-body">
 						<h6 class="card-title"><i class="fas fa-receipt"></i> Total Purchased</h6>
-						<h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
+						<h3>₹ {{ total_purchased | default:0 | inrs }}</h3>
 						<a href="?filter=purchased" class="stretched-link"></a>
 					</div>
 				</div>
@@ -33,7 +34,7 @@
 				<div class="card bg-success text-white">
 					<div class="card-body">
 						<h6 class="card-title"><i class="fas fa-circle-check"></i> Total Paid</h6>
-						<h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
+						<h3>₹ {{ total_paid | default:0 | inrs }}</h3>
 						<a href="?filter=paid" class="stretched-link"></a>
 					</div>
 				</div>
@@ -42,7 +43,7 @@
 				<div class="card bg-orange text-white">
 					<div class="card-body">
 						<h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
-						<h3>₹ {{ total_returned | default:0 | floatformat:2 | intcomma }}</h3>
+						<h3>₹ {{ total_returned | default:0 | inrs }}</h3>
 						<a href="?filter=returned" class="stretched-link"></a>
 					</div>
 				</div>
@@ -51,7 +52,7 @@
 				<div class="card bg-violet text-white">
 					<div class="card-body">
 						<h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
-						<h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
+						<h3>₹ {{ total_others | default:0 | inrs }}</h3>
 						<a href="?filter=others" class="stretched-link"></a>
 					</div>
 				</div>
@@ -64,7 +65,7 @@
 			{% else %}	
 				<span class="text-success"><a href="?filter=balance" class="text-success">
 			{% endif %}
-				₹ {{ total_balance | default:0 | floatformat:2 | intcomma }} </a></span>
+				₹ {{ total_balance | default:0 | inrs }} </a></span>
 			<span>({{ total_balance_word }})</span>
 			{% if balance_status %}
 				/ "<span class="text-violet"><i class="fas fa-exclamation-triangle text-danger"></i> {{ balance_status }}</span>"
@@ -99,7 +100,7 @@
 					<small class="text-muted">{{ purchase.date|naturaltime }}</small>
 				</td>
 				<td>{{purchase.get_change_type_display }}</td>
-				<td>{% if purchase.change %}₹ {{purchase.change}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
+				<td>{% if purchase.change %}₹ {{purchase.change|inrs}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
 				<td>
 					{% if purchase.reference %}
 						{{purchase.reference}}
@@ -173,10 +174,10 @@
 							'<hr style="margin:10px 0;">' +
 							'<h4 style="margin:0;">Purchases Logs</h4>' +
 							'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
-								'<span style="color:#dc3545;"><strong>Total Sales:</strong> ₹ {{ total_purchased|default:0|floatformat:2 }}</span>' +
-								'<span style="color:#28a745;"><strong>Total Paid:</strong> ₹ {{ total_paid|default:0|floatformat:2 }}</span>' +
-								'<span style="color:#fd7e14;"><strong>Returned:</strong> ₹ {{ total_returned|default:0|floatformat:2 }}</span>' +
-								'<span><strong>Balance:</strong> ₹ {{ total_balance|default:0|floatformat:2 }}</span>' +
+								'<span style="color:#dc3545;"><strong>Total Sales:</strong> ₹ {{ total_purchased|default:0|inrs }}</span>' +
+								'<span style="color:#28a745;"><strong>Total Paid:</strong> ₹ {{ total_paid|default:0|inrs }}</span>' +
+								'<span style="color:#fd7e14;"><strong>Returned:</strong> ₹ {{ total_returned|default:0|inrs }}</span>' +
+								'<span><strong>Balance:</strong> ₹ {{ total_balance|default:0|inrs }}</span>' +
 							'</div>' +
 							'<hr style="margin-top:10px;">' +
 						'</div>';

@@ -22,6 +22,7 @@ from ..utils import (
     apply_invoice_round_off,
     CartError,
 )
+from ..templatetags.money import format_inr_smart
 
 # Third-party libraries
 import json
@@ -368,7 +369,7 @@ def quotations_ajax(request):
                 'quotation_number': quotation_num,
                 'quotation_date': quotation.quotation_date.strftime('%b %d, %Y'),
                 'customer': customer_html,
-                'quotation_amount': f"₹ {quotation_amount:,.2f}",
+                'quotation_amount': f"₹ {format_inr_smart(quotation_amount)}",
                 'status': status_html,
                 'actions': actions_html
             })

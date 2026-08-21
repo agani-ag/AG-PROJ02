@@ -17,6 +17,7 @@ from ..models import (
 from ..utils import invoice_data_validator
 from ..utils import invoice_data_processor
 from ..utils import apply_invoice_round_off
+from ..templatetags.money import format_inr_smart
 from ..utils import update_products_from_invoice
 from ..utils import update_inventory
 from ..utils import add_customer_book
@@ -332,7 +333,7 @@ def invoices_ajax(request):
                 'invoice_number': invoice_num,
                 'invoice_date': invoice.invoice_date.strftime('%b %d, %Y'),
                 'customer': customer_html,
-                'invoice_amount': f"₹ {invoice_amount:,.2f}",
+                'invoice_amount': f"₹ {format_inr_smart(invoice_amount)}",
                 'actions': actions_html
             })
 
