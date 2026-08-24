@@ -174,8 +174,10 @@ def books(request):
 
 
 def _cust_ledger_qs(c):
+    # Include inactive (pending-approval) entries too, so the customer sees a payment
+    # their rep just recorded — badged "Pending approval" until the shop approves it.
     book = Book.objects.filter(user=c.user, customer=c).first()
-    return (BookLog.objects.filter(parent_book=book, is_active=True).order_by("-date", "-id")
+    return (BookLog.objects.filter(parent_book=book).order_by("-date", "-id")
             if book else BookLog.objects.none())
 
 

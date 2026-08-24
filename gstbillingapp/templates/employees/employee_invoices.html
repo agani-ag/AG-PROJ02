@@ -53,7 +53,7 @@
 	</div>
 	<div class="form-group col-md-3">
 		<button type="submit" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-filter"></i> Apply</button>
-		<a href="{% url 'employee_invoices' employee.id %}" class="btn btn-light btn-sm btn-curve">Reset</a>
+		<a href="{% url 'employee_invoices' posting.id %}" class="btn btn-light btn-sm btn-curve">Reset</a>
 		<button type="button" class="btn btn-warning btn-sm btn-curve" onclick="printStatement()"><i class="fas fa-print"></i> Print</button>
 	</div>
 </form>

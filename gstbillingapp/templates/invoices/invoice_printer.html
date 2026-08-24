@@ -278,8 +278,53 @@
 				<i class="fas fa-user-tag"></i>{% if assigned_employee %} <span class="d-none d-md-inline">{{ assigned_employee.name }}</span>{% endif %}
 			</button>
 		{% endif %}
+		<button onclick="invoiceToQuotation();" class="btn btn-info btn-curve d-print-none" title="Convert this invoice back to a quotation"><i class="fas fa-exchange-alt"></i> <span class="d-none d-md-inline">To Quotation</span></button>
 		<a href="{% url 'invoices' %}" class="btn btn-danger btn-curve d-print-none" title="Cancel Invoice"><i class="fas fa-times"></i></a>
 	</div>
+
+	<!-- Convert this invoice back to a quotation: delete-&-move, or keep-&-duplicate. -->
+	<script>
+		var invoiceToQuotationApi = "{% url 'invoice_to_quotation' invoice.id %}";
+		function invoiceToQuotation() {
+			Swal.fire({
+				title: '<i class="fas fa-exchange-alt" style="color:#17a2b8;margin-right:8px;"></i>Convert to Quotation',
+				html: '<div style="text-align:left;font-size:14px;line-height:1.5">'
+					+ '<p style="margin:0 0 12px"><b>Delete &amp; convert</b> removes this invoice — reversing its stock and books — and turns it back into a draft quotation.</p>'
+					+ '<p style="margin:0"><b>Duplicate as quotation</b> keeps this invoice as-is and creates a separate draft quotation copy.</p>'
+					+ '</div>',
+				showDenyButton: true,
+				showCancelButton: true,
+				confirmButtonText: '<i class="fas fa-trash-alt"></i> Delete &amp; convert',
+				denyButtonText: '<i class="fas fa-copy"></i> Duplicate as quotation',
+				cancelButtonText: 'Cancel',
+				confirmButtonColor: '#dc3545',
+				denyButtonColor: '#17a2b8',
+			}).then(function (r) {
+				var mode = null;
+				if (r.isConfirmed) { mode = 'move'; }
+				else if (r.isDenied) { mode = 'copy'; }
+				if (!mode) { return; }
+				Swal.fire({ title: 'Working…', allowOutsideClick: false, didOpen: function(){ Swal.showLoading(); } });
+				var body = new FormData();
+				body.append('mode', mode);
+				fetch(invoiceToQuotationApi, {
+					method: 'POST',
+					headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+					body: body
+				})
+				.then(function (res) { return res.json(); })
+				.then(function (d) {
+					if (!d.success) { Swal.fire('Error', d.message || 'Conversion failed.', 'error'); return; }
+					Swal.fire({ icon: 'success', title: 'Done', text: d.message, confirmButtonColor: '#17a2b8' })
+						.then(function () {
+							if (d.mode === 'move') { window.location.href = "{% url 'quotations' %}"; }
+							else { window.location.href = '/quotation/' + d.quotation_id + '/'; }
+						});
+				})
+				.catch(function () { Swal.fire('Error', 'Server error. Try again.', 'error'); });
+			});
+		}
+	</script>
 
 	<!-- C14: one-tap WhatsApp share to the customer (free wa.me click-to-chat, no API). -->
 	<script>
@@ -359,7 +404,7 @@
 					}
 					var currentId = data.current ? String(data.current.id) : '';
 					var options = data.employees.map(e =>
-						'<option value="' + e.id + '"' + (String(e.id) === currentId ? ' selected' : '') + '>' + e.name + '</option>'
+						'<option value="' + e.id + '"' + (String(e.id) === currentId ? ' selected' : '') + '>' + e.name + (e.shared ? ' (Shared)' : '') + '</option>'
 					).join('');
 
 					Swal.fire({

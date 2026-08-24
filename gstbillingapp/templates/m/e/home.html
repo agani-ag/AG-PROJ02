@@ -15,7 +15,15 @@
 
 {% block content %}
 
-<div class="muted sm" style="margin:2px 2px 8px">{{ profile.business_brand|default:profile.business_title|default:"SyncUp" }} · {{ today|date:"d M Y" }}</div>
+<div class="between" style="margin:2px 2px 8px">
+    <span class="muted sm">{{ profile.business_brand|default:profile.business_title|default:"SyncUp" }} · {{ today|date:"d M Y" }} · <span id="clock" style="font-variant-numeric:tabular-nums;font-weight:600"></span></span>
+    <a href="{% url 'm_employee_pay' %}" class="badge b-blue" style="padding:5px 11px;font-size:12px"><svg class="i" style="width:13px;height:13px;stroke:var(--acc);vertical-align:-2px"><use href="#ic-wallet"/></svg> My pay</a>
+</div>
+<script>
+(function(){var c=document.getElementById('clock');if(!c)return;
+function t(){try{c.textContent=new Date().toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});}catch(e){}}
+t();setInterval(t,1000);})();
+</script>
 
 <div class="sec"><h2 class="t">Today</h2><p class="s">{% now "F Y" %}</p></div>
 <div class="stats">

@@ -10,8 +10,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum, Case, When, F, FloatField
 
 from ...mobile_auth import mobile_login_required
-from ...models import Customer, Book, BookLog, Invoice, Quotation, ExpenseTracker
-from ...utils import recalculate_book_current_balance, round_to_rupee
+from ...models import (Customer, Book, BookLog, Invoice, Quotation, ExpenseTracker,
+                       Employee, SalaryRecord, EmployeeIncentive)
+from ...utils import recalculate_book_current_balance, round_to_rupee, calculate_employee_salary
 from ...templatetags.money import format_inr
 from ._paged import PAGE, invoice_page, ledger_page
 
@@ -508,3 +509,26 @@ def orders(request):
     rows = list(Quotation.objects.filter(user=u, created_from_cart=True).select_related("quotation_customer")
                 .order_by("-quotation_date", "-id")[:100])
     return render(request, "m/e/orders.html", {"rows": rows})
+
+
+@mobile_login_required("employee")
+def my_pay(request):
+    """The employee's own salary + incentives — read-only self-view. Salary is entered by
+    the business on desktop; here the employee just sees their monthly pay."""
+    emp = _emp(request)
+    # Salary/incentives are per the ACTIVE business (posting) — a shared employee sees the
+    # pay for whichever business they're currently switched to.
+    posting = request.mobile_actor.get("posting")
+    eligible = bool(posting and posting.attendance_eligible)
+    salary = SalaryRecord.objects.filter(posting=posting).first() if eligible else None
+    salary_history = list(SalaryRecord.objects.filter(posting=posting)[:12]) if eligible else []
+    salary_total = sum(float(r.calculated_salary) for r in salary_history)
+    incentives = list(EmployeeIncentive.objects.filter(posting=posting)[:50]) if posting else []
+    inc_total = sum(float(i.amount) for i in incentives)
+    inc_unpaid = sum(float(i.amount) for i in incentives if not i.is_paid)
+
+    return render(request, "m/e/pay.html", {
+        "employee": emp, "eligible": eligible,
+        "salary": salary, "salary_history": salary_history, "salary_total": salary_total,
+        "incentives": incentives, "inc_total": inc_total, "inc_unpaid": inc_unpaid,
+    })

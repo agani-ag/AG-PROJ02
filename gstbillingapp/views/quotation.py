@@ -20,6 +20,8 @@ from ..utils import (
     auto_deduct_book_from_invoice,
     find_matching_customer,
     apply_invoice_round_off,
+    remove_inventory_entries_for_invoice,
+    remove_book_entries_for_invoice,
     CartError,
 )
 from ..templatetags.money import format_inr_smart
@@ -573,14 +575,16 @@ def quotation_convert_to_invoice(request, quotation_id):
         
         new_invoice.save()
         
-        # Link invoice to quotation (status remains unchanged - business owner will update through tracking)
+        # Link the invoice to the quotation AND mark it CONVERTED, so it no longer shows
+        # as Pending on the desktop/mobile order lists.
         quotation.converted_invoice = new_invoice
         quotation.converted_at = timezone.now()
         quotation.converted_by = request.user
+        quotation.status = 'CONVERTED'
         quotation.save()
-        
+
         messages.success(
-            request, 
+            request,
             f'Quotation #{quotation.quotation_number} converted to Invoice #{new_invoice.invoice_number}'
         )
         
@@ -704,6 +708,111 @@ def quotation_reconvert_to_invoice(request, quotation_id):
             'success': False,
             'message': str(e)
         }, status=500)
+
+
+def _next_quotation_number(user, is_gst):
+    """Next quotation number — GST series is shared across the same business GST,
+    non-GST is per user (mirrors quotation_create / invoice_delete's move flow)."""
+    if is_gst:
+        user_profile = get_object_or_404(UserProfile, user=user)
+        maxes = []
+        for profile in UserProfile.objects.filter(business_gst=user_profile.business_gst):
+            m = Quotation.objects.filter(user=profile.user, is_gst=True).aggregate(
+                Max('quotation_number'))['quotation_number__max']
+            if m is not None:
+                maxes.append(m)
+        return (max(maxes) + 1) if maxes else 1
+    m = Quotation.objects.filter(user=user, is_gst=False).aggregate(
+        Max('quotation_number'))['quotation_number__max']
+    return (m + 1) if m else 1
+
+
+def _quotation_from_invoice(invoice, note):
+    """Build (unsaved) a DRAFT quotation carrying this invoice's customer + items."""
+    return Quotation(
+        user=invoice.user,
+        quotation_number=_next_quotation_number(invoice.user, invoice.is_gst),
+        quotation_date=datetime.date.today(),
+        valid_until=(datetime.date.today() + datetime.timedelta(days=30)),
+        quotation_customer=invoice.invoice_customer,
+        quotation_json=invoice.invoice_json,   # same shape as quotation_json
+        is_gst=invoice.is_gst,
+        status='DRAFT',
+        notes=note,
+    )
+
+
+@login_required
+@transaction.atomic
+def invoice_to_quotation(request, invoice_id):
+    """Turn an invoice back into a quotation. Two modes chosen from the viewer:
+
+      mode='move' — delete this invoice (reversing its inventory + books) and
+                    convert it into a fresh DRAFT quotation. If the invoice itself
+                    came from a quotation, that original quotation is restored to
+                    DRAFT instead of creating a duplicate.
+      mode='copy' — keep the invoice untouched and ALSO create a DRAFT quotation
+                    copy of it.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+
+    mode = request.POST.get('mode', 'copy')
+    try:
+        invoice = get_object_or_404(Invoice, user=request.user, id=invoice_id)
+        inv_no = invoice.invoice_number
+
+        if mode == 'move':
+            # If this invoice was produced by converting a quotation, restore THAT
+            # quotation rather than spawning a second one.
+            source_q = Quotation.objects.filter(user=request.user, converted_invoice=invoice).first()
+
+            remove_inventory_entries_for_invoice(invoice, request.user)
+            remove_book_entries_for_invoice(invoice)
+
+            if source_q:
+                source_q.converted_invoice = None
+                source_q.converted_at = None
+                source_q.converted_by = None
+                source_q.status = 'DRAFT'
+                source_q.quotation_json = invoice.invoice_json  # keep any invoice-side edits
+                source_q.notes = (source_q.notes or '') + \
+                    f'\nInvoice #{inv_no} deleted; quotation restored.'
+                source_q.save()
+                quotation = source_q
+            else:
+                quotation = _quotation_from_invoice(invoice, f'Converted from deleted Invoice #{inv_no}')
+                quotation.save()
+
+            invoice.delete()
+            messages.success(
+                request,
+                f'Invoice #{inv_no} converted back to Quotation #{quotation.quotation_number}.')
+            return JsonResponse({
+                'success': True,
+                'mode': 'move',
+                'message': f'Invoice deleted · now Quotation #{quotation.quotation_number}',
+                'quotation_id': quotation.id,
+            })
+
+        # mode == 'copy' — invoice stays, add a quotation copy.
+        quotation = _quotation_from_invoice(invoice, f'Duplicated from Invoice #{inv_no}')
+        quotation.save()
+        messages.success(
+            request,
+            f'Quotation #{quotation.quotation_number} created from Invoice #{inv_no} '
+            f'(invoice kept).')
+        return JsonResponse({
+            'success': True,
+            'mode': 'copy',
+            'message': f'Duplicated as Quotation #{quotation.quotation_number}',
+            'quotation_id': quotation.id,
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"Error in invoice_to_quotation: {traceback.format_exc()}")
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
 @login_required

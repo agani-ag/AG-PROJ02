@@ -148,6 +148,42 @@ def apply_invoice_round_off(data):
     return data
 
 
+def calculate_employee_salary(posting, year, month, advances=None, bonus=None):
+    """Recompute and upsert a POSTING's monthly salary from its attendance marks plus the
+    month's advances/bonus. A posting is the person's per-business record (its own salary
+    and attendance), so a shared employee is paid separately in each business.
+
+    per_day = posting.salary / total_days_in_month; earned = per_day × paid_units (Present 1,
+    Half 0.5, Leave 1; Absent / unmarked unpaid). net = earned − advances + bonus."""
+    import calendar as _cal
+    from decimal import Decimal
+    from .models import AttendanceLog, SalaryRecord
+
+    rec = SalaryRecord.objects.filter(posting=posting, month=month, year=year).first()
+    total_days = _cal.monthrange(year, month)[1]
+    base = Decimal(str(posting.salary or 0))
+    paid_units = Decimal(str(sum(
+        l.pay_units for l in AttendanceLog.objects.filter(
+            posting=posting, date__year=year, date__month=month))))
+
+    adv = Decimal(str(advances if advances is not None else (rec.advances if rec else 0)))
+    bon = Decimal(str(bonus if bonus is not None else (rec.bonus if rec else 0)))
+
+    per_day = (base / Decimal(total_days)) if total_days else Decimal(0)
+    earned = (per_day * paid_units).quantize(Decimal("0.01"))
+    deduction = (base - earned).quantize(Decimal("0.01"))
+    net = (earned - adv + bon).quantize(Decimal("0.01"))
+
+    rec, _ = SalaryRecord.objects.update_or_create(
+        posting=posting, month=month, year=year,
+        defaults={
+            "base_salary": base, "total_days": total_days, "paid_units": paid_units,
+            "deduction": deduction, "advances": adv, "bonus": bon, "calculated_salary": net,
+        },
+    )
+    return rec
+
+
 def round_to_rupee(value):
     """Round a money amount to the nearest whole rupee (0.50 and above rounds up),
     preserving sign. Used to keep MANUALLY-entered ledger movements (payments, purchases,

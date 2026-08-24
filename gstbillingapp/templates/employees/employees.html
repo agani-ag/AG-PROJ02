@@ -1,41 +1,39 @@
 {% extends "base.html" %}
 {% load static %}
+{% load money %}
 
 {% block content %}
 <div class="row">
-	<div class="col">
-		<h2>Employees</h2>
-	</div>
+	<div class="col"><h2>Employees</h2></div>
 	<div class="col text-right" style="padding-top: 0.5%;">
+		<button class="btn btn-info btn-sm btn-curve" onclick="addShared()" title="Add shared employee"><i class="fas fa-user-plus"></i> Add shared</button>
 		<a href="{% url 'employee_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Employee"><i class="fas fa-plus"></i></a>
 	</div>
 </div>
 
 <table class="table table-bordered" id="employee-table">
 	<thead class="thead-dark">
-		<tr>
-			<th>Name</th>
-			<th>Email</th>
-			<th>Phone</th>
-			<th>Status</th>
-			<th>Actions</th>
-		</tr>
+		<tr><th>Name</th><th>Type</th><th class="text-right">Salary</th><th>Admin</th><th>Status</th><th>Actions</th></tr>
 	</thead>
 	<tbody class="two-col-form">
-		{% for e in employees %}
+		{% for p in postings %}
 		<tr>
-			<td>{{ e.name }}</td>
-			<td>{% if e.email %}{{ e.email }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-			<td>{% if e.phone %}{{ e.phone }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-			<td>
-				{% if e.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-secondary">Inactive</span>{% endif %}
-			</td>
+			<td>{{ p.employee.name }}{% if not p.employee.email %}{% else %}<br><small class="text-muted">{{ p.employee.email }}</small>{% endif %}</td>
+			<td>{% if p.is_home %}<span class="badge badge-primary">Own</span>{% else %}<span class="badge badge-info">Shared</span><br><small class="text-muted">from {{ p.employee.business.userprofile.business_brand|default:p.employee.business.userprofile.business_title|default:p.employee.business.username }}</small>{% endif %}</td>
+			<td class="text-right">{% if p.attendance_eligible %}{% if p.salary %}₹ {{ p.salary|inrs }}{% else %}<span class="text-muted">—</span>{% endif %}{% else %}<span class="badge badge-light border">Not on payroll</span>{% endif %}</td>
+			<td>{% if p.is_admin %}<span class="badge badge-dark">Admin</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+			<td>{% if p.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-secondary">Inactive</span>{% endif %}</td>
 			<td>
 				<div class="btn-group" role="group">
-					<a href="{% url 'employee_edit' e.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Employee"><i class="fas fa-pen-to-square"></i></a>
-					<a href="{% url 'employee_invoices' e.id %}" class="btn btn-success btn-sm btn-curve" title="Related invoices"><i class="fas fa-file-invoice"></i></a>
-					<button type="button" class="btn btn-info btn-sm btn-curve" onclick="mobileLink({{ e.id }})" title="Mobile Access Link"><i class="fas fa-mobile-alt"></i></button>
-					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#employeeDeleteModal" data-employee-id="{{ e.id }}" data-employee-name="{{ e.name }}" title="Remove Employee"><i class="fas fa-trash"></i></button>
+					<a href="{% url 'employee_edit' p.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit"><i class="fas fa-pen-to-square"></i></a>
+					<a href="{% url 'employee_salary' p.id %}" class="btn btn-dark btn-sm btn-curve" title="Attendance &amp; Salary"><i class="fas fa-wallet"></i></a>
+					<a href="{% url 'employee_incentives' p.id %}" class="btn btn-warning btn-sm btn-curve" title="Incentives"><i class="fas fa-gift"></i></a>
+					<a href="{% url 'employee_invoices' p.id %}" class="btn btn-success btn-sm btn-curve" title="Related invoices"><i class="fas fa-file-invoice"></i></a>
+					{% if p.is_home %}
+					<button type="button" class="btn btn-secondary btn-sm btn-curve" onclick="shareCode('{{ p.employee.share_code }}', '{{ p.employee.name|escapejs }}')" title="Share code"><i class="fas fa-share-alt"></i></button>
+					<button type="button" class="btn btn-info btn-sm btn-curve" onclick="mobileLink({{ p.id }})" title="Mobile Access Link"><i class="fas fa-mobile-alt"></i></button>
+					{% endif %}
+					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#employeeDeleteModal" data-posting-id="{{ p.id }}" data-employee-name="{{ p.employee.name }}" data-is-home="{{ p.is_home|yesno:'1,0' }}" title="Remove"><i class="fas fa-trash"></i></button>
 				</div>
 			</td>
 		</tr>
@@ -43,72 +41,41 @@
 	</tbody>
 </table>
 
-<div class="modal fade" id="employeeDeleteModal" tabindex="-1" role="dialog" aria-labelledby="employeeDeleteModalLabel" aria-hidden="true">
-	<div class="modal-dialog" role="document">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title" id="employeeDeleteModalLabel">Are you sure?</h5>
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-					<span aria-hidden="true">&times;</span>
-				</button>
-			</div>
-			<form method="POST" id="employeeDeleteForm">
-			{% csrf_token %}
-			<div class="modal-body">
-				Are you sure you want to remove <b><span class="employee-name"></span></b>?
-			</div>
+<div class="modal fade" id="employeeDeleteModal" tabindex="-1" role="dialog" aria-hidden="true">
+	<div class="modal-dialog" role="document"><div class="modal-content">
+		<div class="modal-header"><h5 class="modal-title">Are you sure?</h5>
+			<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+		<form method="POST" id="employeeDeleteForm">{% csrf_token %}
+			<div class="modal-body"><span id="delMsg"></span></div>
 			<div class="modal-footer">
 				<button type="submit" class="btn btn-danger">Yes</button>
 				<button type="button" class="btn btn-primary" data-dismiss="modal">No</button>
 			</div>
-			</form>
-		</div>
-	</div>
+		</form>
+	</div></div>
 </div>
-
 {% endblock %}
-
 
 {% block includejs %}
 <script type="text/javascript">
 $('#employeeDeleteModal').on('show.bs.modal', function (event) {
 	var button = $(event.relatedTarget);
-	var id = button.data('employee-id');
-	var name = button.data('employee-name');
+	var id = button.data('posting-id'), name = button.data('employee-name'), home = String(button.data('is-home')) === '1';
 	var modal = $(this);
-	modal.find('.employee-name').text(name);
+	modal.find('#delMsg').html(home
+		? 'Remove <b>' + name + '</b> and all their attendance / salary / incentives?'
+		: 'Remove shared employee <b>' + name + '</b> from your team? (Their home business keeps them.)');
 	modal.find('#employeeDeleteForm').attr('action', '/employees/' + id + '/delete');
 });
 
 $(document).ready(function () {
 	$('#employee-table').DataTable({
-		"order": [],
-		"columnDefs": [{ "targets": 4, "sortable": false, "searchable": false }],
-		"paging": true,
-		dom: 'Bfrtip',
+		"order": [], "columnDefs": [{ "targets": 5, "sortable": false, "searchable": false }],
+		"paging": true, dom: 'Bfrtip',
 		buttons: [
 			{ extend: 'excelHtml5', text: '<i class="fas fa-file-excel"></i> Excel', className: 'btn btn-success btn-sm btn-curve' },
 			{ extend: 'pdfHtml5', text: '<i class="fas fa-file-pdf"></i> PDF', className: 'btn btn-danger btn-sm btn-curve' },
-			{
-				extend: 'print', text: '<i class="fas fa-print"></i> Print', className: 'btn btn-warning btn-sm btn-curve', title: '',
-				customize: function (win) {
-					var body = $(win.document.body);
-					body.css('font-family', 'Arial, sans-serif');
-					var header = '<div style="text-align:center; margin-bottom:20px;">' +
-						'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
-						'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
-						'<hr style="margin:10px 0;"><h4 style="margin:0;">Employees</h4><hr style="margin-top:10px;"></div>';
-					body.find('table').before(header);
-					body.find('table th:last-child, table td:last-child').hide();
-					body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
-					body.find('table tbody tr').each(function (index) {
-						$(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
-					});
-					body.find('table').css('width', '100%').css('border-collapse', 'collapse').css('font-size', '13px');
-					body.find('table th, table td').css('border', '1px solid #ddd').css('padding', '8px');
-					body.find('table thead th').css('background-color', '#343a40').css('color', '#fff').css('text-align', 'left');
-				}
-			}
+			{ extend: 'print', text: '<i class="fas fa-print"></i> Print', className: 'btn btn-warning btn-sm btn-curve', title: '' }
 		]
 	});
 });
@@ -117,7 +84,7 @@ function _csrf() { return document.querySelector('[name=csrfmiddlewaretoken]').v
 
 function mobileLink(id) {
 	fetch('/employees/' + id + '/mobile-link').then(r => r.json()).then(d => {
-		if (!d.ok) return;
+		if (!d.ok) { Swal.fire('', d.message || 'Not available', 'info'); return; }
 		Swal.fire({
 			title: 'Mobile Access Link',
 			html: '<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
@@ -128,5 +95,47 @@ function mobileLink(id) {
 	});
 }
 
+function shareCode(code, name) {
+	Swal.fire({
+		title: 'Share ' + name,
+		html: '<small class="text-muted">Give this code to another business. They paste it in <b>Add shared</b> to add ' + name + ' to their team.</small>' +
+		      '<input class="form-control mt-2 text-center" style="font-size:20px;font-weight:700" readonly value="' + code + '" onclick="this.select()">',
+		confirmButtonText: 'Copy code',
+		preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(code)
+	});
+}
+
+function addShared() {
+	Swal.fire({
+		title: 'Add shared employee',
+		html: '<small class="text-muted">Paste the employee share code the other business gave you.</small>' +
+		      '<input id="sc" class="form-control mt-2 text-center" placeholder="EMP-XXXXXX" style="text-transform:uppercase">' +
+		      '<div id="scInfo" class="mt-2 small"></div>',
+		showCancelButton: true, confirmButtonText: 'Add',
+		didOpen: () => {
+			var el = document.getElementById('sc');
+			el.addEventListener('input', function () {
+				var code = el.value.trim();
+				if (code.length < 4) { document.getElementById('scInfo').innerHTML = ''; return; }
+				fetch('/employees/employee-lookup?code=' + encodeURIComponent(code)).then(r => r.json()).then(d => {
+					document.getElementById('scInfo').innerHTML = d.ok
+						? '<span class="text-success">' + d.name + ' — from ' + d.home + '</span>'
+						: '<span class="text-danger">' + (d.message || 'Not found') + '</span>';
+				});
+			});
+		},
+		preConfirm: () => {
+			var code = document.getElementById('sc').value.trim();
+			if (!code) { Swal.showValidationMessage('Enter a code'); return false; }
+			return code;
+		}
+	}).then(res => {
+		if (!res.isConfirmed) return;
+		var f = document.createElement('form'); f.method = 'POST'; f.action = '{% url "employee_add_shared" %}';
+		f.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="' + _csrf() + '">' +
+		              '<input type="hidden" name="share_code" value="' + res.value + '">';
+		document.body.appendChild(f); f.submit();
+	});
+}
 </script>
 {% endblock %}

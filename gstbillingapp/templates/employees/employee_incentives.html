@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load money %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap">
+    <h2 class="mb-0">Incentives — <span class="text-primary">{{ employee.name }}</span></h2>
+    <div>
+        <a href="{% url 'employee_salary' posting.id %}" class="btn btn-success btn-sm btn-curve"><i class="fas fa-wallet"></i> Salary</a>
+        <a href="{% url 'employees' %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-reply"></i></a>
+    </div>
+</div>
+<hr>
+
+<div class="row text-center mb-3">
+    <div class="col"><div class="card bg-info text-white"><div class="card-body py-2"><h6 class="mb-0">Total</h6><h4 class="mb-0">₹ {{ total|inrs }}</h4></div></div></div>
+    <div class="col"><div class="card bg-success text-white"><div class="card-body py-2"><h6 class="mb-0">Paid</h6><h4 class="mb-0">₹ {{ paid|inrs }}</h4></div></div></div>
+    <div class="col"><div class="card bg-warning text-white"><div class="card-body py-2"><h6 class="mb-0">Unpaid</h6><h4 class="mb-0">₹ {{ unpaid|inrs }}</h4></div></div></div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header bg-dark text-white">Add incentive</div>
+    <div class="card-body">
+        <form method="POST" class="form-row align-items-end">
+            {% csrf_token %}
+            <div class="form-group col-md-3">
+                <label>Date</label>
+                <input type="date" name="date" class="form-control" value="{% now 'Y-m-d' %}">
+            </div>
+            <div class="form-group col-md-3">
+                <label>Amount (₹)</label>
+                <input type="number" min="0.01" step="0.01" name="amount" class="form-control" required>
+            </div>
+            <div class="form-group col-md-4">
+                <label>Description</label>
+                <input type="text" name="description" class="form-control" placeholder="Reason / note">
+            </div>
+            <div class="form-group col-md-2">
+                <div class="form-check mb-2"><input type="checkbox" name="is_paid" class="form-check-input" id="isPaid"><label class="form-check-label" for="isPaid">Paid</label></div>
+                <button type="submit" class="btn btn-success btn-curve btn-block"><i class="fas fa-plus"></i> Add</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<table class="table table-striped">
+    <thead class="thead-dark"><tr><th>Date</th><th>Description</th><th class="text-right">Amount</th><th class="text-center">Status</th><th></th></tr></thead>
+    <tbody>
+        {% for inc in incentives %}
+        <tr id="inc-{{ inc.id }}">
+            <td>{{ inc.date|date:"d M Y" }}</td>
+            <td>{{ inc.description|default:"—" }}</td>
+            <td class="text-right font-weight-bold">₹ {{ inc.amount|inrs }}</td>
+            <td class="text-center">
+                <span class="badge badge-{% if inc.is_paid %}success{% else %}warning{% endif %} paid-badge" style="cursor:pointer" onclick="togglePaid({{ inc.id }}, this)">{% if inc.is_paid %}Paid{% else %}Unpaid{% endif %}</span>
+            </td>
+            <td class="text-right">
+                <button class="btn btn-danger btn-sm btn-curve" onclick="delInc({{ inc.id }})"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted">No incentives yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% block includejs %}
+<script>
+const CSRF = "{{ csrf_token }}";
+function togglePaid(id, el){
+    fetch("/incentives/"+id+"/toggle-paid", {method:'POST', headers:{'X-CSRFToken':CSRF}})
+    .then(r=>r.json()).then(d=>{
+        if(d.ok){
+            el.className = 'badge badge-'+(d.is_paid?'success':'warning')+' paid-badge';
+            el.style.cursor='pointer'; el.textContent = d.is_paid?'Paid':'Unpaid';
+            setTimeout(()=>location.reload(), 300);
+        }
+    });
+}
+function delInc(id){
+    Swal.fire({title:'Delete incentive?', icon:'warning', showCancelButton:true, confirmButtonText:'Delete', confirmButtonColor:'#d33'})
+    .then(res=>{ if(res.isConfirmed){
+        fetch("/incentives/"+id+"/delete", {method:'POST', headers:{'X-CSRFToken':CSRF}})
+        .then(r=>r.json()).then(d=>{ if(d.ok){ location.reload(); } });
+    }});
+}
+</script>
+{% endblock %}

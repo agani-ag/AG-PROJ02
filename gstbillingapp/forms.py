@@ -212,4 +212,4 @@ class ChequeLeafForm(ModelForm):
 class EmployeeForm(ModelForm):
     class Meta:
         model = Employee
-        fields = ['name', 'email', 'phone', 'address', 'is_active', 'is_admin']
+        fields = ['name', 'email', 'phone', 'address', 'is_active']

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% load money %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap">
+    <h2 class="mb-0">Attendance &amp; Salary — <span class="text-primary">{{ employee.name }}</span></h2>
+    <div>
+        <a href="{% url 'employee_incentives' posting.id %}" class="btn btn-info btn-sm btn-curve"><i class="fas fa-gift"></i> Incentives</a>
+        <a href="{% url 'employees' %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-reply"></i></a>
+    </div>
+</div>
+<hr>
+
+{% if not_eligible %}
+<div class="alert alert-info text-center py-5">
+    <i class="fas fa-info-circle fa-2x mb-2"></i>
+    <h5 class="mb-2">{{ employee.name }} is not on attendance &amp; salary.</h5>
+    <p class="text-muted mb-3">Turn on <strong>Attendance &amp; salary</strong> for this employee to track their calendar and monthly pay.</p>
+    <a href="{% url 'employee_edit' posting.id %}" class="btn btn-primary btn-curve"><i class="fas fa-pen-to-square"></i> Enable it</a>
+    <a href="{% url 'employees' %}" class="btn btn-outline-secondary btn-curve">Back</a>
+</div>
+{% else %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="?year={{ prev.year }}&month={{ prev.month }}" class="btn btn-outline-secondary btn-curve"><i class="fas fa-chevron-left"></i></a>
+    <h3 class="mb-0">{{ month_name }} {{ year }}</h3>
+    <a href="?year={{ next.year }}&month={{ next.month }}" class="btn btn-outline-secondary btn-curve"><i class="fas fa-chevron-right"></i></a>
+</div>
+
+{% if not posting.salary %}
+<div class="alert alert-warning">No base salary set for this posting. <a href="{% url 'employee_edit' posting.id %}">Set it</a> to calculate the salary.</div>
+{% endif %}
+
+<div class="row">
+    <!-- Calendar -->
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-end mb-2 flex-wrap" style="gap:8px">
+            <form method="POST" class="form-inline" style="gap:8px">
+                {% csrf_token %}
+                <div class="form-group mb-0">
+                    <label class="mr-1 mb-0"><small class="text-danger">Advances ₹</small></label>
+                    <input type="number" min="0" step="0.01" name="advances" class="form-control form-control-sm" style="width:100px" value="{{ record.advances }}">
+                </div>
+                <div class="form-group mb-0 mx-2">
+                    <label class="mr-1 mb-0"><small class="text-success">Bonus ₹</small></label>
+                    <input type="number" min="0" step="0.01" name="bonus" class="form-control form-control-sm" style="width:100px" value="{{ record.bonus }}">
+                </div>
+                <button type="submit" class="btn btn-dark btn-sm btn-curve"><i class="fas fa-save"></i> Save</button>
+            </form>
+            <button class="btn btn-success btn-sm btn-curve" onclick="markAllPresent()"><i class="fas fa-check-double"></i> Mark all present</button>
+        </div>
+        <table class="table table-bordered text-center att-cal mb-1">
+            <thead class="thead-dark"><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+            <tbody>
+                {% for week in weeks %}
+                <tr>
+                    {% for cell in week %}
+                        {% if cell %}
+                        <td class="att-cell {% if cell.status is not None %}status-{{ cell.status }}{% else %}unmarked{% endif %}" data-date="{{ cell.date }}" onclick="pickStatus(this)" style="cursor:pointer;height:70px;vertical-align:top">
+                            <div class="font-weight-bold">{{ cell.day }}</div>
+                            <small class="lbl">{% if cell.status is not None %}{{ cell.status_label }}{% else %}Absent{% endif %}</small>
+                        </td>
+                        {% else %}<td class="bg-white"></td>{% endif %}
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p class="text-muted"><small>Mark <strong class="text-success">Present</strong> for each paid day. A <strong>blank / unmarked</strong> day counts as <strong class="text-danger">Absent (unpaid)</strong>. Half-day pays ½; Leave is paid.</small></p>
+    </div>
+
+    <!-- Salary summary -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-dark text-white">Salary — {{ month_name }} {{ year }}</div>
+            <div class="card-body">
+                <table class="table table-sm mb-2">
+                    <tr><td>Base salary</td><td class="text-right" colspan="2">₹ {{ record.base_salary|inrs }}</td></tr>
+                    <tr><td>Days in month</td><td class="text-right" colspan="2">{{ record.total_days }} <span class="text-muted">(₹ {{ amounts.per_day|inrs }}/day)</span></td></tr>
+                    <tr class="text-success"><td>Present</td><td class="text-right">{{ counts.present }}</td><td class="text-right">₹ {{ amounts.present|inrs }}</td></tr>
+                    <tr class="text-warning"><td>Half-day</td><td class="text-right">{{ counts.half }}</td><td class="text-right">₹ {{ amounts.half|inrs }}</td></tr>
+                    <tr class="text-info"><td>Leave (paid)</td><td class="text-right">{{ counts.leave }}</td><td class="text-right">₹ {{ amounts.leave|inrs }}</td></tr>
+                    <tr class="text-danger"><td>Absent + blank</td><td class="text-right">{{ counts.absent }} + {{ counts.unmarked }}</td><td class="text-right">− ₹ {{ amounts.unpaid|inrs }}</td></tr>
+                    <tr class="font-weight-bold border-top"><td>Earned ({{ record.paid_units }} paid days)</td><td class="text-right" colspan="2">₹ {{ amounts.earned|inrs }}</td></tr>
+                    <tr class="text-danger"><td>Advances</td><td class="text-right" colspan="2">− ₹ {{ record.advances|inrs }}</td></tr>
+                    <tr class="text-success"><td>Bonus</td><td class="text-right" colspan="2">+ ₹ {{ record.bonus|inrs }}</td></tr>
+                </table>
+                <div class="alert alert-success d-flex justify-content-between align-items-center mb-0">
+                    <span>Net salary</span><h3 class="mb-0">₹ {{ record.calculated_salary|inrs }}</h3>
+                </div>
+            </div>
+        </div>
+        {% if history %}
+        <div class="card mt-3">
+            <div class="card-header bg-secondary text-white">Recent months</div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Month</th><th class="text-right">Paid</th><th class="text-right">Net</th></tr></thead>
+                    <tbody>
+                        {% for r in history %}
+                        <tr><td>{{ r.month }}/{{ r.year }}</td><td class="text-right">{{ r.paid_units }}</td><td class="text-right font-weight-bold">₹ {{ r.calculated_salary|inrs }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<style>
+.att-cell.status-0{background:#d4edda}   /* present (green) */
+.att-cell.status-1{background:#f8d7da}   /* absent (red) */
+.att-cell.status-2{background:#fff3cd}   /* half (amber) */
+.att-cell.status-3{background:#d1ecf1}   /* leave (blue) */
+.att-cell.unmarked{background:#fdeaea}   /* blank = absent (faint red) */
+.att-cell.unmarked .lbl{color:#c0392b;opacity:.7}
+.att-cell .lbl{font-size:11px;font-weight:600}
+</style>
+{% endblock %}
+
+{% block includejs %}
+<script>
+const MARK_URL = "{% url 'attendance_mark' posting.id %}";
+const MARK_ALL_URL = "{% url 'attendance_mark_all' posting.id %}?year={{ year }}&month={{ month }}";
+const CSRF = "{{ csrf_token }}";
+function pickStatus(td){
+    var date = td.getAttribute('data-date');
+    Swal.fire({
+        title: date, showConfirmButton: false, showCloseButton: true,
+        html: '<div class="d-flex flex-column" style="gap:8px">' +
+            '<button class="btn btn-success btn-curve" onclick="setStatus(\''+date+'\',0)"><i class="fas fa-check"></i> Present</button>' +
+            '<button class="btn btn-danger btn-curve" onclick="setStatus(\''+date+'\',1)"><i class="fas fa-times"></i> Absent</button>' +
+            '<button class="btn btn-warning btn-curve" onclick="setStatus(\''+date+'\',2)"><i class="fas fa-adjust"></i> Half-day</button>' +
+            '<button class="btn btn-info btn-curve" onclick="setStatus(\''+date+'\',3)"><i class="fas fa-plane"></i> Leave</button>' +
+            '<button class="btn btn-outline-secondary btn-curve" onclick="setStatus(\''+date+'\',-1)"><i class="fas fa-eraser"></i> Clear (blank = absent)</button>' +
+            '</div>'
+    });
+}
+function setStatus(date, status){
+    fetch(MARK_URL, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF}, body: JSON.stringify({date:date, status:status})})
+    .then(r=>r.json()).then(d=>{ if(d.ok){ Swal.close(); setTimeout(()=>location.reload(), 120); } else { Swal.fire('Error', d.message||'Failed', 'error'); } })
+    .catch(()=>Swal.fire('Error','Network error','error'));
+}
+function markAllPresent(){
+    Swal.fire({title:'Mark all days present?', text:'{{ month_name }} {{ year }} — you can then change the exceptions.', icon:'question', showCancelButton:true, confirmButtonText:'Yes, mark all'})
+    .then(res=>{ if(res.isConfirmed){
+        fetch(MARK_ALL_URL, {method:'POST', headers:{'X-CSRFToken':CSRF}})
+        .then(r=>r.json()).then(d=>{ if(d.ok){ location.reload(); } });
+    }});
+}
+</script>
+{% endblock %}

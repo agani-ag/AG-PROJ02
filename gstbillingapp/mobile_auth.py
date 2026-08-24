@@ -124,8 +124,12 @@ def resolve_mobile_actor(request):
         "user": active_business,
     }
     if identity["role"] == "employee":
-        actor["employee"] = identity["employee"]
-        actor["is_admin"] = identity["employee"].is_admin
+        emp = identity["employee"]
+        actor["employee"] = emp
+        # is_admin (and salary/attendance) are per-business: read the ACTIVE posting.
+        posting = emp.postings.filter(business_id=active_id).first()
+        actor["posting"] = posting
+        actor["is_admin"] = bool(posting and posting.is_admin)
     else:
         actor["primary"] = identity["primary"]
         actor["siblings"] = by_business

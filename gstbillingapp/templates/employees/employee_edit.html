@@ -1,150 +1,97 @@
 {% extends "base.html" %}
-{% load static %}
-
+{% load money %}
 {% block content %}
-<h2>{% if employee %}Edit Employee{% else %}Add Employee{% endif %}</h2>
+<h2>{% if posting %}Edit Employee{% else %}Add Employee{% endif %}</h2>
+{% if posting and not posting.is_home %}
+<div class="alert alert-info">This is a <b>shared</b> employee (owned by
+	{{ employee.business.userprofile.business_brand|default:employee.business.userprofile.business_title|default:employee.business.username }}).
+	You can set their salary / admin / status for <b>your</b> business; their personal details are managed by their home business.</div>
+{% endif %}
+{% if error_message %}<div class="alert alert-danger">{{ error_message }}</div>{% endif %}
+
 <form method="POST">
 	{% csrf_token %}
-	<table class="table">
-		<tbody class="two-col-form">
+	<table class="table two-col-form">
+		<tbody>
 			<tr>
 				<th scope="row" class="text-right">Employee Name:</th>
-				<td class="form-input-td">
-					<input type="text" name="name" value="{{ form.name.value|default:'' }}" required>
-				</td>
+				<td class="form-input-td"><input type="text" name="name" value="{{ form.name.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %} required></td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Email:</th>
-				<td class="form-input-td">
-					<input type="email" name="email" value="{{ form.email.value|default:'' }}">
-				</td>
+				<td class="form-input-td"><input type="email" name="email" value="{{ form.email.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %}></td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Phone:</th>
-				<td class="form-input-td">
-					<input type="tel" name="phone" pattern="^$|^[6-9][0-9]{9}$" value="{{ form.phone.value|default:'' }}">
-				</td>
+				<td class="form-input-td"><input type="tel" name="phone" pattern="^$|^[6-9][0-9]{9}$" value="{{ form.phone.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %}></td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Address:</th>
-				<td class="form-input-td">
-					<textarea name="address" rows="4" cols="30">{{ form.address.value|default:'' }}</textarea>
-				</td>
+				<td class="form-input-td"><textarea name="address" rows="3" cols="30" {% if posting and not posting.is_home %}readonly{% endif %}>{{ form.address.value|default:'' }}</textarea></td>
 			</tr>
+
+			<tr><td colspan="2"><hr><b>For {% if posting.is_home or not posting %}this business{% else %}your business{% endif %}</b></td></tr>
+
 			<tr>
-				<th scope="row" class="text-right">Shared businesses:</th>
+				<th scope="row" class="text-right">Base salary (₹/month):</th>
 				<td class="form-input-td">
-					<div class="input-group" style="max-width:380px">
-						<input type="text" id="bizCode" class="form-control" placeholder="Paste share code (e.g. GS5)" autocomplete="off" style="text-transform:uppercase" onkeydown="if(event.key==='Enter'){event.preventDefault();addBizCode();}">
-						<div class="input-group-append"><button type="button" class="btn btn-primary" onclick="addBizCode()"><i class="fas fa-plus"></i> Add</button></div>
-					</div>
-					<div id="bizChips" class="mt-2"></div>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Active:</th>
-				<td class="form-input-td">
-					<label class="switch">
-						<input type="checkbox" name="is_active" {% if form.is_active.value or not employee %}checked{% endif %}>
-						<span class="slider round"></span>
-					</label>
+					<input type="number" name="salary" min="0" step="0.01" value="{{ posting.salary|default_if_none:'' }}" placeholder="e.g. 26000" class="form-control" style="max-width:220px">
+					<small class="text-muted">Used by the Attendance &amp; Salary module.</small>
 				</td>
 			</tr>
 			<tr>
 				<th scope="row" class="text-right">Admin privilege:</th>
 				<td class="form-input-td">
-					<label class="switch">
-						<input type="checkbox" name="is_admin" {% if form.is_admin.value %}checked{% endif %}>
-						<span class="slider round"></span>
-					</label>
+					<label class="switch"><input type="checkbox" name="is_admin" {% if posting.is_admin %}checked{% endif %}><span class="slider round"></span></label>
+					<small class="text-muted d-block">Admin employees see the full business dashboard on mobile.</small>
 				</td>
 			</tr>
+			<tr>
+				<th scope="row" class="text-right">Attendance &amp; salary:</th>
+				<td class="form-input-td">
+					<label class="switch"><input type="checkbox" name="attendance_eligible" {% if posting.attendance_eligible %}checked{% endif %}><span class="slider round"></span></label>
+					<small class="text-muted d-block">Only when enabled does this employee get the attendance calendar and monthly salary. Off by default.</small>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row" class="text-right">Active:</th>
+				<td class="form-input-td">
+					<label class="switch"><input type="checkbox" name="is_active" {% if posting.is_active or not posting %}checked{% endif %}><span class="slider round"></span></label>
+				</td>
+			</tr>
+
+			{% if posting.is_home %}
+			<tr>
+				<th scope="row" class="text-right">Share code:</th>
+				<td class="form-input-td">
+					<input class="form-control" style="max-width:220px;font-weight:700" readonly value="{{ employee.share_code }}" onclick="this.select()">
+					<small class="text-muted">Give this to another business to share this employee with them.</small>
+				</td>
+			</tr>
+			{% endif %}
 		</tbody>
 	</table>
 
 	<div class="form-group text-right">
-		<button type="submit" class="btn btn-primary" title="Save Employee"><i class="fas fa-save"></i></button>
-</form>
-		{% if employee %}
-			<a class="btn btn-info" href="#" onclick="employeeMobileLink('{{ employee.id }}')" title="Mobile access link"><i class="fas fa-mobile-alt"></i></a>
-			<a class="btn btn-dark" href="#" onclick="revokeAccess('{{ employee.id }}')" title="Revoke mobile access"><i class="fas fa-ban"></i></a>
+		<button type="submit" class="btn btn-primary" title="Save"><i class="fas fa-save"></i></button>
+		{% if posting.is_home %}
+		<a class="btn btn-info" href="#" onclick="employeeMobileLink({{ posting.id }})" title="Mobile access link"><i class="fas fa-mobile-alt"></i></a>
 		{% endif %}
-		<a class="btn btn-danger" href="{% url 'employees' %}" title="Back To Employees"><i class="fas fa-reply"></i></a>
+		<a class="btn btn-danger" href="{% url 'employees' %}" title="Back"><i class="fas fa-reply"></i></a>
 	</div>
-
-{{ shared_businesses|json_script:"sharedBizData" }}
+</form>
 {% endblock %}
 
 {% block includejs %}
 <script>
-function employeeMobileLink(id) {
-	fetch('/employees/' + id + '/mobile-link').then(r => r.json()).then(d => {
-		if (!d.ok) return;
-		Swal.fire({
-			title: 'Mobile Access Link',
-			html: '<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
-			      '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
-			confirmButtonText: 'Copy link',
-			preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(d.url)
-		});
+function employeeMobileLink(id){
+	fetch('/employees/' + id + '/mobile-link').then(r=>r.json()).then(d=>{
+		if(!d.ok){ Swal.fire('', d.message||'Not available', 'info'); return; }
+		Swal.fire({title:'Mobile Access Link',
+			html:'<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
+			     '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
+			confirmButtonText:'Copy link', preConfirm:()=>navigator.clipboard&&navigator.clipboard.writeText(d.url)});
 	});
-}
-
-function revokeAccess(id) {
-	Swal.fire({
-		title: 'Revoke access?', text: 'The current link and any active session stop working.',
-		icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Yes, revoke!'
-	}).then(r => {
-		if (r.isConfirmed) {
-			var token = document.querySelector('[name=csrfmiddlewaretoken]').value;
-			fetch('/employees/' + id + '/revoke', { method: 'POST', headers: { 'X-CSRFToken': token } })
-				.then(() => Swal.fire('Revoked!', 'Generate a new mobile link to restore access.', 'success'));
-		}
-	});
-}
-
-// ---- Shared businesses by code ----
-(function () {
-	var el = document.getElementById('sharedBizData');
-	var seed = [];
-	try { seed = JSON.parse(el.textContent) || []; } catch (e) {}
-	seed.forEach(function (b) { if (b && b.code) renderChip(b.code, b.name, b.active !== false); });
-})();
-
-function _esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-
-function hasChip(code) {
-	return !!document.querySelector('#bizChips [data-code="' + code + '"]');
-}
-
-function renderChip(code, name, active) {
-	if (hasChip(code)) return;
-	if (active === undefined) active = true;
-	var span = document.createElement('span');
-	span.className = 'badge p-2 mr-2 mb-2 ' + (active ? 'badge-info' : 'badge-secondary');
-	span.style.fontSize = '0.92em';
-	span.setAttribute('data-code', code);
-	// An inactive chip = the business turned sharing OFF: shown, but access is revoked.
-	span.innerHTML = '<i class="fas fa-store mr-1"></i>' + _esc(name) + ' <span style="opacity:.8">(' + _esc(code) + ')</span>'
-		+ (active ? '' : ' <span style="opacity:.9">— sharing off</span>')
-		+ ' <a href="#" onclick="this.closest(\'[data-code]\').remove();return false;" style="color:#fff;margin-left:6px;font-weight:bold">&times;</a>'
-		+ '<input type="hidden" name="business_codes" value="' + _esc(code) + '">';
-	document.getElementById('bizChips').appendChild(span);
-}
-
-function addBizCode() {
-	var input = document.getElementById('bizCode');
-	var code = (input.value || '').trim().toUpperCase();
-	if (!code) return;
-	if (hasChip(code)) { input.value = ''; return; }
-	fetch('{% url "business_share_lookup" %}?code=' + encodeURIComponent(code))
-		.then(r => r.json())
-		.then(d => {
-			if (!d.ok) { Swal.fire('Invalid code', d.message || 'That code cannot be added.', 'warning'); return; }
-			renderChip(d.code, d.name);
-			input.value = '';
-		})
-		.catch(() => Swal.fire('Error', 'Could not check that code. Try again.', 'error'));
 }
 </script>
 {% endblock %}

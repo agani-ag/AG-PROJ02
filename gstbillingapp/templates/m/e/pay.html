@@ -1,0 +1,49 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block title %}My pay{% endblock %}
+{% block heading %}My pay{% endblock %}
+{% block subhead %}<div class="sub">{{ employee.name }}</div>{% endblock %}
+{% block content %}
+
+{% if eligible %}
+<div class="sec"><h2 class="t" style="font-size:16px">Salary</h2></div>
+{% if salary %}
+<div class="panel">
+    <div class="between"><div style="min-width:0"><div class="b" style="font-size:15px">{{ salary.month }}/{{ salary.year }}</div><div class="sub">Base ₹ {{ salary.base_salary|inrs }} · {{ salary.paid_units }} of {{ salary.total_days }} days paid</div></div>
+        <div class="right" style="flex:none"><div class="sub">Net salary</div><div class="b" style="font-size:22px;white-space:nowrap">&#8377; {{ salary.calculated_salary|inrs }}</div></div></div>
+    {% if salary.deduction %}<div class="between sm mt"><span class="muted">Deduction (unpaid days)</span><span class="tabnum" style="color:var(--red)">− &#8377; {{ salary.deduction|inrs }}</span></div>{% endif %}
+    {% if salary.advances %}<div class="between sm mt"><span class="muted">Advances</span><span class="tabnum" style="color:var(--red)">− &#8377; {{ salary.advances|inrs }}</span></div>{% endif %}
+    {% if salary.bonus %}<div class="between sm mt"><span class="muted">Bonus</span><span class="tabnum" style="color:var(--green)">+ &#8377; {{ salary.bonus|inrs }}</span></div>{% endif %}
+</div>
+{% if salary_history|length > 1 %}
+<div class="list">
+    {% for r in salary_history %}
+    <div class="row"><span class="lbl"><span><span class="b">{{ r.month }}/{{ r.year }}</span><div class="sub">{% if r.deduction %}₹ {{ r.deduction|inrs }} deducted{% else %}Full pay{% endif %}</div></span></span><span class="b tabnum" style="white-space:nowrap">&#8377; {{ r.calculated_salary|inrs }}</span></div>
+    {% endfor %}
+    <div class="row" style="border-top:2px solid var(--line)"><span class="lbl"><span class="b">Grand total</span></span><span class="b tabnum" style="font-size:16px;white-space:nowrap">&#8377; {{ salary_total|inrs }}</span></div>
+</div>
+{% endif %}
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-wallet"/></svg><div>No salary recorded yet.</div></div>
+{% endif %}
+{% endif %}
+
+<div class="sec"><h2 class="t" style="font-size:16px">Incentives</h2></div>
+{% if incentives %}
+<div class="panel between"><span class="muted">Total</span><span class="b">&#8377; {{ inc_total|inrs }}</span></div>
+{% if inc_unpaid %}<div class="panel between" style="background:var(--amberbg)"><span style="color:#8a5a00">Unpaid</span><span class="b" style="color:#8a5a00">&#8377; {{ inc_unpaid|inrs }}</span></div>{% endif %}
+<div class="list">
+    {% for i in incentives %}
+    <div class="row">
+        <span class="lbl"><span class="ico {% if i.is_paid %}ic-green{% else %}ic-amber{% endif %}"><svg class="i"><use href="#ic-wallet"/></svg></span>
+            <span><span class="b">&#8377; {{ i.amount|inrs }}</span><div class="sub">{{ i.date|date:"d M Y" }}{% if i.description %} · {{ i.description }}{% endif %}</div></span></span>
+        <span class="badge {% if i.is_paid %}b-green{% else %}b-amber{% endif %}">{% if i.is_paid %}Paid{% else %}Unpaid{% endif %}</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-wallet"/></svg><div>No incentives yet.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

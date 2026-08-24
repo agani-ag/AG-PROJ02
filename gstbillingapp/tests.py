@@ -257,8 +257,7 @@ class MobileScreensTests(TestCase):
         self.assertAlmostEqual(self.book.current_balance, -500.0)   # unchanged until approved
 
     def test_admin_payment_posts_immediately(self):
-        self.emp.is_admin = True
-        self.emp.save()
+        self.emp.postings.filter(is_home=True).update(is_admin=True)
         self._emp()
         r = self._pay(200)
         self.assertFalse(r.json()["pending"])
@@ -274,8 +273,7 @@ class MobileScreensTests(TestCase):
         self.book.refresh_from_db()
         self.assertAlmostEqual(self.book.current_balance, -500.0)
         # ...then an admin approves it → it posts to the ledger.
-        self.emp.is_admin = True
-        self.emp.save()
+        self.emp.postings.filter(is_home=True).update(is_admin=True)
         self._emp()
         r = self.client.post(reverse("m_employee_approval_act", args=[pending.id]),
                              data=json.dumps({"action": "approve"}), content_type="application/json")
@@ -301,8 +299,7 @@ class MobileScreensTests(TestCase):
         self.assertNotContains(r, "Overall Summary")
         self.assertNotContains(r, "Payment Collection")
         # Promote to admin → full dashboard appears.
-        self.emp.is_admin = True
-        self.emp.save()
+        self.emp.postings.filter(is_home=True).update(is_admin=True)
         r2 = self.client.get(reverse("m_employee_home"))
         self.assertContains(r2, "Overall Summary")
         self.assertContains(r2, "Payment Collection")
@@ -509,55 +506,35 @@ class EmployeeManagementTests(TestCase):
         d2 = self.client.get(reverse("customer_mobile_link", args=[cust.id])).json()
         self.assertIn("/m/customer/?t=", d2["url"])
 
-    def test_share_code_grants_coverage(self):
-        from .models import Employee, UserProfile
-        # A second business that has opted into sharing.
-        other = User.objects.create_user("shareboss", password="x")
-        UserProfile.objects.create(user=other, business_title="Other Co",
-                                   business_uid="GS999", sharing_enabled=True)
-        UserProfile.objects.filter(user=self.owner).update(business_uid="GS1")
-        emp = Employee.objects.create(business=self.owner, name="Rep")
+    def test_employee_share_and_add(self):
+        from .models import Employee, EmployeePosting, UserProfile
+        other = User.objects.create_user("otherboss", password="x")
+        UserProfile.objects.create(user=other, business_title="Other Co")
+        emp = Employee.objects.create(business=self.owner, name="Rep")   # home posting auto-created
 
-        # Lookup validates the code.
-        d = self.client.get(reverse("business_share_lookup"), {"code": "gs999"}).json()
-        self.assertTrue(d["ok"]); self.assertEqual(d["code"], "GS999")
+        # The other business pulls the person in with their employee share code.
+        self.client.force_login(other)
+        d = self.client.get(reverse("employee_share_lookup"), {"code": emp.share_code}).json()
+        self.assertTrue(d["ok"]); self.assertEqual(d["name"], "REP")
+        self.client.post(reverse("employee_add_shared"), {"share_code": emp.share_code})
+        self.assertTrue(EmployeePosting.objects.filter(employee=emp, business=other, is_home=False).exists())
 
-        # Saving the employee with the code attaches that business.
-        self.client.post(reverse("employee_edit", args=[emp.id]), {
-            "name": "Rep", "is_active": "on", "business_codes": ["GS999"],
-        })
-        emp.refresh_from_db()
+        # covered_businesses = home + shared.
         covered = set(emp.covered_businesses().values_list("id", flat=True))
-        self.assertEqual(covered, {self.owner.id, other.id})   # home + shared
+        self.assertEqual(covered, {self.owner.id, other.id})
 
-    def test_turning_sharing_off_revokes_coverage(self):
-        from .models import Employee, UserProfile
-        other = User.objects.create_user("shareboss2", password="x")
-        op = UserProfile.objects.create(user=other, business_title="Other Co",
-                                        business_uid="GS888", sharing_enabled=True)
+    def test_own_employee_not_shareable_to_self(self):
+        from .models import Employee
         emp = Employee.objects.create(business=self.owner, name="Rep")
-        emp.businesses.set([other])                      # granted while sharing was on
-        self.assertIn(other.id, emp.covered_businesses().values_list("id", flat=True))
-        # The shared business turns sharing OFF → coverage is revoked immediately,
-        # even though the stale M2M row remains.
-        op.sharing_enabled = False
-        op.save()
-        self.assertNotIn(other.id, emp.covered_businesses().values_list("id", flat=True))
-        self.assertIn(self.owner.id, emp.covered_businesses().values_list("id", flat=True))
-
-    def test_share_code_requires_opt_in(self):
-        from .models import UserProfile
-        stranger = User.objects.create_user("noshare", password="x")
-        UserProfile.objects.create(user=stranger, business_title="No Share",
-                                   business_uid="GS777", sharing_enabled=False)
-        d = self.client.get(reverse("business_share_lookup"), {"code": "GS777"}).json()
-        self.assertFalse(d["ok"])   # sharing not enabled → code is inert
+        d = self.client.get(reverse("employee_share_lookup"), {"code": emp.share_code}).json()
+        self.assertFalse(d["ok"])   # your own employee
 
     def test_revoke_bumps_version(self):
         from .models import Employee
         emp = Employee.objects.create(business=self.owner, name="Ravi")
+        home = emp.postings.get(is_home=True)
         v0 = emp.token_version
-        self.client.post(reverse("employee_revoke", args=[emp.id]))
+        self.client.post(reverse("employee_revoke", args=[home.id]))
         emp.refresh_from_db()
         self.assertEqual(emp.token_version, v0 + 1)
 
@@ -578,8 +555,9 @@ class MultiBusinessTests(TestCase):
         cls.cb = Customer.objects.create(user=cls.b, customer_name="Ram", customer_gst="29ABCDE1234F1Z5")
         Book.objects.create(user=cls.a, customer=cls.ca, current_balance=-100)
         Book.objects.create(user=cls.b, customer=cls.cb, current_balance=-250)
-        cls.emp = Employee.objects.create(business=cls.a, name="Rep")
-        cls.emp.businesses.set([cls.a, cls.b])
+        from .models import EmployeePosting
+        cls.emp = Employee.objects.create(business=cls.a, name="Rep")   # home posting @ A
+        EmployeePosting.objects.create(employee=cls.emp, business=cls.b, is_active=True)  # shared @ B
 
     def test_customer_consolidated_total(self):
         from .mobile_auth import mint_customer_token

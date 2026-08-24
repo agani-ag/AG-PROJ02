@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import User
 
 # Python imports
+import uuid
 from datetime import datetime
 from django.db.models import Q
 from django.core.exceptions import ValidationError
@@ -600,37 +601,32 @@ class Employee(models.Model):
 
     Multi-business reps are a later phase; today an employee maps to a single business.
     """
+    # The home business — the person's owner. Salary / admin / active are per-business on
+    # EmployeePosting; a home posting is created alongside the employee.
     business = models.ForeignKey(User, on_delete=models.CASCADE, related_name="employees")
-    # Businesses this employee may access on the mobile app — an explicitly chosen
-    # subset of the home business's GST group. Empty falls back to just `business`.
-    businesses = models.ManyToManyField(User, related_name="covering_employees", blank=True)
     name = models.CharField(max_length=100)
     email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=14, blank=True, null=True)
     address = models.TextField(max_length=600, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    # Admin privilege: an admin employee sees the full business dashboard (financials,
-    # collection progress) on mobile; a regular employee sees only operational screens.
-    is_admin = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)   # person-level (mobile login) active
     # Bumped to revoke this employee's mobile access link (baked into the signed token).
     token_version = models.IntegerField(default=1)
+    # The code another business pastes to add this person as a shared employee.
+    share_code = models.CharField(max_length=20, unique=True, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["name"]
 
-    def covered_businesses(self):
-        """The businesses this employee can access: always their home business, plus
-        any shared business (the `businesses` M2M) that STILL has sharing enabled.
+    @staticmethod
+    def _new_share_code():
+        return "EMP-" + uuid.uuid4().hex[:6].upper()
 
-        Sharing is re-checked here, not just when the link was granted — so a business
-        turning sharing OFF immediately revokes every external employee, even though the
-        stale M2M row remains."""
-        ids = set(
-            self.businesses.filter(userprofile__sharing_enabled=True)
-            .values_list("id", flat=True)
-        )
-        ids.add(self.business_id)   # home business is always covered, no sharing needed
+    def covered_businesses(self):
+        """The businesses this person is posted to (home + shared), still active."""
+        ids = list(self.postings.filter(is_active=True).values_list("business_id", flat=True))
+        if self.business_id not in ids:
+            ids.append(self.business_id)
         return User.objects.filter(id__in=ids).select_related("userprofile")
 
     def save(self, *args, **kwargs):
@@ -640,7 +636,110 @@ class Employee(models.Model):
             self.email = self.email.strip().lower()
         if self.address:
             self.address = self.address.strip().upper()
+        if not self.share_code:
+            code = self._new_share_code()
+            while Employee.objects.filter(share_code=code).exclude(pk=self.pk).exists():
+                code = self._new_share_code()
+            self.share_code = code
         super().save(*args, **kwargs)
+        # Every person has a home posting at their owning business.
+        if not self.postings.filter(is_home=True).exists():
+            EmployeePosting.objects.create(
+                employee=self, business=self.business, is_home=True, is_active=self.is_active)
 
     def __str__(self):
         return f"{self.name} @ {self.business.username}"
+
+
+class EmployeePosting(models.Model):
+    """One posting of a person (Employee) to a business — the per-business record that
+    carries their salary, admin rights and active status there, and owns that business's
+    attendance / salary / incentive for them. `is_home` marks the owning business."""
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="postings")
+    business = models.ForeignKey(User, on_delete=models.CASCADE, related_name="employee_postings")
+    salary = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    is_admin = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    is_home = models.BooleanField(default=False)
+    # Only when enabled does this posting get the Attendance & Salary module. Off by
+    # default — e.g. a commission-only rep isn't on payroll.
+    attendance_eligible = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("employee", "business")
+        ordering = ["-is_home", "business_id"]
+
+    def __str__(self):
+        return f"{self.employee.name} @ {self.business.username}{' (home)' if self.is_home else ''}"
+
+
+# ============ Employee Attendance / Salary / Incentive =====================
+class AttendanceLog(models.Model):
+    """One attendance mark per employee per day. A day is PAID only when explicitly marked
+    Present / Half-day / Leave; a blank (unmarked) day counts as Absent (unpaid). Salary is
+    per-day × paid units (Present = 1, Half = 0.5, Leave = 1, Absent = 0)."""
+    PRESENT, ABSENT, HALF, LEAVE = 0, 1, 2, 3
+    STATUS_CHOICES = [
+        (PRESENT, "Present"),
+        (ABSENT, "Absent"),
+        (HALF, "Half-day"),
+        (LEAVE, "Leave"),
+    ]
+    PAY_UNITS = {PRESENT: 1.0, ABSENT: 0.0, HALF: 0.5, LEAVE: 1.0}
+
+    posting = models.ForeignKey("EmployeePosting", on_delete=models.CASCADE, related_name="attendance_logs")
+    date = models.DateField()
+    status = models.IntegerField(choices=STATUS_CHOICES, default=PRESENT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("posting", "date")
+        ordering = ["-date"]
+
+    @property
+    def pay_units(self):
+        return self.PAY_UNITS.get(self.status, 0.0)
+
+    def __str__(self):
+        return f"{self.date} - {self.get_status_display()}"
+
+
+class SalaryRecord(models.Model):
+    """A month's computed salary snapshot for an employee. Per-day rate = base / total_days;
+    net = per-day × paid_units (paid days marked Present/Half/Leave); deduction = base − net
+    (i.e. the unpaid — absent or unmarked — day-equivalents)."""
+    posting = models.ForeignKey("EmployeePosting", on_delete=models.CASCADE, related_name="salary_records")
+    month = models.IntegerField()
+    year = models.IntegerField()
+    base_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_days = models.IntegerField(default=0)
+    paid_units = models.DecimalField(max_digits=5, decimal_places=1, default=0)   # present + leave + 0.5×half
+    deduction = models.DecimalField(max_digits=12, decimal_places=2, default=0)   # attendance deduction (base − earned)
+    advances = models.DecimalField(max_digits=12, decimal_places=2, default=0)    # advances paid / deductions (−)
+    bonus = models.DecimalField(max_digits=12, decimal_places=2, default=0)       # extra pay (+)
+    calculated_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)   # earned − advances + bonus
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("posting", "month", "year")
+        ordering = ["-year", "-month"]
+
+    def __str__(self):
+        return f"{self.month}/{self.year} - {self.calculated_salary}"
+
+
+class EmployeeIncentive(models.Model):
+    """An ad-hoc incentive / bonus payable to an employee (separate from monthly salary)."""
+    posting = models.ForeignKey("EmployeePosting", on_delete=models.CASCADE, related_name="incentives")
+    date = models.DateField(default=datetime.now)
+    description = models.TextField(blank=True, null=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    is_paid = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"{self.amount}"

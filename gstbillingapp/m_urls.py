@@ -41,6 +41,7 @@ urlpatterns = [
     path('employee/collections', e.collections, name='m_employee_collections'),
     path('employee/collections/route', e.collections_route, name='m_employee_collections_route'),
     path('employee/orders', e.orders, name='m_employee_orders'),
+    path('employee/pay', e.my_pay, name='m_employee_pay'),
     path('employee/approvals', e.approvals, name='m_employee_approvals'),
     path('employee/approvals/<int:log_id>/act', e.approval_act, name='m_employee_approval_act'),
 ]

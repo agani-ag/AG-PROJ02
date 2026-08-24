@@ -10,7 +10,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 # Models
 from ..models import (
     Customer, Product, Invoice,
-    UserProfile, Book, BookLog, Quotation, Employee
+    UserProfile, Book, BookLog, Quotation, Employee, EmployeePosting
 )
 
 # Utility functions
@@ -369,7 +369,9 @@ def invoice_viewer(request, invoice_id):
     # Invoice → employee attribution (local Employee model). The picker only shows
     # when this business actually has active staff to credit.
     context['assigned_employee'] = invoice_obj.assigned_employee
-    context['has_employees'] = Employee.objects.filter(business=request.user, is_active=True).exists()
+    # Anyone posted to this business (own or shared-in) can be credited.
+    context['has_employees'] = EmployeePosting.objects.filter(
+        business=request.user, is_active=True).exists()
 
     # Debug JSON editor: ?debug=1 / ?debug=true. Absent → normal view, no change.
     debug_mode = str(request.GET.get('debug', '')).lower() in ('1', 'true', 'yes')
@@ -684,10 +686,11 @@ def invoice_assign_employee(request, invoice_id):
     invoice = get_object_or_404(Invoice, user=request.user, id=invoice_id)
 
     if request.method == 'GET':
-        employees = list(
-            Employee.objects.filter(business=request.user, is_active=True)
-            .order_by('name').values('id', 'name')
-        )
+        # Everyone posted to this business — own staff AND shared-in employees, flagged.
+        postings = (EmployeePosting.objects.filter(business=request.user, is_active=True)
+                    .select_related('employee').order_by('employee__name'))
+        employees = [{'id': p.employee_id, 'name': p.employee.name, 'shared': not p.is_home}
+                     for p in postings]
         current = None
         if invoice.assigned_employee_id:
             current = {'id': invoice.assigned_employee_id, 'name': invoice.assigned_employee.name}
@@ -709,7 +712,9 @@ def invoice_assign_employee(request, invoice_id):
         return JsonResponse({'ok': True, 'cleared': True})
 
     try:
-        employee = Employee.objects.get(id=emp_id, business=request.user, is_active=True)
+        employee = (Employee.objects.filter(
+            id=emp_id, postings__business=request.user, postings__is_active=True)
+            .distinct().get())
     except (Employee.DoesNotExist, ValueError, TypeError):
         return JsonResponse({'error': 'Employee not found.'}, status=400)
 
