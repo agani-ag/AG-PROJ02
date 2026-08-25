@@ -1,0 +1,95 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block bizsel %}
+{% if admin_businesses|length > 1 %}
+<div class="bizsel" id="bizsel">
+    {% for b in admin_businesses %}
+    <a href="?biz={{ b.id }}" class="{% if b.id == request.mobile_actor.active_business.id %}on{% endif %}">{{ b.userprofile.business_brand|default:b.userprofile.business_title|default:b.username }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+{% block title %}Manage{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_home' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Home</a>{% endblock %}
+{% block heading %}Manage{% endblock %}
+{% block subhead %}<div class="sub">{{ profile.business_brand|default:profile.business_title|default:"Business tools" }}</div>{% endblock %}
+{% block content %}
+
+<div class="sec"><h2 class="t">Team</h2></div>
+<div class="list">
+    <a class="row" href="{% url 'm_manage_team' %}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-people"/></svg></span>
+            <span style="min-width:0"><span class="b">Team &amp; attendance</span><div class="sub">Attendance, salary &amp; incentives{% if unpaid_inc != "0" %} · ₹ {{ unpaid_inc }} unpaid{% endif %}</div></span>
+        </span>
+        <span class="badge b-blue">{{ team_count }}</span>
+    </a>
+</div>
+
+<div class="sec"><h2 class="t">Money</h2></div>
+<div class="list">
+    <a class="row" href="{% url 'm_manage_expenses' %}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-red"><svg class="i"><use href="#ic-wallet"/></svg></span>
+            <span style="min-width:0"><span class="b">Expenses</span><div class="sub">Record &amp; review spending</div></span>
+        </span>
+        <svg class="i" style="width:16px;height:16px;stroke:var(--faint)"><use href="#ic-reply"/></svg>
+    </a>
+    <a class="row" href="{% url 'm_manage_cheques' %}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-amber"><svg class="i"><use href="#ic-book"/></svg></span>
+            <span style="min-width:0"><span class="b">Cheques</span><div class="sub">Issued, presented &amp; cleared</div></span>
+        </span>
+        <svg class="i" style="width:16px;height:16px;stroke:var(--faint)"><use href="#ic-reply"/></svg>
+    </a>
+    <a class="row" href="{% url 'm_manage_banks' %}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-building"/></svg></span>
+            <span style="min-width:0"><span class="b">Bank &amp; UPI</span><div class="sub">Your business accounts</div></span>
+        </span>
+        <svg class="i" style="width:16px;height:16px;stroke:var(--faint)"><use href="#ic-reply"/></svg>
+    </a>
+</div>
+
+<div class="sec"><h2 class="t">Purchases</h2></div>
+<div class="list">
+    <a class="row" href="{% url 'm_manage_vendors' %}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-building"/></svg></span>
+            <span style="min-width:0"><span class="b">Vendors</span><div class="sub">Suppliers &amp; what you owe them</div></span>
+        </span>
+        <svg class="i" style="width:16px;height:16px;stroke:var(--faint)"><use href="#ic-reply"/></svg>
+    </a>
+    <a class="row" href="{% url 'm_manage_purchases' %}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-red"><svg class="i"><use href="#ic-book"/></svg></span>
+            <span style="min-width:0"><span class="b">Purchase logs</span><div class="sub">Purchases, payments &amp; returns</div></span>
+        </span>
+        <svg class="i" style="width:16px;height:16px;stroke:var(--faint)"><use href="#ic-reply"/></svg>
+    </a>
+</div>
+
+<div class="sec"><h2 class="t">Reports</h2></div>
+<div class="list">
+    <a class="row" href="{% url 'm_manage_reports' %}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-chart"/></svg></span>
+            <span style="min-width:0"><span class="b">Outstanding &amp; aging</span><div class="sub">Receivables, overdue buckets</div></span>
+        </span>
+        <svg class="i" style="width:16px;height:16px;stroke:var(--faint)"><use href="#ic-reply"/></svg>
+    </a>
+</div>
+
+<div class="sec"><h2 class="t">Settings</h2></div>
+<div class="list">
+    <a class="row" href="{% url 'm_manage_settings' %}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-grey"><svg class="i"><use href="#ic-building"/></svg></span>
+            <span style="min-width:0"><span class="b">Business profile</span><div class="sub">Name, brand, GST &amp; contact</div></span>
+        </span>
+        <svg class="i" style="width:16px;height:16px;stroke:var(--faint)"><use href="#ic-reply"/></svg>
+    </a>
+</div>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Add cheque{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage_cheques' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Cheques</a>{% endblock %}
+{% block heading %}Add cheque{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <label class="lbl">Cheque number *</label>
+    <input class="field" id="cheque_number" autocapitalize="characters" placeholder="Cheque no.">
+    <label class="lbl">Amount</label>
+    <input class="field" id="amount" type="number" inputmode="decimal" placeholder="0">
+    <label class="lbl">Payee</label>
+    <input class="field" id="payee_name" placeholder="Paid to">
+    <label class="lbl">Bank</label>
+    <input class="field" id="bank" placeholder="Bank (optional)">
+    <label class="lbl">Status</label>
+    <select class="field" id="status">
+        {% for val,label in statuses %}<option value="{{ val }}"{% if val == "ISSUED" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <label class="lbl">Issue date</label>
+    <input class="field" id="issue_date" type="date" value="{{ today }}">
+    <label class="lbl">Remarks</label>
+    <input class="field" id="remarks" placeholder="Optional">
+</div>
+
+<button class="btn btn-acc" onclick="saveCheque()"><svg class="i" style="stroke:#fff"><use href="#ic-check"/></svg> Add cheque</button>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}
+{% block includejs %}
+<script>
+function val(id){ return document.getElementById(id).value.trim(); }
+async function saveCheque(){
+    if(!val('cheque_number')){ M.toast('Enter a cheque number'); return; }
+    var r = await M.post("{% url 'm_manage_cheque_save' %}", {
+        cheque_number: val('cheque_number'), amount: val('amount'), payee_name: val('payee_name'),
+        bank: val('bank'), status: val('status'), issue_date: val('issue_date'),
+        clearance_date: val('issue_date'), remarks: val('remarks') });
+    if(r && r.ok){ location.href = r.redirect; } else { M.toast((r&&r.message)||'Could not save'); }
+}
+</script>
+{% endblock %}

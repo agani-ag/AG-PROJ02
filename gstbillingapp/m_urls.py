@@ -7,6 +7,7 @@ from django.urls import path
 from .views.m import customer as c
 from .views.m import employee as e
 from .views.m import order as o
+from .views.m import admin as a
 
 urlpatterns = [
     # ---- Order flow (customer self-order / employee order-for-customer) ----
@@ -43,6 +44,39 @@ urlpatterns = [
     path('employee/collections/route', e.collections_route, name='m_employee_collections_route'),
     path('employee/orders', e.orders, name='m_employee_orders'),
     path('employee/pay', e.my_pay, name='m_employee_pay'),
+    path('employee/catalog', e.catalog, name='m_employee_catalog'),
     path('employee/approvals', e.approvals, name='m_employee_approvals'),
     path('employee/approvals/<int:log_id>/act', e.approval_act, name='m_employee_approval_act'),
+
+    # ---- Admin-only manage hub (team / expenses / stock / reports) ----
+    path('employee/manage', a.manage, name='m_manage'),
+    path('employee/manage/team', a.team, name='m_manage_team'),
+    path('employee/manage/team/<int:posting_id>', a.team_member, name='m_manage_team_member'),
+    path('employee/manage/team/<int:posting_id>/attendance', a.team_attendance_mark, name='m_manage_attendance_mark'),
+    path('employee/manage/team/<int:posting_id>/salary', a.team_salary_save, name='m_manage_salary_save'),
+    path('employee/manage/team/<int:posting_id>/incentive', a.team_incentive_add, name='m_manage_incentive_add'),
+    path('employee/manage/incentive/<int:pk>/toggle', a.team_incentive_toggle, name='m_manage_incentive_toggle'),
+    path('employee/manage/expenses', a.expenses, name='m_manage_expenses'),
+    path('employee/manage/expenses/add', a.expense_add, name='m_manage_expense_add'),
+    path('employee/manage/cheques', a.cheques, name='m_manage_cheques'),
+    path('employee/manage/banks', a.banks, name='m_manage_banks'),
+    path('employee/manage/inventory', a.inventory, name='m_manage_inventory'),
+    path('employee/manage/products', a.products, name='m_manage_products'),
+    path('employee/manage/vendors', a.vendors, name='m_manage_vendors'),
+    path('employee/manage/vendor/<int:vendor_id>', a.vendor_detail, name='m_manage_vendor'),
+    path('employee/manage/purchases', a.purchase_logs, name='m_manage_purchases'),
+    path('employee/manage/purchases/data', a.purchase_logs_data, name='m_manage_purchases_data'),
+    path('employee/manage/reports', a.reports, name='m_manage_reports'),
+
+    # ---- Admin add / edit forms ----
+    path('employee/manage/bank/new', a.bank_form, name='m_manage_bank_new'),
+    path('employee/manage/bank/<int:pk>/edit', a.bank_form, name='m_manage_bank_edit'),
+    path('employee/manage/bank/save', a.bank_save, name='m_manage_bank_save'),
+    path('employee/manage/bank/<int:pk>/delete', a.bank_delete, name='m_manage_bank_delete'),
+    path('employee/manage/cheque/new', a.cheque_form, name='m_manage_cheque_new'),
+    path('employee/manage/cheque/save', a.cheque_save, name='m_manage_cheque_save'),
+    path('employee/manage/purchase/new', a.purchase_form, name='m_manage_purchase_new'),
+    path('employee/manage/purchase/save', a.purchase_save, name='m_manage_purchase_save'),
+    path('employee/manage/settings', a.settings, name='m_manage_settings'),
+    path('employee/manage/settings/save', a.settings_save, name='m_manage_settings_save'),
 ]

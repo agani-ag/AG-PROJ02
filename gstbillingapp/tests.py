@@ -134,6 +134,7 @@ class MobileAuthTests(TestCase):
         UserProfile.objects.create(user=cls.owner, business_title="Acme Distributors")
         cls.customer = Customer.objects.create(
             user=cls.owner, customer_name="Beta Store", customer_phone="9876543210",
+            is_mobile_user=True,
         )
         book = Book.objects.create(user=cls.owner, customer=cls.customer, current_balance=-1500)
         BookLog.objects.create(parent_book=book, change_type=1, change=1500)   # ₹1500 purchase → owes 1500
@@ -199,7 +200,7 @@ class MobileScreensTests(TestCase):
         cls.emp = Employee.objects.create(business=cls.owner, name="Field Staff", email="fs1@syncup.local")
         cls.cust = Customer.objects.create(
             user=cls.owner, customer_name="Cust One", customer_phone="9876543210",
-            customer_userid="gs1c1", collection_day=1,
+            customer_userid="gs1c1", collection_day=1, is_mobile_user=True,
         )
         cls.book = Book.objects.create(user=cls.owner, customer=cls.cust, current_balance=-500)
         BookLog.objects.create(parent_book=cls.book, change_type=1, change=500)
@@ -232,7 +233,7 @@ class MobileScreensTests(TestCase):
 
     def test_customer_cannot_open_foreign_invoice(self):
         from .mobile_auth import mint_customer_token
-        other = Customer.objects.create(user=self.owner, customer_name="Other", customer_userid="gs1c2")
+        other = Customer.objects.create(user=self.owner, customer_name="Other", customer_userid="gs1c2", is_mobile_user=True)
         self.client.get("/m/customer/", {"t": mint_customer_token(other)})
         self.assertEqual(self.client.get(reverse("m_customer_invoice", args=[self.inv.id])).status_code, 404)
 
@@ -329,7 +330,7 @@ class MobileOrderTests(TestCase):
         cls.owner = User.objects.create_user("mo_owner", password="x")
         UserProfile.objects.create(user=cls.owner, business_title="Mobile Shop", business_phone="9000000000")
         cls.emp = Employee.objects.create(business=cls.owner, name="Rep", email="rep@x.local")
-        cls.cust = Customer.objects.create(user=cls.owner, customer_name="Buyer One", customer_phone="9111111111")
+        cls.cust = Customer.objects.create(user=cls.owner, customer_name="Buyer One", customer_phone="9111111111", is_mobile_user=True)
         cls.p1 = Product.objects.create(user=cls.owner, model_no="M1", product_name="Widget",
                                         product_rate_with_gst=118, product_gst_percentage=18, product_discount=0)
         cls.p2 = Product.objects.create(user=cls.owner, model_no="M2", product_name="Gadget",
@@ -348,6 +349,13 @@ class MobileOrderTests(TestCase):
         r = self.client.get(reverse("m_order"))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "WIDGET")             # product name upper-cased on save
+
+    def test_customer_has_place_order_entry(self):
+        # The customer starts an order from the Orders tab.
+        self._cust_session()
+        r = self.client.get(reverse("m_customer_orders"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, reverse("m_order"))        # "Place a new order" link present
 
     def test_employee_without_customer_sees_picker(self):
         self._emp_session()
@@ -560,6 +568,35 @@ class InvoiceAssignEmployeeTests(TestCase):
         self.inv.refresh_from_db()
         self.assertIsNone(self.inv.assigned_employee_id)
 
+    def test_bulk_map_and_unmap(self):
+        posting = self.emp.postings.get(is_home=True)
+        inv2 = Invoice.objects.create(user=self.owner, invoice_number=2, invoice_date=date.today(),
+            invoice_customer=self.cust, is_gst=False,
+            invoice_json=json.dumps({"invoice_total_amt_with_gst": 50, "items": []}))
+        # Bulk map both invoices to the employee.
+        r = self.client.post(reverse("employee_assign_bulk", args=[posting.id]),
+            data=json.dumps({"map": [self.inv.id, inv2.id], "unmap": []}), content_type="application/json")
+        d = r.json()
+        self.assertTrue(d["ok"])
+        self.assertEqual(d["mapped"], 2)
+        self.inv.refresh_from_db()
+        self.assertEqual(self.inv.assigned_employee_id, self.emp.id)
+        # Bulk unmap one; only invoices currently credited to this employee are cleared.
+        r = self.client.post(reverse("employee_assign_bulk", args=[posting.id]),
+            data=json.dumps({"map": [], "unmap": [self.inv.id]}), content_type="application/json")
+        self.assertEqual(r.json()["unmapped"], 1)
+        self.inv.refresh_from_db()
+        self.assertIsNone(self.inv.assigned_employee_id)
+
+    def test_pick_shows_current_assignment(self):
+        posting = self.emp.postings.get(is_home=True)
+        self.inv.assigned_employee = self.emp
+        self.inv.save()
+        d = self.client.get(reverse("employee_invoices_pick", args=[posting.id])).json()
+        row = next(x for x in d["rows"] if x["id"] == self.inv.id)
+        self.assertTrue(row["mine"])
+        self.assertEqual(row["assigned"], "RAVI")   # employee name upper-cased on save
+
     def test_cannot_assign_foreign_employee(self):
         from .models import Employee
         other = User.objects.create_user("ia_other", password="x")
@@ -671,8 +708,8 @@ class MultiBusinessTests(TestCase):
         cls.b = User.objects.create_user("bizB", password="x")
         UserProfile.objects.create(user=cls.b, business_title="Shop B", business_gst=gst)
         # Same real customer across two shops — linked by matching GSTIN.
-        cls.ca = Customer.objects.create(user=cls.a, customer_name="Ram", customer_gst="29ABCDE1234F1Z5")
-        cls.cb = Customer.objects.create(user=cls.b, customer_name="Ram", customer_gst="29ABCDE1234F1Z5")
+        cls.ca = Customer.objects.create(user=cls.a, customer_name="Ram", customer_gst="29ABCDE1234F1Z5", is_mobile_user=True)
+        cls.cb = Customer.objects.create(user=cls.b, customer_name="Ram", customer_gst="29ABCDE1234F1Z5", is_mobile_user=True)
         Book.objects.create(user=cls.a, customer=cls.ca, current_balance=-100)
         Book.objects.create(user=cls.b, customer=cls.cb, current_balance=-250)
         from .models import EmployeePosting
@@ -707,3 +744,355 @@ class MultiBusinessTests(TestCase):
         self.client.get("/m/employee/", {"t": mint_employee_token(self.emp)})
         # not in coverage → ignored, stays valid (no crash / no 403)
         self.assertEqual(self.client.get("/m/employee/customers", {"biz": stranger.id}).status_code, 200)
+
+
+class BankDetailsScopingTests(TestCase):
+    """A business must only ever see/select its OWN bank accounts (per-business isolation)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile, BankDetails
+        cls.BankDetails = BankDetails
+        cls.a = User.objects.create_user("bank_a", password="x")
+        cls.b = User.objects.create_user("bank_b", password="x")
+        pa = UserProfile.objects.create(user=cls.a, business_title="A")
+        pb = UserProfile.objects.create(user=cls.b, business_title="B")
+        cls.bank_a = BankDetails.objects.create(user=cls.a, account_name="A ACC", account_number="1",
+                                                bank_name="BANK", whom_account=0, business_account=pa)
+        cls.bank_b = BankDetails.objects.create(user=cls.b, account_name="B ACC", account_number="2",
+                                                bank_name="BANK", whom_account=0, business_account=pb)
+
+    def test_profile_form_scopes_bank_choices_to_own_business(self):
+        from .forms import UserProfileForm
+        ids = set(UserProfileForm(user=self.a).fields['bankdetails'].queryset.values_list('id', flat=True))
+        self.assertIn(self.bank_a.id, ids)
+        self.assertNotIn(self.bank_b.id, ids)       # B's bank must never be selectable by A
+
+    def test_customer_form_scopes_customer_banks(self):
+        from .forms import CustomerForm
+        ca = self.BankDetails.objects.create(user=self.a, account_name="CA", account_number="3",
+                                             bank_name="B", whom_account=1)
+        cb = self.BankDetails.objects.create(user=self.b, account_name="CB", account_number="4",
+                                             bank_name="B", whom_account=1)
+        ids = set(CustomerForm(user=self.a).fields['bankdetails'].queryset.values_list('id', flat=True))
+        self.assertIn(ca.id, ids)
+        self.assertNotIn(cb.id, ids)
+
+    def test_bank_edit_denies_other_business(self):
+        self.client.force_login(self.a)
+        # A cannot open B's bank record — the view is scoped by user, so it 404s.
+        self.assertEqual(self.client.get(reverse("bank_details_edit", args=[self.bank_b.id])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("bank_details_edit", args=[self.bank_a.id])).status_code, 200)
+
+
+class MobileToggleTests(TestCase):
+    """The customer 'Mobile User' toggle gates app access — and it's per business."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile
+        cls.owner = User.objects.create_user("tog_owner", password="x")
+        UserProfile.objects.create(user=cls.owner, business_title="Tog Shop")
+
+    def _open(self, cust):
+        from .mobile_auth import mint_customer_token
+        return self.client.get("/m/customer/", {"t": mint_customer_token(cust)})
+
+    def test_toggle_off_denies_access(self):
+        c = Customer.objects.create(user=self.owner, customer_name="Off", is_mobile_user=False)
+        r = self._open(c)
+        self.assertEqual(r.status_code, 403)                 # inactive for mobile → denied
+        self.assertContains(r, "Mobile access turned off", status_code=403)   # deactivation message
+        self.assertContains(r, "contact the business owner", status_code=403)
+
+    def test_invalid_token_shows_session_expired(self):
+        r = self.client.get("/m/customer/", {"t": "not.a.valid.token"})
+        self.assertEqual(r.status_code, 403)
+        self.assertContains(r, "Session expired", status_code=403)   # not the deactivation message
+
+    def test_toggle_on_grants_access(self):
+        c = Customer.objects.create(user=self.owner, customer_name="On", is_mobile_user=True)
+        self.assertEqual(self._open(c).status_code, 302)     # token accepted → redirect to clean URL
+
+    def test_toggle_is_per_business(self):
+        from .models import UserProfile
+        from .mobile_auth import _accessible
+        b = User.objects.create_user("tog_b", password="x")
+        UserProfile.objects.create(user=b, business_title="Tog B")
+        # Same person across two shops (matched by GST): active here, inactive at B.
+        ca = Customer.objects.create(user=self.owner, customer_name="Ram",
+                                     customer_gst="27AAAAA0000A1Z5", is_mobile_user=True)
+        Customer.objects.create(user=b, customer_name="Ram",
+                                customer_gst="27AAAAA0000A1Z5", is_mobile_user=False)
+        businesses, _ = _accessible({"role": "customer", "primary": ca})
+        ids = [x.id for x in businesses]
+        self.assertIn(self.owner.id, ids)        # active business is accessible
+        self.assertNotIn(b.id, ids)              # business with the toggle off is dropped
+
+
+class MobileManageTests(TestCase):
+    """Admin-only mobile manage hub: team/attendance/salary/incentives, expenses,
+    cheques, banks, inventory, products, reports — render, gating, and actions."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import (UserProfile, Employee, Product, Inventory, ExpenseTracker)
+        cls.owner = User.objects.create_user("mg_owner", password="x")
+        UserProfile.objects.create(user=cls.owner, business_title="Manage Shop", business_phone="9000000000")
+        cls.emp = Employee.objects.create(business=cls.owner, name="Boss", email="boss@x.local")
+        # Make the home posting an admin on payroll.
+        cls.emp.postings.filter(is_home=True).update(is_admin=True, attendance_eligible=True, salary=25000)
+        cls.posting = cls.emp.postings.get(is_home=True)
+        # A non-admin staffer at the same business.
+        cls.emp2 = Employee.objects.create(business=cls.owner, name="Junior", email="jr@x.local")
+        cls.cust = Customer.objects.create(user=cls.owner, customer_name="Owing Cust", customer_phone="9111111111")
+        book = Book.objects.create(user=cls.owner, customer=cls.cust, current_balance=-1200)
+        BookLog.objects.create(parent_book=book, change_type=1, change=1200)
+        p = Product.objects.create(user=cls.owner, model_no="M1", product_name="Widget",
+                                   product_rate_with_gst=118, product_gst_percentage=18,
+                                   product_purchase_rate=80)
+        Inventory.objects.create(user=cls.owner, product=p, current_stock=2, alert_level=5)  # low
+        ExpenseTracker.objects.create(user=cls.owner, amount=500, category="FUEL", reference="FUEL")
+
+    def _admin(self):
+        from .mobile_auth import mint_employee_token
+        self.client.get("/m/employee/", {"t": mint_employee_token(self.emp)})
+
+    def _staff(self):
+        from .mobile_auth import mint_employee_token
+        self.client.get("/m/employee/", {"t": mint_employee_token(self.emp2)})
+
+    def test_all_manage_screens_render_for_admin(self):
+        self._admin()
+        for name, args in [
+            ("m_manage", []), ("m_manage_team", []), ("m_manage_team_member", [self.posting.id]),
+            ("m_manage_expenses", []), ("m_manage_cheques", []), ("m_manage_banks", []),
+            ("m_manage_inventory", []), ("m_manage_products", []), ("m_manage_reports", []),
+        ]:
+            self.assertEqual(self.client.get(reverse(name, args=args)).status_code, 200, name)
+
+    def test_manage_is_admin_only(self):
+        self._staff()
+        for name, args in [("m_manage", []), ("m_manage_team", []),
+                           ("m_manage_expenses", []), ("m_manage_inventory", []),
+                           ("m_manage_reports", [])]:
+            self.assertEqual(self.client.get(reverse(name, args=args)).status_code, 403, name)
+
+    def test_low_stock_filter(self):
+        self._admin()
+        r = self.client.get(reverse("m_manage_inventory"), {"low": "1"})
+        self.assertContains(r, "M1")            # the low item shows under the low filter
+        self.assertContains(r, "Low")
+
+    def test_admin_marks_attendance(self):
+        from .models import AttendanceLog
+        self._admin()
+        r = self.client.post(reverse("m_manage_attendance_mark", args=[self.posting.id]),
+                             data=json.dumps({"date": date.today().isoformat(), "status": 0}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertTrue(AttendanceLog.objects.filter(posting=self.posting, status=0).exists())
+
+    def test_staff_cannot_mark_attendance(self):
+        self._staff()
+        r = self.client.post(reverse("m_manage_attendance_mark", args=[self.posting.id]),
+                             data=json.dumps({"date": date.today().isoformat(), "status": 0}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 403)
+
+    def test_admin_adds_expense_and_incentive(self):
+        from .models import ExpenseTracker, EmployeeIncentive
+        self._admin()
+        r = self.client.post(reverse("m_manage_expense_add"),
+                             data=json.dumps({"amount": 250, "category": "TEA"}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertTrue(ExpenseTracker.objects.filter(user=self.owner, category="TEA").exists())
+        r = self.client.post(reverse("m_manage_incentive_add", args=[self.posting.id]),
+                             data=json.dumps({"amount": 300, "description": "Bonus"}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertTrue(EmployeeIncentive.objects.filter(posting=self.posting, amount=300).exists())
+
+    def test_not_eligible_member_shows_real_incentives(self):
+        from .models import Employee, EmployeeIncentive
+        emp3 = Employee.objects.create(business=self.owner, name="Casual", email="cz@x.local")
+        posting3 = emp3.postings.get(is_home=True)     # attendance_eligible defaults False
+        EmployeeIncentive.objects.create(posting=posting3, amount=5000, is_paid=True, description="Diwali")
+        self._admin()
+        r = self.client.get(reverse("m_manage_team_member", args=[posting3.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Not on payroll")       # not eligible → notice
+        # Real incentive shown (the old bug looped the ctx dict's keys → no amount/desc).
+        self.assertContains(r, "5,000")
+        self.assertContains(r, "Diwali")
+
+    def test_manage_switcher_shows_only_admin_businesses(self):
+        from .models import UserProfile, EmployeePosting
+        b2 = User.objects.create_user("mg_b2", password="x")
+        UserProfile.objects.create(user=b2, business_title="Admin Two")
+        b3 = User.objects.create_user("mg_b3", password="x")
+        UserProfile.objects.create(user=b3, business_title="Staff Only")
+        EmployeePosting.objects.create(employee=self.emp, business=b2, is_active=True, is_admin=True)
+        EmployeePosting.objects.create(employee=self.emp, business=b3, is_active=True, is_admin=False)
+        self._admin()
+        r = self.client.get(reverse("m_manage"))
+        self.assertContains(r, "ADMIN TWO")       # admin business appears in the switcher
+        self.assertNotContains(r, "STAFF ONLY")   # staff-only business is hidden
+
+    def test_products_screen_has_filter_and_sort(self):
+        self._admin()
+        r = self.client.get(reverse("m_manage_products"))
+        self.assertContains(r, "M1")              # product data embedded (products_json)
+        self.assertContains(r, 'id="chips"')      # category filter chips
+        self.assertContains(r, 'id="sortchips"')  # sort control
+
+    def test_products_screen_includes_cost_for_admin(self):
+        # Admin-only: the cost price (purchase rate) is embedded so the page can show margin.
+        self._admin()
+        r = self.client.get(reverse("m_manage_products"))
+        self.assertContains(r, "product_purchase_rate")   # cost field present in payload
+        self.assertContains(r, "80")                      # the purchase rate value
+
+    def test_my_pay_shows_attendance_and_salary(self):
+        from .models import AttendanceLog
+        AttendanceLog.objects.create(posting=self.posting, date=date.today(), status=0)  # present
+        self._admin()                                   # this employee is on payroll
+        r = self.client.get(reverse("m_employee_pay"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Attendance")            # read-only attendance calendar section
+        self.assertContains(r, "Net pay")               # salary breakdown
+        self.assertContains(r, "days paid")
+
+    def test_employee_catalog_has_no_cost(self):
+        self._staff()                                    # a NON-admin employee
+        r = self.client.get(reverse("m_employee_catalog"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "M1")                     # products are browsable
+        self.assertContains(r, "SHOW_COST = false")      # cost/profit hidden
+        self.assertNotContains(r, '"product_purchase_rate"')   # cost never in the JSON payload
+
+    def test_admin_home_shows_inventory_tile(self):
+        self._admin()
+        r = self.client.get(reverse("m_employee_home"))
+        self.assertContains(r, "Inventory")
+        self.assertContains(r, "1 low")            # M1: stock 2 ≤ alert 5 → one low item
+
+    def test_staff_home_has_no_inventory_tile(self):
+        self._staff()                              # non-admin
+        r = self.client.get(reverse("m_employee_home"))
+        self.assertNotContains(r, "Inventory")     # admin-only tile
+        self.assertContains(r, "Products")         # but the catalogue tile is for everyone
+
+    def test_vendor_and_purchase_screens(self):
+        from .models import VendorPurchase, PurchaseLog
+        v = VendorPurchase.objects.create(user=self.owner, vendor_name="Acme Supply", vendor_phone="9000000001")
+        PurchaseLog.objects.create(user=self.owner, vendor=v, change_type=1, change=5000)  # purchase
+        PurchaseLog.objects.create(user=self.owner, vendor=v, change_type=0, change=2000)  # paid
+        self._admin()
+        for name, args in [("m_manage_vendors", []), ("m_manage_vendor", [v.id]), ("m_manage_purchases", [])]:
+            self.assertEqual(self.client.get(reverse(name, args=args)).status_code, 200, name)
+        r = self.client.get(reverse("m_manage_vendor", args=[v.id]))
+        self.assertContains(r, "ACME SUPPLY")     # vendor name (upper-cased on save)
+        self.assertContains(r, "3,000")           # balance = 5000 purchased − 2000 paid
+
+    def test_vendor_screens_are_admin_only(self):
+        self._staff()
+        self.assertEqual(self.client.get(reverse("m_manage_vendors")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("m_manage_purchases")).status_code, 403)
+
+    def test_purchase_logs_pagination_and_filter(self):
+        from .models import VendorPurchase, PurchaseLog
+        v = VendorPurchase.objects.create(user=self.owner, vendor_name="Bulk Vendor")
+        for _ in range(35):
+            PurchaseLog.objects.create(user=self.owner, vendor=v, change_type=1, change=100)
+        PurchaseLog.objects.create(user=self.owner, vendor=v, change_type=0, change=500)  # one Paid
+        self._admin()
+        d = self.client.get(reverse("m_manage_purchases_data"), {"offset": 0, "type": "all"}).json()
+        self.assertEqual(d["added"], 30)          # one page
+        self.assertTrue(d["has_more"])            # 36 total > 30
+        d = self.client.get(reverse("m_manage_purchases_data"), {"offset": 0, "type": "0"}).json()
+        self.assertEqual(d["added"], 1)           # only the Paid entry
+        self.assertIsNotNone(d["total"])          # frozen total for the filtered type
+
+    def test_admin_add_bank_cheque_purchase_and_settings(self):
+        from .models import BankDetails, ChequeLeaf, PurchaseLog, VendorPurchase, UserProfile
+        self._admin()
+        # Forms render
+        for name in ("m_manage_bank_new", "m_manage_cheque_new", "m_manage_purchase_new", "m_manage_settings"):
+            self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
+        # Add a bank (with UPI)
+        r = self.client.post(reverse("m_manage_bank_save"),
+                             data=json.dumps({"bank_name": "HDFC", "account_number": "123", "upi_id": "shop@hdfc"}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertTrue(BankDetails.objects.filter(user=self.owner, whom_account=0, upi_id="shop@hdfc").exists())
+        # Add a cheque
+        r = self.client.post(reverse("m_manage_cheque_save"),
+                             data=json.dumps({"cheque_number": "CHQ-1", "amount": "5000", "payee_name": "Ram"}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertTrue(ChequeLeaf.objects.filter(user=self.owner, cheque_number="CHQ-1").exists())
+        # Add a purchase log against a vendor
+        v = VendorPurchase.objects.create(user=self.owner, vendor_name="Supply Co")
+        r = self.client.post(reverse("m_manage_purchase_save"),
+                             data=json.dumps({"vendor": v.id, "change_type": 1, "amount": "2500"}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertTrue(PurchaseLog.objects.filter(user=self.owner, vendor=v, change_type=1).exists())
+        # Save business profile
+        r = self.client.post(reverse("m_manage_settings_save"),
+                             data=json.dumps({"business_title": "My Shop", "business_gst": "27ABC"}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertEqual(UserProfile.objects.get(user=self.owner).business_title, "MY SHOP")
+
+    def test_add_forms_are_admin_only(self):
+        self._staff()
+        for name in ("m_manage_bank_new", "m_manage_cheque_new", "m_manage_settings"):
+            self.assertEqual(self.client.get(reverse(name)).status_code, 403, name)
+        r = self.client.post(reverse("m_manage_bank_save"),
+                             data=json.dumps({"upi_id": "x@y"}), content_type="application/json")
+        self.assertEqual(r.status_code, 403)
+
+    def test_cheques_past_future_default(self):
+        from .models import ChequeLeaf
+        from datetime import timedelta
+        today = date.today()
+        # A future (post-dated) cheque and a past one.
+        ChequeLeaf.objects.create(user=self.owner, cheque_number="FUT-1", status="ISSUED",
+                                  clearance_date=today + timedelta(days=10))
+        ChequeLeaf.objects.create(user=self.owner, cheque_number="PAST-1", status="CLEARED",
+                                  clearance_date=today - timedelta(days=10))
+        self._admin()
+        # Default → Future (there is one upcoming): shows FUT-1, not PAST-1.
+        r = self.client.get(reverse("m_manage_cheques"))
+        self.assertEqual(r.context["when"], "future")
+        self.assertContains(r, "FUT-1")
+        self.assertNotContains(r, "PAST-1")
+        # Explicit Past filter shows the past one.
+        r = self.client.get(reverse("m_manage_cheques"), {"when": "past"})
+        self.assertContains(r, "PAST-1")
+        self.assertNotContains(r, "FUT-1")
+
+    def test_cheques_default_past_when_no_future(self):
+        from .models import ChequeLeaf
+        from datetime import timedelta
+        ChequeLeaf.objects.create(user=self.owner, cheque_number="OLD-1", status="CLEARED",
+                                  clearance_date=date.today() - timedelta(days=5))
+        self._admin()
+        r = self.client.get(reverse("m_manage_cheques"))
+        self.assertEqual(r.context["when"], "past")   # no upcoming → default Past
+        self.assertContains(r, "OLD-1")
+
+    def test_purchase_log_without_vendor_is_business_brand(self):
+        from .models import PurchaseLog
+        self._admin()
+        r = self.client.post(reverse("m_manage_purchase_save"),
+                             data=json.dumps({"change_type": 1, "amount": "1000"}),  # no vendor
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertTrue(PurchaseLog.objects.filter(user=self.owner, vendor__isnull=True, change=1000).exists())
+        # Shows under the business brand in the feed (owner's business_title, upper-cased).
+        r = self.client.get(reverse("m_manage_purchases"))
+        self.assertContains(r, "MANAGE SHOP")

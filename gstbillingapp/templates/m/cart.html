@@ -77,11 +77,12 @@ function render(){
     for(var id in cart){ var p=PM[id]; if(!p||cart[id]<1) continue;
         var qty=cart[id], line=lineAmt(p,qty); gross+=line; count+=qty;
         var disc=Number(p.product_discount)||0;
+        var unit=lineAmt(p,1);                 // actual price per unit (offer, incl. GST)
         var sub=[p.model_no,p.product_colour].filter(Boolean).map(esc).join(' · ');
         rows += '<div class="citem" data-id="'+id+'">'
             + '<div style="flex:1;min-width:0"><div class="nm">'+esc(p.product_name||p.model_no||'Item')+'</div>'
             + (sub?'<div class="meta">'+sub+'</div>':'')
-            + '<div class="ln">'+M.money2(line)+' <span class="muted sm" style="font-weight:600">('+M.money2(price(p))+'/unit'+(disc>0?' · '+disc+'% off':'')+', incl. GST)</span></div></div>'
+            + '<div class="ln">'+M.money2(line)+' <span class="muted sm" style="font-weight:600">('+M.money2(unit)+'/unit'+(disc>0?' · '+disc+'% off':'')+', incl. GST)</span></div></div>'
             + '<div class="step"><button onclick="dec('+id+')">&minus;</button><input class="q" type="number" inputmode="numeric" min="1" value="'+qty+'" onchange="setQty('+id+',this.value)" onfocus="this.select()"><button onclick="inc('+id+')">+</button></div>'
             + '<button class="rm" onclick="remove('+id+')"><svg class="i" style="width:16px;height:16px;stroke:var(--red)"><use href="#ic-trash"/></svg></button>'
             + '</div>';

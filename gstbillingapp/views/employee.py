@@ -15,7 +15,7 @@ from ..utils import calculate_employee_salary
 import json
 import calendar
 import datetime
-from django.db.models import Sum
+from django.db.models import Sum, Q
 
 
 def _invoice_total(invoice_json):
@@ -181,6 +181,53 @@ def employee_invoices(request, posting_id):
         'selected_month': selected_month, 'date_from': date_from, 'date_to': date_to,
         'grand_total': round(grand_total, 2), 'record_count': len(rows),
     })
+
+
+@login_required
+def employee_invoices_pick(request, posting_id):
+    """Invoices of THIS business for the bulk-map picker — searchable, with each one's
+    current staff assignment so the admin can see (and change) who it's credited to."""
+    posting = _posting(request, posting_id)
+    q = (request.GET.get('q') or '').strip()
+    qs = (Invoice.objects.filter(user=request.user)
+          .select_related('invoice_customer', 'assigned_employee').order_by('-invoice_date', '-id'))
+    if q:
+        cond = Q(invoice_customer__customer_name__icontains=q)
+        if q.isdigit():
+            cond |= Q(invoice_number=int(q))
+        qs = qs.filter(cond)
+    rows = [{
+        'id': inv.id, 'number': inv.invoice_number, 'is_gst': inv.is_gst,
+        'date': inv.invoice_date.strftime('%d %b %Y') if inv.invoice_date else '',
+        'customer': inv.invoice_customer.customer_name if inv.invoice_customer else 'N/A',
+        'amount': _invoice_total(inv.invoice_json),
+        'assigned': inv.assigned_employee.name if inv.assigned_employee_id else None,
+        'mine': inv.assigned_employee_id == posting.employee_id,
+    } for inv in qs[:200]]
+    return JsonResponse({'rows': rows})
+
+
+@login_required
+def employee_assign_bulk(request, posting_id):
+    """Bulk map / unmap invoices to this posting's employee. Body: {map:[ids], unmap:[ids]}.
+    Unmap only clears invoices currently credited to THIS employee (never steals a clear)."""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False}, status=405)
+    from django.utils import timezone
+    posting = _posting(request, posting_id)
+    emp = posting.employee
+    try:
+        data = json.loads(request.body)
+        map_ids = [int(i) for i in (data.get('map') or [])]
+        unmap_ids = [int(i) for i in (data.get('unmap') or [])]
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'message': 'Bad request'}, status=400)
+    base = Invoice.objects.filter(user=request.user)
+    mapped = base.filter(id__in=map_ids).update(
+        assigned_employee=emp, assigned_employee_at=timezone.now()) if map_ids else 0
+    unmapped = base.filter(id__in=unmap_ids, assigned_employee=emp).update(
+        assigned_employee=None, assigned_employee_at=None) if unmap_ids else 0
+    return JsonResponse({'ok': True, 'mapped': mapped, 'unmapped': unmapped})
 
 
 @login_required

@@ -456,7 +456,7 @@
         stopEditingWhenCellsLoseFocus: true,
         singleClickEdit: false,
         enableCellTextSelection: true,
-        getRowId: params => params.data.id,
+        getRowId: params => String(params.data.id),   // v31 requires a string row id
         getRowStyle: params => {
             let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
             let discount = parseFloat(params.data.product_discount) || 0;
@@ -507,7 +507,7 @@
                     event.data.product_category_name = data.product.product_category_name;
                     event.data.parent_category = data.product.parent_category;
                     event.data.child_category = data.product.child_category;
-                    gridOptions.api.refreshCells({
+                    event.api.refreshCells({
                         rowNodes: [event.node],
                         columns: ['product_category_id']
                     });
@@ -526,11 +526,15 @@
         });
     }
     
-    // Initialize grid on page load
+    // Initialize grid on page load.
+    // AG-Grid v31 removed `new agGrid.Grid(...)`; the grid is now created with
+    // agGrid.createGrid(), which RETURNS the Grid API (gridOptions.api is no longer
+    // populated). Keep the returned api for programmatic calls.
+    let gridApi;
     document.addEventListener('DOMContentLoaded', function() {
         const gridDiv = document.querySelector('#products-grid');
-        new agGrid.Grid(gridDiv, gridOptions);
-        
+        gridApi = agGrid.createGrid(gridDiv, gridOptions);
+
         // Initialize Bootstrap toast
         $('.toast').toast({ autohide: true, delay: 3000 });
     });

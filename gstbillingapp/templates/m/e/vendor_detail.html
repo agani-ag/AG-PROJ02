@@ -1,0 +1,42 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block bizsel %}{% endblock %}
+{% block title %}{{ v.vendor_name }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage_vendors' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Vendors</a>{% endblock %}
+{% block heading %}{{ v.vendor_name }}{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <div class="between"><span class="muted">{% if settled %}Settled{% elif payable %}Payable{% else %}Excess paid{% endif %}</span>
+        <span class="b" style="font-size:22px;color:{% if payable %}var(--red){% else %}var(--green){% endif %}">&#8377; {{ balance_fmt }}</span></div>
+    {% if v.vendor_phone %}<div class="between sm mt"><span class="muted">Phone</span><a href="tel:{{ v.vendor_phone }}" class="b">{{ v.vendor_phone }}</a></div>{% endif %}
+    {% if v.vendor_gst %}<div class="between sm mt"><span class="muted">GST</span><span class="tabnum">{{ v.vendor_gst }}</span></div>{% endif %}
+    {% if v.vendor_address %}<div class="sm mt"><span class="muted">{{ v.vendor_address }}</span></div>{% endif %}
+</div>
+
+<div class="panel" style="padding:6px 16px">
+    <div class="srow"><span class="lbl"><span class="ico ic-red"><svg class="i"><use href="#ic-cart"/></svg></span><span class="nm">Purchased</span></span><span class="b tabnum c-red">&#8377; {{ purchased }}</span></div>
+    <div class="srow"><span class="lbl"><span class="ico ic-green"><svg class="i"><use href="#ic-check"/></svg></span><span class="nm">Paid</span></span><span class="b tabnum c-green">&#8377; {{ paid }}</span></div>
+    <div class="srow"><span class="lbl"><span class="ico ic-amber"><svg class="i"><use href="#ic-reply"/></svg></span><span class="nm">Returned</span></span><span class="b tabnum c-amber">&#8377; {{ returned }}</span></div>
+    <div class="srow"><span class="lbl"><span class="ico ic-blue"><svg class="i"><use href="#ic-box"/></svg></span><span class="nm">Other</span></span><span class="b tabnum c-blue">&#8377; {{ others }}</span></div>
+</div>
+
+<div class="sec"><h2 class="t" style="font-size:16px">Purchase logs</h2></div>
+{% if rows %}
+<div class="list">
+    {% for r in rows %}
+    <div class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-{{ r.color }}"><svg class="i"><use href="#ic-book"/></svg></span>
+            <span style="min-width:0"><span class="b">{{ r.type }}</span><div class="sub">{{ r.date|date:"d M Y" }}{% if r.reference %} · {{ r.reference }}{% endif %}{% if r.category %} · {{ r.category }}{% endif %}</div></span>
+        </span>
+        <span class="right" style="white-space:nowrap"><div class="b tabnum">&#8377; {{ r.amount }}</div><span class="badge b-{{ r.color }}">{{ r.type }}</span></span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-book"/></svg><div>No purchase logs for this vendor.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

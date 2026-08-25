@@ -3,28 +3,56 @@
 {% block title %}My pay{% endblock %}
 {% block heading %}My pay{% endblock %}
 {% block subhead %}<div class="sub">{{ employee.name }}</div>{% endblock %}
+{% block includecss %}
+.att{aspect-ratio:1;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.att-u{background:var(--bg);color:var(--ink)}
+.att-p{background:var(--greenbg);color:var(--green)}
+.att-a{background:var(--redbg);color:var(--red)}
+.att-h{background:var(--amberbg);color:var(--amber)}
+.att-l{background:var(--bluebg);color:var(--blue)}
+{% endblock %}
 {% block content %}
 
 {% if eligible %}
-<div class="sec"><h2 class="t" style="font-size:16px">Salary</h2></div>
-{% if salary %}
-<div class="panel">
-    <div class="between"><div style="min-width:0"><div class="b" style="font-size:15px">{{ salary.month }}/{{ salary.year }}</div><div class="sub">Base ₹ {{ salary.base_salary|inrs }} · {{ salary.paid_units }} of {{ salary.total_days }} days paid</div></div>
-        <div class="right" style="flex:none"><div class="sub">Net salary</div><div class="b" style="font-size:22px;white-space:nowrap">&#8377; {{ salary.calculated_salary|inrs }}</div></div></div>
-    {% if salary.deduction %}<div class="between sm mt"><span class="muted">Deduction (unpaid days)</span><span class="tabnum" style="color:var(--red)">− &#8377; {{ salary.deduction|inrs }}</span></div>{% endif %}
-    {% if salary.advances %}<div class="between sm mt"><span class="muted">Advances</span><span class="tabnum" style="color:var(--red)">− &#8377; {{ salary.advances|inrs }}</span></div>{% endif %}
-    {% if salary.bonus %}<div class="between sm mt"><span class="muted">Bonus</span><span class="tabnum" style="color:var(--green)">+ &#8377; {{ salary.bonus|inrs }}</span></div>{% endif %}
+<div class="sec"><h2 class="t" style="font-size:16px">Attendance</h2></div>
+<div class="between" style="margin:2px 0 10px">
+    <a class="badge b-grey" style="padding:7px 12px" href="?year={{ prev.year }}&month={{ prev.month }}">‹ Prev</a>
+    <span class="b">{{ month_name }} {{ year }}</span>
+    <a class="badge b-grey" style="padding:7px 12px" href="?year={{ next.year }}&month={{ next.month }}">Next ›</a>
 </div>
-{% if salary_history|length > 1 %}
+<div class="panel" style="padding:12px">
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;text-align:center;font-size:11px;color:var(--faint);margin-bottom:4px">
+        <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">
+        {% for week in weeks %}{% for cell in week %}{% if cell %}<span class="att {{ cell.cls }}">{{ cell.day }}</span>{% else %}<span></span>{% endif %}{% endfor %}{% endfor %}
+    </div>
+    <div class="sub" style="margin-top:9px;display:flex;flex-wrap:wrap;gap:10px;font-size:11px">
+        <span><b style="color:var(--green)">■</b> Present {{ counts.present }}</span>
+        <span><b style="color:var(--amber)">■</b> Half {{ counts.half }}</span>
+        <span><b style="color:var(--blue)">■</b> Leave {{ counts.leave }}</span>
+        <span><b style="color:var(--red)">■</b> Absent {{ counts.absent }}</span>
+        {% if counts.unmarked %}<span><b style="color:var(--faint)">■</b> Unmarked {{ counts.unmarked }}</span>{% endif %}
+    </div>
+</div>
+
+<div class="sec"><h2 class="t" style="font-size:16px">Salary · {{ month_name }}</h2></div>
+<div class="panel">
+    <div class="between"><div style="min-width:0"><div class="sub">{{ record.paid_units }} of {{ record.total_days }} days paid · ₹ {{ per_day|inrs }}/day</div><div class="b" style="font-size:15px;margin-top:2px">Base ₹ {{ record.base_salary|inrs }}</div></div>
+        <div class="right" style="flex:none"><div class="sub">Net pay</div><div class="b" style="font-size:22px;white-space:nowrap">&#8377; {{ record.calculated_salary|inrs }}</div></div></div>
+    {% if record.deduction %}<div class="between sm mt"><span class="muted">Deduction (unpaid days)</span><span class="tabnum" style="color:var(--red)">− &#8377; {{ record.deduction|inrs }}</span></div>{% endif %}
+    {% if record.advances %}<div class="between sm mt"><span class="muted">Advances</span><span class="tabnum" style="color:var(--red)">− &#8377; {{ record.advances|inrs }}</span></div>{% endif %}
+    {% if record.bonus %}<div class="between sm mt"><span class="muted">Bonus</span><span class="tabnum" style="color:var(--green)">+ &#8377; {{ record.bonus|inrs }}</span></div>{% endif %}
+</div>
+
+{% if salary_history %}
+<div class="sec"><h2 class="t" style="font-size:16px">Past months</h2></div>
 <div class="list">
     {% for r in salary_history %}
     <div class="row"><span class="lbl"><span><span class="b">{{ r.month }}/{{ r.year }}</span><div class="sub">{% if r.deduction %}₹ {{ r.deduction|inrs }} deducted{% else %}Full pay{% endif %}</div></span></span><span class="b tabnum" style="white-space:nowrap">&#8377; {{ r.calculated_salary|inrs }}</span></div>
     {% endfor %}
     <div class="row" style="border-top:2px solid var(--line)"><span class="lbl"><span class="b">Grand total</span></span><span class="b tabnum" style="font-size:16px;white-space:nowrap">&#8377; {{ salary_total|inrs }}</span></div>
 </div>
-{% endif %}
-{% else %}
-<div class="empty"><svg class="i"><use href="#ic-wallet"/></svg><div>No salary recorded yet.</div></div>
 {% endif %}
 {% endif %}
 

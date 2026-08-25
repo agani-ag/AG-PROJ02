@@ -3,6 +3,8 @@
 {% block heading %}My Orders{% endblock %}
 {% block content %}
 
+<a class="btn btn-acc" href="{% url 'm_order' %}" style="margin-bottom:14px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> Place a new order</a>
+
 {% if rows %}
 {% include "m/_searchbar.html" with target="#ord-list" empty="#ord-empty" placeholder="Search number or status…" %}
 <div class="list" id="ord-list">

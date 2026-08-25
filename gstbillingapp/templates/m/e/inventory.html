@@ -1,0 +1,35 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Inventory{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_home' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Home</a>{% endblock %}
+{% block heading %}Inventory{% endblock %}
+{% block content %}
+
+<div class="filt" style="display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;-webkit-overflow-scrolling:touch">
+    <a class="badge {% if not low_only %}b-blue{% else %}b-grey{% endif %}" style="padding:8px 14px;white-space:nowrap" href="{% url 'm_manage_inventory' %}">All stock</a>
+    <a class="badge {% if low_only %}b-red{% else %}b-grey{% endif %}" style="padding:8px 14px;white-space:nowrap" href="{% url 'm_manage_inventory' %}?low=1">Low stock{% if low_count %} · {{ low_count }}{% endif %}</a>
+</div>
+
+{% if rows %}
+{% include "m/_searchbar.html" with target="#inv-list" empty="#inv-empty" placeholder="Search model or name…" %}
+<div class="list" id="inv-list">
+    {% for r in rows %}
+    <div class="row" data-s="{{ r.model_no|lower }} {{ r.name|lower }}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico {% if r.low %}ic-red{% else %}ic-green{% endif %}"><svg class="i"><use href="#ic-box"/></svg></span>
+            <span style="min-width:0"><span class="b">{{ r.model_no }}</span><div class="sub">{{ r.name }}{% if r.alert %} · alert ≤ {{ r.alert }}{% endif %}</div></span>
+        </span>
+        <span class="right" style="white-space:nowrap">
+            <div class="b tabnum" style="{% if r.low %}color:var(--red){% endif %}">{{ r.stock }}</div>
+            {% if r.low %}<span class="badge b-red">Low</span>{% endif %}
+        </span>
+    </div>
+    {% endfor %}
+</div>
+<div class="empty" id="inv-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-box"/></svg><div>{% if low_only %}Nothing low on stock. 👍{% else %}No stock tracked yet.{% endif %}</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

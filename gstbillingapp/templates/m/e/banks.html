@@ -1,0 +1,25 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Bank & UPI{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Manage</a>{% endblock %}
+{% block heading %}Bank &amp; UPI{% endblock %}
+{% block content %}
+
+<a class="btn btn-acc" href="{% url 'm_manage_bank_new' %}" style="margin-bottom:14px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> Add bank / UPI</a>
+
+{% if rows %}
+{% for b in rows %}
+<a class="panel" href="{% url 'm_manage_bank_edit' b.id %}" style="display:block;color:inherit">
+    <div class="between"><div class="b" style="font-size:15px">{{ b.bank_name|default:"UPI" }}</div>{% if b.branch_name %}<span class="badge b-grey">{{ b.branch_name }}</span>{% endif %}</div>
+    <div class="between sm mt"><span class="muted">A/C name</span><span class="b">{{ b.account_name }}</span></div>
+    <div class="between sm mt"><span class="muted">A/C number</span><span class="tabnum">{{ b.account_number }}</span></div>
+    {% if b.ifsc_code %}<div class="between sm mt"><span class="muted">IFSC</span><span class="tabnum">{{ b.ifsc_code }}</span></div>{% endif %}
+    {% if b.upi_id %}<div class="between sm mt"><span class="muted">UPI</span><span class="tabnum">{{ b.upi_id }}</span></div>{% endif %}
+</a>
+{% endfor %}
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-building"/></svg><div>No bank accounts yet — add one above.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% load money %}
+{% block title %}{{ employee.name }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage_team' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Team</a>{% endblock %}
+{% block heading %}{{ employee.name }}{% endblock %}
+{% block subhead %}<div class="sub">{% if posting.is_admin %}Admin{% else %}Staff{% endif %}{% if not posting.is_home %} · Shared{% endif %}</div>{% endblock %}
+{% block content %}
+
+{% if not_eligible %}
+<div class="panel" style="background:var(--amberbg);color:#8a5a00"><div class="b">Not on payroll</div><div class="sub" style="color:#8a5a00">Enable "attendance eligible" on the desktop to track this person's attendance &amp; salary. You can still record incentives below.</div></div>
+{% else %}
+
+<div class="between" style="margin:2px 0 10px">
+    <a class="badge b-grey" style="padding:7px 12px" href="?year={{ prev.year }}&month={{ prev.month }}">‹ Prev</a>
+    <span class="b">{{ month_name }} {{ year }}</span>
+    <a class="badge b-grey" style="padding:7px 12px" href="?year={{ next.year }}&month={{ next.month }}">Next ›</a>
+</div>
+
+<div class="panel" style="padding:12px">
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;text-align:center;font-size:11px;color:var(--faint);margin-bottom:4px">
+        <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">
+        {% for week in weeks %}{% for cell in week %}
+            {% if cell %}
+            <button type="button" class="att-cell" data-date="{{ cell.date }}" data-status="{% if cell.status is not None %}{{ cell.status }}{% else %}-1{% endif %}"
+                    style="aspect-ratio:1;border:none;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer">{{ cell.day }}</button>
+            {% else %}<span></span>{% endif %}
+        {% endfor %}{% endfor %}
+    </div>
+    <div class="sub" style="margin-top:9px;display:flex;flex-wrap:wrap;gap:10px;font-size:11px">
+        <span><b style="color:var(--green)">■</b> Present</span>
+        <span><b style="color:var(--amber)">■</b> Half</span>
+        <span><b style="color:var(--blue)">■</b> Leave</span>
+        <span><b style="color:var(--red)">■</b> Absent</span>
+        <span class="muted">Tap a day to cycle</span>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="between"><div style="min-width:0"><div class="b" style="font-size:15px">Salary · {{ month_name }}</div><div class="sub" id="paidline">{{ record.paid_units }} of {{ record.total_days }} days paid · Base ₹ {{ record.base_salary|inrs }}</div></div>
+        <div class="right" style="flex:none"><div class="sub">Net pay</div><div class="b" id="netpay" style="font-size:22px;white-space:nowrap">&#8377; {{ record.calculated_salary|inrs }}</div></div></div>
+    <div class="between sm mt"><span class="muted">Deduction (unpaid days)</span><span class="tabnum" id="dedline" style="color:var(--red)">− &#8377; {{ record.deduction|inrs }}</span></div>
+    <div class="row" style="padding:10px 0 0;gap:8px;align-items:flex-end">
+        <label style="flex:1;font-size:12px;color:var(--soft)">Advances<input id="adv" type="number" inputmode="decimal" value="{{ record.advances|floatformat:'-2' }}" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:10px;font-size:15px"></label>
+        <label style="flex:1;font-size:12px;color:var(--soft)">Bonus<input id="bon" type="number" inputmode="decimal" value="{{ record.bonus|floatformat:'-2' }}" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:10px;font-size:15px"></label>
+    </div>
+    <button class="btn btn-acc" style="margin-top:10px" onclick="saveSalary()">Save advances &amp; bonus</button>
+</div>
+{% endif %}
+
+<div class="sec"><h2 class="t" style="font-size:16px">Incentives</h2></div>
+<div class="panel">
+    <div class="between"><span class="muted">Total · <span id="incunpaid">₹ {{ inc_unpaid }}</span> unpaid</span><span class="b">&#8377; {{ inc_total }}</span></div>
+    <div class="row" style="padding:10px 0 0;gap:8px;align-items:flex-end">
+        <label style="flex:1;font-size:12px;color:var(--soft)">Amount<input id="incamt" type="number" inputmode="decimal" placeholder="0" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:10px;font-size:15px"></label>
+        <label style="flex:1.4;font-size:12px;color:var(--soft)">Note<input id="incnote" type="text" placeholder="Reason (optional)" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:10px;font-size:15px"></label>
+    </div>
+    <button class="btn btn-acc" style="margin-top:10px" onclick="addIncentive()">Add incentive</button>
+</div>
+{% if incentives %}
+<div class="list">
+    {% for i in incentives %}
+    <div class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico {% if i.is_paid %}ic-green{% else %}ic-amber{% endif %}"><svg class="i"><use href="#ic-wallet"/></svg></span>
+            <span style="min-width:0"><span class="b">&#8377; {{ i.amount|inrs }}</span><div class="sub">{{ i.date|date:"d M Y" }}{% if i.description %} · {{ i.description }}{% endif %}</div></span>
+        </span>
+        <button type="button" class="badge {% if i.is_paid %}b-green{% else %}b-amber{% endif %}" style="border:none;cursor:pointer" data-pk="{{ i.id }}" onclick="toggleInc(this)">{% if i.is_paid %}Paid{% else %}Unpaid{% endif %}</button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}
+{% block includejs %}
+<script>
+{% if not not_eligible %}
+var MARK_URL = "{% url 'm_manage_attendance_mark' posting.id %}";
+var SAL_URL  = "{% url 'm_manage_salary_save' posting.id %}?year={{ year }}&month={{ month }}";
+// present 0, absent 1, half 2, leave 3; -1 = unmarked. Tap cycles P→H→L→A→clear.
+var CYCLE = {"-1":0, "0":2, "2":3, "3":1, "1":-1};
+var COLORS = {"-1":["var(--bg)","var(--ink)"], "0":["var(--greenbg)","var(--green)"], "1":["var(--redbg)","var(--red)"], "2":["var(--amberbg)","var(--amber)"], "3":["var(--bluebg)","var(--blue)"]};
+function paint(el){var s=el.getAttribute('data-status');var c=COLORS[s]||COLORS["-1"];el.style.background=c[0];el.style.color=c[1];}
+document.querySelectorAll('.att-cell').forEach(function(el){
+    paint(el);
+    el.addEventListener('click', async function(){
+        var cur = el.getAttribute('data-status');
+        var next = String(CYCLE[cur]);
+        el.setAttribute('data-status', next); paint(el);
+        var r = await M.post(MARK_URL, {date: el.getAttribute('data-date'), status: parseInt(next,10)});
+        if(r && r.ok){ document.getElementById('netpay').innerHTML='&#8377; '+r.net; document.getElementById('dedline').innerHTML='− &#8377; '+r.deduction; }
+        else { el.setAttribute('data-status', cur); paint(el); M.toast((r&&r.message)||'Could not save'); }
+    });
+});
+async function saveSalary(){
+    var r = await M.post(SAL_URL, {advances: document.getElementById('adv').value||0, bonus: document.getElementById('bon').value||0});
+    if(r && r.ok){ document.getElementById('netpay').innerHTML='&#8377; '+r.net; M.toast('Saved'); }
+    else { M.toast((r&&r.message)||'Could not save'); }
+}
+{% endif %}
+var INC_URL = "{% url 'm_manage_incentive_add' posting.id %}";
+async function addIncentive(){
+    var amt = document.getElementById('incamt').value;
+    if(!amt || parseFloat(amt)<=0){ M.toast('Enter an amount'); return; }
+    var r = await M.post(INC_URL, {amount: amt, description: document.getElementById('incnote').value});
+    if(r && r.ok){ location.reload(); } else { M.toast((r&&r.message)||'Could not add'); }
+}
+async function toggleInc(btn){
+    var r = await M.post("/m/employee/manage/incentive/"+btn.getAttribute('data-pk')+"/toggle", {});
+    if(r && r.ok){ btn.textContent = r.is_paid?'Paid':'Unpaid'; btn.className='badge '+(r.is_paid?'b-green':'b-amber'); btn.style.border='none'; }
+    else { M.toast('Could not update'); }
+}
+</script>
+{% endblock %}

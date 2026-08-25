@@ -78,6 +78,11 @@ def _accessible(identity):
         siblings = [primary]
     if primary.id not in [s.id for s in siblings]:
         siblings.append(primary)
+    # Per-business mobile access: a business that has the customer's "Mobile User" toggle
+    # OFF is inactive on the app, so that business is dropped from the accessible set.
+    # If every business has it off (the primary included), no business remains and the
+    # caller denies the login.
+    siblings = [s for s in siblings if s.is_mobile_user]
     by_business = {s.user_id: s for s in siblings if s.user_id}
     return list(User.objects.filter(id__in=list(by_business.keys()))), by_business
 
@@ -98,10 +103,15 @@ def resolve_mobile_actor(request):
             identity = _load_identity({"r": kind, "id": rid, "v": request.session.get("m_v")})
 
     if not identity:
+        # No/invalid/expired token or a revoked link — ask them to reopen from the app.
+        request._mobile_denied = "expired"
         return None
 
     businesses, by_business = _accessible(identity)
     if not businesses:
+        # The person is known, but every business has turned their mobile access off.
+        # That's a deactivation, not an expiry — tell them to contact the business.
+        request._mobile_denied = "deactivated"
         return None
 
     # Resolve the active business (?biz → session → first).
@@ -143,7 +153,10 @@ def mobile_login_required(role=None):
         def _wrapped(request, *args, **kwargs):
             actor = resolve_mobile_actor(request)
             if not actor or (role and actor["role"] != role):
-                return render(request, "m/denied.html", status=403)
+                # "deactivated" only when the identity is valid but access was turned off;
+                # a role mismatch or missing identity is the generic "expired" case.
+                reason = getattr(request, "_mobile_denied", "expired") if not actor else "expired"
+                return render(request, "m/denied.html", {"reason": reason}, status=403)
             request.mobile_actor = actor
 
             if request.GET.get("t"):

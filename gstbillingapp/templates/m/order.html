@@ -7,6 +7,8 @@
 .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;-webkit-overflow-scrolling:touch}
 .chips button{flex:0 0 auto;border:0;padding:7px 14px;border-radius:20px;background:var(--card);color:var(--soft);font-size:12.5px;font-weight:700;white-space:nowrap;box-shadow:var(--sh)}
 .chips button.on{background:var(--acc);color:#fff}
+.fsel{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fsel select{flex:1;min-width:110px;border:1px solid var(--line);border-radius:12px;padding:9px 10px;font-size:13px;background:var(--card);color:var(--ink);box-shadow:var(--sh)}
 .prod{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .prod:last-child{border-bottom:0}
 .prod .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -36,6 +38,12 @@
 </div>
 
 <div class="chips" id="chips"></div>
+<div class="chips" id="sortchips" style="padding-top:0">
+    <span style="align-self:center;font-size:12px;color:var(--faint);padding:0 4px">Sort</span>
+    <button class="on" data-s="name" onclick="setSort(this,'name')">Name</button>
+    <button data-s="price" onclick="setSort(this,'price')">Price</button>
+</div>
+<div class="fsel" id="filters"></div>
 
 <div class="list"><div id="plist"></div></div>
 <div class="empty" id="empty" style="display:none"><svg class="i"><use href="#ic-box"/></svg><div>No products found.</div></div>
@@ -56,6 +64,8 @@ const CART_KEY = 'm_order_' + CFG.role + '_' + CFG.customer;
 
 let cart = loadCart();
 let activeCat = '';
+let sortField = 'name', sortDir = 'asc';   // 'name'|'price', 'asc'|'desc'; re-tap a field to flip
+let fDiv = '', fModel = '', fColour = '';  // division / model-category / colour filters
 
 function loadCart(){ try{ var c = JSON.parse(localStorage.getItem(CART_KEY)); return (c && typeof c==='object') ? c : {}; }catch(e){ return {}; } }
 function saveCart(){ try{ localStorage.setItem(CART_KEY, JSON.stringify(cart)); }catch(e){} }
@@ -71,37 +81,115 @@ function lineAmt(p, qty){
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function buildChips(){
-    var used = {}; PRODUCTS.forEach(function(p){ if(p.product_category_id) used[p.product_category_id]=1; });
-    var html = '<button class="on" data-c="" onclick="setCat(this,\'\')">All</button>';
-    CATS.forEach(function(c){ if(used[c.id]) html += '<button data-c="'+c.id+'" onclick="setCat(this,\''+c.id+'\')">'+esc(c.category_name)+'</button>'; });
-    document.getElementById('chips').innerHTML = html;
+    // Category chips cascade like the dropdowns: show only categories present among the
+    // products the other filters allow. If none use a category, hide the row (no lone "All").
+    var used = {}; PRODUCTS.forEach(function(p){ if(baseMatch(p,'cat') && p.product_category_id) used[p.product_category_id]=1; });
+    if(activeCat && !used[activeCat]) activeCat = '';           // selection no longer valid
+    var cats = CATS.filter(function(c){ return used[c.id]; });
+    var box = document.getElementById('chips');
+    if(!cats.length){ box.innerHTML = ''; box.style.display = 'none'; return; }
+    box.style.display = '';
+    var html = '<button class="'+(activeCat===''?'on':'')+'" data-c="" onclick="setCat(this,\'\')">All</button>';
+    cats.forEach(function(c){ html += '<button class="'+(String(activeCat)===String(c.id)?'on':'')+'" data-c="'+c.id+'" onclick="setCat(this,\''+c.id+'\')">'+esc(c.category_name)+'</button>'; });
+    box.innerHTML = html;
 }
 function setCat(btn, id){
     activeCat = id;
-    document.querySelectorAll('#chips button').forEach(function(b){ b.classList.remove('on'); });
+    buildChips(); buildFilters(); render();
+}
+function setSort(btn, field){
+    if(sortField===field){ sortDir = sortDir==='asc' ? 'desc' : 'asc'; }
+    else { sortField = field; sortDir = 'asc'; }
+    document.querySelectorAll('#sortchips button').forEach(function(b){ b.classList.remove('on'); });
     btn.classList.add('on');
-    render();
+    paintSort(); render();
+}
+// Division / model-category / colour dropdowns. They CASCADE: each dropdown's options are
+// the values still available given the category chip and the OTHER two dropdowns. A
+// dropdown with nothing to offer hides itself, and a selection that another filter rules
+// out is cleared automatically.
+const FDEFS = [
+    {k:'div', field:'product_division_category', label:'divisions'},
+    {k:'model', field:'product_model_category', label:'model categories'},
+    {k:'colour', field:'product_colour', label:'colours'}
+];
+function fVal(k){ return k==='div' ? fDiv : k==='model' ? fModel : fColour; }
+function fSet(k, v){ if(k==='div') fDiv=v; else if(k==='model') fModel=v; else fColour=v; }
+// Does p pass the category chip + every dimension filter EXCEPT `exceptKey`?
+function baseMatch(p, exceptKey){
+    if(exceptKey!=='cat' && activeCat && String(p.product_category_id)!==String(activeCat)) return false;
+    if(exceptKey!=='div' && fDiv && String(p.product_division_category||'').trim()!==fDiv) return false;
+    if(exceptKey!=='model' && fModel && String(p.product_model_category||'').trim()!==fModel) return false;
+    if(exceptKey!=='colour' && fColour && String(p.product_colour||'').trim()!==fColour) return false;
+    return true;
+}
+function distinctFor(field, exceptKey){
+    var s={}; PRODUCTS.forEach(function(p){ if(!baseMatch(p, exceptKey)) return; var v=String(p[field]||'').trim(); if(v) s[v]=1; });
+    return Object.keys(s).sort();
+}
+function buildFilters(){
+    // Clear any selection the other filters have made impossible, then recompute options.
+    FDEFS.forEach(function(d){ var cur=fVal(d.k); if(cur && distinctFor(d.field, d.k).indexOf(cur)<0) fSet(d.k, ''); });
+    var html = '';
+    FDEFS.forEach(function(d){
+        var vals = distinctFor(d.field, d.k);
+        if(!vals.length) return;                       // nothing to filter by → hide
+        var cur = fVal(d.k);
+        html += '<select onchange="setFilter(\''+d.k+'\',this.value)"><option value="">All '+d.label+'</option>';
+        vals.forEach(function(v){ html += '<option value="'+esc(v)+'"'+(v===cur?' selected':'')+'>'+esc(v)+'</option>'; });
+        html += '</select>';
+    });
+    document.getElementById('filters').innerHTML = html;
+}
+function setFilter(k, v){ fSet(k, v); buildChips(); buildFilters(); render(); }
+function paintSort(){
+    document.querySelectorAll('#sortchips button').forEach(function(b){
+        var f = b.getAttribute('data-s'), base = f==='name' ? 'Name' : 'Price';
+        b.textContent = base + (f===sortField ? (sortDir==='asc' ? ' ↑' : ' ↓') : '');
+    });
+}
+function sortRows(arr){
+    arr.sort(function(a,b){
+        var r = sortField==='price'
+            ? (price(a)-price(b))
+            : String(a.product_name||a.model_no||'').localeCompare(String(b.product_name||b.model_no||''));
+        return sortDir==='asc' ? r : -r;
+    });
+    return arr;
 }
 
 function render(){
     var q = (document.getElementById('q').value||'').toLowerCase().trim();
-    var out = '', shown = 0;
-    PRODUCTS.forEach(function(p){
-        if(activeCat && String(p.product_category_id)!==String(activeCat)) return;
+    var arr = PRODUCTS.filter(function(p){
+        if(activeCat && String(p.product_category_id)!==String(activeCat)) return false;
+        if(fDiv && String(p.product_division_category||'').trim()!==fDiv) return false;
+        if(fModel && String(p.product_model_category||'').trim()!==fModel) return false;
+        if(fColour && String(p.product_colour||'').trim()!==fColour) return false;
         if(q){
             var hay = ((p.product_name||'')+' '+(p.model_no||'')+' '+(p.product_colour||'')).toLowerCase();
-            if(hay.indexOf(q)<0) return;
+            if(hay.indexOf(q)<0) return false;
         }
+        return true;
+    });
+    sortRows(arr);
+    var out = '', shown = 0;
+    arr.forEach(function(p){
         shown++;
         var qty = cart[p.id]||0;
         var ctrl = qty>0
             ? '<div class="step"><button onclick="dec('+p.id+')">&minus;</button><input class="q" type="number" inputmode="numeric" min="1" value="'+qty+'" onchange="setQty('+p.id+',this.value)" onfocus="this.select()"><button onclick="inc('+p.id+')">+</button></div>'
             : '<button class="addbtn" onclick="inc('+p.id+')"><svg class="i"><use href="#ic-plus"/></svg></button>';
         var sub = [p.model_no, p.product_colour].filter(Boolean).map(esc).join(' · ');
+        // Show the actual price the customer pays (offer = rate less discount, plus GST).
+        // When that's below the listed MRP, strike the MRP so the discount is visible.
+        var offer = lineAmt(p, 1), mrp = price(p);
+        var prHtml = (mrp > offer + 0.005)
+            ? M.money2(offer)+' <span style="text-decoration:line-through;color:var(--faint);font-size:12px;font-weight:600">'+M.money2(mrp)+'</span>'
+            : M.money2(offer);
         out += '<div class="prod" data-id="'+p.id+'">'
             + '<div style="flex:1;min-width:0"><div class="nm">'+esc(p.product_name||p.model_no||'Item')+'</div>'
             + (sub?'<div class="meta">'+sub+'</div>':'')
-            + '<div class="pr">'+M.money2(price(p))+'</div></div>'
+            + '<div class="pr">'+prHtml+'</div></div>'
             + ctrl + '</div>';
     });
     document.getElementById('plist').innerHTML = out;
@@ -126,7 +214,7 @@ function bar(){
 
 // window.M (money/toast helpers) is defined later in base.html, so wait for the full
 // document before the first render that uses it.
-function init(){ buildChips(); render(); bar(); }
+function init(){ buildChips(); buildFilters(); paintSort(); render(); bar(); }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 </script>
 {% endblock %}

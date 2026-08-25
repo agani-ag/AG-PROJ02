@@ -16,8 +16,8 @@
 {% block content %}
 
 <div class="between" style="margin:2px 2px 8px">
-    <span class="muted sm">{{ profile.business_brand|default:profile.business_title|default:"SyncUp" }} · {{ today|date:"d M Y" }} · <span id="clock" style="font-variant-numeric:tabular-nums;font-weight:600"></span></span>
-    <a href="{% url 'm_employee_pay' %}" class="badge b-blue" style="padding:5px 11px;font-size:12px"><svg class="i" style="width:13px;height:13px;stroke:var(--acc);vertical-align:-2px"><use href="#ic-wallet"/></svg> My pay</a>
+    <span class="muted sm" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ profile.business_brand|default:profile.business_title|default:"SyncUp" }} · {{ today|date:"d M Y" }} · <span id="clock" style="font-variant-numeric:tabular-nums;font-weight:600"></span></span>
+    <a href="{% url 'm_employee_pay' %}" class="badge b-blue" style="padding:5px 11px;font-size:12px;flex:none"><svg class="i" style="width:13px;height:13px;stroke:var(--acc);vertical-align:-2px"><use href="#ic-wallet"/></svg> My pay</a>
 </div>
 <script>
 (function(){var c=document.getElementById('clock');if(!c)return;
@@ -39,6 +39,20 @@ t();setInterval(t,1000);})();
         <div class="v">&#8377; {{ coll|inr0 }}</div>
         <p class="c">today</p>
     </a>
+    <a href="{% if is_admin %}{% url 'm_manage_products' %}{% else %}{% url 'm_employee_catalog' %}{% endif %}" class="stat c-amber"{% if not is_admin %} style="grid-column:1 / -1"{% endif %}>
+        <div class="chip"><svg class="i"><use href="#ic-cart"/></svg></div>
+        <p class="l">Products</p>
+        <div class="v">Browse catalogue</div>
+        <p class="c">{% if is_admin %}Pricing &amp; margins{% else %}Prices &amp; availability{% endif %}</p>
+    </a>
+    {% if is_admin %}
+    <a href="{% url 'm_manage_inventory' %}" class="stat c-red">
+        <div class="chip"><svg class="i"><use href="#ic-box"/></svg></div>
+        <p class="l">Inventory</p>
+        <div class="v">{% if low_stock %}{{ low_stock }} low{% else %}Stock OK{% endif %}</div>
+        <p class="c">{% if low_stock %}need reorder{% else %}levels healthy{% endif %}</p>
+    </a>
+    {% endif %}
 </div>
 
 <div class="sec"><h2 class="t">Today's tasks</h2><p class="s">What needs your attention</p></div>
@@ -67,8 +81,9 @@ t();setInterval(t,1000);})();
 </div>
 
 {% if is_admin %}
+<a href="{% url 'm_manage' %}" class="btn btn-acc" style="margin:14px 0 4px"><svg class="i" style="stroke:#fff"><use href="#ic-building"/></svg> Manage business</a>
 {% if pending_count %}
-<a href="{% url 'm_employee_approvals' %}" class="btn btn-acc" style="margin:14px 0 4px;background:linear-gradient(135deg,var(--amber),#ffb648);box-shadow:0 6px 16px rgba(255,149,0,.28)">
+<a href="{% url 'm_employee_approvals' %}" class="btn btn-acc" style="margin:10px 0 4px;background:linear-gradient(135deg,var(--amber),#ffb648);box-shadow:0 6px 16px rgba(255,149,0,.28)">
     <svg class="i" style="stroke:#fff"><use href="#ic-clock"/></svg> {{ pending_count }} payment{{ pending_count|pluralize }} awaiting your approval
 </a>
 {% endif %}

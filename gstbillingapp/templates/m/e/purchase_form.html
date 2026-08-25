@@ -1,0 +1,43 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Add purchase entry{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage_purchases' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Purchase logs</a>{% endblock %}
+{% block heading %}Add entry{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <label class="lbl">Vendor</label>
+    <select class="field" id="vendor">
+        <option value="">{{ brand }} (own brand)</option>
+        {% for v in vendors %}<option value="{{ v.id }}">{{ v.vendor_name }}</option>{% endfor %}
+    </select>
+    <div class="sub muted" style="margin:-4px 0 8px">Leave as "own brand" for a purchase not tied to a vendor.</div>
+    <label class="lbl">Type</label>
+    <select class="field" id="change_type">
+        {% for val,label in types %}<option value="{{ val }}"{% if val == 1 %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <label class="lbl">Amount *</label>
+    <input class="field" id="amount" type="number" inputmode="decimal" placeholder="0">
+    <label class="lbl">Reference</label>
+    <input class="field" id="reference" placeholder="Bill / invoice no. (optional)">
+    <label class="lbl">Category</label>
+    <input class="field" id="category" placeholder="Optional">
+    <label class="lbl">Date</label>
+    <input class="field" id="date" type="date" value="{{ today }}">
+</div>
+<button class="btn btn-acc" onclick="savePurchase()"><svg class="i" style="stroke:#fff"><use href="#ic-check"/></svg> Add entry</button>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}
+{% block includejs %}
+<script>
+function val(id){ return document.getElementById(id).value.trim(); }
+async function savePurchase(){
+    if(!val('amount') || parseFloat(val('amount'))<=0){ M.toast('Enter an amount'); return; }
+    var r = await M.post("{% url 'm_manage_purchase_save' %}", {
+        vendor: val('vendor'), change_type: val('change_type'), amount: val('amount'),
+        reference: val('reference'), category: val('category'), date: val('date') });
+    if(r && r.ok){ location.href = r.redirect; } else { M.toast((r&&r.message)||'Could not save'); }
+}
+</script>
+{% endblock %}

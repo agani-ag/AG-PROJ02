@@ -3,8 +3,14 @@
 {% block heading %}Sign in{% endblock %}
 {% block content %}
 <div class="empty" style="padding-top:20vh">
+    {% if reason == "deactivated" %}
+    <svg class="i" style="width:46px;height:46px;stroke:var(--amber)"><use href="#ic-user"/></svg>
+    <h3 style="margin:10px 0 4px">Mobile access turned off</h3>
+    <p class="muted">Your mobile access is currently inactive. Please contact the business owner to re-enable it.</p>
+    {% else %}
     <svg class="i" style="width:46px;height:46px;stroke:var(--red)"><use href="#ic-clock"/></svg>
     <h3 style="margin:10px 0 4px">Session expired</h3>
     <p class="muted">Please reopen this page from the SyncUp app to sign in again.</p>
+    {% endif %}
 </div>
 {% endblock %}

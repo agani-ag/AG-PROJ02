@@ -148,6 +148,9 @@ def home(request):
     exp_qs = ExpenseTracker.objects.filter(user=u)
     total_expenses = exp_qs.aggregate(t=Sum("amount"))["t"] or 0
     pending_count = BookLog.objects.filter(parent_book__user=u, is_active=False, change_type=0).count()
+    from ...models import Inventory
+    low_stock = Inventory.objects.filter(user=u, alert_level__gt=0,
+                                         current_stock__lte=F("alert_level")).count()
 
     def money(v):
         return format_inr(v, 0)
@@ -185,7 +188,7 @@ def home(request):
         "inv_count": invs.count(),
         "cust_count": len(custs),
         "due_total": round(due_total, 2), "due_count": due_count,
-        "tasks": tasks, "pending_count": pending_count,
+        "tasks": tasks, "pending_count": pending_count, "low_stock": low_stock,
         "financial": financial, "collection": collection,
     })
 
@@ -512,23 +515,83 @@ def orders(request):
 
 
 @mobile_login_required("employee")
+def catalog(request):
+    """Read-only product catalog for ANY employee — search / filter / sort, but no cost
+    price (uses the same field-whitelisted payload as the order cart)."""
+    from ...utils import cart_product_payload
+    from ...models import ProductCategory, Product
+    u = _user(request)
+    categories = list(ProductCategory.objects.filter(user=u).values("id", "category_name"))
+    return render(request, "m/e/products.html", {
+        "products_json": json.dumps(cart_product_payload(u)),
+        "categories_json": json.dumps(categories),
+        "count": Product.objects.filter(user=u).count(),
+        "show_cost": False,
+    })
+
+
+@mobile_login_required("employee")
 def my_pay(request):
-    """The employee's own salary + incentives — read-only self-view. Salary is entered by
-    the business on desktop; here the employee just sees their monthly pay."""
+    """The employee's own attendance, salary & incentives — READ-ONLY self-view. Salary and
+    attendance are set by the business on desktop; here the employee just sees them."""
+    import calendar as _cal
+    from decimal import Decimal
+    from ...models import AttendanceLog
+
     emp = _emp(request)
-    # Salary/incentives are per the ACTIVE business (posting) — a shared employee sees the
-    # pay for whichever business they're currently switched to.
+    # Salary/attendance/incentives are per the ACTIVE business (posting) — a shared employee
+    # sees the pay for whichever business they're currently switched to.
     posting = request.mobile_actor.get("posting")
     eligible = bool(posting and posting.attendance_eligible)
-    salary = SalaryRecord.objects.filter(posting=posting).first() if eligible else None
-    salary_history = list(SalaryRecord.objects.filter(posting=posting)[:12]) if eligible else []
-    salary_total = sum(float(r.calculated_salary) for r in salary_history)
-    incentives = list(EmployeeIncentive.objects.filter(posting=posting)[:50]) if posting else []
-    inc_total = sum(float(i.amount) for i in incentives)
-    inc_unpaid = sum(float(i.amount) for i in incentives if not i.is_paid)
+    ctx = {"employee": emp, "eligible": eligible}
 
-    return render(request, "m/e/pay.html", {
-        "employee": emp, "eligible": eligible,
-        "salary": salary, "salary_history": salary_history, "salary_total": salary_total,
-        "incentives": incentives, "inc_total": inc_total, "inc_unpaid": inc_unpaid,
-    })
+    if eligible:
+        today = datetime.date.today()
+        try:
+            year = int(request.GET.get("year") or today.year)
+            month = int(request.GET.get("month") or today.month)
+            if not (1 <= month <= 12):
+                month = today.month
+        except (ValueError, TypeError):
+            year, month = today.year, today.month
+
+        logs = {l.date: l for l in AttendanceLog.objects.filter(
+            posting=posting, date__year=year, date__month=month)}
+        first_wd, days_in_month = _cal.monthrange(year, month)
+        lead = (first_wd + 1) % 7                    # Sun-first grid
+        cls = {0: "att-p", 1: "att-a", 2: "att-h", 3: "att-l"}
+        cells = [None] * lead
+        for d in range(1, days_in_month + 1):
+            lg = logs.get(datetime.date(year, month, d))
+            cells.append({"day": d, "cls": cls.get(lg.status, "att-u") if lg else "att-u"})
+        while len(cells) % 7:
+            cells.append(None)
+        weeks = [cells[i:i + 7] for i in range(0, len(cells), 7)]
+
+        counts = {"present": 0, "absent": 0, "half": 0, "leave": 0}
+        for lg in logs.values():
+            counts[{0: "present", 1: "absent", 2: "half", 3: "leave"}[lg.status]] += 1
+        counts["unmarked"] = days_in_month - len(logs)
+
+        record = calculate_employee_salary(posting, year, month)
+        per_day = (record.base_salary / record.total_days) if record.total_days else Decimal(0)
+
+        def _shift(delta):
+            x = year * 12 + (month - 1) + delta
+            return {"year": x // 12, "month": x % 12 + 1}
+
+        history = list(SalaryRecord.objects.filter(posting=posting)
+                       .exclude(month=month, year=year)[:12])
+        ctx.update({
+            "year": year, "month": month, "month_name": _cal.month_name[month],
+            "weeks": weeks, "counts": counts, "record": record, "per_day": per_day,
+            "prev": _shift(-1), "next": _shift(1),
+            "salary_history": history,
+            "salary_total": sum(float(r.calculated_salary) for r in history) + float(record.calculated_salary),
+        })
+
+    incentives = list(EmployeeIncentive.objects.filter(posting=posting)[:50]) if posting else []
+    ctx["incentives"] = incentives
+    ctx["inc_total"] = sum(float(i.amount) for i in incentives)
+    ctx["inc_unpaid"] = sum(float(i.amount) for i in incentives if not i.is_paid)
+    return render(request, "m/e/pay.html", ctx)

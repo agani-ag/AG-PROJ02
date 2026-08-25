@@ -1,0 +1,112 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}{% if bank %}Edit bank{% else %}Add bank{% endif %}{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage_banks' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Bank &amp; UPI</a>{% endblock %}
+{% block heading %}{% if bank %}Edit bank{% else %}Add bank{% endif %}{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <div class="between" style="margin-bottom:10px"><div class="b">UPI</div>
+        <button type="button" class="badge b-blue" style="border:none;padding:7px 12px;cursor:pointer" onclick="scanUPI()"><svg class="i" style="width:13px;height:13px;stroke:var(--acc);vertical-align:-2px"><use href="#ic-search"/></svg> Scan QR</button></div>
+    <label class="lbl">UPI ID</label>
+    <input class="field" id="upi_id" placeholder="name@bank" autocapitalize="off" autocomplete="off" value="{{ bank.upi_id|default:'' }}">
+    <label class="lbl">UPI name</label>
+    <input class="field" id="upi_name" placeholder="Payee name" value="{{ bank.upi_name|default:'' }}">
+    <input type="file" id="qrfile" accept="image/*" capture="environment" style="display:none">
+    <div class="sub muted">Tap <b>Scan QR</b> to point your camera at a UPI QR — the UPI ID fills in automatically.</div>
+</div>
+
+<div class="panel">
+    <div class="b" style="margin-bottom:10px">Bank account</div>
+    <label class="lbl">Account name</label>
+    <input class="field" id="account_name" placeholder="Account holder" value="{{ bank.account_name|default:'' }}">
+    <label class="lbl">Account number</label>
+    <input class="field" id="account_number" inputmode="numeric" placeholder="Account number" value="{{ bank.account_number|default:'' }}">
+    <label class="lbl">Bank name</label>
+    <input class="field" id="bank_name" placeholder="e.g. HDFC Bank" value="{{ bank.bank_name|default:'' }}">
+    <label class="lbl">Branch</label>
+    <input class="field" id="branch_name" placeholder="Branch (optional)" value="{{ bank.branch_name|default:'' }}">
+    <label class="lbl">IFSC</label>
+    <input class="field" id="ifsc_code" autocapitalize="characters" placeholder="IFSC (optional)" value="{{ bank.ifsc_code|default:'' }}">
+</div>
+
+<button class="btn btn-acc" onclick="saveBank()"><svg class="i" style="stroke:#fff"><use href="#ic-check"/></svg> {% if bank %}Save changes{% else %}Add bank{% endif %}</button>
+{% if bank %}<button class="btn" style="margin-top:10px;background:var(--redbg);color:var(--red);box-shadow:none" onclick="delBank()"><svg class="i" style="stroke:var(--red)"><use href="#ic-trash"/></svg> Delete</button>{% endif %}
+
+<!-- QR scan camera overlay -->
+<div id="scan" style="display:none;position:fixed;inset:0;z-index:80;background:#000;flex-direction:column;align-items:center;justify-content:center">
+    <video id="scanvid" playsinline muted style="width:100%;max-height:70vh;object-fit:cover"></video>
+    <div style="color:#fff;margin:16px;font-size:14px">Point the camera at a UPI QR code</div>
+    <button class="btn" style="max-width:200px;background:#fff;color:#000" onclick="closeScan()">Cancel</button>
+</div>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}
+{% block includejs %}
+<script>
+function val(id){ return document.getElementById(id).value.trim(); }
+// Parse a UPI QR payload: upi://pay?pa=<vpa>&pn=<name>, a query with pa=, or a bare VPA.
+function parseUPI(text){
+    if(!text) return null;
+    var pa='', pn='';
+    var qi = text.indexOf('?');
+    if(qi >= 0 && /pa=/.test(text)){
+        try{ var pr = new URLSearchParams(text.slice(qi+1)); pa = pr.get('pa')||''; pn = pr.get('pn')||''; }catch(e){}
+    } else if(/^[\w.\-]+@[\w.\-]+$/.test(text.trim())){
+        pa = text.trim();
+    }
+    return pa ? {pa: pa, pn: pn} : null;
+}
+function applyUPI(u){
+    document.getElementById('upi_id').value = u.pa;
+    if(u.pn && !val('upi_name')) document.getElementById('upi_name').value = u.pn;
+    M.toast('UPI ID: ' + u.pa);
+}
+var scanStream=null, scanRAF=null;
+async function scanUPI(){
+    if(!('BarcodeDetector' in window)){ M.toast('Live scan unsupported — pick a QR photo'); document.getElementById('qrfile').click(); return; }
+    try{ scanStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}); }
+    catch(e){ M.toast('Camera unavailable — pick a QR photo'); document.getElementById('qrfile').click(); return; }
+    var v = document.getElementById('scanvid'); v.srcObject = scanStream;
+    try{ await v.play(); }catch(e){}
+    document.getElementById('scan').style.display = 'flex';
+    var det = new BarcodeDetector({formats:['qr_code']});
+    async function tick(){
+        if(document.getElementById('scan').style.display === 'none') return;
+        try{ var codes = await det.detect(v);
+            for(var i=0;i<codes.length;i++){ var u = parseUPI(codes[i].rawValue); if(u){ applyUPI(u); closeScan(); return; } }
+        }catch(e){}
+        scanRAF = requestAnimationFrame(tick);
+    }
+    tick();
+}
+function closeScan(){
+    document.getElementById('scan').style.display = 'none';
+    if(scanRAF) cancelAnimationFrame(scanRAF);
+    if(scanStream){ scanStream.getTracks().forEach(function(t){ t.stop(); }); scanStream = null; }
+}
+document.getElementById('qrfile').addEventListener('change', async function(e){
+    var f = e.target.files[0]; if(!f) return;
+    if(!('BarcodeDetector' in window)){ M.toast('QR scanning not supported here'); return; }
+    try{ var bmp = await createImageBitmap(f); var det = new BarcodeDetector({formats:['qr_code']});
+        var codes = await det.detect(bmp);
+        for(var i=0;i<codes.length;i++){ var u = parseUPI(codes[i].rawValue); if(u){ applyUPI(u); e.target.value=''; return; } }
+        M.toast('No UPI QR found in that image');
+    }catch(err){ M.toast('Could not read the image'); }
+    e.target.value = '';
+});
+async function saveBank(){
+    var body = { id: {{ bank.id|default:0 }} || null,
+        account_name: val('account_name'), account_number: val('account_number'),
+        bank_name: val('bank_name'), branch_name: val('branch_name'),
+        ifsc_code: val('ifsc_code'), upi_id: val('upi_id'), upi_name: val('upi_name') };
+    var r = await M.post("{% url 'm_manage_bank_save' %}", body);
+    if(r && r.ok){ location.href = r.redirect; } else { M.toast((r&&r.message)||'Could not save'); }
+}
+async function delBank(){
+    if(!confirm('Delete this bank account?')) return;
+    var r = await M.post("/m/employee/manage/bank/{{ bank.id }}/delete", {});
+    if(r && r.ok){ location.href = r.redirect; } else { M.toast('Could not delete'); }
+}
+</script>
+{% endblock %}

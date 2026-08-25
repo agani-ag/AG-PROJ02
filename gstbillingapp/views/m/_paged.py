@@ -57,6 +57,26 @@ def invoice_page(qs, offset, q, employee=None):
     return rows, has_more
 
 
+def purchase_log_page(qs, offset, q, ctype):
+    """(logs, has_more, total) for a PurchaseLog queryset, filtered by search text `q`
+    (vendor / reference / category) and change-type `ctype`. `total` is the Indian-
+    formatted sum for the selected type (for the frozen total bar), else None."""
+    from ...templatetags.money import format_inr
+    q = (q or "").strip()
+    if q:
+        qs = qs.filter(Q(vendor__vendor_name__icontains=q)
+                       | Q(reference__icontains=q) | Q(category__icontains=q))
+    total = None
+    ctype = (ctype or "all")
+    if ctype != "all" and ctype.isdigit():
+        qs = qs.filter(change_type=int(ctype))
+        total = format_inr(abs(qs.aggregate(s=Sum("change"))["s"] or 0), 2)
+    offset = _int(offset)
+    window = list(qs.select_related("vendor")[offset:offset + PAGE + 1])
+    has_more = len(window) > PAGE
+    return window[:PAGE], has_more, total
+
+
 def ledger_page(qs, offset, ctype):
     """(logs, has_more, total) for a BookLog queryset filtered by mode.
 

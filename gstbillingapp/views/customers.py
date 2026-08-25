@@ -155,6 +155,7 @@ def customerall_userid_set(request):
     return JsonResponse({'status': 'error', 'message': 'Use POST method to set customer user IDs.'})
 
 
+@login_required
 @csrf_exempt
 def customer_is_mobile_user(request):
     if request.method == "POST":
@@ -162,7 +163,8 @@ def customer_is_mobile_user(request):
         if not customer_userid:
             return JsonResponse({'status': 'error', 'message': 'Customer UserID is required.'})
         try:
-            customer_obj = Customer.objects.get(customer_userid=customer_userid)
+            # Scoped to this business — a business can only toggle its OWN customer.
+            customer_obj = Customer.objects.get(customer_userid=customer_userid, user=request.user)
             if customer_obj.is_mobile_user:
                 is_mobile_user = False
                 message = f'Customer {customer_userid.upper()} mobile login is turned off.'
