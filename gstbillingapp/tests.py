@@ -364,9 +364,98 @@ class MobileOrderTests(TestCase):
         d = r.json()
         self.assertTrue(d["ok"])
         q = self.Quotation.objects.get(id=d["quotation_id"])
+        # A fresh mobile order is a DRAFT the buyer is still building — not yet submitted.
         self.assertEqual(q.status, "DRAFT")
         self.assertTrue(q.created_by_customer)
         self.assertEqual(q.quotation_customer_id, self.cust.id)
+
+    def test_confirm_moves_draft_to_pending_and_locks_editing(self):
+        q = self._draft_order()
+        self.assertEqual(q.status, "DRAFT")
+        r = self.client.post(reverse("m_order_confirm", args=[q.id]))
+        self.assertTrue(r.json()["ok"])
+        q.refresh_from_db()
+        self.assertEqual(q.status, "PENDING")            # confirmed → awaiting approval
+        # A confirmed order is no longer editable from mobile.
+        r = self.client.post(reverse("m_order_update", args=[q.id]),
+                             data=json.dumps({"items": [{"id": self.p1.id, "qty": 5}]}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
+    def test_draft_hidden_from_desktop_list_until_confirmed(self):
+        q = self._draft_order()
+        self.client.force_login(self.owner)
+        rows = self.client.get(reverse("quotations_ajax"), {"draw": 1, "start": 0, "length": 50}).json()["data"]
+        self.assertNotIn(q.id, [self._row_id(x) for x in rows])   # draft cart is private to mobile
+        self.client.logout()
+        self._cust_session()
+        self.client.post(reverse("m_order_confirm", args=[q.id]))
+        self.client.force_login(self.owner)
+        rows = self.client.get(reverse("quotations_ajax"), {"draw": 1, "start": 0, "length": 50}).json()["data"]
+        self.assertIn(q.id, [self._row_id(x) for x in rows])      # visible once confirmed (PENDING)
+
+    @staticmethod
+    def _row_id(row):
+        import re
+        m = re.search(r"/quotation/(\d+)", row.get("actions", ""))
+        return int(m.group(1)) if m else None
+
+    def _total(self, q):
+        return json.loads(q.quotation_json)["invoice_total_amt_with_gst"]
+
+    def test_mobile_view_auto_syncs_price(self):
+        q = self._draft_order()
+        before = self._total(q)
+        self.p1.product_rate_with_gst = float(self.p1.product_rate_with_gst) + 50
+        self.p1.save()
+        self._cust_session()
+        self.client.get(reverse("m_order_detail", args=[q.id]))   # opening re-prices it
+        q.refresh_from_db()
+        self.assertGreater(self._total(q), before)
+
+    def test_desktop_list_reprices_mobile_order(self):
+        q = self._pending_order()          # mobile order visible on the desktop list
+        before = self._total(q)
+        self.p1.product_rate_with_gst = float(self.p1.product_rate_with_gst) + 30
+        self.p1.save()
+        self.client.force_login(self.owner)
+        self.client.get(reverse("quotations_ajax"), {"draw": 1, "start": 0, "length": 50})
+        q.refresh_from_db()
+        self.assertGreater(self._total(q), before)   # list load re-priced it to today's rate
+
+    def test_desktop_viewer_auto_syncs_mobile_order(self):
+        q = self._pending_order()          # mobile order (created_from_cart=True)
+        before = self._total(q)
+        self.p1.product_rate_with_gst = float(self.p1.product_rate_with_gst) + 40
+        self.p1.save()
+        self.client.force_login(self.owner)
+        r = self.client.get(reverse("quotation_viewer", args=[q.id]))   # opening re-prices it
+        self.assertEqual(r.status_code, 200)
+        q.refresh_from_db()
+        self.assertGreater(self._total(q), before)
+
+    def test_desktop_sync_and_freeze_after_invoice(self):
+        from .utils import resync_quotation_prices
+        q = self._draft_order()
+        before = self._total(q)
+        self.p1.product_rate_with_gst = float(self.p1.product_rate_with_gst) + 100
+        self.p1.save()
+        # Desktop Sync button re-prices and reports the change.
+        self.client.force_login(self.owner)
+        d = self.client.post(reverse("quotation_resync_prices", args=[q.id])).json()
+        self.assertTrue(d["success"])
+        self.assertTrue(d["changed"])
+        q.refresh_from_db()
+        self.assertGreater(self._total(q), before)
+        # Once invoiced, prices are frozen — a later catalog change doesn't move it.
+        q.status = "CONVERTED"
+        q.save(update_fields=["status"])
+        locked = self._total(q)
+        self.p1.product_rate_with_gst = float(self.p1.product_rate_with_gst) + 100
+        self.p1.save()
+        self.assertFalse(resync_quotation_prices(q)["changed"])
+        q.refresh_from_db()
+        self.assertEqual(self._total(q), locked)
 
     def test_employee_checkout_for_customer(self):
         self._emp_session()
@@ -400,6 +489,37 @@ class MobileOrderTests(TestCase):
                                               "customer": foreign.id}),
                              content_type="application/json")
         self.assertEqual(r.status_code, 400)
+
+    def _draft_order(self):
+        self._cust_session()
+        r = self.client.post(reverse("m_order_checkout"),
+                             data=json.dumps({"items": [{"id": self.p1.id, "qty": 1}], "is_gst": False}),
+                             content_type="application/json")
+        return self.Quotation.objects.get(id=r.json()["quotation_id"])
+
+    def _pending_order(self):
+        q = self._draft_order()
+        self.client.post(reverse("m_order_confirm", args=[q.id]))   # buyer confirms → PENDING
+        q.refresh_from_db()
+        return q
+
+    def test_pending_order_cannot_be_converted_until_approved(self):
+        q = self._pending_order()
+        self.assertTrue(q.needs_approval)
+        self.assertFalse(q.can_be_converted())      # PENDING blocks conversion
+        self.client.force_login(self.owner)
+        r = self.client.post(reverse("quotation_convert_to_invoice", args=[q.id]))
+        self.assertEqual(r.status_code, 400)         # can_be_converted() gate rejects it
+
+    def test_approve_opens_conversion(self):
+        q = self._pending_order()
+        self.assertFalse(q.can_be_converted())       # blocked while PENDING
+        self.client.force_login(self.owner)
+        r = self.client.post(reverse("quotation_approve", args=[q.id]))
+        self.assertTrue(r.json()["success"])
+        q.refresh_from_db()
+        self.assertEqual(q.status, "APPROVED")
+        self.assertTrue(q.can_be_converted())        # now convertible
 
 
 class InvoiceAssignEmployeeTests(TestCase):

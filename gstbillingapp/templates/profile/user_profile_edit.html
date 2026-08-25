@@ -15,14 +15,6 @@
 	}
 	.profile-header h2 { margin: 0; font-weight: 700; font-size: 1.5rem; }
 	.profile-header p { margin: 4px 0 0; opacity: 0.85; font-size: 0.85rem; }
-	.profile-header .uid-badge {
-		background: rgba(255,255,255,0.2);
-		padding: 6px 14px;
-		border-radius: 20px;
-		font-size: 0.78rem;
-		font-weight: 600;
-		backdrop-filter: blur(4px);
-	}
 	.section-card {
 		background: #fff;
 		border-radius: 14px;
@@ -42,7 +34,6 @@
 		font-size: 0.95rem;
 		color: #1c1c1e;
 	}
-	.section-header .uid-badge { margin-left: auto; }
 	.section-header > i {
 		color: #667eea;
 		font-size: 1rem;
@@ -167,7 +158,6 @@
 	<div class="section-card">
 		<div class="section-header">
 			<i class="fas fa-building"></i> Business Information
-		    <div class="uid-badge"><i class="fas fa-fingerprint"></i>{{ business_uid }}</div>
 		</div>
 		<div class="section-body">
 			<div class="form-row-custom">
@@ -215,24 +205,6 @@
 					{{ user_profile_form.business_phone }}
 				</div>
 			</div>
-		</div>
-	</div>
-
-	<!-- Business Sharing -->
-	<div class="section-card">
-		<div class="section-header">
-			<i class="fas fa-share-alt"></i> Business Sharing
-		</div>
-		<div class="section-body">
-			<label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
-				{{ user_profile_form.sharing_enabled }}
-				<span><b>Enable business sharing</b></span>
-			</label>
-			<small class="text-muted d-block mt-2">
-				When enabled, another business can grant its employees access to <b>your</b> business by pasting your
-				share code below. Your code is your UserID: <b>{{ user_profile.business_uid|default:"—" }}</b>.
-				Turn this off any time to stop sharing.
-			</small>
 		</div>
 	</div>
 

@@ -22,6 +22,7 @@ from ..utils import (
     apply_invoice_round_off,
     remove_inventory_entries_for_invoice,
     remove_book_entries_for_invoice,
+    resync_quotation_prices,
     CartError,
 )
 from ..templatetags.money import format_inr_smart
@@ -215,9 +216,13 @@ def quotations_ajax(request):
         end_date = request.GET.get('end_date', '')
         customer_id = request.GET.get('customer_id', '')
         
-        # Base queryset
-        queryset = Quotation.objects.filter(user=request.user).select_related('quotation_customer')
-        
+        # Base queryset. An unconfirmed mobile order (a cart the buyer is still building)
+        # is private to the mobile user until they confirm it — it only surfaces here once
+        # it becomes PENDING, so the shop never approves a half-finished order.
+        queryset = (Quotation.objects.filter(user=request.user)
+                    .exclude(created_from_cart=True, status='DRAFT')
+                    .select_related('quotation_customer'))
+
         # Apply customer filter
         if customer_id and customer_id.isdigit():
             queryset = queryset.filter(quotation_customer__id=int(customer_id))
@@ -229,20 +234,12 @@ def quotations_ajax(request):
             queryset = queryset.filter(is_gst=False)
         
         # Apply status filter
-        if status_filter == 'draft':
+        if status_filter == 'pending':
+            queryset = queryset.filter(status='PENDING')
+        elif status_filter == 'draft':
             queryset = queryset.filter(status='DRAFT')
         elif status_filter == 'approved':
             queryset = queryset.filter(status='APPROVED')
-        elif status_filter == 'processing':
-            queryset = queryset.filter(status='PROCESSING')
-        elif status_filter == 'packed':
-            queryset = queryset.filter(status='PACKED')
-        elif status_filter == 'shipped':
-            queryset = queryset.filter(status='SHIPPED')
-        elif status_filter == 'out_for_delivery':
-            queryset = queryset.filter(status='OUT_FOR_DELIVERY')
-        elif status_filter == 'delivered':
-            queryset = queryset.filter(status='DELIVERED')
         elif status_filter == 'converted':
             queryset = queryset.filter(status='CONVERTED')
         
@@ -275,7 +272,14 @@ def quotations_ajax(request):
         
         # Filtered records count
         filtered_records = queryset.count()
-        
+
+        # Keep mobile-placed orders priced at today's catalog, so the Amount column and the
+        # Total card below are live — the same auto-sync the quotation viewer does on open.
+        # (Only PENDING/APPROVED cart orders reach this list; drafts are hidden and invoiced
+        # ones are skipped inside resync.)
+        for q in queryset.filter(created_from_cart=True):
+            resync_quotation_prices(q)
+
         # Ordering
         order_columns = ['quotation_number', 'quotation_date', 'quotation_customer__customer_name', 'status']
         if 0 <= order_column_index < len(order_columns):
@@ -338,33 +342,30 @@ def quotations_ajax(request):
 
             # Status badge
             status_badges = {
+                'PENDING': '<span class="badge badge-warning"><i class="fas fa-hourglass-half"></i> Pending Approval</span>',
                 'DRAFT': '<span class="badge badge-secondary">Draft</span>',
                 'APPROVED': '<span class="badge badge-success">Approved</span>',
-                'PROCESSING': '<span class="badge badge-info"><i class="fas fa-cog fa-spin"></i> Processing</span>',
-                'PACKED': '<span class="badge badge-primary"><i class="fas fa-box"></i> Packed</span>',
-                'SHIPPED': '<span class="badge badge-primary"><i class="fas fa-shipping-fast"></i> Shipped</span>',
-                'OUT_FOR_DELIVERY': '<span class="badge badge-info"><i class="fas fa-truck"></i> Out for Delivery</span>',
-                'DELIVERED': '<span class="badge badge-success"><i class="fas fa-check-circle"></i> Delivered</span>',
-                'CONVERTED': '<span class="badge badge-dark"><i class="fas fa-check-double"></i> Received</span>'
+                'CONVERTED': '<span class="badge badge-dark"><i class="fas fa-check-double"></i> Invoiced</span>'
             }
             status_html = status_badges.get(quotation.status, quotation.status)
 
-            # Actions
+            # Actions — the list is for triage: view, edit, and (for a pending mobile
+            # order) approve / reject. Converting to an invoice is done inside the viewer.
             actions_html = '<div class="btn-group" role="group">'
             actions_html += f'<a href="/quotation/{quotation.id}" class="btn btn-primary btn-sm btn-curve" title="View"><i class="fa fa-eye"></i></a>'
-            
+
             if quotation.can_be_edited():
                 actions_html += f'<a href="/quotation/edit/{quotation.id}" class="btn btn-warning btn-sm btn-curve" title="Edit"><i class="fa fa-edit"></i></a>'
-            
-            if quotation.can_be_converted():
-                actions_html += f'<button type="button" onclick="convertToInvoice({quotation.id})" class="btn btn-success btn-sm btn-curve" title="Convert to Invoice"><i class="fa fa-exchange"></i></button>'
-            
+
+            if quotation.needs_approval:
+                actions_html += f'<button type="button" onclick="approveQuotation({quotation.id})" class="btn btn-success btn-sm btn-curve" title="Approve order"><i class="fa fa-check"></i></button>'
+
             if quotation.converted_invoice:
                 actions_html += f'<a href="/invoice/{quotation.converted_invoice.id}" class="btn btn-info btn-sm btn-curve" title="View Invoice"><i class="fa fa-file-invoice"></i></a>'
-            
-            if quotation.can_be_edited():
+
+            if quotation.can_be_deleted():
                 actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" onclick="deleteQuotation({quotation.id})" title="Delete"><i class="fa fa-trash"></i></button>'
-            
+
             actions_html += '</div>'
 
             data.append({
@@ -398,6 +399,13 @@ def quotation_viewer(request, quotation_id):
     """View quotation details"""
     quotation_obj = get_object_or_404(Quotation, user=request.user, id=quotation_id)
     user_profile = get_object_or_404(UserProfile, user=request.user)
+
+    # A mobile-placed order stays priced at today's catalog: re-sync it whenever the admin
+    # opens it, exactly as the mobile order page does for the buyer. (Desktop-created
+    # quotations are left to the manual "Sync Prices" button.) Best-effort — an already-
+    # invoiced or unmappable quotation is left untouched.
+    if quotation_obj.created_from_cart:
+        resync_quotation_prices(quotation_obj)
 
     context = {}
     context['quotation'] = quotation_obj
@@ -518,7 +526,13 @@ def quotation_convert_to_invoice(request, quotation_id):
                 'success': False,
                 'message': 'This quotation cannot be converted'
             }, status=400)
-        
+
+        # Bring the quotation up to the current catalog first, so the invoice freezes in
+        # today's prices (a quotation is live; an invoice is fixed). Best-effort — a line
+        # with no resolvable product just keeps its saved price.
+        resync_quotation_prices(quotation)
+        quotation.refresh_from_db()
+
         # Parse quotation data, then round the grand total to the nearest rupee for the
         # INVOICE (the quotation keeps its exact figure).
         quotation_data = json.loads(quotation.quotation_json)
@@ -575,17 +589,16 @@ def quotation_convert_to_invoice(request, quotation_id):
         
         new_invoice.save()
         
-        # Link the invoice to the quotation AND mark it CONVERTED, so it no longer shows
-        # as Pending on the desktop/mobile order lists.
-        quotation.converted_invoice = new_invoice
-        quotation.converted_at = timezone.now()
-        quotation.converted_by = request.user
-        quotation.status = 'CONVERTED'
-        quotation.save()
+        # Once converted, the quotation is a pure duplicate of the invoice, so we
+        # DELETE it — nothing lingers on the desktop or mobile order lists. (The
+        # audit link/reconvert path is intentionally given up in favour of a clean
+        # single source of truth: the invoice.)
+        q_number = quotation.quotation_number
+        quotation.delete()
 
         messages.success(
             request,
-            f'Quotation #{quotation.quotation_number} converted to Invoice #{new_invoice.invoice_number}'
+            f'Quotation #{q_number} converted to Invoice #{new_invoice.invoice_number}'
         )
         
         return JsonResponse({
@@ -817,29 +830,55 @@ def invoice_to_quotation(request, invoice_id):
 
 @login_required
 def quotation_approve(request, quotation_id):
-    """Approve a quotation (change status to APPROVED)"""
+    """Approve a mobile order — moves it out of Pending into the fulfilment pipeline."""
     if request.method != 'POST':
         return JsonResponse({
             'success': False,
             'message': 'Invalid request method'
         }, status=405)
-    
+
     quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
-    
-    if quotation.status != 'DRAFT':
+
+    # Only a pending mobile order needs approval. Desktop drafts don't.
+    if quotation.status != 'PENDING':
         return JsonResponse({
             'success': False,
-            'message': 'Only draft quotations can be approved'
+            'message': 'Only pending orders can be approved'
         }, status=400)
-    
+
     quotation.status = 'APPROVED'
     quotation.save()
-    
-    messages.success(request, f'Quotation #{quotation.quotation_number} approved')
+
+    messages.success(request, f'Order #{quotation.quotation_number} approved')
     return JsonResponse({
         'success': True,
-        'message': f'Quotation #{quotation.quotation_number} approved successfully'
+        'message': f'Order #{quotation.quotation_number} approved successfully'
     })
+
+
+@login_required
+def quotation_resync_prices(request, quotation_id):
+    """Re-price a quotation to the current product rates, GST% and discounts. A quotation
+    stays live until it's billed, so this is the manual 'catch up to today's prices' action
+    (mobile does it automatically when the buyer opens the order)."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+
+    quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
+    r = resync_quotation_prices(quotation)
+
+    if r['reason'] == 'invoiced':
+        return JsonResponse({'success': False, 'message': 'This quotation is already an invoice — its prices are frozen.'}, status=400)
+    if r['reason'] in ('unmapped', 'product_missing'):
+        return JsonResponse({'success': False, 'message': "Some lines aren't linked to a current product, so prices can't be synced automatically. Edit the quotation to update them."}, status=400)
+    if r['reason'] == 'igst':
+        return JsonResponse({'success': False, 'message': "Inter-state (IGST) quotations can't be auto-synced. Edit the quotation to update prices."}, status=400)
+
+    if r['changed']:
+        msg = f"Prices updated to today's rates — new total ₹ {format_inr_smart(r['new_total'])}."
+    else:
+        msg = 'Already up to date — prices match the current catalog.'
+    return JsonResponse({'success': True, 'changed': r['changed'], 'message': msg})
 
 
 @login_required
@@ -891,46 +930,3 @@ def quotation_update_customer(request, quotation_id):
         }, status=400)
 
 
-@login_required
-def quotation_update_status(request, quotation_id):
-    """Update quotation/order status for tracking"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
-    
-    try:
-        quotation = get_object_or_404(Quotation, id=quotation_id, user=request.user)
-        new_status = request.POST.get('status')
-        
-        # Validate status
-        valid_statuses = ['DRAFT', 'APPROVED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CONVERTED']
-        if new_status not in valid_statuses:
-            return JsonResponse({'success': False, 'message': 'Invalid status'}, status=400)
-        
-        # Update status
-        old_status = quotation.status
-        quotation.status = new_status
-        quotation.save()
-        
-        # Get status display name
-        status_names = {
-            'DRAFT': 'Pending',
-            'APPROVED': 'Approved',
-            'PROCESSING': 'Processing',
-            'PACKED': 'Packed',
-            'SHIPPED': 'Shipped',
-            'OUT_FOR_DELIVERY': 'Out for Delivery',
-            'DELIVERED': 'Delivered',
-            'CONVERTED': 'Completed'
-        }
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Order status updated from {status_names.get(old_status, old_status)} to {status_names.get(new_status, new_status)}',
-            'new_status': new_status
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': str(e)
-        }, status=400)

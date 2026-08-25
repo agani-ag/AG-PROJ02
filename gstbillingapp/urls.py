@@ -69,8 +69,8 @@ urlpatterns = [
     path('quotation/reconvert/<int:quotation_id>', quotation.quotation_reconvert_to_invoice, name='quotation_reconvert_to_invoice'),
     path('invoice/to-quotation/<int:invoice_id>', quotation.invoice_to_quotation, name='invoice_to_quotation'),
     path('quotation/approve/<int:quotation_id>', quotation.quotation_approve, name='quotation_approve'),
+    path('quotation/resync/<int:quotation_id>', quotation.quotation_resync_prices, name='quotation_resync_prices'),
     path('quotation/update-customer/<int:quotation_id>', quotation.quotation_update_customer, name='quotation_update_customer'),
-    path('quotation/update-status/<int:quotation_id>', quotation.quotation_update_status, name='quotation_update_status'),
 
     # Customer URLs
     path('customers', customers.customers, name='customers'),

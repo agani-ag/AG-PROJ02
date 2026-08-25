@@ -12,8 +12,9 @@
             <span class="ico ic-amber"><svg class="i"><use href="#ic-cart"/></svg></span>
             <span style="min-width:0"><span class="b">QT-{{ o.quotation_number }} · {{ o.quotation_customer.customer_name|default:"N/A" }}</span><div class="sub">{{ o.quotation_date|date:"d M Y" }} · {{ o.order_source_label }}</div></span>
         </span>
-        {% if o.status == "DELIVERED" or o.status == "CONVERTED" %}<span class="badge b-green">{{ o.get_status_display }}</span>
-        {% elif o.status == "DRAFT" %}<span class="badge b-amber">Pending</span>
+        {% if o.status == "CONVERTED" %}<span class="badge b-green">Invoiced</span>
+        {% elif o.status == "DRAFT" %}<span class="badge b-grey">Draft</span>
+        {% elif o.status == "PENDING" %}<span class="badge b-amber">Pending approval</span>
         {% else %}<span class="badge b-blue">{{ o.get_status_display }}</span>{% endif %}
     </a>
     {% endfor %}

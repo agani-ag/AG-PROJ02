@@ -22,11 +22,10 @@ def user_profile(request):
 def user_profile_edit(request):
     context = {}
     user_profile = get_object_or_404(UserProfile, user=request.user)
-    context['user_profile_form'] = UserProfileForm(instance=user_profile)
-    context['business_uid'] = user_profile.business_uid
-    
+    context['user_profile_form'] = UserProfileForm(instance=user_profile, user=request.user)
+
     if request.method == "POST":
-        user_profile_form = UserProfileForm(request.POST, instance=user_profile)
+        user_profile_form = UserProfileForm(request.POST, instance=user_profile, user=request.user)
         user_profile_form.save()
         return redirect('user_profile')
     return render(request, 'profile/user_profile_edit.html', context)

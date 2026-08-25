@@ -19,7 +19,7 @@ from django.views.decorators.csrf import csrf_exempt
 from ...mobile_auth import mobile_login_required
 from ...models import Customer, ProductCategory, Quotation
 from ...utils import (cart_product_payload, create_cart_draft_quotation,
-                      update_cart_draft_quotation, CartError)
+                      update_cart_draft_quotation, resync_quotation_prices, CartError)
 
 
 def _business(request):
@@ -111,6 +111,9 @@ def _order_scope(request, quotation_id):
 @mobile_login_required()
 def order_detail(request, quotation_id):
     q = _order_scope(request, quotation_id)
+    # A quotation's price stays live: re-price it to the current catalog every time it's
+    # opened, so the buyer always sees today's rates. An invoice is frozen and skipped.
+    resync_quotation_prices(q)
     try:
         data = json.loads(q.quotation_json)
     except (ValueError, TypeError):
@@ -120,15 +123,40 @@ def order_detail(request, quotation_id):
     for it in data.get("items", []):
         pid = it.get("product_id")
         edit_lines.append({"id": pid, "qty": it.get("invoice_qty", 0)})
+    # Only a DRAFT (not yet confirmed) order is the buyer's to edit; confirming locks it.
     editable = q.status == "DRAFT" and q.created_from_cart
     return render(request, "m/order_detail.html", {
         "q": q, "d": data,
         "customer": q.quotation_customer.customer_name if q.quotation_customer else "N/A",
         "editable": editable,
+        "can_cancel": q.status in ("DRAFT", "PENDING") and q.created_from_cart,
         "edit_lines_json": json.dumps([l for l in edit_lines if l["id"]]),
         "role": request.mobile_actor["role"],
         "buyer_id": q.quotation_customer_id or "",
     })
+
+
+@csrf_exempt
+@mobile_login_required()
+def order_confirm(request, quotation_id):
+    """Buyer confirms a DRAFT order — it locks (no more mobile edits) and moves to
+    PENDING for the shop to approve."""
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "message": "Invalid method"}, status=405)
+    q = _order_scope(request, quotation_id)
+    if q.status != "DRAFT":
+        return JsonResponse({"ok": False, "message": "This order is already confirmed."}, status=400)
+    try:
+        data = json.loads(q.quotation_json)
+    except (ValueError, TypeError):
+        data = {"items": []}
+    if not (data.get("items") or []):
+        return JsonResponse({"ok": False, "message": "Add at least one item before confirming."}, status=400)
+    # Freeze in today's prices at the moment of confirmation.
+    resync_quotation_prices(q)
+    q.status = "PENDING"
+    q.save(update_fields=["status"])
+    return JsonResponse({"ok": True, "detail_url": reverse("m_order_detail", args=[q.id])})
 
 
 @csrf_exempt
@@ -161,7 +189,8 @@ def order_cancel(request, quotation_id):
     if request.method != "POST":
         return JsonResponse({"ok": False, "message": "Invalid method"}, status=405)
     q = _order_scope(request, quotation_id)
-    if q.status != "DRAFT" or not q.created_from_cart:
+    # Cancellable until the shop approves it (while still a draft, or pending approval).
+    if q.status not in ("DRAFT", "PENDING") or not q.created_from_cart:
         return JsonResponse({"ok": False, "message": "This order can no longer be cancelled."}, status=400)
     q.delete()
     role = request.mobile_actor["role"]
@@ -222,5 +251,7 @@ def order_checkout(request):
         "label": ("" if result["is_gst"] else "QT-") + str(q.quotation_number),
         "gst_downgraded": result["gst_downgraded"],
         "grand_total": result["totals"]["grand_total"],
+        # Land on the order's own page — that's where the buyer reviews and Confirms it.
+        "detail_url": reverse("m_order_detail", args=[q.id]),
         "order_url": order_url,
     })

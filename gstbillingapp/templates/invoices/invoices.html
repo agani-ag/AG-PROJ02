@@ -44,15 +44,18 @@
 			<label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
 			<input type="date" id="endDate" class="form-control form-control-sm">
 		</div>
-		<div class="col-md-1">
-			<button id="clearFilters" class="btn btn-secondary btn-sm btn-block">
-				<i class="fas fa-times"></i> Clear
-			</button>
-		</div>
-		<div class="col-md-1">
-			<button id="printFilters" class="btn btn-outline-dark btn-sm btn-block d-print-none" onclick="printInvoices();" title="Print">
-				<i class="fas fa-print"></i>
-			</button>
+		<div class="col-md-3 d-print-none">
+			<div class="btn-group btn-group-sm" role="group" aria-label="Invoice actions">
+				<button id="clearFilters" type="button" class="btn btn-secondary btn-curve" title="Clear filters">
+					<i class="fas fa-times"></i> Clear
+				</button>
+				<button id="printFilters" type="button" class="btn btn-outline-dark btn-curve" onclick="printInvoices();" title="Print">
+					<i class="fas fa-print"></i>
+				</button>
+				<a href="{% url 'invoice_create' %}" class="btn btn-primary btn-curve" title="New Invoice">
+					<i class="fas fa-plus"></i>
+				</a>
+			</div>
 		</div>
 		<div class="col-md-3">
 			<div class="card shadow-sm border-danger">

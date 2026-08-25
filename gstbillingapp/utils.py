@@ -711,8 +711,9 @@ def create_cart_draft_quotation(business_user, items, *, existing_customer=None,
             quotation_customer=customer,
             quotation_json=json.dumps(quotation_data),
             is_gst=is_gst,
-            # Always DRAFT: the cart never touches inventory or books until a human
-            # at the business approves it.
+            # DRAFT: the buyer is still building this order on their phone — they can keep
+            # editing/adding until they Confirm it, which moves it to PENDING for the shop
+            # to approve. It never touches inventory or books at any draft/pending stage.
             status='DRAFT',
             created_from_cart=True,
             created_by_customer=created_by_customer,
@@ -734,8 +735,8 @@ def create_cart_draft_quotation(business_user, items, *, existing_customer=None,
 
 
 def update_cart_draft_quotation(quotation, items, *, is_gst=None, allow_discount=True):
-    """Recompute and replace a still-pending (DRAFT) cart order's lines in place, keeping
-    its number and customer. Used when a buyer edits an order before the shop converts it.
+    """Recompute and replace a still-DRAFT cart order's lines in place, keeping its
+    number and customer. Used when a buyer edits an order before confirming it.
     Raises CartError if the order is no longer editable or a line is invalid."""
     from django.db import transaction
 
@@ -760,6 +761,88 @@ def update_cart_draft_quotation(quotation, items, *, is_gst=None, allow_discount
         'gst_downgraded': comp['gst_downgraded'],
         'totals': comp['totals'],
     }
+
+
+def _price_signature(data):
+    """A comparable fingerprint of a quotation's pricing — grand total plus each line's
+    rate, discount, GST% and amount. Used to tell whether a re-price actually changed
+    anything, so we don't rewrite the JSON (or claim a change) when nothing moved."""
+    def r(v):
+        try:
+            return round(float(v or 0), 2)
+        except (ValueError, TypeError):
+            return 0.0
+    sig = [r(data.get('invoice_total_amt_with_gst'))]
+    for it in data.get('items') or []:
+        sig.append((it.get('product_id'), it.get('invoice_model_no'),
+                    r(it.get('invoice_rate_with_gst')), r(it.get('invoice_discount')),
+                    r(it.get('invoice_gst_percentage')), r(it.get('invoice_amt_with_gst'))))
+    return sig
+
+
+def resync_quotation_prices(quotation, *, persist=True):
+    """Re-price a not-yet-invoiced quotation from CURRENT product rates, GST% and
+    discounts, keeping each line's quantity. This is what keeps a quotation's price live
+    while it's still a quotation — an invoice, by contrast, is frozen.
+
+    Returns {'changed': bool, 'reason': str, 'old_total': float, 'new_total': float}.
+    Leaves the quotation untouched (changed=False) when it's already invoiced, uses
+    inter-state IGST, has a line with no resolvable product, or carries no line at all."""
+    result = {'changed': False, 'reason': '', 'old_total': 0.0, 'new_total': 0.0}
+    if quotation.status == 'CONVERTED' or quotation.converted_invoice_id:
+        result['reason'] = 'invoiced'
+        return result
+    try:
+        data = json.loads(quotation.quotation_json)
+    except (ValueError, TypeError):
+        result['reason'] = 'bad_json'
+        return result
+    if data.get('igstcheck'):
+        # Inter-state tax split isn't modelled by the cart engine — don't risk corrupting it.
+        result['reason'] = 'igst'
+        return result
+
+    items = data.get('items') or []
+    line_reqs = []
+    for it in items:
+        pid = it.get('product_id')
+        qty = it.get('invoice_qty')
+        if not pid:
+            # Older lines may predate product_id — fall back to matching by model number.
+            p = Product.objects.filter(user=quotation.user, model_no=it.get('invoice_model_no')).first()
+            pid = p.id if p else None
+        if not pid or not qty:
+            result['reason'] = 'unmapped'
+            return result
+        line_reqs.append({'id': pid, 'qty': qty})
+    if not line_reqs:
+        result['reason'] = 'empty'
+        return result
+
+    result['old_total'] = _price_signature(data)[0]
+    try:
+        comp = _compute_cart_quotation(
+            quotation.user, line_reqs,
+            existing_customer=quotation.quotation_customer,
+            is_gst=quotation.is_gst, allow_discount=False,
+        )
+    except CartError:
+        result['reason'] = 'product_missing'
+        return result
+
+    new_data = comp['quotation_data']
+    # Carry over the buyer/customer detail fields the pricing pass shouldn't disturb.
+    for k in ('customer_name', 'customer_address', 'customer_phone', 'customer_gst', 'vehicle_number'):
+        if data.get(k):
+            new_data[k] = data[k]
+
+    result['new_total'] = comp['totals']['grand_total']
+    result['changed'] = _price_signature(data) != _price_signature(new_data)
+    if result['changed'] and persist:
+        quotation.quotation_json = json.dumps(new_data)
+        quotation.save(update_fields=['quotation_json'])
+    result['reason'] = 'ok'
+    return result
 
 
 def _escape_md(text):

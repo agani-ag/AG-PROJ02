@@ -60,35 +60,10 @@ class QuotationAdmin(admin.ModelAdmin):
         }),
     )
     
-    actions = ['mark_as_approved', 'mark_as_processing', 'mark_as_packed', 'mark_as_shipped', 'mark_as_out_for_delivery', 'mark_as_delivered']
-    
+    actions = ['mark_as_approved']
+
     def mark_as_approved(self, request, queryset):
         updated = queryset.update(status='APPROVED')
         self.message_user(request, f'{updated} order(s) marked as Approved.')
     mark_as_approved.short_description = "Mark selected orders as Approved"
-    
-    def mark_as_processing(self, request, queryset):
-        updated = queryset.update(status='PROCESSING')
-        self.message_user(request, f'{updated} order(s) marked as Processing.')
-    mark_as_processing.short_description = "Mark selected orders as Processing"
-    
-    def mark_as_packed(self, request, queryset):
-        updated = queryset.update(status='PACKED')
-        self.message_user(request, f'{updated} order(s) marked as Packed.')
-    mark_as_packed.short_description = "Mark selected orders as Packed"
-    
-    def mark_as_shipped(self, request, queryset):
-        updated = queryset.update(status='SHIPPED')
-        self.message_user(request, f'{updated} order(s) marked as Shipped.')
-    mark_as_shipped.short_description = "Mark selected orders as Shipped"
-    
-    def mark_as_out_for_delivery(self, request, queryset):
-        updated = queryset.update(status='OUT_FOR_DELIVERY')
-        self.message_user(request, f'{updated} order(s) marked as Out for Delivery.')
-    mark_as_out_for_delivery.short_description = "Mark selected orders as Out for Delivery"
-    
-    def mark_as_delivered(self, request, queryset):
-        updated = queryset.update(status='DELIVERED')
-        self.message_user(request, f'{updated} order(s) marked as Delivered.')
-    mark_as_delivered.short_description = "Mark selected orders as Delivered"
 

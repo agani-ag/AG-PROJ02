@@ -19,13 +19,9 @@ class UserProfile(models.Model):
     business_phone = models.CharField(max_length=20, blank=True, null=True)
     business_gst = models.CharField(max_length=15, blank=True, null=True)
     business_brand = models.CharField(max_length=30, blank=True, null=True, default=None)
-    business_uid = models.TextField(blank=True, null=True)
     business_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     business_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     bankdetails = models.ForeignKey('BankDetails', blank=True, null=True, on_delete=models.SET_NULL)
-    # When on, this business can be covered by another business's employee who pastes
-    # its share code (business_uid). Off means the code is inert — opt-in sharing.
-    sharing_enabled = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if self.business_title:
@@ -132,14 +128,13 @@ class Quotation(models.Model):
     Quotation Model - Draft invoice that doesn't affect inventory or books.
     Can be converted to Invoice when approved.
     """
+    # A lean order lifecycle: an order is placed, approved, then billed. No delivery-
+    # tracking stages — the invoice is the end of the line. To decline a mobile order
+    # the owner simply deletes it.
     STATUS_CHOICES = [
-        ('DRAFT', 'Draft'),
-        ('APPROVED', 'Approved'),
-        ('PROCESSING', 'Processing'),
-        ('PACKED', 'Packed'),
-        ('SHIPPED', 'Shipped'),
-        ('OUT_FOR_DELIVERY', 'Out for Delivery'),
-        ('DELIVERED', 'Delivered'),
+        ('PENDING', 'Pending Approval'),   # mobile orders land here — need owner approval first
+        ('DRAFT', 'Draft'),                # desktop quotations start here (no approval needed)
+        ('APPROVED', 'Approved'),          # approved and ready to convert to an invoice
         ('CONVERTED', 'Converted to Invoice'),
     ]
     
@@ -197,13 +192,19 @@ class Quotation(models.Model):
     def __str__(self):
         return f"QT-{self.quotation_number} | {self.quotation_date} | {self.status}"
     
+    @property
+    def needs_approval(self):
+        """A mobile order still awaiting the owner's approval."""
+        return self.status == 'PENDING'
+
     def can_be_edited(self):
-        """Check if quotation can be edited - only DRAFT orders can be edited"""
-        return self.status == 'DRAFT'
-    
+        """Editable while it's a desktop draft or a mobile order under review."""
+        return self.status in ['DRAFT', 'PENDING']
+
     def can_be_converted(self):
-        """Check if quotation can be converted to invoice"""
-        return self.status in ['DRAFT', 'APPROVED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY'] and self.converted_invoice is None
+        """Convertible once it's a desktop draft or an approved order. A PENDING mobile
+        order must be approved first."""
+        return self.status in ['DRAFT', 'APPROVED'] and self.converted_invoice is None
     
     def can_be_deleted(self):
         """Check if quotation can be deleted"""

@@ -16,20 +16,6 @@
 			</select>
 		</div>
 		<div class="col-md-2">
-			<label for="statusFilter" class="mb-1"><small><strong>Status:</strong></small></label>
-			<select id="statusFilter" class="form-control form-control-sm">
-				<option value="all">All Status</option>
-				<option value="draft">Draft</option>
-				<option value="approved">Approved</option>
-				<option value="processing">Processing</option>
-				<option value="packed">Packed</option>
-				<option value="shipped">Shipped</option>
-				<option value="out_for_delivery">Out for Delivery</option>
-				<option value="delivered">Delivered</option>
-				<option value="converted">Received by Customer</option>
-			</select>
-		</div>
-		<div class="col-md-2">
 			<label for="customerFilter" class="mb-1"><small><strong>Customer:</strong></small></label>
 			<select id="customerFilter" class="form-control form-control-sm">
 				<option value="">All Customers</option>
@@ -56,10 +42,18 @@
 			<label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
 			<input type="date" id="endDate" class="form-control form-control-sm">
 		</div>
-		<div class="col-md-1">
-			<button id="clearFilters" class="btn btn-secondary btn-sm btn-block">
-				<i class="fas fa-times"></i> Clear
-			</button>
+		<div class="col-md-3 d-print-none">
+			<div class="btn-group btn-group-sm" role="group" aria-label="Quotation actions">
+				<button id="clearFilters" type="button" class="btn btn-secondary btn-curve" title="Clear filters">
+					<i class="fas fa-times"></i> Clear
+				</button>
+				<button id="printFilters" type="button" class="btn btn-outline-dark btn-curve" onclick="printQuotations();" title="Print">
+					<i class="fas fa-print"></i>
+				</button>
+				<a href="{% url 'quotation_create' %}" class="btn btn-primary btn-curve" title="New Quotation">
+					<i class="fas fa-plus"></i>
+				</a>
+			</div>
 		</div>
 		<div class="col-md-3">
 			<div class="card shadow-sm border-primary">
@@ -76,13 +70,6 @@
 <hr>
 
 	<table class="table table-bordered" id="quotation-table">
-
-<div style="margin-bottom:8px; display:flex; justify-content:flex-end;">
-	<button class="btn btn-sm btn-outline-dark d-print-none" onclick="printQuotations();">
-		<i class="fas fa-print"></i> Print
-	</button>
-</div>
-
 		<thead class="thead-dark">
 			<tr>
 				<th>Quotation Number</th>
@@ -117,7 +104,6 @@
 				"type": "GET",
 				"data": function(d) {
 					d.quotation_type = $('#quotationTypeFilter').val() || 'all';
-					d.status_filter = $('#statusFilter').val() || 'all';
 					d.customer_id = $('#customerFilter').val() || '';
 					d.date_filter = $('#dateFilter').val() || 'all';
 					d.start_date = $('#startDate').val() || '';
@@ -187,7 +173,6 @@
 		// Clear filters button
 		$('#clearFilters').on('click', function() {
 			$('#quotationTypeFilter').val('all');
-			$('#statusFilter').val('all');
 			$('#customerFilter').val('');
 			$('#dateFilter').val('all');
 			$('#startDate').val('');
@@ -198,7 +183,7 @@
 		});
 
 		// Auto-reload on filter changes
-		$('#quotationTypeFilter, #statusFilter, #customerFilter').on('change', function() {
+		$('#quotationTypeFilter, #customerFilter').on('change', function() {
 			table.ajax.reload();
 		});
 	});
@@ -207,7 +192,6 @@
 function printQuotations() {
 	var params = {
 		quotation_type: $('#quotationTypeFilter').val() || 'all',
-		status_filter: $('#statusFilter').val() || 'all',
 		customer_id: $('#customerFilter').val() || '',
 		date_filter: $('#dateFilter').val() || 'all',
 		start_date: $('#startDate').val() || '',
@@ -237,7 +221,6 @@ function printQuotations() {
 			var rows = allRows;
 			var title = 'Quotations';
 			var typeText = $('#quotationTypeFilter option:selected').text();
-			var statusText = $('#statusFilter option:selected').text();
 			var customerText = $('#customerFilter option:selected').text() || 'All Customers';
 			var dateText = $('#dateFilter option:selected').text();
 			var total = $('#total-quotation-amount').text() || '';
@@ -266,7 +249,6 @@ function printQuotations() {
 			header += '<h4 style="margin:0;">' + title + '</h4>';
 			header += '<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">';
 			header += '<span><strong>Type:</strong> ' + typeText + '</span>';
-			header += '<span><strong>Status:</strong> ' + statusText + '</span>';
 			header += '<span><strong>Customer:</strong> ' + customerText + '</span>';
 			header += '<span><strong>Date:</strong> ' + dateText + '</span>';
 			header += '<span><strong>Total:</strong> ' + total + '</span>';
@@ -297,70 +279,33 @@ function printQuotations() {
 	})();
 }
 
-	function convertToInvoice(quotationId) {
+	// Approve a pending mobile order — moves it into the fulfilment pipeline so it can
+	// then be tracked and converted to an invoice from the viewer.
+	function approveQuotation(quotationId) {
 		Swal.fire({
-			title: 'Convert to Invoice?',
-			text: "This will create an invoice and update inventory & books. This action cannot be undone.",
+			title: 'Approve this order?',
+			text: "It will move out of Pending and can then be processed and converted to an invoice.",
 			icon: 'question',
 			showCancelButton: true,
 			confirmButtonColor: '#28a745',
 			cancelButtonColor: '#6c757d',
-			confirmButtonText: 'Yes, Convert it!'
+			confirmButtonText: 'Yes, approve'
 		}).then((result) => {
-			if (result.isConfirmed) {
-				// Show loading
-				Swal.fire({
-					title: 'Processing...',
-					text: 'Converting quotation to invoice',
-					allowOutsideClick: false,
-					allowEscapeKey: false,
-					didOpen: () => {
-						Swal.showLoading();
-					}
-				});
-
-				// Make AJAX request
-				fetch(`/quotation/convert/${quotationId}`, {
-					method: 'POST',
-					headers: {
-						'X-CSRFToken': '{{ csrf_token }}',
-						'Content-Type': 'application/json'
-					}
-				})
-				.then(response => response.json())
-				.then(data => {
-					if (data.success) {
-						Swal.fire({
-							icon: 'success',
-							title: 'Success!',
-							text: data.message,
-							showCancelButton: true,
-							confirmButtonText: 'View Invoice',
-							cancelButtonText: 'Stay Here'
-						}).then((result) => {
-							if (result.isConfirmed) {
-							window.location.href = `/invoice/${data.invoice_id}/`;
-							} else {
-								$('#quotation-table').DataTable().ajax.reload();
-							}
-						});
-					} else {
-						Swal.fire({
-							icon: 'error',
-							title: 'Error',
-							text: data.message
-						});
-					}
-				})
-				.catch(error => {
-					Swal.fire({
-						icon: 'error',
-						title: 'Error',
-						text: 'An error occurred while converting'
-					});
-					console.error('Error:', error);
-				});
-			}
+			if (!result.isConfirmed) return;
+			fetch(`/quotation/approve/${quotationId}`, {
+				method: 'POST',
+				headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json' }
+			})
+			.then(r => r.json())
+			.then(data => {
+				if (data.success) {
+					Swal.fire({ icon: 'success', title: 'Approved', text: data.message, timer: 1800 })
+						.then(() => $('#quotation-table').DataTable().ajax.reload());
+				} else {
+					Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+				}
+			})
+			.catch(() => Swal.fire({ icon: 'error', title: 'Error', text: 'An error occurred while approving' }));
 		});
 	}
 

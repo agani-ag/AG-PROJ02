@@ -12,8 +12,10 @@
             <div class="sub">{{ q.quotation_date|date:"d M Y" }}</div>
         </div>
         <div class="right" style="flex:none">
-            {% if q.status == "DELIVERED" or q.status == "CONVERTED" %}<span class="badge b-green">{{ q.get_status_display }}</span>
-            {% elif q.status == "DRAFT" %}<span class="badge b-amber">Pending</span>
+            {% if q.status == "CONVERTED" %}<span class="badge b-green">Invoiced</span>
+            {% elif q.status == "DRAFT" %}<span class="badge b-grey">Draft</span>
+            {% elif q.status == "PENDING" %}<span class="badge b-amber">Pending approval</span>
+            {% elif q.status == "APPROVED" %}<span class="badge b-blue">Approved</span>
             {% else %}<span class="badge b-blue">{{ q.get_status_display }}</span>{% endif %}
             <div class="b" style="font-size:18px;white-space:nowrap;margin-top:6px">&#8377; {{ d.invoice_total_amt_with_gst|inr }}</div>
         </div>
@@ -45,10 +47,14 @@
     <div class="between mt" style="border-top:1px solid var(--line);padding-top:10px">
         <span class="b">Grand total</span><span class="b tabnum" style="font-size:17px">&#8377; {{ d.invoice_total_amt_with_gst|inr }}</span>
     </div>
+    {% if q.status != "CONVERTED" %}
+    <div class="sub" style="margin-top:8px;display:flex;gap:6px;align-items:center"><svg class="i" style="width:13px;height:13px;stroke:var(--soft)"><use href="#ic-clock"/></svg> Prices shown are today's rates — they stay live until this order is billed.</div>
+    {% endif %}
 </div>
 
 {% if editable %}
-<button class="btn btn-acc" onclick="editOrder()"><svg class="i" style="stroke:#fff"><use href="#ic-edit"/></svg> Edit order</button>
+<button class="btn btn-acc" onclick="confirmOrder()"><svg class="i" style="stroke:#fff"><use href="#ic-check"/></svg> Confirm order</button>
+<button class="btn" style="margin-top:10px;background:var(--card);color:var(--acc);box-shadow:none;border:1px solid var(--line)" onclick="editOrder()"><svg class="i" style="stroke:var(--acc)"><use href="#ic-edit"/></svg> Edit / add items</button>
 <button class="btn" style="margin-top:10px;background:var(--redbg);color:var(--red);box-shadow:none" onclick="cancelOrder()"><svg class="i" style="stroke:var(--red)"><use href="#ic-trash"/></svg> Cancel order</button>
 <script>
 var LINES = {{ edit_lines_json|safe }};
@@ -59,6 +65,12 @@ function editOrder(){
     try{ localStorage.setItem(CART_KEY, JSON.stringify(cart)); }catch(e){}
     location.href = "{% url 'm_order_cart' %}?edit={{ q.id }}{% if role != 'customer' %}&customer={{ buyer_id }}{% endif %}";
 }
+async function confirmOrder(){
+    if(!confirm('Confirm this order? You won’t be able to edit it after this — the shop will review it for approval.')) return;
+    var r = await M.post("{% url 'm_order_confirm' q.id %}", {});
+    if(r.ok){ M.toast('Order confirmed'); setTimeout(function(){ location.href = r.detail_url; }, 600); }
+    else { M.toast(r.message||'Could not confirm'); }
+}
 async function cancelOrder(){
     if(!confirm('Cancel this order? This cannot be undone.')) return;
     var r = await M.post("{% url 'm_order_cancel' q.id %}", {});
@@ -66,6 +78,22 @@ async function cancelOrder(){
     else { M.toast(r.message||'Could not cancel'); }
 }
 </script>
+{% elif q.status == "PENDING" %}
+<div class="panel" style="background:var(--amberbg);display:flex;gap:10px;align-items:flex-start">
+    <svg class="i" style="width:18px;height:18px;stroke:#8a5a00;flex:none;margin-top:1px"><use href="#ic-clock"/></svg>
+    <div><div class="b" style="color:#8a5a00">Confirmed — awaiting shop approval</div><div class="sub" style="color:#8a5a00">You'll see it move to Approved once the shop accepts it.</div></div>
+</div>
+{% if can_cancel %}
+<button class="btn" style="margin-top:10px;background:var(--redbg);color:var(--red);box-shadow:none" onclick="cancelOrder()"><svg class="i" style="stroke:var(--red)"><use href="#ic-trash"/></svg> Cancel order</button>
+<script>
+async function cancelOrder(){
+    if(!confirm('Cancel this order? This cannot be undone.')) return;
+    var r = await M.post("{% url 'm_order_cancel' q.id %}", {});
+    if(r.ok){ M.toast('Order cancelled'); setTimeout(function(){ location.href = r.order_url; }, 600); }
+    else { M.toast(r.message||'Could not cancel'); }
+}
+</script>
+{% endif %}
 {% endif %}
 
 {% endblock %}

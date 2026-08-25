@@ -28,7 +28,7 @@ def bank_details(request):
 @login_required
 def bank_details_add(request):
     if request.method == "POST":
-        bank_details_form = BankDetailsForm(request.POST)
+        bank_details_form = BankDetailsForm(request.POST, user=request.user)
         if bank_details_form.is_valid():
             new_bank_detail = bank_details_form.save(commit=False)
             new_bank_detail.user = request.user
@@ -36,24 +36,24 @@ def bank_details_add(request):
 
             return redirect('bank_details')
     context = {}
-    context['bank_details_form'] = BankDetailsForm()
+    context['bank_details_form'] = BankDetailsForm(user=request.user)
     return render(request, 'bank_details/bank_details_edit.html', context)
 
 @login_required
 def bank_details_edit(request, pk):
-    bank_detail = get_object_or_404(BankDetails, pk=pk)
+    bank_detail = get_object_or_404(BankDetails, pk=pk, user=request.user)
     if request.method == "POST":
-        bank_details_form = BankDetailsForm(request.POST, instance=bank_detail)
+        bank_details_form = BankDetailsForm(request.POST, instance=bank_detail, user=request.user)
         if bank_details_form.is_valid():
             bank_details_form.save()
             return redirect('bank_details')
     context = {}
-    context['bank_details_form'] = BankDetailsForm(instance=bank_detail)
+    context['bank_details_form'] = BankDetailsForm(instance=bank_detail, user=request.user)
     return render(request, 'bank_details/bank_details_edit.html', context)
 
 @login_required
 def bank_details_delete(request, pk):
-    bank_detail = get_object_or_404(BankDetails, pk=pk)
+    bank_detail = get_object_or_404(BankDetails, pk=pk, user=request.user)
     bank_detail.delete()
     return redirect('bank_details')
 

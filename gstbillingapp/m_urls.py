@@ -15,6 +15,7 @@ urlpatterns = [
     path('order/checkout', o.order_checkout, name='m_order_checkout'),
     path('order/<int:quotation_id>', o.order_detail, name='m_order_detail'),
     path('order/<int:quotation_id>/update', o.order_update, name='m_order_update'),
+    path('order/<int:quotation_id>/confirm', o.order_confirm, name='m_order_confirm'),
     path('order/<int:quotation_id>/cancel', o.order_cancel, name='m_order_cancel'),
 
     # ---- Customer ----

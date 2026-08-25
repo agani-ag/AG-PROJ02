@@ -69,7 +69,6 @@ def signup_view(request):
         if profile_edit_form.is_valid():
             userprofile = profile_edit_form.save(commit=False)
             userprofile.user = user
-            userprofile.business_uid = f"{settings.PRODUCT_PREFIX}{user.id}"
             userprofile.save()
             login(request, user, backend='django.contrib.auth.backends.ModelBackend')
             return redirect("invoice_create")

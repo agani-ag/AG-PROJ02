@@ -35,7 +35,7 @@ def customers(request):
 def customer_add(request):
     context = {}
     if request.method == "POST":
-        customer_form = CustomerForm(request.POST)
+        customer_form = CustomerForm(request.POST, user=request.user)
         if request.POST.get('customer_phone') == "":
             context["error_message"] = "Customer phone is required."
         elif Customer.objects.filter(user=request.user, customer_phone=request.POST.get('customer_phone')).exists():
@@ -52,7 +52,7 @@ def customer_add(request):
             return redirect('customers')
         context['customer_form'] = customer_form
         return render(request, 'customers/customer_edit.html', context)
-    context['customer_form'] = CustomerForm()
+    context['customer_form'] = CustomerForm(user=request.user)
     context['is_mobile_user'] = False
     return render(request, 'customers/customer_edit.html', context)
 
@@ -65,7 +65,7 @@ def customer_edit(request, customer_id):
         customer_obj.save()
     if request.method == "POST":
         context = {}
-        customer_form = CustomerForm(request.POST, instance=customer_obj)
+        customer_form = CustomerForm(request.POST, instance=customer_obj, user=request.user)
         if request.POST.get('customer_phone') == "":
             context["error_message"] = "Customer phone is required."
         elif Customer.objects.filter(user=request.user,
@@ -80,7 +80,7 @@ def customer_edit(request, customer_id):
         return render(request, 'customers/customer_edit.html', context)
     context = {}
     context['customer_id'] = customer_id
-    context['customer_form'] = CustomerForm(instance=customer_obj)
+    context['customer_form'] = CustomerForm(instance=customer_obj, user=request.user)
     context['is_mobile_user'] = customer_obj.is_mobile_user
     context['customer_userid'] = customer_obj.customer_userid
     context['customer_password'] = customer_obj.customer_password

@@ -20,8 +20,11 @@ class CustomerForm(ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        # Scope the customer bank-account choices to this business's own records only.
+        user = kwargs.pop('user', None)
         super(CustomerForm, self).__init__(*args, **kwargs)
-        self.fields['bankdetails'].queryset = BankDetails.objects.filter(whom_account=1)
+        qs = BankDetails.objects.filter(whom_account=1)
+        self.fields['bankdetails'].queryset = qs.filter(user=user) if user is not None else qs.none()
 
 class ProductForm(ModelForm):
      # These three are free-text "tag" fields. Declared explicitly as CharFields so
@@ -113,21 +116,19 @@ class ProductForm(ModelForm):
                                          .distinct().order_by('product_model_category'))
 
 class UserProfileForm(ModelForm):
-    def __init__(self, *args, **kwargs):
-        # first call parent's constructor
-        super(UserProfileForm, self).__init__(*args, **kwargs)
-        # there's a `fields` property now
-        self.fields['business_title'].required = True
-
     class Meta:
         model = UserProfile
         fields = ['business_title', 'business_address', 'business_email', 'business_phone',
-                  'business_gst', 'business_brand', 'business_latitude', 'business_longitude', 'bankdetails',
-                  'sharing_enabled']
-    
+                  'business_gst', 'business_brand', 'business_latitude', 'business_longitude', 'bankdetails']
+
     def __init__(self, *args, **kwargs):
+        # Scope the bank-account choices to this business only — a business must never see
+        # or pick another business's bank account.
+        user = kwargs.pop('user', None)
         super(UserProfileForm, self).__init__(*args, **kwargs)
-        self.fields['bankdetails'].queryset = BankDetails.objects.filter(whom_account=0)
+        self.fields['business_title'].required = True
+        qs = BankDetails.objects.filter(whom_account=0)
+        self.fields['bankdetails'].queryset = qs.filter(user=user) if user is not None else qs.none()
 
 class InventoryLogForm(ModelForm):
     class Meta:
@@ -170,8 +171,11 @@ class VendorPurchaseForm(ModelForm):
                   , 'vendor_latitude', 'vendor_longitude', 'bankdetails']
     
     def __init__(self, *args, **kwargs):
+        # Scope the vendor bank-account choices to this business's own records only.
+        user = kwargs.pop('user', None)
         super(VendorPurchaseForm, self).__init__(*args, **kwargs)
-        self.fields['bankdetails'].queryset = BankDetails.objects.filter(whom_account=2)
+        qs = BankDetails.objects.filter(whom_account=2)
+        self.fields['bankdetails'].queryset = qs.filter(user=user) if user is not None else qs.none()
 
 class ExpenseTrackerForm(ModelForm):
     class Meta:
@@ -183,6 +187,20 @@ class BankDetailsForm(ModelForm):
         model = BankDetails
         fields = ['account_name', 'account_number', 'bank_name', 'branch_name', 'ifsc_code',
                   'upi_id', 'upi_name', 'business_account', 'customer_account', 'vendor_account', 'whom_account']
+
+    def __init__(self, *args, **kwargs):
+        # A bank account can only be mapped to THIS business's own profile / customers /
+        # vendors — never another business's records.
+        user = kwargs.pop('user', None)
+        super(BankDetailsForm, self).__init__(*args, **kwargs)
+        if user is not None:
+            self.fields['business_account'].queryset = UserProfile.objects.filter(user=user)
+            self.fields['customer_account'].queryset = Customer.objects.filter(user=user)
+            self.fields['vendor_account'].queryset = VendorPurchase.objects.filter(user=user)
+        else:
+            self.fields['business_account'].queryset = UserProfile.objects.none()
+            self.fields['customer_account'].queryset = Customer.objects.none()
+            self.fields['vendor_account'].queryset = VendorPurchase.objects.none()
 
 class PurchaseLogForm(ModelForm):
     class Meta:
