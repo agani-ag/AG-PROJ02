@@ -324,16 +324,16 @@ def employee_salary(request, posting_id):
     record = calculate_employee_salary(posting, year, month)
 
     from decimal import Decimal
-    # "Working days only": divisor is marked P+H+A (record.total_days). Leave and unmarked
-    # are excluded — not working days, not paid. Only Absent days are the paid-days shortfall.
+    # Working days = every day except Leave (record.total_days). Blank counts as Absent
+    # (unpaid); Leave is excluded from the divisor. Deduction = the unpaid (absent + blank).
     per_day = (record.base_salary / record.total_days) if record.total_days else Decimal(0)
     amounts = {
         "per_day": per_day,
         "working_days": record.total_days,
         "present": counts["present"] * per_day,
         "half": Decimal(str(counts["half"])) * Decimal("0.5") * per_day,
-        "leave": counts["leave"] * per_day,          # shown for reference; earns nothing
-        "unpaid": counts["absent"] * per_day,        # absent working days = the deduction
+        "leave": counts["leave"] * per_day,          # excluded — shown for reference only
+        "unpaid": (counts["absent"] + counts["unmarked"]) * per_day,   # absent + blank
         "earned": record.base_salary - record.deduction,
     }
     history = SalaryRecord.objects.filter(posting=posting).exclude(month=month, year=year)[:12]
@@ -366,6 +366,39 @@ def attendance_mark(request, posting_id):
         return JsonResponse({"ok": False, "message": "Bad status"}, status=400)
     rec = calculate_employee_salary(posting, dt.year, dt.month)
     return JsonResponse({"ok": True, "net": float(rec.calculated_salary)})
+
+
+@login_required
+def attendance_mark_bulk(request, posting_id):
+    """Set the same status for MANY days at once (multi-select). status -1 clears them."""
+    if request.method != "POST":
+        return JsonResponse({"ok": False}, status=405)
+    posting = _posting(request, posting_id)
+    if not posting.attendance_eligible:
+        return JsonResponse({"ok": False, "message": "Not on attendance."}, status=400)
+    try:
+        payload = json.loads(request.body)
+        status = int(payload["status"])
+    except (ValueError, TypeError, KeyError):
+        return JsonResponse({"ok": False, "message": "Bad request"}, status=400)
+    dates = []
+    for ds in (payload.get("dates") or []):
+        try:
+            dates.append(datetime.date.fromisoformat(ds))
+        except (ValueError, TypeError):
+            pass
+    if not dates:
+        return JsonResponse({"ok": False, "message": "No days selected"}, status=400)
+    if status == -1:
+        AttendanceLog.objects.filter(posting=posting, date__in=dates).delete()
+    elif status in dict(AttendanceLog.STATUS_CHOICES):
+        for d in dates:
+            AttendanceLog.objects.update_or_create(posting=posting, date=d, defaults={"status": status})
+    else:
+        return JsonResponse({"ok": False, "message": "Bad status"}, status=400)
+    for ym in {(d.year, d.month) for d in dates}:
+        calculate_employee_salary(posting, ym[0], ym[1])
+    return JsonResponse({"ok": True, "count": len(dates)})
 
 
 @login_required

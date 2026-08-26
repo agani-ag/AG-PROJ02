@@ -1117,33 +1117,55 @@ class MobileManageTests(TestCase):
         self.assertContains(r, "M.wa(")            # click-to-message (WhatsApp)
         self.assertContains(r, "boss@x.local")     # email on record
 
-    def test_salary_working_days_only(self):
+    def test_blank_counts_as_absent(self):
         from .models import AttendanceLog
         from .utils import calculate_employee_salary
         import datetime as dt
-        y, m = 2026, 3
-        for d in range(1, 21):   # 20 present
+        y, m = 2026, 4                     # April = 30 days
+        for d in range(1, 21):             # 20 present, remaining 10 days blank
             AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=0)
-        for d in range(21, 23):  # 2 absent
-            AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=1)
-        for d in range(23, 26):  # 3 leave (excluded)
-            AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=3)
         rec = calculate_employee_salary(self.posting, y, m)
-        self.assertEqual(rec.total_days, 22)                 # working days = present + absent
+        self.assertEqual(rec.total_days, 30)          # working days = all 30 (no leave); blanks count
         self.assertEqual(float(rec.paid_units), 20.0)
-        self.assertAlmostEqual(float(rec.calculated_salary), round(25000 * 20 / 22, 2), places=2)
+        self.assertAlmostEqual(float(rec.calculated_salary), round(25000 * 20 / 30, 2), places=2)
 
-    def test_leave_is_unpaid_and_excluded(self):
+    def test_leave_excluded_from_working_days(self):
         from .models import AttendanceLog
         from .utils import calculate_employee_salary
         import datetime as dt
         y, m = 2026, 4
-        for d in range(1, 21):   # 20 present, nothing else
+        for d in range(1, 21):             # 20 present
             AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=0)
-        rec1 = calculate_employee_salary(self.posting, y, m)
-        self.assertEqual(float(rec1.calculated_salary), 25000.0)   # 20 paid of 20 working = full base
-        for d in range(21, 26):  # add 5 leave days
+        for d in range(21, 31):            # 10 leave (weekly-offs / holidays)
             AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=3)
-        rec2 = calculate_employee_salary(self.posting, y, m)
-        self.assertEqual(rec2.total_days, 20)                      # leave NOT a working day
-        self.assertEqual(float(rec2.calculated_salary), 25000.0)   # leave doesn't cut pay
+        rec = calculate_employee_salary(self.posting, y, m)
+        self.assertEqual(rec.total_days, 20)          # 30 − 10 leave = 20 working days
+        self.assertEqual(float(rec.calculated_salary), 25000.0)   # 20 present of 20 working = full pay
+
+    def test_bulk_attendance_mark(self):
+        from .models import AttendanceLog
+        self._admin()
+        dates = ["2026-05-01", "2026-05-02", "2026-05-03"]
+        r = self.client.post(reverse("m_manage_attendance_bulk", args=[self.posting.id]),
+            data=json.dumps({"dates": dates, "status": 0}), content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertEqual(r.json()["count"], 3)
+        self.assertEqual(AttendanceLog.objects.filter(posting=self.posting, status=0).count(), 3)
+        # Bulk clear removes them.
+        r = self.client.post(reverse("m_manage_attendance_bulk", args=[self.posting.id]),
+            data=json.dumps({"dates": dates, "status": -1}), content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertEqual(AttendanceLog.objects.filter(posting=self.posting).count(), 0)
+
+    def test_desktop_bulk_attendance(self):
+        # Desktop attendance multi-select parity: bulk-mark several days, then bulk-clear.
+        self.client.force_login(self.owner)
+        from .models import AttendanceLog
+        dates = ["2026-06-01", "2026-06-02", "2026-06-08"]
+        r = self.client.post(reverse("attendance_mark_bulk", args=[self.posting.id]),
+            data=json.dumps({"dates": dates, "status": 3}), content_type="application/json")  # Leave
+        self.assertTrue(r.json()["ok"])
+        self.assertEqual(AttendanceLog.objects.filter(posting=self.posting, status=3).count(), 3)
+        r = self.client.post(reverse("attendance_mark_bulk", args=[self.posting.id]),
+            data=json.dumps({"dates": dates, "status": -1}), content_type="application/json")
+        self.assertEqual(AttendanceLog.objects.filter(posting=self.posting).count(), 0)

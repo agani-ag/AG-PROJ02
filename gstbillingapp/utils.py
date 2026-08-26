@@ -153,17 +153,20 @@ def calculate_employee_salary(posting, year, month, advances=None, bonus=None):
     month's advances/bonus. A posting is the person's per-business record (its own salary
     and attendance), so a shared employee is paid separately in each business.
 
-    "Working days only" model — the divisor is the days actually MARKED as work, not the
-    calendar. Working days = Present + Half + Absent (Leave and unmarked days are excluded
-    entirely). Paid = Present + 0.5×Half. earned = base × Paid / WorkingDays; if nothing is
-    marked as work, earned = base (no deductions). net = earned − advances + bonus."""
+    "Working days" model — a working day is every calendar day EXCEPT Leave; a blank
+    (unmarked) day counts as Absent (unpaid). So working days = days_in_month − leave.
+    Paid = Present + 0.5×Half (Absent and blank earn nothing; Leave is excluded, neither
+    paid nor a working day). earned = base × Paid / WorkingDays; net = earned − adv + bonus.
+    Mark weekly-offs/holidays as Leave to keep the divisor at the real working days."""
+    import calendar as _cal
     from decimal import Decimal
     from .models import AttendanceLog, SalaryRecord
 
     rec = SalaryRecord.objects.filter(posting=posting, month=month, year=year).first()
     base = Decimal(str(posting.salary or 0))
+    days_in_month = _cal.monthrange(year, month)[1]
 
-    present = half = absent = 0
+    present = half = absent = leave = 0
     for l in AttendanceLog.objects.filter(posting=posting, date__year=year, date__month=month):
         if l.status == AttendanceLog.PRESENT:
             present += 1
@@ -171,14 +174,16 @@ def calculate_employee_salary(posting, year, month, advances=None, bonus=None):
             half += 1
         elif l.status == AttendanceLog.ABSENT:
             absent += 1
-        # LEAVE (and unmarked) don't count as working days and aren't paid.
-    working_days = present + half + absent
+        elif l.status == AttendanceLog.LEAVE:
+            leave += 1
+    # Blank days count as absent → working days = every day that isn't Leave.
+    working_days = days_in_month - leave
     paid_units = Decimal(str(present)) + Decimal("0.5") * Decimal(str(half))
 
     adv = Decimal(str(advances if advances is not None else (rec.advances if rec else 0)))
     bon = Decimal(str(bonus if bonus is not None else (rec.bonus if rec else 0)))
 
-    # Divide by the days actually worked; nothing marked → full base (no deduction).
+    # If the whole month is Leave there are no working days → full base (avoid /0).
     earned = ((base * paid_units / Decimal(working_days)) if working_days else base).quantize(Decimal("0.01"))
     deduction = (base - earned).quantize(Decimal("0.01"))
     net = (earned - adv + bon).quantize(Decimal("0.01"))

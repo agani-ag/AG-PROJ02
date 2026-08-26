@@ -181,6 +181,48 @@ def team_attendance_mark(request, posting_id):
 
 @csrf_exempt
 @mobile_login_required("employee")
+def team_attendance_mark_bulk(request, posting_id):
+    """Set the same status for MANY days at once (multi-select). status -1 clears them."""
+    if not _is_admin(request):
+        return _deny(request, ajax=True)
+    if request.method != "POST":
+        return JsonResponse({"ok": False}, status=405)
+    posting = _posting(request, posting_id)
+    if not posting.attendance_eligible:
+        return JsonResponse({"ok": False, "message": "Not on attendance."}, status=400)
+    try:
+        payload = json.loads(request.body)
+        status = int(payload["status"])
+    except (ValueError, TypeError, KeyError):
+        return JsonResponse({"ok": False, "message": "Bad request"}, status=400)
+    dates = []
+    for ds in (payload.get("dates") or []):
+        try:
+            dates.append(datetime.date.fromisoformat(ds))
+        except (ValueError, TypeError):
+            pass
+    if not dates:
+        return JsonResponse({"ok": False, "message": "No days selected"}, status=400)
+    if status == -1:
+        AttendanceLog.objects.filter(posting=posting, date__in=dates).delete()
+    elif status in dict(AttendanceLog.STATUS_CHOICES):
+        for d in dates:
+            AttendanceLog.objects.update_or_create(posting=posting, date=d, defaults={"status": status})
+    else:
+        return JsonResponse({"ok": False, "message": "Bad status"}, status=400)
+    # Recompute every month the selection touched; report the first day's month back.
+    rec = None
+    for ym in sorted({(d.year, d.month) for d in dates}):
+        r = calculate_employee_salary(posting, ym[0], ym[1])
+        if rec is None or ym == (dates[0].year, dates[0].month):
+            rec = r
+    return JsonResponse({"ok": True, "count": len(dates),
+                         "net": format_inr(rec.calculated_salary, 0),
+                         "deduction": format_inr(rec.deduction, 0)})
+
+
+@csrf_exempt
+@mobile_login_required("employee")
 def team_salary_save(request, posting_id):
     """Set this month's advances / bonus and recompute net pay."""
     if not _is_admin(request):

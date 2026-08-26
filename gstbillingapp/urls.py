@@ -39,6 +39,7 @@ urlpatterns = [
     path('employees/<int:posting_id>/salary', employee.employee_salary, name='employee_salary'),
     path('employees/<int:posting_id>/attendance/mark', employee.attendance_mark, name='attendance_mark'),
     path('employees/<int:posting_id>/attendance/mark-all', employee.attendance_mark_all, name='attendance_mark_all'),
+    path('employees/<int:posting_id>/attendance/mark-bulk', employee.attendance_mark_bulk, name='attendance_mark_bulk'),
     path('employees/<int:posting_id>/incentives', employee.employee_incentives, name='employee_incentives'),
     path('incentives/<int:pk>/toggle-paid', employee.incentive_toggle_paid, name='incentive_toggle_paid'),
     path('incentives/<int:pk>/delete', employee.incentive_delete, name='incentive_delete'),

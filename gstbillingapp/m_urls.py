@@ -53,6 +53,7 @@ urlpatterns = [
     path('employee/manage/team', a.team, name='m_manage_team'),
     path('employee/manage/team/<int:posting_id>', a.team_member, name='m_manage_team_member'),
     path('employee/manage/team/<int:posting_id>/attendance', a.team_attendance_mark, name='m_manage_attendance_mark'),
+    path('employee/manage/team/<int:posting_id>/attendance/bulk', a.team_attendance_mark_bulk, name='m_manage_attendance_bulk'),
     path('employee/manage/team/<int:posting_id>/salary', a.team_salary_save, name='m_manage_salary_save'),
     path('employee/manage/team/<int:posting_id>/incentive', a.team_incentive_add, name='m_manage_incentive_add'),
     path('employee/manage/incentive/<int:pk>/toggle', a.team_incentive_toggle, name='m_manage_incentive_toggle'),

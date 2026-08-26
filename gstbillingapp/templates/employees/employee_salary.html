@@ -47,6 +47,17 @@
                 <button type="submit" class="btn btn-dark btn-sm btn-curve"><i class="fas fa-save"></i> Save</button>
             </form>
             <button class="btn btn-success btn-sm btn-curve" onclick="markAllPresent()"><i class="fas fa-check-double"></i> Mark all present</button>
+            <button id="selToggle" class="btn btn-outline-primary btn-sm btn-curve" onclick="toggleSelectMode()"><i class="fas fa-object-group"></i> Select multiple</button>
+        </div>
+
+        <!-- Bulk action bar (multi-select) -->
+        <div id="bulkBar" class="alert alert-light border d-flex align-items-center flex-wrap" style="display:none !important;gap:8px;padding:8px 12px">
+            <span class="font-weight-bold mr-2"><span id="selCount">0 selected</span></span>
+            <button class="btn btn-success btn-sm btn-curve" onclick="bulkApply(0)"><i class="fas fa-check"></i> Present</button>
+            <button class="btn btn-warning btn-sm btn-curve" onclick="bulkApply(2)"><i class="fas fa-adjust"></i> Half</button>
+            <button class="btn btn-info btn-sm btn-curve" onclick="bulkApply(3)"><i class="fas fa-plane"></i> Leave</button>
+            <button class="btn btn-danger btn-sm btn-curve" onclick="bulkApply(1)"><i class="fas fa-times"></i> Absent</button>
+            <button class="btn btn-outline-secondary btn-sm btn-curve" onclick="bulkApply(-1)"><i class="fas fa-eraser"></i> Clear</button>
         </div>
         <table class="table table-bordered text-center att-cal mb-1">
             <thead class="thead-dark"><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
@@ -55,7 +66,7 @@
                 <tr>
                     {% for cell in week %}
                         {% if cell %}
-                        <td class="att-cell {% if cell.status is not None %}status-{{ cell.status }}{% else %}unmarked{% endif %}" data-date="{{ cell.date }}" onclick="pickStatus(this)" style="cursor:pointer;height:70px;vertical-align:top">
+                        <td class="att-cell {% if cell.status is not None %}status-{{ cell.status }}{% else %}unmarked{% endif %}" data-date="{{ cell.date }}" onclick="cellClick(this)" style="cursor:pointer;height:70px;vertical-align:top">
                             <div class="font-weight-bold">{{ cell.day }}</div>
                             <small class="lbl">{% if cell.status is not None %}{{ cell.status_label }}{% else %}Absent{% endif %}</small>
                         </td>
@@ -65,7 +76,7 @@
                 {% endfor %}
             </tbody>
         </table>
-        <p class="text-muted"><small><strong>Working days = the days you mark</strong> Present / Half / Absent. <strong class="text-info">Leave</strong> and <strong>unmarked</strong> days are excluded — not working days and not paid. Salary = base × (Present + ½·Half) ÷ working days.</small></p>
+        <p class="text-muted"><small><strong>Working day = every day except Leave.</strong> A <strong>blank / unmarked</strong> day counts as <strong class="text-danger">Absent (unpaid)</strong>; mark weekly-offs &amp; holidays as <strong class="text-info">Leave</strong> to exclude them. Salary = base × (Present + ½·Half) ÷ working days.</small></p>
     </div>
 
     <!-- Salary summary -->
@@ -78,8 +89,8 @@
                     <tr><td>Working days</td><td class="text-right" colspan="2">{{ record.total_days }} <span class="text-muted">(₹ {{ amounts.per_day|inrs }}/day)</span></td></tr>
                     <tr class="text-success"><td>Present</td><td class="text-right">{{ counts.present }}</td><td class="text-right">₹ {{ amounts.present|inrs }}</td></tr>
                     <tr class="text-warning"><td>Half-day</td><td class="text-right">{{ counts.half }}</td><td class="text-right">₹ {{ amounts.half|inrs }}</td></tr>
-                    <tr class="text-danger"><td>Absent</td><td class="text-right">{{ counts.absent }}</td><td class="text-right">− ₹ {{ amounts.unpaid|inrs }}</td></tr>
-                    <tr class="text-muted"><td>Leave / unmarked (excluded)</td><td class="text-right">{{ counts.leave }} / {{ counts.unmarked }}</td><td class="text-right">—</td></tr>
+                    <tr class="text-danger"><td>Absent + blank</td><td class="text-right">{{ counts.absent }} + {{ counts.unmarked }}</td><td class="text-right">− ₹ {{ amounts.unpaid|inrs }}</td></tr>
+                    <tr class="text-muted"><td>Leave (excluded)</td><td class="text-right">{{ counts.leave }}</td><td class="text-right">—</td></tr>
                     <tr class="font-weight-bold border-top"><td>Earned ({{ record.paid_units }} of {{ record.total_days }} days)</td><td class="text-right" colspan="2">₹ {{ amounts.earned|inrs }}</td></tr>
                     <tr class="text-danger"><td>Advances</td><td class="text-right" colspan="2">− ₹ {{ record.advances|inrs }}</td></tr>
                     <tr class="text-success"><td>Bonus</td><td class="text-right" colspan="2">+ ₹ {{ record.bonus|inrs }}</td></tr>
@@ -116,6 +127,8 @@
 .att-cell.unmarked{background:#fdeaea}   /* blank = absent (faint red) */
 .att-cell.unmarked .lbl{color:#c0392b;opacity:.7}
 .att-cell .lbl{font-size:11px;font-weight:600}
+.att-cell.selected{outline:3px solid #007bff;outline-offset:-3px}
+#selToggle.active{background:#007bff;color:#fff}
 </style>
 {% endblock %}
 
@@ -123,7 +136,37 @@
 <script>
 const MARK_URL = "{% url 'attendance_mark' posting.id %}";
 const MARK_ALL_URL = "{% url 'attendance_mark_all' posting.id %}?year={{ year }}&month={{ month }}";
+const BULK_URL = "{% url 'attendance_mark_bulk' posting.id %}";
 const CSRF = "{{ csrf_token }}";
+
+// ---- Multi-select ----
+let selectMode = false;
+const selected = new Set();
+function cellClick(td){
+    if(selectMode){
+        var d = td.getAttribute('data-date');
+        if(selected.has(d)){ selected.delete(d); td.classList.remove('selected'); }
+        else { selected.add(d); td.classList.add('selected'); }
+        document.getElementById('selCount').textContent = selected.size + ' selected';
+    } else { pickStatus(td); }
+}
+function toggleSelectMode(){
+    selectMode = !selectMode;
+    selected.clear();
+    document.querySelectorAll('.att-cell.selected').forEach(td => td.classList.remove('selected'));
+    var btn = document.getElementById('selToggle');
+    btn.classList.toggle('active', selectMode);
+    btn.innerHTML = selectMode ? '<i class="fas fa-times"></i> Cancel select' : '<i class="fas fa-object-group"></i> Select multiple';
+    document.getElementById('bulkBar').style.setProperty('display', selectMode ? 'flex' : 'none', 'important');
+    document.getElementById('selCount').textContent = '0 selected';
+}
+function bulkApply(status){
+    if(!selected.size){ Swal.fire('', 'Click days to select them first.', 'info'); return; }
+    fetch(BULK_URL, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF}, body: JSON.stringify({dates: Array.from(selected), status: status})})
+    .then(r=>r.json()).then(d=>{ if(d.ok){ location.reload(); } else { Swal.fire('Error', d.message||'Failed', 'error'); } })
+    .catch(()=>Swal.fire('Error','Network error','error'));
+}
+
 function pickStatus(td){
     var date = td.getAttribute('data-date');
     Swal.fire({
