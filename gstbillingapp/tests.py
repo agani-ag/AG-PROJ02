@@ -1116,3 +1116,34 @@ class MobileManageTests(TestCase):
         self.assertContains(r, "tel:9876500000")   # click-to-call
         self.assertContains(r, "M.wa(")            # click-to-message (WhatsApp)
         self.assertContains(r, "boss@x.local")     # email on record
+
+    def test_salary_working_days_only(self):
+        from .models import AttendanceLog
+        from .utils import calculate_employee_salary
+        import datetime as dt
+        y, m = 2026, 3
+        for d in range(1, 21):   # 20 present
+            AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=0)
+        for d in range(21, 23):  # 2 absent
+            AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=1)
+        for d in range(23, 26):  # 3 leave (excluded)
+            AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=3)
+        rec = calculate_employee_salary(self.posting, y, m)
+        self.assertEqual(rec.total_days, 22)                 # working days = present + absent
+        self.assertEqual(float(rec.paid_units), 20.0)
+        self.assertAlmostEqual(float(rec.calculated_salary), round(25000 * 20 / 22, 2), places=2)
+
+    def test_leave_is_unpaid_and_excluded(self):
+        from .models import AttendanceLog
+        from .utils import calculate_employee_salary
+        import datetime as dt
+        y, m = 2026, 4
+        for d in range(1, 21):   # 20 present, nothing else
+            AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=0)
+        rec1 = calculate_employee_salary(self.posting, y, m)
+        self.assertEqual(float(rec1.calculated_salary), 25000.0)   # 20 paid of 20 working = full base
+        for d in range(21, 26):  # add 5 leave days
+            AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=3)
+        rec2 = calculate_employee_salary(self.posting, y, m)
+        self.assertEqual(rec2.total_days, 20)                      # leave NOT a working day
+        self.assertEqual(float(rec2.calculated_salary), 25000.0)   # leave doesn't cut pay

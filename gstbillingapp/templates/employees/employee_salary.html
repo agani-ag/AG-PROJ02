@@ -65,7 +65,7 @@
                 {% endfor %}
             </tbody>
         </table>
-        <p class="text-muted"><small>Mark <strong class="text-success">Present</strong> for each paid day. A <strong>blank / unmarked</strong> day counts as <strong class="text-danger">Absent (unpaid)</strong>. Half-day pays ½; Leave is paid.</small></p>
+        <p class="text-muted"><small><strong>Working days = the days you mark</strong> Present / Half / Absent. <strong class="text-info">Leave</strong> and <strong>unmarked</strong> days are excluded — not working days and not paid. Salary = base × (Present + ½·Half) ÷ working days.</small></p>
     </div>
 
     <!-- Salary summary -->
@@ -75,12 +75,12 @@
             <div class="card-body">
                 <table class="table table-sm mb-2">
                     <tr><td>Base salary</td><td class="text-right" colspan="2">₹ {{ record.base_salary|inrs }}</td></tr>
-                    <tr><td>Days in month</td><td class="text-right" colspan="2">{{ record.total_days }} <span class="text-muted">(₹ {{ amounts.per_day|inrs }}/day)</span></td></tr>
+                    <tr><td>Working days</td><td class="text-right" colspan="2">{{ record.total_days }} <span class="text-muted">(₹ {{ amounts.per_day|inrs }}/day)</span></td></tr>
                     <tr class="text-success"><td>Present</td><td class="text-right">{{ counts.present }}</td><td class="text-right">₹ {{ amounts.present|inrs }}</td></tr>
                     <tr class="text-warning"><td>Half-day</td><td class="text-right">{{ counts.half }}</td><td class="text-right">₹ {{ amounts.half|inrs }}</td></tr>
-                    <tr class="text-info"><td>Leave (paid)</td><td class="text-right">{{ counts.leave }}</td><td class="text-right">₹ {{ amounts.leave|inrs }}</td></tr>
-                    <tr class="text-danger"><td>Absent + blank</td><td class="text-right">{{ counts.absent }} + {{ counts.unmarked }}</td><td class="text-right">− ₹ {{ amounts.unpaid|inrs }}</td></tr>
-                    <tr class="font-weight-bold border-top"><td>Earned ({{ record.paid_units }} paid days)</td><td class="text-right" colspan="2">₹ {{ amounts.earned|inrs }}</td></tr>
+                    <tr class="text-danger"><td>Absent</td><td class="text-right">{{ counts.absent }}</td><td class="text-right">− ₹ {{ amounts.unpaid|inrs }}</td></tr>
+                    <tr class="text-muted"><td>Leave / unmarked (excluded)</td><td class="text-right">{{ counts.leave }} / {{ counts.unmarked }}</td><td class="text-right">—</td></tr>
+                    <tr class="font-weight-bold border-top"><td>Earned ({{ record.paid_units }} of {{ record.total_days }} days)</td><td class="text-right" colspan="2">₹ {{ amounts.earned|inrs }}</td></tr>
                     <tr class="text-danger"><td>Advances</td><td class="text-right" colspan="2">− ₹ {{ record.advances|inrs }}</td></tr>
                     <tr class="text-success"><td>Bonus</td><td class="text-right" colspan="2">+ ₹ {{ record.bonus|inrs }}</td></tr>
                 </table>

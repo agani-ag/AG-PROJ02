@@ -324,13 +324,16 @@ def employee_salary(request, posting_id):
     record = calculate_employee_salary(posting, year, month)
 
     from decimal import Decimal
+    # "Working days only": divisor is marked P+H+A (record.total_days). Leave and unmarked
+    # are excluded — not working days, not paid. Only Absent days are the paid-days shortfall.
     per_day = (record.base_salary / record.total_days) if record.total_days else Decimal(0)
     amounts = {
         "per_day": per_day,
+        "working_days": record.total_days,
         "present": counts["present"] * per_day,
         "half": Decimal(str(counts["half"])) * Decimal("0.5") * per_day,
-        "leave": counts["leave"] * per_day,
-        "unpaid": (counts["absent"] + counts["unmarked"]) * per_day,
+        "leave": counts["leave"] * per_day,          # shown for reference; earns nothing
+        "unpaid": counts["absent"] * per_day,        # absent working days = the deduction
         "earned": record.base_salary - record.deduction,
     }
     history = SalaryRecord.objects.filter(posting=posting).exclude(month=month, year=year)[:12]

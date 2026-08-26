@@ -677,9 +677,9 @@ class EmployeePosting(models.Model):
 
 # ============ Employee Attendance / Salary / Incentive =====================
 class AttendanceLog(models.Model):
-    """One attendance mark per employee per day. A day is PAID only when explicitly marked
-    Present / Half-day / Leave; a blank (unmarked) day counts as Absent (unpaid). Salary is
-    per-day × paid units (Present = 1, Half = 0.5, Leave = 1, Absent = 0)."""
+    """One attendance mark per employee per day. Salary uses a "working days only" model:
+    working days = the days marked Present / Half / Absent (Leave and unmarked days are
+    excluded entirely). Paid units = Present 1, Half 0.5; Absent and Leave earn nothing."""
     PRESENT, ABSENT, HALF, LEAVE = 0, 1, 2, 3
     STATUS_CHOICES = [
         (PRESENT, "Present"),
@@ -687,7 +687,7 @@ class AttendanceLog(models.Model):
         (HALF, "Half-day"),
         (LEAVE, "Leave"),
     ]
-    PAY_UNITS = {PRESENT: 1.0, ABSENT: 0.0, HALF: 0.5, LEAVE: 1.0}
+    PAY_UNITS = {PRESENT: 1.0, ABSENT: 0.0, HALF: 0.5, LEAVE: 0.0}
 
     posting = models.ForeignKey("EmployeePosting", on_delete=models.CASCADE, related_name="attendance_logs")
     date = models.DateField()
