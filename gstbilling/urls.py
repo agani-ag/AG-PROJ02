@@ -21,5 +21,4 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('gstbillingapp.urls')),
     path('m/', include('gstbillingapp.m_urls')),
-    path('mobile/v1/', include('gstbillingapp.mobile_urls_v1')),
 ]
