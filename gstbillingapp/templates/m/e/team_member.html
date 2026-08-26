@@ -7,6 +7,25 @@
 {% block subhead %}<div class="sub">{% if posting.is_admin %}Admin{% else %}Staff{% endif %}{% if not posting.is_home %} · Shared{% endif %}</div>{% endblock %}
 {% block content %}
 
+<div class="panel">
+    {% if employee.phone %}
+    <div class="between">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0"><span class="ico ic-blue"><svg class="i"><use href="#ic-phone"/></svg></span><span style="min-width:0"><span class="b">{{ employee.phone }}</span><div class="sub">Phone</div></span></span>
+        <span style="display:flex;gap:8px;flex:none">
+            <a href="tel:{{ employee.phone }}" class="badge b-green" style="padding:8px 12px"><svg class="i" style="width:13px;height:13px;stroke:var(--green);vertical-align:-2px"><use href="#ic-phone"/></svg> Call</a>
+            <button type="button" class="badge b-blue" style="border:none;padding:8px 12px;cursor:pointer" onclick="M.wa('{{ employee.phone|escapejs }}','Hi {{ employee.name|escapejs }},')"><svg class="i" style="width:13px;height:13px;stroke:var(--acc);vertical-align:-2px"><use href="#ic-message"/></svg> Message</button>
+        </span>
+    </div>
+    {% else %}
+    <div class="between"><span class="muted">Phone</span><span class="muted">Not on record</span></div>
+    {% endif %}
+    {% if employee.email %}<div class="between sm mt"><span class="muted">Email</span><a href="mailto:{{ employee.email }}" class="b">{{ employee.email }}</a></div>{% endif %}
+    {% if employee.address %}<div class="sm mt"><span class="muted">{{ employee.address }}</span></div>{% endif %}
+    <div class="between sm mt"><span class="muted">Role</span><span class="b">{% if posting.is_admin %}Admin{% else %}Staff{% endif %}{% if not posting.is_home %} · Shared-in{% endif %}</span></div>
+    {% if posting.attendance_eligible and posting.salary %}<div class="between sm mt"><span class="muted">Monthly salary</span><span class="b tabnum">&#8377; {{ posting.salary|inrs }}</span></div>{% endif %}
+    {% if not posting.is_active %}<div class="between sm mt"><span class="muted">Status</span><span class="badge b-red">Inactive here</span></div>{% endif %}
+</div>
+
 {% if not_eligible %}
 <div class="panel" style="background:var(--amberbg);color:#8a5a00"><div class="b">Not on payroll</div><div class="sub" style="color:#8a5a00">Enable "attendance eligible" on the desktop to track this person's attendance &amp; salary. You can still record incentives below.</div></div>
 {% else %}

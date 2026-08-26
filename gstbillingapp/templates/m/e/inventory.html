@@ -3,33 +3,143 @@
 {% block title %}Inventory{% endblock %}
 {% block back %}<a class="back" href="{% url 'm_employee_home' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Home</a>{% endblock %}
 {% block heading %}Inventory{% endblock %}
+{% block subhead %}<div class="sub"><span id="icount">{{ count }}</span> item{{ count|pluralize }}</div>{% endblock %}
+{% block includecss %}
+.chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;-webkit-overflow-scrolling:touch}
+.chips button{flex:0 0 auto;border:0;padding:7px 14px;border-radius:20px;background:var(--card);color:var(--soft);font-size:12.5px;font-weight:700;white-space:nowrap;box-shadow:var(--sh)}
+.chips button.on{background:var(--acc);color:#fff}
+#sortchips button[data-low]{color:var(--red)}
+#sortchips button[data-low].on{background:var(--red);color:#fff}
+.fsel{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fsel select{flex:1;min-width:110px;border:1px solid var(--line);border-radius:12px;padding:9px 10px;font-size:13px;background:var(--card);color:var(--ink);box-shadow:var(--sh)}
+.prod{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.prod:last-child{border-bottom:0}
+.prod .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod .meta{font-size:12px;color:var(--soft)}
+{% endblock %}
 {% block content %}
 
-<div class="filt" style="display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;-webkit-overflow-scrolling:touch">
-    <a class="badge {% if not low_only %}b-blue{% else %}b-grey{% endif %}" style="padding:8px 14px;white-space:nowrap" href="{% url 'm_manage_inventory' %}">All stock</a>
-    <a class="badge {% if low_only %}b-red{% else %}b-grey{% endif %}" style="padding:8px 14px;white-space:nowrap" href="{% url 'm_manage_inventory' %}?low=1">Low stock{% if low_count %} · {{ low_count }}{% endif %}</a>
+<div style="position:relative;margin-bottom:12px">
+    <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+    <input class="field" id="q" placeholder="Search model or name…" oninput="render()" autocomplete="off" style="margin:0;padding-left:42px">
 </div>
 
-{% if rows %}
-{% include "m/_searchbar.html" with target="#inv-list" empty="#inv-empty" placeholder="Search model or name…" %}
-<div class="list" id="inv-list">
-    {% for r in rows %}
-    <div class="row" data-s="{{ r.model_no|lower }} {{ r.name|lower }}">
-        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
-            <span class="ico {% if r.low %}ic-red{% else %}ic-green{% endif %}"><svg class="i"><use href="#ic-box"/></svg></span>
-            <span style="min-width:0"><span class="b">{{ r.model_no }}</span><div class="sub">{{ r.name }}{% if r.alert %} · alert ≤ {{ r.alert }}{% endif %}</div></span>
-        </span>
-        <span class="right" style="white-space:nowrap">
-            <div class="b tabnum" style="{% if r.low %}color:var(--red){% endif %}">{{ r.stock }}</div>
-            {% if r.low %}<span class="badge b-red">Low</span>{% endif %}
-        </span>
-    </div>
-    {% endfor %}
+<div class="chips" id="chips"></div>
+<div class="chips" id="sortchips" style="padding-top:0">
+    <span style="align-self:center;font-size:12px;color:var(--faint);padding:0 4px">Sort</span>
+    <button class="on" data-s="name" onclick="setSort(this,'name')">Name</button>
+    <button data-s="stock" onclick="setSort(this,'stock')">Stock</button>
+    <button data-low onclick="toggleLow(this)" style="margin-left:auto">Low stock{% if low_count %} · {{ low_count }}{% endif %}</button>
 </div>
-<div class="empty" id="inv-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
-{% else %}
-<div class="empty"><svg class="i"><use href="#ic-box"/></svg><div>{% if low_only %}Nothing low on stock. 👍{% else %}No stock tracked yet.{% endif %}</div></div>
-{% endif %}
+<div class="fsel" id="filters"></div>
+
+<div class="list"><div id="plist"></div></div>
+<div class="empty" id="empty" style="display:none"><svg class="i"><use href="#ic-box"/></svg><div>No stock found.</div></div>
+
+<script>
+const PRODUCTS = {{ items_json|safe }};
+const CATS = {{ categories_json|safe }};
+let activeCat = '';
+let sortField = 'name', sortDir = 'asc';
+let fDiv = '', fModel = '', fColour = '';
+let lowOnly = false;
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+const FDEFS = [
+    {k:'div', field:'product_division_category', label:'divisions'},
+    {k:'model', field:'product_model_category', label:'model categories'},
+    {k:'colour', field:'product_colour', label:'colours'}
+];
+function fVal(k){ return k==='div' ? fDiv : k==='model' ? fModel : fColour; }
+function fSet(k, v){ if(k==='div') fDiv=v; else if(k==='model') fModel=v; else fColour=v; }
+function baseMatch(p, exceptKey){
+    if(lowOnly && !p.low) return false;
+    if(exceptKey!=='cat' && activeCat && String(p.product_category_id)!==String(activeCat)) return false;
+    if(exceptKey!=='div' && fDiv && String(p.product_division_category||'').trim()!==fDiv) return false;
+    if(exceptKey!=='model' && fModel && String(p.product_model_category||'').trim()!==fModel) return false;
+    if(exceptKey!=='colour' && fColour && String(p.product_colour||'').trim()!==fColour) return false;
+    return true;
+}
+function distinctFor(field, exceptKey){
+    var s={}; PRODUCTS.forEach(function(p){ if(!baseMatch(p, exceptKey)) return; var v=String(p[field]||'').trim(); if(v) s[v]=1; });
+    return Object.keys(s).sort();
+}
+function buildChips(){
+    var used = {}; PRODUCTS.forEach(function(p){ if(baseMatch(p,'cat') && p.product_category_id) used[p.product_category_id]=1; });
+    if(activeCat && !used[activeCat]) activeCat = '';
+    var cats = CATS.filter(function(c){ return used[c.id]; });
+    var box = document.getElementById('chips');
+    if(!cats.length){ box.innerHTML = ''; box.style.display = 'none'; return; }
+    box.style.display = '';
+    var html = '<button class="'+(activeCat===''?'on':'')+'" data-c="" onclick="setCat(this,\'\')">All</button>';
+    cats.forEach(function(c){ html += '<button class="'+(String(activeCat)===String(c.id)?'on':'')+'" data-c="'+c.id+'" onclick="setCat(this,\''+c.id+'\')">'+esc(c.category_name)+'</button>'; });
+    box.innerHTML = html;
+}
+function buildFilters(){
+    FDEFS.forEach(function(d){ var cur=fVal(d.k); if(cur && distinctFor(d.field, d.k).indexOf(cur)<0) fSet(d.k, ''); });
+    var html = '';
+    FDEFS.forEach(function(d){
+        var vals = distinctFor(d.field, d.k);
+        if(!vals.length) return;
+        var cur = fVal(d.k);
+        html += '<select onchange="setFilter(\''+d.k+'\',this.value)"><option value="">All '+d.label+'</option>';
+        vals.forEach(function(v){ html += '<option value="'+esc(v)+'"'+(v===cur?' selected':'')+'>'+esc(v)+'</option>'; });
+        html += '</select>';
+    });
+    document.getElementById('filters').innerHTML = html;
+}
+function setCat(btn, id){ activeCat = id; buildChips(); buildFilters(); render(); }
+function setFilter(k, v){ fSet(k, v); buildChips(); buildFilters(); render(); }
+function toggleLow(btn){ lowOnly = !lowOnly; btn.classList.toggle('on', lowOnly); buildChips(); buildFilters(); render(); }
+function setSort(btn, field){
+    if(sortField===field){ sortDir = sortDir==='asc' ? 'desc' : 'asc'; }
+    else { sortField = field; sortDir = 'asc'; }
+    // Only the sort buttons deselect — the Low-stock toggle keeps its own state.
+    document.querySelectorAll('#sortchips button[data-s]').forEach(function(b){ b.classList.remove('on'); });
+    btn.classList.add('on'); paintSort(); render();
+}
+function paintSort(){
+    var LBL = {name:'Name', stock:'Stock'};
+    document.querySelectorAll('#sortchips button[data-s]').forEach(function(b){
+        var f = b.getAttribute('data-s');
+        b.textContent = LBL[f] + (f===sortField ? (sortDir==='asc' ? ' ↑' : ' ↓') : '');
+    });
+}
+function render(){
+    var q = (document.getElementById('q').value||'').toLowerCase().trim();
+    var arr = PRODUCTS.filter(function(p){
+        if(!baseMatch(p, null)) return false;
+        if(q){
+            var hay = ((p.product_name||'')+' '+(p.model_no||'')+' '+(p.product_hsn||'')+' '+(p.product_colour||'')).toLowerCase();
+            if(hay.indexOf(q)<0) return false;
+        }
+        return true;
+    });
+    arr.sort(function(a,b){
+        var r = sortField==='stock'
+            ? ((Number(a.stock)||0) - (Number(b.stock)||0))
+            : String(a.model_no||a.product_name||'').localeCompare(String(b.model_no||b.product_name||''));
+        return sortDir==='asc' ? r : -r;
+    });
+    var out = '';
+    arr.forEach(function(p){
+        var meta = [p.product_name, p.product_hsn ? 'HSN '+p.product_hsn : '', p.alert ? 'alert ≤ '+p.alert : '']
+                   .filter(Boolean).map(esc).join(' · ');
+        out += '<div class="prod">'
+            + '<span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0;flex:1">'
+            + '<span class="ico '+(p.low?'ic-red':'ic-green')+'" style="width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:none"><svg class="i" style="width:16px;height:16px"><use href="#ic-box"/></svg></span>'
+            + '<span style="min-width:0"><span class="nm">'+esc(p.model_no||'—')+'</span><div class="meta">'+meta+'</div></span></span>'
+            + '<span class="right" style="white-space:nowrap"><div class="b tabnum" style="'+(p.low?'color:var(--red)':'')+'">'+(Number(p.stock)||0)+'</div>'
+            + (p.low?'<span class="badge b-red">Low</span>':'')+'</span></div>';
+    });
+    document.getElementById('plist').innerHTML = out;
+    document.getElementById('empty').style.display = arr.length ? 'none' : 'block';
+    document.getElementById('icount').textContent = arr.length;
+}
+function init(){ buildChips(); buildFilters(); paintSort(); render(); }
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+</script>
 
 {% endblock %}
 {% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

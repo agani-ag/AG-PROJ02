@@ -331,26 +331,29 @@ def inventory(request):
     if not _is_admin(request):
         return _deny(request)
     u = _u(request)
-    low_only = request.GET.get("low") == "1"
-    q = (request.GET.get("q") or "").strip()
-    qs = (Inventory.objects.filter(user=u).select_related("product")
-          .order_by("product__model_no"))
-    if low_only:
-        qs = qs.filter(alert_level__gt=0, current_stock__lte=F("alert_level"))
-    if q:
-        qs = qs.filter(Q(product__model_no__icontains=q) | Q(product__product_name__icontains=q))
-    rows = []
-    for inv in qs[:400]:
+    from ...models import ProductCategory
+    # Only real stock rows — a product deleted via SET_NULL leaves an orphan Inventory
+    # row with no product; those would render as "—", so drop them. Rendered client-side
+    # like the Products page (search + cascading filters + sort), with stock + low flag.
+    items, low_count = [], 0
+    for inv in (Inventory.objects.filter(user=u, product__isnull=False)
+                .select_related("product").order_by("product__model_no")):
         p = inv.product
         low = inv.alert_level > 0 and inv.current_stock <= inv.alert_level
-        rows.append({
-            "model_no": p.model_no if p else "—", "name": p.product_name if p else "",
+        if low:
+            low_count += 1
+        items.append({
+            "id": p.id, "model_no": p.model_no, "product_name": p.product_name or "",
+            "product_hsn": p.product_hsn or "", "product_category_id": p.product_category_id,
+            "product_division_category": p.product_division_category or "",
+            "product_model_category": p.product_model_category or "",
+            "product_colour": p.product_colour or "",
             "stock": inv.current_stock, "alert": inv.alert_level, "low": low,
         })
-    low_count = Inventory.objects.filter(user=u, alert_level__gt=0,
-                                         current_stock__lte=F("alert_level")).count()
+    categories = list(ProductCategory.objects.filter(user=u).values("id", "category_name"))
     return render(request, "m/e/inventory.html", {
-        "rows": rows, "low_only": low_only, "low_count": low_count, "q": q,
+        "items_json": json.dumps(items), "categories_json": json.dumps(categories),
+        "count": len(items), "low_count": low_count,
     })
 
 

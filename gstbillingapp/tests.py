@@ -1096,3 +1096,23 @@ class MobileManageTests(TestCase):
         # Shows under the business brand in the feed (owner's business_title, upper-cased).
         r = self.client.get(reverse("m_manage_purchases"))
         self.assertContains(r, "MANAGE SHOP")
+
+    def test_inventory_excludes_orphans_and_flags_low(self):
+        from .models import Inventory
+        # An orphaned stock row (product deleted → SET_NULL) must be hidden, not shown as "—".
+        Inventory.objects.create(user=self.owner, product=None, current_stock=-10, alert_level=0)
+        self._admin()
+        r = self.client.get(reverse("m_manage_inventory"))
+        self.assertEqual(r.context["count"], 1)          # only M1's stock; orphan excluded
+        self.assertEqual(r.context["low_count"], 1)      # M1 (stock 2 ≤ alert 5) is low
+        self.assertContains(r, "M1")                     # product embedded in items_json
+        self.assertNotContains(r, "\\u2014")             # no "—" orphan rows
+
+    def test_team_member_shows_contact_and_actions(self):
+        self.emp.phone = "9876500000"
+        self.emp.save()
+        self._admin()
+        r = self.client.get(reverse("m_manage_team_member", args=[self.posting.id]))
+        self.assertContains(r, "tel:9876500000")   # click-to-call
+        self.assertContains(r, "M.wa(")            # click-to-message (WhatsApp)
+        self.assertContains(r, "boss@x.local")     # email on record
