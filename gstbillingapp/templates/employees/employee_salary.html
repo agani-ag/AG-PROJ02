@@ -37,6 +37,10 @@
             <form method="POST" class="form-inline" style="gap:8px">
                 {% csrf_token %}
                 <div class="form-group mb-0">
+                    <label class="mr-1 mb-0"><small><b>Base ₹</b></small></label>
+                    <input type="number" min="0" step="0.01" name="base_salary" class="form-control form-control-sm" style="width:110px" value="{{ record.base_salary }}" title="Base salary for this month — pre-filled from the profile; change it to back-fill an old month at its own salary.">
+                </div>
+                <div class="form-group mb-0 mx-2">
                     <label class="mr-1 mb-0"><small class="text-danger">Advances ₹</small></label>
                     <input type="number" min="0" step="0.01" name="advances" class="form-control form-control-sm" style="width:100px" value="{{ record.advances }}">
                 </div>
@@ -46,8 +50,10 @@
                 </div>
                 <button type="submit" class="btn btn-dark btn-sm btn-curve"><i class="fas fa-save"></i> Save</button>
             </form>
-            <button class="btn btn-success btn-sm btn-curve" onclick="markAllPresent()"><i class="fas fa-check-double"></i> Mark all present</button>
-            <button id="selToggle" class="btn btn-outline-primary btn-sm btn-curve" onclick="toggleSelectMode()"><i class="fas fa-object-group"></i> Select multiple</button>
+            <div class="d-flex" style="gap:8px">
+                <button class="btn btn-success btn-sm btn-curve" onclick="markAllPresent()"><i class="fas fa-check-double"></i> Mark all present</button>
+                <button id="selToggle" class="btn btn-outline-primary btn-sm btn-curve" onclick="toggleSelectMode()"><i class="fas fa-object-group"></i> Select multiple</button>
+            </div>
         </div>
 
         <!-- Bulk action bar (multi-select) -->

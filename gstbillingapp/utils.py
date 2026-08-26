@@ -148,7 +148,7 @@ def apply_invoice_round_off(data):
     return data
 
 
-def calculate_employee_salary(posting, year, month, advances=None, bonus=None):
+def calculate_employee_salary(posting, year, month, advances=None, bonus=None, base=None):
     """Recompute and upsert a POSTING's monthly salary from its attendance marks plus the
     month's advances/bonus. A posting is the person's per-business record (its own salary
     and attendance), so a shared employee is paid separately in each business.
@@ -163,7 +163,18 @@ def calculate_employee_salary(posting, year, month, advances=None, bonus=None):
     from .models import AttendanceLog, SalaryRecord
 
     rec = SalaryRecord.objects.filter(posting=posting, month=month, year=year).first()
-    base = Decimal(str(posting.salary or 0))
+    # Each month carries its OWN base salary, editable on the attendance page:
+    #   • an explicit `base` (from that input) sets/updates the month's base;
+    #   • otherwise a month already computed keeps its stored base (so a later profile raise
+    #     never rewrites finalised months, and back-filling old attendance uses each month's
+    #     own salary); a fresh month defaults to the current profile salary.
+    if base is not None:
+        base_amt = Decimal(str(base))
+    elif rec is not None:
+        base_amt = Decimal(str(rec.base_salary))
+    else:
+        base_amt = Decimal(str(posting.salary or 0))
+    base = base_amt
     days_in_month = _cal.monthrange(year, month)[1]
 
     present = half = absent = leave = 0

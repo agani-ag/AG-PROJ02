@@ -1169,3 +1169,51 @@ class MobileManageTests(TestCase):
         r = self.client.post(reverse("attendance_mark_bulk", args=[self.posting.id]),
             data=json.dumps({"dates": dates, "status": -1}), content_type="application/json")
         self.assertEqual(AttendanceLog.objects.filter(posting=self.posting).count(), 0)
+
+    def test_salary_history_frozen_when_salary_changes(self):
+        from .utils import calculate_employee_salary
+        from .models import AttendanceLog
+        import datetime as dt
+        today = dt.date.today()
+        py, pm = today.year, today.month - 3          # a month safely in the past
+        while pm < 1:
+            pm += 12; py -= 1
+        AttendanceLog.objects.create(posting=self.posting, date=dt.date(py, pm, 1), status=0)
+        rec = calculate_employee_salary(self.posting, py, pm)
+        self.assertEqual(float(rec.base_salary), 25000.0)     # computed at the original salary
+        # Raise the salary.
+        self.posting.salary = 40000
+        self.posting.save()
+        # Re-opening / recomputing the PAST month must NOT rewrite it.
+        rec2 = calculate_employee_salary(self.posting, py, pm)
+        self.assertEqual(float(rec2.base_salary), 25000.0)    # frozen — history intact
+        # The current month picks up the new salary.
+        rec3 = calculate_employee_salary(self.posting, today.year, today.month)
+        self.assertEqual(float(rec3.base_salary), 40000.0)
+
+    def test_per_month_base_salary_override(self):
+        from .utils import calculate_employee_salary
+        from .models import AttendanceLog
+        import datetime as dt
+        y, m = 2026, 4
+        for d in range(1, 21):            # 20 present
+            AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=0)
+        for d in range(21, 31):           # 10 leave → 20 working days
+            AttendanceLog.objects.create(posting=self.posting, date=dt.date(y, m, d), status=3)
+        # Compute this month at an explicit base of ₹15,000 (profile salary is ₹25,000).
+        rec = calculate_employee_salary(self.posting, y, m, base=15000)
+        self.assertEqual(float(rec.base_salary), 15000.0)
+        self.assertEqual(float(rec.calculated_salary), 15000.0)   # full pay of 20/20 working
+        # Later attendance edits keep the month's chosen base — not the profile's ₹25,000.
+        calculate_employee_salary(self.posting, y, m)
+        rec.refresh_from_db()
+        self.assertEqual(float(rec.base_salary), 15000.0)
+
+    def test_mobile_salary_save_sets_base(self):
+        from .models import SalaryRecord
+        self._admin()
+        url = reverse("m_manage_salary_save", args=[self.posting.id]) + "?year=2026&month=7"
+        r = self.client.post(url, data=json.dumps({"base": 18000, "advances": 0, "bonus": 0}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.assertEqual(float(SalaryRecord.objects.get(posting=self.posting, year=2026, month=7).base_salary), 18000.0)

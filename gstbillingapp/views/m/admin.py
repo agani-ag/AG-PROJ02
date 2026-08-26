@@ -235,10 +235,12 @@ def team_salary_save(request, posting_id):
         payload = json.loads(request.body)
         advances = float(payload.get("advances") or 0)
         bonus = float(payload.get("bonus") or 0)
+        base = float(payload["base"]) if payload.get("base") not in (None, "") else None
     except (ValueError, TypeError):
         return JsonResponse({"ok": False, "message": "Enter valid numbers"}, status=400)
-    rec = calculate_employee_salary(posting, year, month, advances=advances, bonus=bonus)
-    return JsonResponse({"ok": True, "net": format_inr(rec.calculated_salary, 0)})
+    rec = calculate_employee_salary(posting, year, month, advances=advances, bonus=bonus, base=base)
+    return JsonResponse({"ok": True, "net": format_inr(rec.calculated_salary, 0),
+                         "deduction": format_inr(rec.deduction, 0)})
 
 
 @csrf_exempt

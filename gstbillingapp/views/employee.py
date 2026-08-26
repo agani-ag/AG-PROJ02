@@ -295,10 +295,11 @@ def employee_salary(request, posting_id):
         try:
             advances = float(request.POST.get("advances") or 0)
             bonus = float(request.POST.get("bonus") or 0)
+            base = float(request.POST.get("base_salary")) if request.POST.get("base_salary") else None
         except (ValueError, TypeError):
             messages.error(request, "Enter valid numbers.")
             return redirect(f"{request.path}?year={year}&month={month}")
-        calculate_employee_salary(posting, year, month, advances=advances, bonus=bonus)
+        calculate_employee_salary(posting, year, month, advances=advances, bonus=bonus, base=base)
         messages.success(request, "Saved.")
         return redirect(f"{request.path}?year={year}&month={month}")
 

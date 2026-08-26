@@ -74,14 +74,16 @@
 </div>
 
 <div class="panel">
-    <div class="between"><div style="min-width:0"><div class="b" style="font-size:15px">Salary · {{ month_name }}</div><div class="sub" id="paidline">{{ record.paid_units }} of {{ record.total_days }} days paid · Base ₹ {{ record.base_salary|inrs }}</div></div>
+    <div class="between"><div style="min-width:0"><div class="b" style="font-size:15px">Salary · {{ month_name }}</div><div class="sub" id="paidline">{{ record.paid_units }} of {{ record.total_days }} working days paid</div></div>
         <div class="right" style="flex:none"><div class="sub">Net pay</div><div class="b" id="netpay" style="font-size:22px;white-space:nowrap">&#8377; {{ record.calculated_salary|inrs }}</div></div></div>
     <div class="between sm mt"><span class="muted">Deduction (unpaid days)</span><span class="tabnum" id="dedline" style="color:var(--red)">− &#8377; {{ record.deduction|inrs }}</span></div>
     <div class="row" style="padding:10px 0 0;gap:8px;align-items:flex-end">
+        <label style="flex:1.2;font-size:12px;color:var(--soft)">Base salary<input id="basesal" type="number" inputmode="decimal" value="{{ record.base_salary|floatformat:'-2' }}" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:10px;font-size:15px"></label>
         <label style="flex:1;font-size:12px;color:var(--soft)">Advances<input id="adv" type="number" inputmode="decimal" value="{{ record.advances|floatformat:'-2' }}" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:10px;font-size:15px"></label>
         <label style="flex:1;font-size:12px;color:var(--soft)">Bonus<input id="bon" type="number" inputmode="decimal" value="{{ record.bonus|floatformat:'-2' }}" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:10px;font-size:15px"></label>
     </div>
-    <button class="btn btn-acc" style="margin-top:10px" onclick="saveSalary()">Save advances &amp; bonus</button>
+    <div class="sub muted" style="margin-top:6px">Base is pre-filled from the profile — change it here to pay a past month at its own salary.</div>
+    <button class="btn btn-acc" style="margin-top:10px" onclick="saveSalary()">Save salary details</button>
 </div>
 {% endif %}
 
@@ -158,8 +160,8 @@ async function applyBulk(status){
     } else { M.toast((r&&r.message)||'Could not update'); }
 }
 async function saveSalary(){
-    var r = await M.post(SAL_URL, {advances: document.getElementById('adv').value||0, bonus: document.getElementById('bon').value||0});
-    if(r && r.ok){ document.getElementById('netpay').innerHTML='&#8377; '+r.net; M.toast('Saved'); }
+    var r = await M.post(SAL_URL, {base: document.getElementById('basesal').value||0, advances: document.getElementById('adv').value||0, bonus: document.getElementById('bon').value||0});
+    if(r && r.ok){ document.getElementById('netpay').innerHTML='&#8377; '+r.net; if(r.deduction) document.getElementById('dedline').innerHTML='− &#8377; '+r.deduction; M.toast('Saved'); }
     else { M.toast((r&&r.message)||'Could not save'); }
 }
 {% endif %}
