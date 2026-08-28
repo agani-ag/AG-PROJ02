@@ -122,6 +122,7 @@ t();setInterval(t,1000);})();
         <span class="b tabnum">&#8377; {{ financial.expenses }} <span class="badge b-grey">{{ financial.expense_count }}</span></span>
     </div>
 </div>
+{% endif %}
 
 <div class="sec"><h2 class="t">Payment Collection</h2><p class="s">Completion rates</p></div>
 <div class="panel">
@@ -133,7 +134,6 @@ t();setInterval(t,1000);})();
     </div>
     {% endfor %}
 </div>
-{% endif %}
 
 {% endblock %}
 {% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}
