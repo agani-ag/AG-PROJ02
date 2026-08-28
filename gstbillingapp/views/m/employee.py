@@ -119,21 +119,8 @@ def home(request):
         "overdue_count": overdue_count, "overdue_amt": format_inr(overdue_amt, 0),
     }
 
-    # The full-business dashboard (financials + collections) is admin-only. A regular
-    # employee sees today's tally and their task list.
-    is_admin = bool(request.mobile_actor.get("is_admin"))
-    if not is_admin:
-        return render(request, "m/e/home.html", {
-            "profile": getattr(u, "userprofile", None), "today": today, "uid": u.id,
-            "employee": _emp(request), "is_admin": False,
-            "sales": round(sales, 2), "coll": round(coll, 2),
-            "inv_count": invs.count(),
-            "cust_count": len(custs),
-            "due_total": round(due_total, 2), "due_count": due_count,
-            "tasks": tasks,
-        })
-
-    # ---- Financial overview (all-time) + collection progress, scoped to this business ----
+    # ---- Payment-collection progress (This / Last month + Overall) — shown to EVERY
+    #      employee, not just admins (the full financial summary below stays admin-only). ----
     cur_start = today.replace(day=1)
     last_end = cur_start - datetime.timedelta(days=1)
     last_start = last_end.replace(day=1)
@@ -142,15 +129,6 @@ def home(request):
     tot = _book_totals(all_logs)
     cur = _book_totals(all_logs.filter(date__date__gte=cur_start))
     last = _book_totals(all_logs.filter(date__date__gte=last_start, date__date__lt=cur_start))
-
-    balance = tot["purchases"] - (tot["payments"] + tot["returns"] + tot["others"])
-    total_invoices = Invoice.objects.filter(user=u).count()
-    exp_qs = ExpenseTracker.objects.filter(user=u)
-    total_expenses = exp_qs.aggregate(t=Sum("amount"))["t"] or 0
-    pending_count = BookLog.objects.filter(parent_book__user=u, is_active=False, change_type=0).count()
-    from ...models import Inventory
-    low_stock = Inventory.objects.filter(user=u, alert_level__gt=0,
-                                         current_stock__lte=F("alert_level")).count()
 
     def money(v):
         return format_inr(v, 0)
@@ -161,18 +139,6 @@ def home(request):
     def fill(p):
         return "fill-green" if p >= 80 else ("fill-blue" if p >= 50 else "fill-red")
 
-    financial = {
-        "invoices": format_inr(total_invoices, 0),
-        "purchases": money(tot["purchases"]),
-        "payments": money(tot["payments"]),
-        "returns": money(tot["returns"]),
-        "others": money(tot["others"]),
-        "balance": money(abs(balance)),
-        "balance_receivable": balance >= 0,
-        "expenses": money(total_expenses),
-        "expense_count": exp_qs.count(),
-    }
-
     collection = []
     for label, m in (("This month", cur), ("Last month", last), ("Overall", tot)):
         p = pct(m["payments"], m["purchases"])
@@ -181,16 +147,38 @@ def home(request):
             "paid": money(m["payments"]), "billed": money(m["purchases"]),
         })
 
-    return render(request, "m/e/home.html", {
+    ctx = {
         "profile": getattr(u, "userprofile", None), "today": today, "uid": u.id,
-        "employee": _emp(request), "is_admin": True,
+        "employee": _emp(request), "is_admin": False,
         "sales": round(sales, 2), "coll": round(coll, 2),
-        "inv_count": invs.count(),
-        "cust_count": len(custs),
+        "inv_count": invs.count(), "cust_count": len(custs),
         "due_total": round(due_total, 2), "due_count": due_count,
-        "tasks": tasks, "pending_count": pending_count, "low_stock": low_stock,
-        "financial": financial, "collection": collection,
+        "tasks": tasks, "collection": collection,
+    }
+
+    # The full-business financial summary + counts are admin-only.
+    if not bool(request.mobile_actor.get("is_admin")):
+        return render(request, "m/e/home.html", ctx)
+
+    balance = tot["purchases"] - (tot["payments"] + tot["returns"] + tot["others"])
+    total_invoices = Invoice.objects.filter(user=u).count()
+    exp_qs = ExpenseTracker.objects.filter(user=u)
+    total_expenses = exp_qs.aggregate(t=Sum("amount"))["t"] or 0
+    from ...models import Inventory
+    ctx.update({
+        "is_admin": True,
+        "pending_count": BookLog.objects.filter(parent_book__user=u, is_active=False, change_type=0).count(),
+        "low_stock": Inventory.objects.filter(user=u, alert_level__gt=0,
+                                              current_stock__lte=F("alert_level")).count(),
+        "financial": {
+            "invoices": format_inr(total_invoices, 0),
+            "purchases": money(tot["purchases"]), "payments": money(tot["payments"]),
+            "returns": money(tot["returns"]), "others": money(tot["others"]),
+            "balance": money(abs(balance)), "balance_receivable": balance >= 0,
+            "expenses": money(total_expenses), "expense_count": exp_qs.count(),
+        },
     })
+    return render(request, "m/e/home.html", ctx)
 
 
 def _overdue_days(u, today):
