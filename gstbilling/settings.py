@@ -131,3 +131,31 @@ PRODUCT_PREFIX = "GS"
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
 )
+
+# ================= Maintenance / cron =================================
+# Shared secret for the /cron/ endpoints (see gstbillingapp/cron_views.py). NEVER
+# defaulted: with no key set the endpoints answer 404, so a missing value closes them
+# rather than leaving them open. Set it via the environment, or in local_settings.py
+# (imported at the bottom of this file) on hosts where plumbing an env var into the WSGI
+# process is awkward.
+CRON_KEY = os.getenv("CRON_KEY", "gstsync-cron-key")
+
+# Where `VACUUM INTO` writes its compacted copies, and how many to retain.
+# NOTE: keep this OUT of any web-server document root — these files are the whole database.
+DB_BACKUP_DIR = os.path.join(BASE_DIR, 'backups')
+DB_BACKUP_KEEP = 7
+
+# A VACUUM rewrites the whole file, so it only runs once at least this much space is
+# actually reclaimable. Lets the cleanup job be scheduled daily without nightly churn.
+DB_VACUUM_MIN_RECLAIM_MB = 0.5
+
+
+# ================= Local / per-server overrides =======================
+# gstbilling/local_settings.py is gitignored, so it never leaves the machine it is on.
+# Put anything server-specific there — CRON_KEY, a real SECRET_KEY, DEBUG = False,
+# ALLOWED_HOSTS. It is optional: without the file the values above stand. Kept LAST so
+# whatever it defines wins.
+try:
+    from .local_settings import *  # noqa: F401,F403
+except ImportError:
+    pass

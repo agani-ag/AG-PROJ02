@@ -1,7 +1,7 @@
 import json
 from datetime import date, timedelta
 
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -1217,3 +1217,627 @@ class MobileManageTests(TestCase):
                              content_type="application/json")
         self.assertTrue(r.json()["ok"])
         self.assertEqual(float(SalaryRecord.objects.get(posting=self.posting, year=2026, month=7).base_salary), 18000.0)
+
+
+class _CronTestBase(object):
+    """Shared fixture for the /cron/ tests: a throwaway backup dir and a settings helper."""
+
+    key = "test-cron-key"
+
+    def setUp(self):
+        import tempfile
+        super().setUp()
+        self.backup_dir = tempfile.mkdtemp(prefix="agproj02-backups-")
+
+    def tearDown(self):
+        import glob, os, shutil
+        from django.conf import settings
+        shutil.rmtree(self.backup_dir, ignore_errors=True)
+        # Locks live next to the DB; clear any a failed run left behind.
+        for f in glob.glob(os.path.join(settings.BASE_DIR, ".cron-*")):
+            try:
+                os.unlink(f)
+            except OSError:
+                pass
+        super().tearDown()
+
+    def _settings(self, **extra):
+        # DB_VACUUM_MIN_RECLAIM_MB=0 by default: a fresh test DB has almost nothing free,
+        # so the real floor would short-circuit every vacuum test before the guard under
+        # test. The threshold itself is covered by its own case below.
+        opts = {"CRON_KEY": self.key, "DB_BACKUP_DIR": self.backup_dir,
+                "DB_BACKUP_KEEP": 7, "DB_VACUUM_MIN_RECLAIM_MB": 0}
+        opts.update(extra)
+        return self.settings(**opts)
+
+    def _get(self, name, qs=""):
+        return self.client.get(reverse(name) + "?key=" + self.key + qs)
+
+
+class CronMaintenanceTests(_CronTestBase, TestCase):
+    """The /cron/ endpoints: secret gate, session purge, single-flight, health.
+
+    These URLs are public, so the gate matters as much as the work: an unset or wrong key
+    must look like nothing is there at all."""
+
+    # ---------------- the secret gate ----------------
+    def test_no_key_configured_closes_the_endpoints(self):
+        # An unset CRON_KEY must CLOSE the endpoints, never leave them open.
+        with self.settings(CRON_KEY=None):
+            self.assertEqual(self.client.get(reverse("cron_health")).status_code, 404)
+            self.assertEqual(self.client.get(reverse("cron_cleanup")).status_code, 404)
+            self.assertEqual(self.client.get(reverse("cron_backup")).status_code, 404)
+
+    def test_wrong_key_is_404_not_403(self):
+        # 404 so a scanner can't confirm the endpoint exists.
+        with self._settings():
+            self.assertEqual(self.client.get(reverse("cron_health") + "?key=nope").status_code, 404)
+            self.assertEqual(self.client.get(reverse("cron_health")).status_code, 404)
+
+    def test_key_accepted_via_query_or_header(self):
+        with self._settings():
+            self.assertEqual(self._get("cron_health").status_code, 200)
+            self.assertEqual(
+                self.client.get(reverse("cron_health"), HTTP_X_CRON_KEY=self.key).status_code, 200)
+
+    def test_post_is_allowed_and_needs_no_csrf(self):
+        # Cron services issue GET or POST and never carry a CSRF token.
+        from django.test import Client
+        c = Client(enforce_csrf_checks=True)
+        with self._settings():
+            self.assertEqual(c.post(reverse("cron_health") + "?key=" + self.key).status_code, 200)
+
+    # ---------------- cleanup ----------------
+    def test_cleanup_deletes_only_expired_sessions(self):
+        from django.contrib.sessions.models import Session
+        now = timezone.now()
+        Session.objects.create(session_key="expired1", session_data="x",
+                               expire_date=now - timedelta(days=3))
+        Session.objects.create(session_key="expired2", session_data="x",
+                               expire_date=now - timedelta(minutes=1))
+        Session.objects.create(session_key="live1", session_data="x",
+                               expire_date=now + timedelta(days=3))
+        with self._settings():
+            r = self._get("cron_cleanup")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["expired_sessions"], 2)
+        self.assertEqual(set(Session.objects.values_list("session_key", flat=True)), {"live1"})
+
+    def test_cleanup_never_touches_business_data(self):
+        # The whole point: maintenance must not delete invoices/ledger/stock.
+        from .models import UserProfile
+        u = User.objects.create_user("cron_biz", password="x")
+        UserProfile.objects.create(user=u, business_title="Shop")
+        cust = Customer.objects.create(user=u, customer_name="ACME")
+        inv = Invoice.objects.create(user=u, invoice_number=1, invoice_date=date(2026, 1, 1),
+                                     invoice_customer=cust, invoice_json="{}")
+        book = Book.objects.create(user=u, customer=cust, current_balance=0)
+        log = BookLog.objects.create(parent_book=book, change=100, change_type=0,
+                                     date=timezone.now())
+        with self._settings():
+            r = self._get("cron_cleanup")
+        self.assertTrue(r.json()["ok"])
+        self.assertTrue(Invoice.objects.filter(pk=inv.pk).exists())
+        self.assertTrue(Customer.objects.filter(pk=cust.pk).exists())
+        self.assertTrue(Book.objects.filter(pk=book.pk).exists())
+        self.assertTrue(BookLog.objects.filter(pk=log.pk).exists())
+
+    def test_cleanup_is_idempotent(self):
+        from django.contrib.sessions.models import Session
+        Session.objects.create(session_key="e", session_data="x",
+                               expire_date=timezone.now() - timedelta(days=1))
+        with self._settings():
+            first = self._get("cron_cleanup").json()
+            second = self._get("cron_cleanup").json()
+        self.assertEqual(first["expired_sessions"], 1)
+        self.assertEqual(second["expired_sessions"], 0)   # nothing left to do
+
+    # ---------------- single-flight ----------------
+    def test_overlapping_run_is_skipped_with_200_not_500(self):
+        # A cron service retries on timeout; an overlap is normal and must not alert.
+        from .cleanup import job_lock
+        with self._settings():
+            with job_lock("cleanup"):
+                r = self._get("cron_cleanup")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["skipped"], "locked")
+
+    def test_stale_lock_is_stolen(self):
+        from .cleanup import job_lock, LockBusy
+        with job_lock("cleanup"):
+            # A lock inside its TTL is respected...
+            with self.assertRaises(LockBusy):
+                with job_lock("cleanup"):
+                    pass
+            # ...but one past its TTL belongs to a dead run and is taken over.
+            with job_lock("cleanup", ttl_seconds=0):
+                pass
+
+    # ---------------- health ----------------
+    def test_health_reports_sizes_and_is_read_only(self):
+        from django.contrib.sessions.models import Session
+        Session.objects.create(session_key="e", session_data="x",
+                               expire_date=timezone.now() - timedelta(days=1))
+        with self._settings():
+            body = self._get("cron_health").json()
+        self.assertTrue(body["ok"])
+        for field in ("db_mb", "free_pages", "sessions_expired", "sessions_live", "free_disk_mb"):
+            self.assertIn(field, body)
+        self.assertEqual(body["sessions_expired"], 1)
+        self.assertEqual(Session.objects.count(), 1)   # health must not have purged it
+
+
+class CronBackupVacuumTests(_CronTestBase, TransactionTestCase):
+    """Backup and in-place VACUUM.
+
+    TransactionTestCase, not TestCase: SQLite refuses to VACUUM inside a transaction, and
+    TestCase wraps every test in one. Production runs these in autocommit (ATOMIC_REQUESTS
+    is off), so this is the harness matching reality rather than a workaround."""
+
+    def test_backup_writes_a_readable_copy(self):
+        import os, sqlite3
+        with self._settings():
+            body = self._get("cron_backup").json()
+        self.assertTrue(body["ok"], body)
+        path = os.path.join(self.backup_dir, body["backup"])
+        self.assertTrue(os.path.exists(path))
+        # It must be a real, openable SQLite database - not a truncated file.
+        con = sqlite3.connect(path)
+        try:
+            self.assertEqual(con.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+        finally:
+            con.close()
+
+    def test_backup_prunes_to_keep(self):
+        import os
+        # Seed more stale backups than we retain.
+        for d in range(1, 6):
+            open(os.path.join(self.backup_dir, "gstbillingdb-2026-01-0%d.sqlite3" % d), "w").close()
+        with self._settings(DB_BACKUP_KEEP=3):
+            self.assertTrue(self._get("cron_backup").json()["ok"])
+        left = [f for f in os.listdir(self.backup_dir) if f.endswith(".sqlite3")]
+        self.assertEqual(len(left), 3)
+
+    def test_backup_rerun_same_day_overwrites(self):
+        import os
+        with self._settings():
+            a = self._get("cron_backup").json()
+            b = self._get("cron_backup").json()
+        self.assertEqual(a["backup"], b["backup"])
+        self.assertEqual(len([f for f in os.listdir(self.backup_dir) if f.endswith(".sqlite3")]), 1)
+
+    def test_backup_skips_on_low_disk_without_erroring(self):
+        # A backup must never be the thing that fills the server.
+        from unittest import mock
+        with self._settings():
+            with mock.patch("gstbillingapp.cleanup.free_disk_bytes", return_value=1024):
+                body = self._get("cron_backup").json()
+        self.assertFalse(body["ok"])
+        self.assertEqual(body["skipped"], "low_disk")
+
+    def test_vacuum_refuses_without_a_recent_backup(self):
+        with self._settings():
+            body = self._get("cron_cleanup", "&vacuum=1").json()
+        self.assertEqual(body["vacuum"], "skipped")
+        self.assertEqual(body["vacuum_reason"], "no_recent_backup")
+
+    def test_vacuum_runs_after_a_backup(self):
+        with self._settings():
+            self.assertTrue(self._get("cron_backup").json()["ok"])
+            body = self._get("cron_cleanup", "&vacuum=1").json()
+        self.assertEqual(body["vacuum"], "done")
+
+    # ---------------- single-job mode ----------------
+    def test_one_call_does_backup_purge_and_vacuum(self):
+        """`?backup=1&vacuum=1` is the whole schedule in one request, for a cron service
+        that only allows a single entry."""
+        from django.contrib.sessions.models import Session
+        Session.objects.create(session_key="e", session_data="x",
+                               expire_date=timezone.now() - timedelta(days=1))
+        with self._settings():
+            body = self._get("cron_cleanup", "&backup=1&vacuum=1").json()
+        self.assertTrue(body["ok"], body)
+        self.assertTrue(body["backup_run"]["ok"])          # backed up...
+        self.assertEqual(body["expired_sessions"], 1)      # ...purged...
+        self.assertEqual(body["vacuum"], "done")           # ...and compacted
+
+    def test_one_call_backup_satisfies_the_vacuum_guard(self):
+        """The backup taken by this same call is what unblocks the vacuum — order matters."""
+        import os
+        # No backup exists at all beforehand.
+        self.assertEqual([f for f in os.listdir(self.backup_dir) if f.endswith(".sqlite3")], [])
+        with self._settings():
+            body = self._get("cron_cleanup", "&backup=1&vacuum=1").json()
+        self.assertEqual(body["vacuum"], "done")
+
+    def test_vacuum_alone_stops_compacting_once_the_backup_ages_out(self):
+        """Regression guard for the trap: scheduling ONLY `cleanup?vacuum=1` looks healthy
+        (HTTP 200, ok:true) but silently stops compacting after 48h with nothing writing
+        backups."""
+        import os, glob
+        with self._settings():
+            self.assertTrue(self._get("cron_backup").json()["ok"])
+            # Night 1-2: the backup is still fresh, so it works.
+            self.assertEqual(self._get("cron_cleanup", "&vacuum=1").json()["vacuum"], "done")
+
+            # Age that backup past the 48h guard, as it would with no backup job scheduled.
+            f = glob.glob(os.path.join(self.backup_dir, "*.sqlite3"))[0]
+            old = os.path.getmtime(f) - 3 * 86400
+            os.utime(f, (old, old))
+
+            body = self._get("cron_cleanup", "&vacuum=1").json()
+        self.assertTrue(body["ok"])                        # still reports success...
+        self.assertEqual(body["vacuum"], "skipped")        # ...while doing half the job
+        self.assertEqual(body["vacuum_reason"], "no_recent_backup")
+
+    def test_vacuum_skips_when_there_is_nothing_worth_reclaiming(self):
+        """A daily vacuum must not rewrite the whole file to win back a few kilobytes."""
+        # Threshold far above anything this test DB could have freed.
+        with self._settings(DB_VACUUM_MIN_RECLAIM_MB=9999):
+            self.assertTrue(self._get("cron_backup").json()["ok"])
+            body = self._get("cron_cleanup", "&vacuum=1").json()
+        self.assertEqual(body["vacuum"], "skipped")
+        self.assertEqual(body["vacuum_reason"], "nothing_to_reclaim")
+        self.assertIn("reclaimable_mb", body)
+
+    def test_backup_param_off_by_default(self):
+        """Existing schedules must be unaffected — no backup unless asked for."""
+        import os
+        with self._settings():
+            body = self._get("cron_cleanup").json()
+        self.assertNotIn("backup_run", body)
+        self.assertEqual([f for f in os.listdir(self.backup_dir) if f.endswith(".sqlite3")], [])
+
+
+class CompactJsonStorageTests(TestCase):
+    """Stored invoice/quotation JSON carries no whitespace padding, and the one-time
+    backfill is lossless."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile
+        cls.u = User.objects.create_user("json_biz", password="x")
+        UserProfile.objects.create(user=cls.u, business_title="Shop", business_gst="33AAAAA0000A1Z5")
+        cls.cust = Customer.objects.create(user=cls.u, customer_name="ACME")
+
+    def test_json_compact_has_no_padding_and_round_trips(self):
+        from .utils import json_compact
+        data = {"items": [{"name": "TAP", "qty": 2, "rate": 12.5}], "total": 25.0}
+        out = json_compact(data)
+        self.assertNotIn(", ", out)
+        self.assertNotIn(": ", out)
+        self.assertEqual(json.loads(out), data)
+
+    def test_json_compact_keeps_unicode_readable(self):
+        from .utils import json_compact
+        # ensure_ascii=False keeps the rupee sign as one character, not an escape.
+        self.assertIn("\u20b9", json_compact({"sym": "\u20b9"}))
+
+    def test_backfill_is_lossless_and_shrinks(self):
+        from django.core.management import call_command
+        from io import StringIO
+        data = {"customer_name": "ACME", "items": [{"invoice_product": "TAP", "invoice_qty": 2}]}
+        padded = json.dumps(data)                     # the old, space-padded form
+        inv = Invoice.objects.create(user=self.u, invoice_number=1, invoice_date=date(2026, 1, 1),
+                                     invoice_customer=self.cust, invoice_json=padded)
+        call_command("minify_invoice_json", "--commit", stdout=StringIO())
+        inv.refresh_from_db()
+        self.assertLess(len(inv.invoice_json), len(padded))       # actually smaller
+        self.assertEqual(json.loads(inv.invoice_json), data)      # and identical data
+
+    def test_backfill_dry_run_writes_nothing(self):
+        from django.core.management import call_command
+        from io import StringIO
+        padded = json.dumps({"a": 1, "b": 2})
+        inv = Invoice.objects.create(user=self.u, invoice_number=2, invoice_date=date(2026, 1, 1),
+                                     invoice_customer=self.cust, invoice_json=padded)
+        call_command("minify_invoice_json", stdout=StringIO())
+        inv.refresh_from_db()
+        self.assertEqual(inv.invoice_json, padded)
+
+    def test_backfill_leaves_unparseable_rows_alone(self):
+        from django.core.management import call_command
+        from io import StringIO
+        junk = "{not json at all"
+        inv = Invoice.objects.create(user=self.u, invoice_number=3, invoice_date=date(2026, 1, 1),
+                                     invoice_customer=self.cust, invoice_json=junk)
+        call_command("minify_invoice_json", "--commit", stdout=StringIO())
+        inv.refresh_from_db()
+        self.assertEqual(inv.invoice_json, junk)     # reported, never mangled
+
+
+class QuotationRetentionTests(TestCase):
+    """The opt-in stale-quotation purge.
+
+    Policy: every status goes once past the window. These cases pin down that it really is
+    every status, that age is measured honestly, and — most importantly — that the financial
+    record (invoices, ledger) is never collateral damage."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile
+        cls.u = User.objects.create_user("quo_biz", password="x")
+        UserProfile.objects.create(user=cls.u, business_title="Shop")
+        cls.cust = Customer.objects.create(user=cls.u, customer_name="ACME")
+
+    def _quotation(self, number, days_old, status="DRAFT", invoice=None):
+        """A quotation dated `days_old` days ago, with updated_at aged to match."""
+        from .models import Quotation
+        when = timezone.localtime() - timedelta(days=days_old)
+        q = Quotation.objects.create(
+            user=self.u, quotation_number=number, quotation_date=when.date(),
+            quotation_customer=self.cust, quotation_json="{}", status=status,
+            converted_invoice=invoice)
+        # updated_at is auto_now, so force it past the model layer.
+        Quotation.objects.filter(pk=q.pk).update(updated_at=when)
+        return q
+
+    def _invoice(self, number):
+        return Invoice.objects.create(user=self.u, invoice_number=number,
+                                      invoice_date=date(2026, 1, 1),
+                                      invoice_customer=self.cust, invoice_json="{}")
+
+    def _alive(self, q):
+        from .models import Quotation
+        return Quotation.objects.filter(pk=q.pk).exists()
+
+    # ---------------- what it does remove ----------------
+    def test_deletes_abandoned_old_drafts_and_pending(self):
+        from .cleanup import purge_quotations
+        old_draft = self._quotation(1, 40, "DRAFT")
+        old_pending = self._quotation(2, 40, "PENDING")
+        out = purge_quotations(15)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["deleted"], 2)
+        self.assertFalse(self._alive(old_draft))
+        self.assertFalse(self._alive(old_pending))
+
+    def test_keeps_anything_inside_the_window(self):
+        from .cleanup import purge_quotations
+        recent = self._quotation(3, 5, "DRAFT")
+        self.assertEqual(purge_quotations(15)["deleted"], 0)
+        self.assertTrue(self._alive(recent))
+
+    # ---------------- what it must NOT remove ----------------
+    def test_deletes_every_status_once_past_the_window(self):
+        """No status is spared — DRAFT, PENDING, APPROVED and CONVERTED all age out."""
+        from .cleanup import purge_quotations
+        rows = {
+            "DRAFT": self._quotation(4, 400, "DRAFT"),
+            "PENDING": self._quotation(5, 400, "PENDING"),
+            "APPROVED": self._quotation(6, 400, "APPROVED"),
+            "CONVERTED": self._quotation(7, 400, "CONVERTED", invoice=self._invoice(9001)),
+        }
+        out = purge_quotations(15)
+        self.assertEqual(out["deleted"], 4)
+        self.assertEqual(set(out["by_status"]), set(rows))
+        for status, q in rows.items():
+            self.assertFalse(self._alive(q), status)
+
+    def test_deletes_a_draft_linked_to_an_invoice_without_harming_the_invoice(self):
+        """The real-data case: 12 live rows are DRAFT *and* linked to an invoice. They go
+        too — but deleting a quotation must never touch the invoice it points at."""
+        from .cleanup import purge_quotations
+        inv = self._invoice(9002)
+        linked = self._quotation(8, 400, "DRAFT", invoice=inv)
+        out = purge_quotations(15)
+        self.assertFalse(self._alive(linked))
+        self.assertEqual(out["had_invoice_link"], 1)   # reported, not hidden
+        inv.refresh_from_db()                          # invoice survives untouched
+        self.assertTrue(Invoice.objects.filter(pk=inv.pk).exists())
+
+    def test_invoice_can_still_become_a_quotation_after_its_source_was_purged(self):
+        """The 'restore the original' path degrades gracefully: with the source gone,
+        invoice_to_quotation builds a fresh quotation from the invoice instead."""
+        from .models import Quotation
+        from .cleanup import purge_quotations
+        from .views.quotation import _quotation_from_invoice
+        inv = self._invoice(9003)
+        self._quotation(9, 400, "CONVERTED", invoice=inv)
+        purge_quotations(15)
+        self.assertFalse(Quotation.objects.filter(converted_invoice=inv).exists())
+        # The fallback the real view uses when no source quotation survives.
+        rebuilt = _quotation_from_invoice(inv, "rebuilt")
+        self.assertEqual(rebuilt.quotation_json, inv.invoice_json)
+        self.assertEqual(rebuilt.status, "DRAFT")
+
+    def test_recently_touched_old_quotation_survives(self):
+        """quotation_date can be back-dated by hand; updated_at proves nobody has touched
+        it. Both clocks must agree before anything is deleted."""
+        from .models import Quotation
+        from .cleanup import purge_quotations
+        q = self._quotation(20, 400, "DRAFT")
+        Quotation.objects.filter(pk=q.pk).update(updated_at=timezone.now())  # edited today
+        purge_quotations(15)
+        self.assertTrue(self._alive(q))
+
+    # ---------------- guards ----------------
+    def test_refuses_a_dangerously_short_window(self):
+        from .cleanup import purge_quotations, MIN_QUOTATION_RETENTION_DAYS
+        q = self._quotation(21, 400, "DRAFT")
+        out = purge_quotations(1)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["skipped"], "retention_too_short")
+        self.assertEqual(out["minimum_days"], MIN_QUOTATION_RETENTION_DAYS)
+        self.assertTrue(self._alive(q))               # nothing deleted
+
+    def test_dry_run_deletes_nothing_but_reports_the_count(self):
+        from .cleanup import purge_quotations
+        q = self._quotation(22, 400, "DRAFT")
+        out = purge_quotations(15, commit=False)
+        self.assertEqual(out["would_delete"], 1)
+        self.assertEqual(out["deleted"], 0)
+        self.assertTrue(self._alive(q))
+
+    def test_kept_count_is_correct_after_a_real_delete(self):
+        """Regression: `kept` was computed after the delete but still subtracted the
+        deleted count, so a live run reported a negative number."""
+        from .cleanup import purge_quotations
+        self._quotation(30, 400, "DRAFT")      # goes
+        self._quotation(31, 400, "DRAFT")      # goes
+        survivor = self._quotation(32, 2, "DRAFT")   # inside the window
+        out = purge_quotations(15)
+        self.assertEqual(out["deleted"], 2)
+        self.assertEqual(out["kept"], 1)
+        self.assertTrue(self._alive(survivor))
+
+    def test_run_cleanup_touches_no_quotation_by_default(self):
+        # Omitting the argument must never be destructive.
+        from .cleanup import run_cleanup
+        q = self._quotation(23, 400, "DRAFT")
+        stats = run_cleanup()
+        self.assertNotIn("quotations", stats)
+        self.assertTrue(self._alive(q))
+
+    def test_purge_never_touches_invoices_or_ledger(self):
+        from .cleanup import purge_quotations
+        inv = self._invoice(9003)
+        book = Book.objects.create(user=self.u, customer=self.cust, current_balance=0)
+        self._quotation(24, 400, "DRAFT")
+        purge_quotations(15)
+        self.assertTrue(Invoice.objects.filter(pk=inv.pk).exists())
+        self.assertTrue(Book.objects.filter(pk=book.pk).exists())
+
+
+class CronQuotationParamTests(_CronTestBase, TestCase):
+    """?quotations=N on the cleanup endpoint."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile
+        cls.u = User.objects.create_user("quo_cron", password="x")
+        UserProfile.objects.create(user=cls.u, business_title="Shop")
+
+    def _old_draft(self, number):
+        from .models import Quotation
+        when = timezone.localtime() - timedelta(days=90)
+        q = Quotation.objects.create(user=self.u, quotation_number=number,
+                                     quotation_date=when.date(), quotation_json="{}",
+                                     status="DRAFT")
+        Quotation.objects.filter(pk=q.pk).update(updated_at=when)
+        return q
+
+    def test_param_triggers_the_purge(self):
+        from .models import Quotation
+        self._old_draft(1)
+        with self._settings():
+            body = self._get("cron_cleanup", "&quotations=15").json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["quotations"]["deleted"], 1)
+        self.assertEqual(Quotation.objects.count(), 0)
+
+    def test_absent_param_purges_nothing(self):
+        from .models import Quotation
+        self._old_draft(2)
+        with self._settings():
+            body = self._get("cron_cleanup").json()
+        self.assertNotIn("quotations", body)
+        self.assertEqual(Quotation.objects.count(), 1)
+
+    def test_malformed_param_is_ignored_not_defaulted(self):
+        """A typo must not silently become a destructive default."""
+        from .models import Quotation
+        self._old_draft(3)
+        with self._settings():
+            for bad in ("abc", "0", "-5", ""):
+                body = self._get("cron_cleanup", "&quotations=" + bad).json()
+                self.assertNotIn("quotations", body, bad)
+        self.assertEqual(Quotation.objects.count(), 1)
+
+    def test_too_short_window_is_refused_over_http(self):
+        from .models import Quotation
+        self._old_draft(4)
+        with self._settings():
+            body = self._get("cron_cleanup", "&quotations=2").json()
+        self.assertFalse(body["quotations"]["ok"])
+        self.assertEqual(body["quotations"]["skipped"], "retention_too_short")
+        self.assertEqual(Quotation.objects.count(), 1)
+
+
+class ConversionWorkflowTests(TestCase):
+    """Quotation -> invoice conversion.
+
+    The workflow: an admin either bills directly, or raises a quotation and converts it.
+    On conversion the DESKTOP quotation is deleted (the invoice is then the single source
+    of truth), while a MOBILE order survives as CONVERTED because /m/c/orders is the
+    customer's own record of what they ordered."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile
+        cls.owner = User.objects.create_user("conv_owner", password="x")
+        UserProfile.objects.create(user=cls.owner, business_title="Shop",
+                                   business_gst="33AAAAA0000A1Z5")
+        cls.cust = Customer.objects.create(user=cls.owner, customer_name="ACME")
+        # Conversion posts to the customer ledger, which add_customer_book() normally
+        # creates alongside the customer.
+        Book.objects.create(user=cls.owner, customer=cls.cust, current_balance=0)
+
+    def _quotation(self, number, from_cart):
+        from .models import Quotation
+        payload = {"customer_name": "ACME", "items": [], "invoice_total_amt_with_gst": 0}
+        return Quotation.objects.create(
+            user=self.owner, quotation_number=number, quotation_date=date.today(),
+            quotation_customer=self.cust, quotation_json=json.dumps(payload),
+            status="APPROVED", created_from_cart=from_cart)
+
+    def _convert(self, q):
+        self.client.force_login(self.owner)
+        return self.client.post(reverse("quotation_convert_to_invoice", args=[q.id]))
+
+    def test_desktop_quotation_is_deleted_on_conversion(self):
+        from .models import Quotation
+        q = self._quotation(1, from_cart=False)
+        r = self._convert(q)
+        self.assertTrue(r.json()["success"], r.content)
+        self.assertFalse(Quotation.objects.filter(pk=q.pk).exists())   # gone
+        self.assertTrue(Invoice.objects.filter(pk=r.json()["invoice_id"]).exists())
+
+    def test_mobile_order_survives_conversion_as_invoiced(self):
+        from .models import Quotation
+        q = self._quotation(2, from_cart=True)
+        r = self._convert(q)
+        self.assertTrue(r.json()["success"], r.content)
+        q.refresh_from_db()                                            # still there
+        self.assertEqual(q.status, "CONVERTED")
+        self.assertEqual(q.converted_invoice_id, r.json()["invoice_id"])
+        self.assertIsNotNone(q.converted_at)
+
+    def test_converted_order_still_shows_in_customer_order_history(self):
+        """The regression this guards: billing an order used to empty the customer's
+        order list, because the row backing it was deleted."""
+        from .models import Quotation
+        q = self._quotation(3, from_cart=True)
+        self._convert(q)
+        rows = Quotation.objects.filter(user=self.owner, quotation_customer=self.cust,
+                                        created_from_cart=True)
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(rows.first().get_status_display(), "Converted to Invoice")
+
+    def test_a_converted_order_cannot_be_converted_twice(self):
+        q = self._quotation(4, from_cart=True)
+        self._convert(q)
+        q.refresh_from_db()
+        self.assertFalse(q.can_be_converted())
+        r = self._convert(q)
+        self.assertEqual(r.status_code, 400)
+
+    def test_order_history_is_a_rolling_window(self):
+        """A billed order shows as "Invoiced" straight away, then ages out with everything
+        else — the customer's order list is the last 15 days, and the invoice is the
+        permanent record."""
+        from .models import Quotation
+        from .cleanup import purge_quotations
+        q = self._quotation(5, from_cart=True)
+        r = self._convert(q)
+        invoice_id = r.json()["invoice_id"]
+        q.refresh_from_db()
+        self.assertEqual(q.status, "CONVERTED")             # visible immediately...
+
+        old = timezone.now() - timedelta(days=400)
+        Quotation.objects.filter(pk=q.pk).update(quotation_date=old.date(), updated_at=old)
+        purge_quotations(15)
+        self.assertFalse(Quotation.objects.filter(pk=q.pk).exists())   # ...then ages out
+        self.assertTrue(Invoice.objects.filter(pk=invoice_id).exists())  # invoice remains

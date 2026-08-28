@@ -15,6 +15,20 @@ from .models import (
     Book, BookLog, Customer
 )
 
+#  ================= JSON storage ====================
+def json_compact(data):
+    """Serialise for STORAGE — no whitespace padding.
+
+    json.dumps() defaults to ', ' and ': ' separators, which added roughly 6% of pure
+    padding to every stored invoice_json / quotation_json. Those blobs are the bulk of
+    the database, so every write that lands in a column goes through here.
+
+    Display/debug output is not storage and keeps its indentation (see the invoice debug
+    viewer, which uses indent=2 deliberately).
+    """
+    return json.dumps(data, separators=(',', ':'), ensure_ascii=False)
+
+
 #  ================= Customer matching ====================
 def find_matching_customer(user, data):
     """

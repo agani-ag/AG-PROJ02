@@ -99,6 +99,14 @@ daphne.log
 *.pdf.tmp
 
 # ========================
+# Maintenance / cron
+# ========================
+# Compacted DB copies written by VACUUM INTO, plus the single-flight lock/marker files.
+/backups/
+.cron-*.lock
+.cron-*.last
+
+# ========================
 # Misc
 # ========================
 *.bak

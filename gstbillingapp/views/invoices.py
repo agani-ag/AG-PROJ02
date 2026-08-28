@@ -26,6 +26,7 @@ from ..utils import remove_inventory_entries_for_invoice
 from ..utils import remove_book_entries_for_invoice
 from ..utils import recompute_invoice_data
 from ..utils import find_matching_customer
+from ..utils import json_compact
 
 # Third-party libraries
 import json
@@ -117,7 +118,7 @@ def invoice_create(request):
 
 
         # save invoice
-        invoice_data_processed_json = json.dumps(invoice_data_processed)
+        invoice_data_processed_json = json_compact(invoice_data_processed)
 
         invoice_number = int(invoice_data['invoice-number'])
         if auto_downgraded_to_non_gst:
@@ -425,7 +426,7 @@ def invoice_json_save(request, invoice_id):
                 invoice_obj.invoice_json_backup = invoice_obj.invoice_json
 
             # 5. Save the recomputed JSON.
-            invoice_obj.invoice_json = json.dumps(invoice_data)
+            invoice_obj.invoice_json = json_compact(invoice_data)
             invoice_obj.save()
 
             # 6. Optionally replace this invoice's stock/ledger entries.

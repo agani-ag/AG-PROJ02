@@ -23,6 +23,7 @@ from ..utils import (
     remove_inventory_entries_for_invoice,
     remove_book_entries_for_invoice,
     resync_quotation_prices,
+    json_compact,
     CartError,
 )
 from ..templatetags.money import format_inr_smart
@@ -146,7 +147,7 @@ def quotation_create(request):
         # update_products_from_invoice(quotation_data_processed, request)
 
         # Save quotation
-        quotation_data_processed_json = json.dumps(quotation_data_processed)
+        quotation_data_processed_json = json_compact(quotation_data_processed)
         
         # Get valid_until date
         valid_until_date = quotation_data.get('valid-until', '')
@@ -472,7 +473,7 @@ def quotation_edit(request, quotation_id):
                 return redirect('customer_add')
         
         # Update quotation
-        quotation.quotation_json = json.dumps(quotation_data_processed)
+        quotation.quotation_json = json_compact(quotation_data_processed)
         quotation.quotation_customer = customer
         quotation.quotation_date = datetime.datetime.strptime(quotation_data['invoice-date'], '%Y-%m-%d')
         quotation.customer_details_modified = is_modified_customer
@@ -572,7 +573,7 @@ def quotation_convert_to_invoice(request, quotation_id):
             invoice_number=next_invoice_number,
             invoice_date=datetime.date.today(),
             invoice_customer=quotation.quotation_customer,
-            invoice_json=json.dumps(quotation_data),  # rounded grand total for the invoice
+            invoice_json=json_compact(quotation_data),  # rounded grand total for the invoice
             is_gst=quotation.is_gst,
             inventory_reflected=False,
             books_reflected=False
@@ -589,12 +590,24 @@ def quotation_convert_to_invoice(request, quotation_id):
         
         new_invoice.save()
         
-        # Once converted, the quotation is a pure duplicate of the invoice, so we
-        # DELETE it — nothing lingers on the desktop or mobile order lists. (The
-        # audit link/reconvert path is intentionally given up in favour of a clean
-        # single source of truth: the invoice.)
+        # A DESKTOP quotation is a pure duplicate of the invoice once converted, so it is
+        # DELETED — the invoice becomes the single source of truth, and nothing lingers on
+        # the quotation list. Re-making one is the invoice viewer's "convert to quotation".
+        #
+        # A MOBILE order (created_from_cart) is NOT deleted. It is the customer's own record
+        # of what they ordered and /m/c/orders lists exactly these rows, so deleting it would
+        # empty their order history the moment the order was billed. It is marked CONVERTED
+        # and linked instead — which the orders screen already renders as an "Invoiced" badge,
+        # and which keeps the reconvert / invoice-delete-restore paths working for orders.
         q_number = quotation.quotation_number
-        quotation.delete()
+        if quotation.created_from_cart:
+            quotation.status = 'CONVERTED'
+            quotation.converted_invoice = new_invoice
+            quotation.converted_at = timezone.now()
+            quotation.converted_by = request.user
+            quotation.save()
+        else:
+            quotation.delete()
 
         messages.success(
             request,
@@ -679,7 +692,7 @@ def quotation_reconvert_to_invoice(request, quotation_id):
             invoice_number=next_invoice_number,
             invoice_date=datetime.date.today(),
             invoice_customer=quotation.quotation_customer,
-            invoice_json=json.dumps(quotation_data),  # rounded grand total for the invoice
+            invoice_json=json_compact(quotation_data),  # rounded grand total for the invoice
             is_gst=quotation.is_gst,
             inventory_reflected=False,
             books_reflected=False
@@ -913,7 +926,7 @@ def quotation_update_customer(request, quotation_id):
             quotation_data['vehicle_number'] = data.get('vehicle_number', '')
         
         # Save updated JSON and mark as modified
-        quotation.quotation_json = json.dumps(quotation_data)
+        quotation.quotation_json = json_compact(quotation_data)
         quotation.customer_details_modified = True
         quotation.save()
         

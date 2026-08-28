@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('gstbillingapp.urls')),
     path('m/', include('gstbillingapp.m_urls')),
+    path('cron/', include('gstbillingapp.cron_urls')),   # external cron service (shared-secret)
 ]
