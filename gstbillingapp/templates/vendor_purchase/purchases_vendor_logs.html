@@ -344,3 +344,7 @@ function attachFormHandler() {
 }
 </script>
 {% endblock %}
+
+{% block head_libs %}{% include "partials/libs/tingle_head.html" %}{% endblock %}
+
+{% block body_libs %}{% include "partials/libs/tingle_body.html" %}{% include "partials/libs/export_body.html" %}{% endblock %}

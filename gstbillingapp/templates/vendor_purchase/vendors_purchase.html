@@ -252,3 +252,6 @@ function popup_Vendor_maps(latitude, longitude, name) {
 }
 </script>
 {% endblock %}
+{% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}
+
+{% block body_libs %}{% include "partials/libs/leaflet_body.html" %}{% include "partials/libs/export_body.html" %}{% endblock %}
