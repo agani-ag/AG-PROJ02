@@ -294,11 +294,12 @@ class MobileScreensTests(TestCase):
         self.assertEqual(self.client.get(reverse("m_employee_customer", args=[foreign.id])).status_code, 404)
 
     def test_admin_sees_dashboard_regular_does_not(self):
-        # Regular employee: only today's tally, no business financials.
+        # Regular employee: today's tally + payment-collection progress, but not
+        # the full-business financial summary.
         self._emp()
         r = self.client.get(reverse("m_employee_home"))
         self.assertNotContains(r, "Overall Summary")
-        self.assertNotContains(r, "Payment Collection")
+        self.assertContains(r, "Payment Collection")
         # Promote to admin → full dashboard appears.
         self.emp.postings.filter(is_home=True).update(is_admin=True)
         r2 = self.client.get(reverse("m_employee_home"))

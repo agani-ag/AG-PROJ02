@@ -33,6 +33,7 @@ local_settings.py
 *.pot
 migrations/
 __pycache__/
+md/
 
 # ========================
 # Environment Variables
