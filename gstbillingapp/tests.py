@@ -9,6 +9,25 @@ from django.contrib.auth.models import User
 from .models import Customer, Book, BookLog, Invoice, ChequeLeaf
 
 
+class LoginRememberMeTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("shopowner", password="pw12345!")
+
+    def test_remember_me_persists_session(self):
+        # Checked → session keeps its cookie age, so it survives a browser close.
+        r = self.client.post(reverse("login_view"),
+                             {"username": "shopowner", "password": "pw12345!", "remember": "1"})
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(self.client.session.get_expire_at_browser_close())
+
+    def test_no_remember_expires_at_browser_close(self):
+        # Unchecked → a browser-session cookie that clears on close (shared machine).
+        r = self.client.post(reverse("login_view"),
+                             {"username": "shopowner", "password": "pw12345!"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(self.client.session.get_expire_at_browser_close())
+
+
 class CustomerInsightsTests(TestCase):
     """Point-of-billing 'know your customer' endpoint (Group A + price history)."""
 

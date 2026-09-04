@@ -37,6 +37,13 @@ def login_view(request):
             user = auth_form.get_user()
             if user:
                 login(request, user)
+                # "Remember me": keep the session for its full cookie age (Django default
+                # 2 weeks) so it survives closing the browser. Unchecked → a session cookie
+                # that the browser drops on close, so a shared/public machine is signed out.
+                if request.POST.get("remember"):
+                    request.session.set_expiry(None)  # use SESSION_COOKIE_AGE
+                else:
+                    request.session.set_expiry(0)     # expire at browser close
                 # Honour ?next=/... so a deep link resumes where the user was headed.
                 return redirect(_safe_next(request) or "invoice_create")
         else:

@@ -1,130 +1,313 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block content %}
-<div class="row">
-<div class="col-sm">
-</div>
-<div class="col-sm">
-	<div class="card" id="login-card">
-		<h5 class="card-header">GSTSync</h5>
-		<div class="card-body">
-			<h5 class="card-title">Login and start billing now!</h5>
-		</div>
-		<form method="POST">
-			{% csrf_token %}
-			<input type="hidden" name="next" value="{{ next }}">
-			<table class="table">
-				<tbody class="two-col-form">
-					<tr>
-						<th scope="row" class="text-right">Username:</th>
-						<td class="form-input-td">{{auth_form.username}}</td>
-					</tr>`
-					<tr>
-						<th scope="row" class="text-right">Password:</th>
-						<td class="form-input-td">{{auth_form.password}}</td>
-					</tr>
-				</tbody>
-			</table>
+{% block title %}Sign in · GSTSync{% endblock %}
 
-			<div class="text-right" style="margin-bottom: 5px;margin-right: 5px;">
-				<button type="submit" class="btn btn-primary"><i class="fas fa-right-to-bracket"></i></button>
-				<a href="#" class="btn btn-success" onclick="passkey()"><i class="fas fa-key"></i></a>
-				{% if admin %}
-					<a href="#" class="btn btn-danger" onclick="signUp()"><i class="fas fa-user-plus"></i></a>
-				{% endif %}
-			</div>
-		</form>
-	</div>
-</div>
-<div class="col-sm">
-</div>
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============ GSTSync sign-in — split-screen, animated, scoped under .auth ============ */
+body{background:#e9edf6}
+.auth{--brand:#2563eb;--brand2:#4f46e5;--ink:#0f172a;--soft:#64748b;--faint:#94a3b8;--line:#e6eaf1;
+    position:relative;min-height:calc(100vh - 54px);display:flex;align-items:center;justify-content:center;
+    padding:24px 6px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+.auth *{box-sizing:border-box}
+/* soft page blobs */
+.auth::before,.auth::after{content:"";position:absolute;border-radius:50%;filter:blur(70px);z-index:0;opacity:.5}
+.auth::before{width:420px;height:420px;background:rgba(99,102,241,.28);top:-120px;left:-90px}
+.auth::after{width:460px;height:460px;background:rgba(37,99,235,.22);bottom:-160px;right:-120px}
+
+.auth-card{position:relative;z-index:1;display:grid;grid-template-columns:1.05fr .95fr;
+    width:min(960px,100%);min-height:566px;background:#fff;border-radius:26px;overflow:hidden;
+    box-shadow:0 30px 70px -28px rgba(15,23,42,.45),0 10px 30px rgba(15,23,42,.10);
+    animation:auth-in .7s cubic-bezier(.2,.7,.2,1) both}
+@keyframes auth-in{from{opacity:0;transform:translateY(22px) scale(.985)}to{opacity:1;transform:none}}
+
+/* ---------- LEFT: brand story panel ---------- */
+.auth-brand{position:relative;overflow:hidden;color:#fff;padding:40px 38px;display:flex;flex-direction:column;
+    background:#0b1220;isolation:isolate}
+.auth-brand::before{content:"";position:absolute;inset:-40%;z-index:-2;
+    background:
+      radial-gradient(38% 46% at 20% 24%,rgba(59,130,246,.9),transparent 60%),
+      radial-gradient(34% 42% at 84% 16%,rgba(139,92,246,.85),transparent 60%),
+      radial-gradient(46% 50% at 74% 92%,rgba(6,182,212,.66),transparent 60%),
+      radial-gradient(40% 46% at 24% 96%,rgba(99,102,241,.72),transparent 62%);
+    filter:blur(14px);animation:auth-aurora 16s ease-in-out infinite alternate}
+.auth-brand::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.5;
+    background-image:linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px);
+    background-size:40px 40px;mask-image:radial-gradient(120% 90% at 30% 6%,#000 40%,transparent 80%);animation:auth-grid 26s linear infinite}
+@keyframes auth-aurora{0%{transform:translate3d(-3%,-2%,0) rotate(0) scale(1.05)}50%{transform:translate3d(3%,2%,0) rotate(8deg) scale(1.16)}100%{transform:translate3d(-2%,3%,0) rotate(-6deg) scale(1.08)}}
+@keyframes auth-grid{to{background-position:40px 40px,40px 40px}}
+
+.auth-logo{display:inline-flex;align-items:center;gap:10px;font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:20px;letter-spacing:-.3px}
+.auth-logo .mark{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,#3b82f6,#7c3aed);box-shadow:0 8px 18px -6px rgba(59,130,246,.7);font-size:17px}
+.auth-brand .head{font-family:"Space Grotesk",sans-serif;font-size:30px;font-weight:700;letter-spacing:-.6px;line-height:1.12;margin:26px 0 8px;max-width:340px}
+.auth-brand .head .accent{background:linear-gradient(90deg,#7dd3fc,#a5b4fc 50%,#f0abfc);-webkit-background-clip:text;background-clip:text;color:transparent;background-size:200% auto;animation:auth-shine 6s linear infinite}
+@keyframes auth-shine{to{background-position:200% center}}
+.auth-brand .sub{font-size:14px;color:rgba(226,235,252,.82);line-height:1.55;max-width:330px;margin:0}
+
+/* rotating storytelling */
+.auth-stories{position:relative;height:96px;margin:26px 0 auto}
+.auth-story{position:absolute;inset:0;display:flex;gap:14px;align-items:flex-start;opacity:0;transform:translateY(12px);
+    transition:opacity .55s ease,transform .55s ease;pointer-events:none}
+.auth-story.on{opacity:1;transform:none}
+.auth-story .si{flex:none;width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+    font-size:18px;color:#fff;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(6px)}
+.auth-story .st{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:16px;margin:2px 0 3px}
+.auth-story .sd{font-size:13px;color:rgba(226,235,252,.78);line-height:1.45;max-width:270px}
+.auth-dots{display:flex;gap:7px;margin-top:14px}
+.auth-dots b{width:20px;height:4px;border-radius:999px;background:rgba(255,255,255,.22);transition:.4s;cursor:pointer}
+.auth-dots b.on{background:#fff;width:30px}
+
+.auth-trust{display:flex;align-items:center;gap:9px;margin-top:20px;font-size:12.5px;color:rgba(226,235,252,.72)}
+.auth-trust .lock{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(74,222,128,.16);color:#bbf7d0;border:1px solid rgba(74,222,128,.32);font-size:11px}
+
+/* ---------- RIGHT: form panel ---------- */
+.auth-form{padding:44px 42px;display:flex;flex-direction:column;justify-content:center}
+.auth-form .mini{display:none;align-items:center;gap:9px;font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:17px;color:var(--ink);margin-bottom:18px}
+.auth-form .mini .mark{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;background:linear-gradient(135deg,#2563eb,#7c3aed);font-size:14px}
+.auth-form h2{font-family:"Space Grotesk",sans-serif;font-size:25px;font-weight:700;color:var(--ink);margin:0 0 5px;letter-spacing:-.3px}
+.auth-form .lead{font-size:13.5px;color:var(--soft);margin:0 0 24px}
+
+.fld{margin-bottom:15px;animation:fld-in .6s both}
+.fld:nth-of-type(1){animation-delay:.12s}.fld:nth-of-type(2){animation-delay:.19s}
+@keyframes fld-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.fld label{display:block;font-size:12.5px;font-weight:600;color:#475569;margin:0 0 7px}
+.inp{position:relative}
+.inp>i{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:14px;pointer-events:none;transition:color .18s}
+.auth-form .inp input{width:100%;padding:13px 15px 13px 42px;border:1.5px solid var(--line);border-radius:13px;
+    font-size:15px;color:var(--ink);background:#fff;outline:none;transition:border-color .18s,box-shadow .18s}
+.auth-form .inp input:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.13)}
+.auth-form .inp input:focus~i{color:var(--brand)}
+
+/* remember-me checkbox */
+.auth-remember{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;margin:4px 0 4px;font-size:13.5px;color:#475569}
+.auth-remember input{position:absolute;opacity:0;width:0;height:0}
+.auth-remember .box{flex:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);background:#fff;
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;transition:background .16s,border-color .16s,transform .12s}
+.auth-remember .box i{opacity:0;transform:scale(.6);transition:opacity .14s,transform .14s}
+.auth-remember input:checked~.box{background:linear-gradient(135deg,#2563eb,#4f46e5);border-color:transparent}
+.auth-remember input:checked~.box i{opacity:1;transform:scale(1)}
+.auth-remember input:focus-visible~.box{box-shadow:0 0 0 4px rgba(37,99,235,.18)}
+.auth-remember:hover .box{border-color:var(--brand)}
+
+.auth-btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;width:100%;border:0;cursor:pointer;
+    font-weight:700;font-size:15px;padding:14px 18px;border-radius:13px;text-decoration:none;position:relative;overflow:hidden;
+    color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 12px 26px -10px rgba(37,99,235,.75);
+    transition:transform .16s ease,box-shadow .2s ease;margin-top:6px}
+.auth-btn i{transition:transform .2s ease}
+.auth-btn:hover{transform:translateY(-2px);color:#fff;box-shadow:0 18px 32px -10px rgba(37,99,235,.8)}
+.auth-btn:hover i{transform:translateX(3px)}
+.auth-btn:active{transform:translateY(0)}
+.auth-btn::after{content:"";position:absolute;top:0;left:-120%;width:55%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);transform:skewX(-20deg);transition:left .6s ease}
+.auth-btn:hover::after{left:130%}
+
+.auth-or{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--faint);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.auth-alt{display:inline-flex;align-items:center;justify-content:center;gap:9px;width:100%;cursor:pointer;
+    font-weight:600;font-size:14.5px;padding:12px 18px;border-radius:13px;text-decoration:none;
+    color:#334155;background:#fff;border:1.5px solid var(--line);transition:.16s}
+.auth-alt:hover{border-color:var(--brand);color:var(--brand);text-decoration:none;transform:translateY(-1px)}
+.auth-alt i{color:var(--brand)}
+
+.auth-signup{text-align:center;margin-top:16px;font-size:13px;color:var(--soft)}
+.auth-signup a{color:var(--brand);font-weight:700;text-decoration:none;cursor:pointer}
+.auth-signup a:hover{text-decoration:underline}
+.auth-foot{text-align:center;margin-top:22px;font-size:12px;color:var(--faint)}
+.auth-foot b{color:var(--soft)}
+
+@media (max-width:820px){
+    .auth-card{grid-template-columns:1fr;min-height:0;max-width:440px}
+    .auth-brand{display:none}
+    .auth-form{padding:34px 26px}
+    .auth-form .mini{display:flex}
+}
+@media (prefers-reduced-motion:reduce){
+    .auth *,.auth *::before,.auth *::after{animation:none!important;transition:none!important}
+    .auth-story{opacity:1;position:relative;transform:none}
+    .auth-story:not(:first-child){display:none}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="auth">
+    <div class="auth-card">
+
+        <!-- LEFT · brand story -->
+        <div class="auth-brand">
+            <div class="auth-logo"><span class="mark"><i class="fas fa-bolt"></i></span> GSTSync</div>
+            <h2 class="head">Simple. Fast.<br><span class="accent">Always in Sync.</span></h2>
+            <p class="sub">Billing, collections, inventory and your field team — one calm place to run the whole business.</p>
+
+            <div class="auth-stories" id="authStories">
+                <div class="auth-story on">
+                    <span class="si"><i class="fas fa-hand-holding-usd"></i></span>
+                    <div><div class="st">See who owes you</div><div class="sd">Live receivables and 30/60/90-day aging — chase the money down faster.</div></div>
+                </div>
+                <div class="auth-story">
+                    <span class="si"><i class="fas fa-mobile-alt"></i></span>
+                    <div><div class="st">Orders from the field</div><div class="sd">Your reps take orders on their phone in SyncUp — they land on your billing screen.</div></div>
+                </div>
+                <div class="auth-story">
+                    <span class="si"><i class="fas fa-file-invoice"></i></span>
+                    <div><div class="st">GST billing in seconds</div><div class="sd">GST &amp; non-GST invoices, quotations, stock and purchases — all in one flow.</div></div>
+                </div>
+                <div class="auth-story">
+                    <span class="si"><i class="fas fa-chart-line"></i></span>
+                    <div><div class="st">Know your numbers</div><div class="sd">Dashboards and customer analysis tell you what's working — without asking anyone.</div></div>
+                </div>
+            </div>
+            <div class="auth-dots" id="authDots"></div>
+
+            <div class="auth-trust"><span class="lock"><i class="fas fa-lock"></i></span> Your data stays yours — separated per business.</div>
+        </div>
+
+        <!-- RIGHT · form -->
+        <div class="auth-form">
+            <div class="mini"><span class="mark"><i class="fas fa-bolt"></i></span> GSTSync</div>
+            <h2>Welcome back</h2>
+            <p class="lead">Enter your credentials to access your dashboard.</p>
+
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ next }}">
+
+                <div class="fld">
+                    <label for="id_username">Username</label>
+                    <div class="inp">{{ auth_form.username }}<i class="fas fa-user"></i></div>
+                </div>
+                <div class="fld">
+                    <label for="id_password">Password</label>
+                    <div class="inp">{{ auth_form.password }}<i class="fas fa-lock"></i></div>
+                </div>
+
+                <label class="auth-remember">
+                    <input type="checkbox" name="remember" value="1" checked>
+                    <span class="box"><i class="fas fa-check"></i></span>
+                    <span class="txt">Remember me on this device</span>
+                </label>
+
+                <button type="submit" class="auth-btn">Sign in <i class="fas fa-arrow-right"></i></button>
+            </form>
+
+            <div class="auth-or">or</div>
+            <a href="#" class="auth-alt" onclick="passkey();return false;"><i class="fas fa-key"></i> Sign in with passkey</a>
+
+            {% if admin %}
+            <p class="auth-signup">New here? <a onclick="signUp()">Create an account</a></p>
+            {% endif %}
+
+            <p class="auth-foot">Desktop <b>GSTSync</b> · Mobile <b>SyncUp</b></p>
+        </div>
+
+    </div>
 </div>
 
 <script>
-	{% if admin %}
-		function signUp() {
-			Swal.fire({
-				title: 'Redirecting to Sign Up page',
-				text: 'You will be redirected to the Sign Up page.',
-				icon: 'info',
-				confirmButtonText: 'OK'
-			}).then((result) => {
-				if (result.isConfirmed) {
-					window.location.href = "{% url 'signup_view' %}";
-				}
-			});
-		};
-	{% endif %}
-	function passkey() {
-		Swal.fire({
-			title: 'Passkey Authentication',
-			html: `
-				<p>Please enter your 5-digit alphanumeric PIN</p>
-				<div style="display: flex; justify-content: center; gap: 10px; margin: 20px 0;">
-					<input type="password" id="pin1" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
-					<input type="password" id="pin2" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
-					<input type="password" id="pin3" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
-					<input type="password" id="pin4" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
-					<input type="password" id="pin5" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
-				</div>
-			`,
-			icon: 'warning',
-			showCancelButton: true,
-			showConfirmButton: false,
-			cancelButtonText: 'Cancel',
-			didOpen: () => {
-				const inputs = ['pin1', 'pin2', 'pin3', 'pin4', 'pin5'];
-				
-				const authenticatePin = () => {
-					const passkey = inputs.map(id => document.getElementById(id).value).join('');
-					
-					if (passkey.length === 5 && /^[A-Z0-9]{5}$/.test(passkey)) {
-                    fetch('/api/passkey-auth', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                        },
-                        body: JSON.stringify({ passkey: passkey })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            Swal.fire('Warning', data.error, 'error');
-                        } else {
-                            Swal.fire('Success!', data.message, 'success')
-                                .then(() => window.location.reload());
-                        }
-                    })
-                    .catch(error => {
-                        Swal.fire('Error', 'Authentication failed: ' + error.message, 'error');
-                    });
-                }
-            };
-				
-				inputs.forEach((id, index) => {
-					const input = document.getElementById(id);
-					input.addEventListener('input', (e) => {
-						e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-						if (e.target.value && index < 4) {
-							document.getElementById(inputs[index + 1]).focus();
-						} else if (e.target.value && index === 4) {
-							authenticatePin();
-						}
-					});
-					input.addEventListener('keydown', (e) => {
-						if (e.key === 'Backspace' && !e.target.value && index > 0) {
-							document.getElementById(inputs[index - 1]).focus();
-						}
-					});
-				});
-				document.getElementById('pin1').focus();
-			}
-		});
-	};
-	window.onload = function () {
-    passkey();
+/* ---- rotating brand stories ---- */
+(function(){
+    var stories=[].slice.call(document.querySelectorAll('#authStories .auth-story'));
+    var dotWrap=document.getElementById('authDots');
+    if(!stories.length||!dotWrap) return;
+    var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    var i=0;
+    stories.forEach(function(_,n){var b=document.createElement('b');if(n===0)b.className='on';
+        b.addEventListener('click',function(){go(n);reset();});dotWrap.appendChild(b);});
+    var dots=[].slice.call(dotWrap.children);
+    function go(n){stories[i].classList.remove('on');dots[i].classList.remove('on');
+        i=n%stories.length;stories[i].classList.add('on');dots[i].classList.add('on');}
+    var timer;
+    function reset(){if(reduce)return;clearInterval(timer);timer=setInterval(function(){go(i+1);},3800);}
+    reset();
+})();
+
+/* ---- passkey PIN modal (unchanged logic) ---- */
+function passkey() {
+    Swal.fire({
+        title: 'Passkey Authentication',
+        html: `
+            <p>Please enter your 5-digit alphanumeric PIN</p>
+            <div style="display: flex; justify-content: center; gap: 10px; margin: 20px 0;">
+                <input type="password" id="pin1" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+                <input type="password" id="pin2" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+                <input type="password" id="pin3" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+                <input type="password" id="pin4" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+                <input type="password" id="pin5" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+            </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonText: 'Cancel',
+        didOpen: () => {
+            const inputs = ['pin1', 'pin2', 'pin3', 'pin4', 'pin5'];
+
+            const authenticatePin = () => {
+                const passkey = inputs.map(id => document.getElementById(id).value).join('');
+
+                if (passkey.length === 5 && /^[A-Z0-9]{5}$/.test(passkey)) {
+                fetch('/api/passkey-auth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({ passkey: passkey })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        Swal.fire('Warning', data.error, 'error');
+                    } else {
+                        Swal.fire('Success!', data.message, 'success')
+                            .then(() => window.location.reload());
+                    }
+                })
+                .catch(error => {
+                    Swal.fire('Error', 'Authentication failed: ' + error.message, 'error');
+                });
+            }
+        };
+
+            inputs.forEach((id, index) => {
+                const input = document.getElementById(id);
+                input.addEventListener('input', (e) => {
+                    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (e.target.value && index < 4) {
+                        document.getElementById(inputs[index + 1]).focus();
+                    } else if (e.target.value && index === 4) {
+                        authenticatePin();
+                    }
+                });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                        document.getElementById(inputs[index - 1]).focus();
+                    }
+                });
+            });
+            document.getElementById('pin1').focus();
+        }
+    });
 };
+
+{% if admin %}
+function signUp() {
+    Swal.fire({
+        title: 'Redirecting to Sign Up page',
+        text: 'You will be redirected to the Sign Up page.',
+        icon: 'info',
+        confirmButtonText: 'OK'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = "{% url 'signup_view' %}";
+        }
+    });
+};
+{% endif %}
 </script>
 {% endblock %}

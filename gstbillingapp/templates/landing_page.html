@@ -1,191 +1,409 @@
 {% extends "base.html" %}
 {% load static %}
+{% load money %}
 
 {% block title %}GSTSync{% endblock %}
 
 {% block metatags %}
-<meta name="description" content="Create GST invoice/bills for free. Automatic inventory Management and Books management.">
+<meta name="description" content="GSTSync — GST billing, collections, inventory and field-force in one place.">
 <meta name="google-site-verification" content="MJbX1a9Fs1MIE1tnpRnp4At9OzVMxoumTAvOWUlG8-w" />
 <link rel="canonical" href="https://billgst.in/" />
-<meta property="og:title" content="BillGST - Simplest GST invoicing | Inventory Management | Book keeping" />
+<meta property="og:title" content="GSTSync — Billing, Collections, Inventory & Field Force" />
 <meta property="og:url" content="https://billgst.in" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 {% endblock %}
 
 {% block includecss %}
 <style>
-	.home-hero{
-		position:relative;overflow:hidden;border-radius:20px;color:#fff;
-		background:linear-gradient(135deg,#0a63c9 0%,#0d6efd 55%,#3d8bfd 100%);
-		padding:38px 34px;margin:6px 0 26px;
-		box-shadow:0 14px 34px rgba(13,110,253,.28);
-	}
-	.home-hero::after{
-		content:"";position:absolute;right:-70px;top:-70px;width:280px;height:280px;border-radius:50%;
-		background:rgba(255,255,255,.10);
-	}
-	.home-hero::before{
-		content:"";position:absolute;right:60px;bottom:-90px;width:200px;height:200px;border-radius:50%;
-		background:rgba(255,255,255,.07);
-	}
-	.home-hero .eyebrow{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;opacity:.85;margin:0}
-	.home-hero h1{font-size:34px;font-weight:800;letter-spacing:-.5px;margin:6px 0 4px}
-	.home-hero p.tag{font-size:16px;opacity:.92;margin:0 0 22px;max-width:560px}
-	.home-hero .cta{display:flex;flex-wrap:wrap;gap:12px}
-	.home-hero .btn-cta{
-		display:inline-flex;align-items:center;gap:9px;font-weight:700;border:0;border-radius:12px;
-		padding:12px 20px;font-size:15px;text-decoration:none;transition:transform .12s ease, box-shadow .15s ease;
-	}
-	.home-hero .btn-cta:active{transform:translateY(1px)}
-	.home-hero .btn-white{background:#fff;color:#0d6efd;box-shadow:0 6px 16px rgba(0,0,0,.15)}
-	.home-hero .btn-white:hover{color:#0a58ca}
-	.home-hero .btn-ghost{background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.35)}
-	.home-hero .btn-ghost:hover{background:rgba(255,255,255,.26);color:#fff}
+/* ============ GSTSync home — LedGo-style, self-contained, scoped under .lp ============ */
+.lp{--brand:#2563eb;--brand2:#4f46e5;--ink:#0f172a;--soft:#64748b;--faint:#94a3b8;
+    --line:#e9edf3;--card:#ffffff;--wash:#f4f7fb;
+    max-width:1180px;margin:0 auto;padding:6px 0 44px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+.lp *{box-sizing:border-box}
 
-	.sec-title{font-size:15px;font-weight:800;letter-spacing:.02em;color:#5b6472;text-transform:uppercase;margin:26px 2px 14px}
+/* ---------- reveal-on-scroll ---------- */
+.lp .reveal{opacity:0;transform:translateY(18px)}
+.lp .reveal.in{opacity:1;transform:none;transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);transition-delay:var(--d,0ms)}
 
-	.tile{
-		display:flex;align-items:flex-start;gap:14px;height:100%;
-		background:#fff;border:1px solid #eceef2;border-radius:16px;padding:18px;
-		text-decoration:none;color:inherit;transition:transform .14s ease, box-shadow .18s ease, border-color .18s ease;
-	}
-	.tile:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(20,22,30,.10);border-color:#dfe3ea;text-decoration:none;color:inherit}
-	.tile .ic{
-		flex:none;width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;
-		font-size:20px;color:#fff;
-	}
-	.tile .nm{font-weight:700;font-size:15.5px;margin:2px 0 2px;color:#1f2733}
-	.tile .ds{font-size:12.5px;color:#7a8494;margin:0;line-height:1.35}
-	.bg-blue{background:linear-gradient(135deg,#0d6efd,#3d8bfd)}
-	.bg-indigo{background:linear-gradient(135deg,#5b53d6,#7b73f0)}
-	.bg-amber{background:linear-gradient(135deg,#f0900f,#ffb648)}
-	.bg-green{background:linear-gradient(135deg,#1a9f4b,#33c46a)}
-	.bg-teal{background:linear-gradient(135deg,#0a9aa6,#1fc0cf)}
-	.bg-orange{background:linear-gradient(135deg,#e2632a,#ff8a4c)}
-	.bg-purple{background:linear-gradient(135deg,#8a3ffc,#b07bff)}
-	.bg-red{background:linear-gradient(135deg,#e11d48,#fb5b78)}
-	.bg-slate{background:linear-gradient(135deg,#425466,#64778c)}
-	.bg-pink{background:linear-gradient(135deg,#d6337f,#f56ba9)}
+/* ============ HERO ============ */
+.lp-hero{position:relative;overflow:hidden;border-radius:26px;color:#fff;
+    padding:46px 42px 56px;margin:8px 0 0;isolation:isolate;background:#0b1220;
+    box-shadow:0 26px 60px -24px rgba(37,99,235,.55),0 8px 24px rgba(15,23,42,.18);}
+.lp-hero::before{content:"";position:absolute;inset:-40%;z-index:-2;
+    background:
+      radial-gradient(38% 46% at 18% 26%,rgba(59,130,246,.85),transparent 60%),
+      radial-gradient(34% 42% at 82% 18%,rgba(139,92,246,.80),transparent 60%),
+      radial-gradient(46% 50% at 72% 92%,rgba(6,182,212,.62),transparent 60%),
+      radial-gradient(40% 46% at 26% 96%,rgba(99,102,241,.70),transparent 62%);
+    filter:blur(14px);animation:lp-aurora 16s ease-in-out infinite alternate;}
+.lp-hero::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.5;
+    background-image:linear-gradient(rgba(255,255,255,.06) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.06) 1px,transparent 1px);
+    background-size:44px 44px;mask-image:radial-gradient(120% 90% at 30% 8%,#000 40%,transparent 78%);
+    animation:lp-grid 26s linear infinite;}
+@keyframes lp-aurora{0%{transform:translate3d(-3%,-2%,0) rotate(0) scale(1.05)}
+    50%{transform:translate3d(3%,2%,0) rotate(8deg) scale(1.15)}
+    100%{transform:translate3d(-2%,3%,0) rotate(-6deg) scale(1.08)}}
+@keyframes lp-grid{to{background-position:44px 44px,44px 44px}}
 
-	.pill-links{display:flex;flex-wrap:wrap;gap:10px}
-	.pill-links a{
-		display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e6e9ef;border-radius:999px;
-		padding:9px 16px;font-weight:600;font-size:13.5px;color:#334155;text-decoration:none;transition:.14s;
-	}
-	.pill-links a:hover{border-color:#0d6efd;color:#0d6efd;text-decoration:none}
+.lp-badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;
+    letter-spacing:.14em;text-transform:uppercase;padding:7px 13px;border-radius:999px;
+    background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(6px);color:#eaf1ff}
+.lp-badge .dot{width:8px;height:8px;border-radius:50%;background:#4ade80;animation:lp-pulse 2.2s infinite}
+@keyframes lp-pulse{0%{box-shadow:0 0 0 0 rgba(74,222,128,.6)}70%{box-shadow:0 0 0 9px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+
+.lp-hero h1{font-family:"Space Grotesk",-apple-system,sans-serif;
+    font-size:clamp(30px,4.6vw,48px);font-weight:700;letter-spacing:-.6px;margin:16px 0 8px;line-height:1.05;max-width:760px}
+.lp-hero h1 .accent{background:linear-gradient(90deg,#7dd3fc,#a5b4fc 45%,#f0abfc);
+    -webkit-background-clip:text;background-clip:text;color:transparent;background-size:200% auto;animation:lp-shine 6s linear infinite}
+@keyframes lp-shine{to{background-position:200% center}}
+.lp-hero .tag{font-size:16.5px;line-height:1.55;color:rgba(226,235,252,.86);margin:2px 0 26px;max-width:600px}
+.lp-hero .greet{font-family:inherit;font-size:15px;font-weight:600;color:rgba(226,235,252,.75);margin:0}
+
+.lp-cta{display:flex;flex-wrap:wrap;gap:12px;align-items:stretch}
+.lp-btn{display:inline-flex;align-items:center;gap:9px;font-weight:700;border:0;border-radius:14px;
+    padding:13px 22px;font-size:15px;text-decoration:none;position:relative;overflow:hidden;
+    transition:transform .16s ease,box-shadow .2s ease,background .2s ease}
+.lp-btn i{transition:transform .2s ease}
+.lp-btn:hover{transform:translateY(-2px);text-decoration:none}
+.lp-btn:hover i{transform:translateX(3px)}
+.lp-btn:active{transform:translateY(0)}
+.lp-btn-white{background:#fff;color:#1d4ed8;box-shadow:0 10px 24px -8px rgba(0,0,0,.5)}
+.lp-btn-white:hover{color:#1d4ed8}
+.lp-btn-ghost{background:rgba(255,255,255,.10);color:#fff;border:1px solid rgba(255,255,255,.30)}
+.lp-btn-ghost:hover{background:rgba(255,255,255,.18);color:#fff}
+.lp-btn-white::after{content:"";position:absolute;top:0;left:-120%;width:60%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);transform:skewX(-20deg);transition:left .6s ease}
+.lp-btn-white:hover::after{left:130%}
+.lp-clock{display:inline-flex;align-items:center;gap:9px;font-size:13px;color:rgba(226,235,252,.82);
+    padding:9px 14px;border-radius:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14)}
+.lp-clock b{color:#fff;font-variant-numeric:tabular-nums;font-weight:700}
+
+/* ============ METRICS STRIP (lifts over hero bottom) ============ */
+.lp-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;
+    position:relative;z-index:2;margin:-30px 0 8px;padding:0 6px}
+.lp-metric{display:flex;align-items:center;gap:13px;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:16px 18px;box-shadow:0 14px 30px -18px rgba(15,23,42,.25);
+    transition:transform .18s ease,box-shadow .2s ease}
+.lp-metric:hover{transform:translateY(-3px);box-shadow:0 20px 36px -18px rgba(15,23,42,.3)}
+.lp-metric .mi{flex:none;width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+    font-size:18px;color:#fff;background:var(--g);box-shadow:0 8px 16px -6px var(--glow)}
+.lp-metric .mv{font-family:"Space Grotesk",sans-serif;font-size:22px;font-weight:700;color:var(--ink);line-height:1.1;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.lp-metric .mk{font-size:12px;color:var(--soft);margin-top:2px}
+
+/* ============ NUMBERED FEATURE MODULES ============ */
+.lp-sec{display:flex;align-items:center;gap:12px;margin:34px 4px 16px}
+.lp-sec .bar{width:22px;height:5px;border-radius:999px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
+.lp-sec h2{font-family:"Space Grotesk",sans-serif;font-size:16px;font-weight:700;color:var(--ink);margin:0}
+.lp-sec .cnt{margin-left:auto;font-size:12px;font-weight:600;color:var(--faint)}
+
+.lp-mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(345px,1fr));gap:18px}
+.lp-mod{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px 22px 20px;
+    transition:transform .18s cubic-bezier(.2,.7,.2,1),box-shadow .22s ease,border-color .22s ease}
+.lp-mod::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;transform:scaleX(0);transform-origin:left;
+    background:var(--g);transition:transform .3s ease}
+.lp-mod:hover{transform:translateY(-4px);border-color:transparent;box-shadow:0 22px 44px -20px var(--glow),0 6px 16px rgba(15,23,42,.05)}
+.lp-mod:hover::before{transform:scaleX(1)}
+.lp-mod .num{position:absolute;top:12px;right:18px;font-family:"Space Grotesk",sans-serif;font-size:46px;font-weight:700;
+    color:var(--line);letter-spacing:-2px;line-height:1;user-select:none}
+.lp-mod-head{display:flex;gap:14px;align-items:flex-start;position:relative}
+.lp-mod .ic{flex:none;width:50px;height:50px;border-radius:15px;display:flex;align-items:center;justify-content:center;
+    font-size:21px;color:#fff;background:var(--g);box-shadow:0 8px 18px -6px var(--glow);transition:transform .25s ease}
+.lp-mod:hover .ic{transform:scale(1.06) rotate(-4deg)}
+.lp-mod h3{font-family:"Space Grotesk",sans-serif;font-size:18px;font-weight:700;margin:3px 0 4px;color:var(--ink);padding-right:34px}
+.lp-mod .lead{font-size:13px;color:var(--soft);margin:0;line-height:1.45}
+.lp-bul{list-style:none;padding:0;margin:15px 0 16px;display:grid;gap:8px}
+.lp-bul li{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:#475569;line-height:1.35}
+.lp-bul li i{color:var(--brand);font-size:11px;margin-top:3px;flex:none}
+.lp-acts{display:flex;flex-wrap:wrap;gap:8px}
+.lp-acts a{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:#334155;
+    background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:8px 12px;text-decoration:none;transition:.15s}
+.lp-acts a i{font-size:10px;opacity:.7;transition:transform .15s ease}
+.lp-acts a:hover{background:var(--g);color:#fff;border-color:transparent;text-decoration:none;transform:translateY(-1px)}
+.lp-acts a:hover i{opacity:1;transform:translateX(2px)}
+
+/* per-accent tokens */
+.a-blue{--g:linear-gradient(135deg,#2563eb,#4f8cff);--glow:rgba(37,99,235,.5)}
+.a-teal{--g:linear-gradient(135deg,#0d9aa6,#22c6d6);--glow:rgba(13,154,166,.45)}
+.a-purple{--g:linear-gradient(135deg,#8b3ffc,#b07bff);--glow:rgba(139,63,252,.5)}
+.a-orange{--g:linear-gradient(135deg,#ea6a2a,#ff9a4c);--glow:rgba(234,106,42,.45)}
+.a-green{--g:linear-gradient(135deg,#16a34a,#34d17a);--glow:rgba(22,163,74,.45)}
+.a-slate{--g:linear-gradient(135deg,#475569,#6b7f96);--glow:rgba(71,85,105,.4)}
+.a-red{--g:linear-gradient(135deg,#e11d48,#fb5b78);--glow:rgba(225,29,72,.45)}
+.a-amber{--g:linear-gradient(135deg,#e5900f,#ffbe4c);--glow:rgba(229,144,15,.45)}
+
+/* ============ JUMP-TO PILLS ============ */
+.lp-pills{display:flex;flex-wrap:wrap;gap:10px}
+.lp-pills a{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);
+    border-radius:999px;padding:10px 17px;font-weight:600;font-size:13.5px;color:#334155;text-decoration:none;
+    transition:transform .14s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease}
+.lp-pills a i{color:var(--brand)}
+.lp-pills a:hover{transform:translateY(-2px);border-color:var(--brand);color:var(--brand);text-decoration:none;box-shadow:0 8px 18px -10px rgba(37,99,235,.5)}
+
+/* ---------- hero word-rotator ---------- */
+.lp-hero h1 .rot{display:inline-block;overflow:hidden;vertical-align:bottom}
+.lp-hero h1 #rotw{display:inline-block;will-change:transform,opacity;
+    transition:opacity .42s ease,transform .42s cubic-bezier(.2,.7,.2,1)}
+
+/* ============ CLOSING BAND ============ */
+.lp-close{position:relative;overflow:hidden;isolation:isolate;margin:36px 0 6px;border-radius:24px;color:#fff;
+    padding:34px 34px;display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap;
+    background:linear-gradient(120deg,#1d4ed8,#4f46e5 55%,#7c3aed);
+    box-shadow:0 24px 50px -22px rgba(79,70,229,.7)}
+.lp-close::before{content:"";position:absolute;inset:0;z-index:-1;opacity:.5;
+    background-image:linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px);
+    background-size:38px 38px;mask-image:radial-gradient(120% 120% at 85% 0,#000 30%,transparent 75%)}
+.lp-close h3{font-family:"Space Grotesk",sans-serif;font-size:23px;font-weight:700;margin:0 0 5px;letter-spacing:-.3px}
+.lp-close p{margin:0;font-size:14px;color:rgba(235,240,255,.88);max-width:460px;line-height:1.5}
+.lp-close .lp-btn-white{flex:none}
+
+@media (prefers-reduced-motion:reduce){
+    .lp *,.lp *::before,.lp *::after{animation:none!important}
+    .lp .reveal{opacity:1;transform:none}
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="home-hero">
-	<p class="eyebrow">GSTSync</p>
-	<h1 id="greeting">Welcome{% if user.userprofile.business_brand or user.userprofile.business_title %}, {{ user.userprofile.business_brand|default:user.userprofile.business_title }}{% endif %}</h1>
-	<p class="tag">Smart Invoicing &middot; Easy GST &middot; Better ERP. Everything to run your business in one place.</p>
-	<div class="cta">
-		<a class="btn-cta btn-white" href="{% url 'invoice_create' %}"><i class="fas fa-file-invoice"></i> New Invoice</a>
-		<a class="btn-cta btn-ghost" href="{% url 'quotation_create' %}"><i class="fas fa-file-signature"></i> New Quotation</a>
-	</div>
-</div>
+<div class="lp">
 
-<div class="sec-title">Billing &amp; Catalog</div>
-<div class="row">
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'invoice_create' %}">
-			<span class="ic bg-blue"><i class="fas fa-file-invoice"></i></span>
-			<span><span class="nm">Create Invoice</span><p class="ds">Raise a GST / non-GST bill</p></span>
-		</a>
-	</div>
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'quotation_create' %}">
-			<span class="ic bg-indigo"><i class="fas fa-file-signature"></i></span>
-			<span><span class="nm">New Quotation</span><p class="ds">Draft an estimate for a customer</p></span>
-		</a>
-	</div>
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'products' %}">
-			<span class="ic bg-green"><i class="fas fa-box"></i></span>
-			<span><span class="nm">Products</span><p class="ds">Manage your product catalog</p></span>
-		</a>
-	</div>
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'inventory' %}">
-			<span class="ic bg-orange"><i class="fas fa-warehouse"></i></span>
-			<span><span class="nm">Inventory</span><p class="ds">Track stock &amp; movements</p></span>
-		</a>
-	</div>
-</div>
+    <!-- ============ HERO ============ -->
+    <section class="lp-hero reveal">
+        <span class="lp-badge"><span class="dot"></span> GSTSync · Business Cockpit</span>
+        <h1>Run your whole <span class="rot"><span id="rotw" class="accent">business</span></span><br>from one screen.</h1>
+        <p class="tag">Billing, collections, inventory, purchases and your field team — one calm place that replaces the notebook, the calculator, and three different apps.</p>
+        {% if user.userprofile.business_brand or user.userprofile.business_title %}
+        <p class="greet"><span id="greet">Welcome back</span>, {{ user.userprofile.business_brand|default:user.userprofile.business_title }} 👋</p>
+        {% endif %}
+        <div class="lp-cta" style="margin-top:20px">
+            <a class="lp-btn lp-btn-white" href="{% url 'invoice_create' %}"><i class="fas fa-file-invoice"></i> New Invoice</a>
+            <a class="lp-btn lp-btn-ghost" href="{% url 'quotation_create' %}"><i class="fas fa-file-signature"></i> New Quotation</a>
+            <span class="lp-clock"><i class="far fa-clock"></i> <span id="lp-date"></span> · <b id="lp-time"></b></span>
+        </div>
+    </section>
 
-<div class="sec-title">People &amp; Accounts</div>
-<div class="row">
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'customers' %}">
-			<span class="ic bg-teal"><i class="fas fa-users"></i></span>
-			<span><span class="nm">Customers</span><p class="ds">Ledgers, dues &amp; contacts</p></span>
-		</a>
-	</div>
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'employees' %}">
-			<span class="ic bg-purple"><i class="fas fa-user-tie"></i></span>
-			<span><span class="nm">Employees</span><p class="ds">Field-staff &amp; mobile access</p></span>
-		</a>
-	</div>
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'vendors_purchase' %}">
-			<span class="ic bg-slate"><i class="fas fa-truck"></i></span>
-			<span><span class="nm">Vendors &amp; Purchases</span><p class="ds">Suppliers and purchase logs</p></span>
-		</a>
-	</div>
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'expense_tracker' %}">
-			<span class="ic bg-pink"><i class="fas fa-receipt"></i></span>
-			<span><span class="nm">Expenses</span><p class="ds">Record &amp; track spending</p></span>
-		</a>
-	</div>
-</div>
+    <!-- ============ METRICS STRIP (real, live) ============ -->
+    {% if user.is_authenticated %}
+    <div class="lp-metrics">
+        <div class="lp-metric reveal">
+            <span class="mi a-red"><i class="fas fa-hand-holding-usd"></i></span>
+            <div><div class="mv" data-count="{{ m_receivable|floatformat:0 }}" data-prefix="₹ ">₹ {{ m_receivable|inrs }}</div><div class="mk">Receivables · {{ m_due_count }} owe you</div></div>
+        </div>
+        <div class="lp-metric reveal">
+            <span class="mi a-blue"><i class="fas fa-file-invoice-dollar"></i></span>
+            <div><div class="mv" data-count="{{ m_sales_today|floatformat:0 }}" data-prefix="₹ ">₹ {{ m_sales_today|inrs }}</div><div class="mk">Sales today</div></div>
+        </div>
+        <div class="lp-metric reveal">
+            <span class="mi a-green"><i class="fas fa-check-circle"></i></span>
+            <div><div class="mv" data-count="{{ m_coll_today|floatformat:0 }}" data-prefix="₹ ">₹ {{ m_coll_today|inrs }}</div><div class="mk">Collected today</div></div>
+        </div>
+        <div class="lp-metric reveal">
+            <span class="mi a-teal"><i class="fas fa-users"></i></span>
+            <div><div class="mv" data-count="{{ m_customers }}">{{ m_customers }}</div><div class="mk">Customers · {{ m_products }} products</div></div>
+        </div>
+    </div>
+    {% endif %}
 
-<div class="sec-title">Insights</div>
-<div class="row">
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'bi_dashboard' %}">
-			<span class="ic bg-red"><i class="fas fa-chart-line"></i></span>
-			<span><span class="nm">BI Dashboard</span><p class="ds">Sales &amp; performance at a glance</p></span>
-		</a>
-	</div>
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'ar_aging_report' %}">
-			<span class="ic bg-amber"><i class="fas fa-hourglass-half"></i></span>
-			<span><span class="nm">AR Aging</span><p class="ds">Who owes you, and how long</p></span>
-		</a>
-	</div>
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'customer_analysis' %}">
-			<span class="ic bg-blue"><i class="fas fa-chart-pie"></i></span>
-			<span><span class="nm">Customer Analysis</span><p class="ds">Understand your customers</p></span>
-		</a>
-	</div>
-	<div class="col-6 col-md-4 col-lg-3 mb-3">
-		<a class="tile" href="{% url 'user_profile' %}">
-			<span class="ic bg-slate"><i class="fas fa-cog"></i></span>
-			<span><span class="nm">Business Profile</span><p class="ds">Settings, bank &amp; branding</p></span>
-		</a>
-	</div>
-</div>
+    <!-- ============ NUMBERED FEATURE MODULES ============ -->
+    <div class="lp-sec reveal"><span class="bar"></span><h2>Everything, in modules</h2><span class="cnt">Tap any action</span></div>
+    <div class="lp-mods">
 
-<div class="sec-title">Jump to</div>
-<div class="pill-links mb-4">
-	<a href="{% url 'invoices' %}"><i class="fas fa-file-invoice"></i> Invoices</a>
-	<a href="{% url 'quotations' %}"><i class="fas fa-file-alt"></i> Quotations</a>
-	<a href="{% url 'books' %}"><i class="fas fa-book"></i> Books</a>
-	<a href="{% url 'purchases_logs_overdue' %}"><i class="fas fa-exclamation-triangle"></i> Overdue Purchases</a>
-	<a href="{% url 'bank_details' %}"><i class="fas fa-university"></i> Bank Details</a>
-	<a href="{% url 'assets' %}"><i class="fas fa-boxes"></i> Assets</a>
+        <!-- 01 -->
+        <article class="lp-mod a-blue reveal">
+            <span class="num">01</span>
+            <div class="lp-mod-head">
+                <span class="ic"><i class="fas fa-file-invoice"></i></span>
+                <div><h3>Billing &amp; Catalog</h3><p class="lead">Bill in seconds and keep your catalogue clean.</p></div>
+            </div>
+            <ul class="lp-bul">
+                <li><i class="fas fa-circle"></i> GST &amp; non-GST invoices, print or WhatsApp</li>
+                <li><i class="fas fa-circle"></i> Quotations that convert straight into invoices</li>
+                <li><i class="fas fa-circle"></i> Product catalogue with live stock levels</li>
+            </ul>
+            <div class="lp-acts">
+                <a href="{% url 'invoice_create' %}">Create Invoice <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'quotation_create' %}">New Quotation <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'products' %}">Products <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'inventory' %}">Inventory <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </article>
+
+        <!-- 02 -->
+        <article class="lp-mod a-teal reveal">
+            <span class="num">02</span>
+            <div class="lp-mod-head">
+                <span class="ic"><i class="fas fa-hand-holding-usd"></i></span>
+                <div><h3>Customers &amp; Collections</h3><p class="lead">See who owes you — and get it back faster.</p></div>
+            </div>
+            <ul class="lp-bul">
+                <li><i class="fas fa-circle"></i> Customer ledgers, dues &amp; contacts</li>
+                <li><i class="fas fa-circle"></i> Aging buckets — 30 / 60 / 90+ days overdue</li>
+                <li><i class="fas fa-circle"></i> Collection routes for the week</li>
+            </ul>
+            <div class="lp-acts">
+                <a href="{% url 'customers' %}">Customers <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'ar_aging_report' %}">AR Aging <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'books' %}">Books <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </article>
+
+        <!-- 03 -->
+        <article class="lp-mod a-purple reveal">
+            <span class="num">03</span>
+            <div class="lp-mod-head">
+                <span class="ic"><i class="fas fa-mobile-alt"></i></span>
+                <div><h3>Field Force · SyncUp</h3><p class="lead">Your reps run the field from their phone.</p></div>
+            </div>
+            <ul class="lp-bul">
+                <li><i class="fas fa-circle"></i> Orders taken on mobile reach your billing screen</li>
+                <li><i class="fas fa-circle"></i> Attendance &amp; salary, no notebook</li>
+                <li><i class="fas fa-circle"></i> Incentives tracked per staff member</li>
+            </ul>
+            <div class="lp-acts">
+                <a href="{% url 'employees' %}">Employees <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </article>
+
+        <!-- 04 -->
+        <article class="lp-mod a-orange reveal">
+            <span class="num">04</span>
+            <div class="lp-mod-head">
+                <span class="ic"><i class="fas fa-truck"></i></span>
+                <div><h3>Purchases &amp; Expenses</h3><p class="lead">Track what you buy and what you spend.</p></div>
+            </div>
+            <ul class="lp-bul">
+                <li><i class="fas fa-circle"></i> Vendors and purchase logs</li>
+                <li><i class="fas fa-circle"></i> Day-to-day expense tracking</li>
+                <li><i class="fas fa-circle"></i> Overdue purchases you still owe</li>
+            </ul>
+            <div class="lp-acts">
+                <a href="{% url 'vendors_purchase' %}">Vendors &amp; Purchases <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'expense_tracker' %}">Expenses <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'purchases_logs_overdue' %}">Overdue <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </article>
+
+        <!-- 05 -->
+        <article class="lp-mod a-red reveal">
+            <span class="num">05</span>
+            <div class="lp-mod-head">
+                <span class="ic"><i class="fas fa-chart-line"></i></span>
+                <div><h3>Insights</h3><p class="lead">Know your numbers without asking anyone.</p></div>
+            </div>
+            <ul class="lp-bul">
+                <li><i class="fas fa-circle"></i> Sales &amp; performance dashboard</li>
+                <li><i class="fas fa-circle"></i> Customer analysis — who really pays</li>
+                <li><i class="fas fa-circle"></i> Receivables aging at a glance</li>
+            </ul>
+            <div class="lp-acts">
+                <a href="{% url 'bi_dashboard' %}">BI Dashboard <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'customer_analysis' %}">Customer Analysis <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </article>
+
+        <!-- 06 -->
+        <article class="lp-mod a-slate reveal">
+            <span class="num">06</span>
+            <div class="lp-mod-head">
+                <span class="ic"><i class="fas fa-cog"></i></span>
+                <div><h3>Setup &amp; Records</h3><p class="lead">Make it yours and keep your records straight.</p></div>
+            </div>
+            <ul class="lp-bul">
+                <li><i class="fas fa-circle"></i> Business profile, logo &amp; branding</li>
+                <li><i class="fas fa-circle"></i> Bank details for invoices &amp; UPI</li>
+                <li><i class="fas fa-circle"></i> Company assets register</li>
+            </ul>
+            <div class="lp-acts">
+                <a href="{% url 'user_profile' %}">Business Profile <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'bank_details' %}">Bank Details <i class="fas fa-arrow-right"></i></a>
+                <a href="{% url 'assets' %}">Assets <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </article>
+
+    </div>
+
+    <!-- ============ JUMP TO ============ -->
+    <div class="lp-sec reveal"><span class="bar"></span><h2>Recent lists</h2></div>
+    <div class="lp-pills reveal">
+        <a href="{% url 'invoices' %}"><i class="fas fa-file-invoice"></i> All Invoices</a>
+        <a href="{% url 'quotations' %}"><i class="fas fa-file-alt"></i> All Quotations</a>
+        <a href="{% url 'books' %}"><i class="fas fa-book"></i> Books</a>
+        <a href="{% url 'bank_details' %}"><i class="fas fa-university"></i> Bank Details</a>
+    </div>
+
+    <!-- ============ CLOSING BAND ============ -->
+    <section class="lp-close reveal">
+        <div class="txt">
+            <h3>Money in, faster. Team in sync.</h3>
+            <p>Bill today, watch the receivables come back, and keep your whole shop on one screen.</p>
+        </div>
+        <a class="lp-btn lp-btn-white" href="{% url 'invoice_create' %}"><i class="fas fa-file-invoice"></i> Create an invoice</a>
+    </section>
+
 </div>
 
 <script>
-	(function(){
-		var h = new Date().getHours();
-		var g = h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
-		var el = document.getElementById('greeting');
-		if (el) el.textContent = el.textContent.replace('Welcome', g);
-	})();
+(function(){
+    // greeting
+    var h=new Date().getHours();
+    var g=h<5?'Good night':h<12?'Good morning':h<17?'Good afternoon':h<21?'Good evening':'Good night';
+    var ge=document.getElementById('greet'); if(ge) ge.textContent=g;
+
+    // live clock
+    var dEl=document.getElementById('lp-date'), tEl=document.getElementById('lp-time');
+    function tick(){try{var n=new Date();
+        if(dEl) dEl.textContent=n.toLocaleDateString('en-IN',{day:'2-digit',month:'short'});
+        if(tEl) tEl.textContent=n.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+    }catch(e){}}
+    tick(); setInterval(tick,1000);
+
+    var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+    // animated word-rotator in the hero headline
+    var rw=document.getElementById('rotw');
+    if(rw && !reduce){
+        var words=['business','billing','collections','inventory','field team'],wi=0;
+        setInterval(function(){
+            rw.style.opacity='0';rw.style.transform='translateY(-14px)';
+            setTimeout(function(){
+                wi=(wi+1)%words.length;rw.textContent=words[wi];
+                rw.style.transform='translateY(14px)';
+                requestAnimationFrame(function(){requestAnimationFrame(function(){
+                    rw.style.opacity='1';rw.style.transform='translateY(0)';});});
+            },430);
+        },2600);
+    }
+
+    // count-up for metric values
+    function countUp(el){
+        var target=parseFloat(el.getAttribute('data-count'))||0, pre=el.getAttribute('data-prefix')||'';
+        if(reduce||target<=0){el.textContent=pre+target.toLocaleString('en-IN');return;}
+        var start=null, dur=900;
+        function fmt(v){return pre+Math.round(v).toLocaleString('en-IN');}
+        function step(ts){if(!start)start=ts;var p=Math.min(1,(ts-start)/dur);
+            el.textContent=fmt(target*(1-Math.pow(1-p,3)));
+            if(p<1)requestAnimationFrame(step);else el.textContent=fmt(target);}
+        requestAnimationFrame(step);
+    }
+
+    // staggered reveal-on-scroll
+    var items=[].slice.call(document.querySelectorAll('.lp .reveal'));
+    function show(el){
+        var sibs=[].slice.call((el.parentNode||document).children).filter(function(c){return c.classList&&c.classList.contains('reveal');});
+        var idx=Math.max(0,sibs.indexOf(el));
+        el.style.setProperty('--d',(idx*70)+'ms');
+        el.classList.add('in');
+        var mv=el.querySelector&&el.querySelector('.mv[data-count]');
+        if(mv) setTimeout(function(){countUp(mv);}, idx*70+120);
+    }
+    if(reduce||!('IntersectionObserver' in window)){items.forEach(show);return;}
+    var io=new IntersectionObserver(function(entries){
+        entries.forEach(function(en){if(!en.isIntersecting)return;show(en.target);io.unobserve(en.target);});
+    },{threshold:.12,rootMargin:'0px 0px -6% 0px'});
+    items.forEach(function(el){io.observe(el);});
+})();
 </script>
 {% endblock %}
