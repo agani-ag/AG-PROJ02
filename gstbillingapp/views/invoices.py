@@ -285,13 +285,7 @@ def _invoice_row_dict(invoice, request, invoice_type):
 
 @login_required
 def invoices(request):
-    # Default the Type filter to GST when the page is first opened (no querystring),
-    # matching the old client-side default.
-    if 'invoice_type' not in request.GET:
-        params = request.GET.copy()
-        params['invoice_type'] = 'gst'
-        request.GET = params
-
+    # Default the Type filter to "All Types" when first opened.
     qs, fctx = _filtered_invoices(request, search_value=request.GET.get('q', '').strip())
     qs = qs.order_by('-invoice_date', '-id')
 

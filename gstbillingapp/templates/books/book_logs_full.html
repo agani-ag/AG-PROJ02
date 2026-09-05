@@ -52,48 +52,57 @@
         <a href="{% url 'book_logs_full' %}" class="gbtn">Clear</a>
     </form>
 
-    <div class="tablecard" style="padding:10px 14px">
-        <table class="table table-hover font-weight-bold hide-desc" id="inventory-logs-table">
-            <thead class="thead-dark align-middle">
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt hide-desc" id="inventory-logs-table">
+            <thead>
                 <tr>
-                    <th>Date</th><th>Type</th><th class="text-center">Change</th>
-                    <th class="desc-col">Description</th><th>Customer</th><th>Actions</th>
+                    <th>Date</th><th>Type</th><th class="r">Change</th>
+                    <th class="desc-col">Description</th><th>Customer</th><th class="r">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in page_obj %}
-                {% if item.is_active and item.change_type == 0 %}<tr class="table-success">
-                {% elif item.is_active and item.change_type == 1 %}<tr class="table-danger">
-                {% elif item.is_active and item.change_type == 2 %}<tr class="table-warning">
-                {% elif item.is_active and item.change_type == 3 %}<tr class="table-primary">
-                {% else %}<tr class="table-secondary">{% endif %}
-                    <td>{{ item.date|localtime|date:"M d, Y h:i A" }}</td>
-                    <td>{{ item.get_change_type_display }}</td>
-                    <td class="text-center">{{ item.change|inrs }}</td>
-                    <td class="desc-col">{{ item.description }}</td>
-                    <td class="customer-name"><a href="{% url 'book_logs' item.parent_book.id %}" class="text-decoration-none text-dark">{{ item.parent_book.customer.customer_name }}</a></td>
+                <tr class="{% if item.is_active and item.change_type == 0 %}rt-green{% elif item.is_active and item.change_type == 1 %}rt-red{% elif item.is_active and item.change_type == 2 %}rt-amber{% elif item.is_active and item.change_type == 3 %}rt-blue{% else %}rt-grey{% endif %}">
                     <td>
-                        <div class="btn-group" role="group">
-                            {% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-file-invoice"></i></a>{% endif %}
-                            {% if item.change_type != 1 and item.change_type != 2 %}<a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-trash"></i></a>
-                            {% elif not item.associated_invoice and item.change_type == 1 %}<a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-trash"></i></a>{% endif %}
-                            {% if not item.is_active %}<span class="btn btn-warning btn-sm btn-curve" onclick="markAsActive({{ item.id }},{{ item.change }})"><i class="fas fa-arrow-up"></i></span>{% endif %}
+                        <div style="font-weight:600;color:var(--ink)">{{ item.date|localtime|date:"M d, Y" }}</div>
+                        <div class="mut" style="font-size:11.5px">{{ item.date|localtime|date:"h:i A" }}</div>
+                    </td>
+                    <td><span class="gbadge {% if item.change_type == 0 %}ok{% elif item.change_type == 1 %}out{% elif item.change_type == 2 %}low{% elif item.change_type == 3 %}blue{% else %}grey{% endif %}">{{ item.get_change_type_display }}</span></td>
+                    <td class="r"><span class="num" style="{% if item.change < 0 %}color:var(--red){% elif item.change > 0 %}color:var(--green){% else %}color:var(--faint){% endif %}">{{ item.change|inrs }}</span></td>
+                    <td class="desc-col mut">{{ item.description }}</td>
+                    <td class="customer-name"><a href="{% url 'book_logs' item.parent_book.id %}" style="font-weight:600;color:var(--ink)">{{ item.parent_book.customer.customer_name }}</a></td>
+                    <td class="r">
+                        <div class="rowacts">
+                            {% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="gbtn gbtn-icon" title="View invoice"><i class="fas fa-file-invoice"></i></a>{% endif %}
+                            {% if item.change_type != 1 and item.change_type != 2 %}<a href="{% url 'book_logs_del' item.id %}" class="gbtn gbtn-icon del" title="Delete"><i class="fas fa-trash"></i></a>
+                            {% elif not item.associated_invoice and item.change_type == 1 %}<a href="{% url 'book_logs_del' item.id %}" class="gbtn gbtn-icon del" title="Delete"><i class="fas fa-trash"></i></a>{% endif %}
+                            {% if not item.is_active %}<span class="gbtn gbtn-icon gadd" onclick="markAsActive({{ item.id }},{{ item.change }})" title="Reactivate"><i class="fas fa-arrow-up"></i></span>{% endif %}
                         </div>
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="text-center text-muted" style="padding:24px">No book logs match this filter.</td></tr>
+                <tr><td colspan="6" style="text-align:center;padding:40px 20px;color:var(--soft)">No book logs match this filter.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% include "gs/_pager.html" %}
     </div>
 </div>
 
 <style>
-#inventory-logs-table tbody tr td { vertical-align: middle; }
-.customer-name { min-width:150px; max-width:250px; white-space:normal; word-wrap:break-word; }
-#inventory-logs-table.hide-desc .desc-col { display:none; }
+#inventory-logs-table td{vertical-align:middle}
+#inventory-logs-table .customer-name{min-width:150px;max-width:280px;white-space:normal;word-wrap:break-word}
+#inventory-logs-table.hide-desc .desc-col{display:none}
+#inventory-logs-table .gbadge{white-space:nowrap}
+/* Subtle left-accent per row type (replaces the old full-row colour flood). */
+#inventory-logs-table tbody td:first-child{border-left:3px solid transparent}
+#inventory-logs-table tbody tr.rt-red   td:first-child{border-left-color:var(--red)}
+#inventory-logs-table tbody tr.rt-green td:first-child{border-left-color:var(--green)}
+#inventory-logs-table tbody tr.rt-amber td:first-child{border-left-color:var(--amber)}
+#inventory-logs-table tbody tr.rt-blue  td:first-child{border-left-color:var(--brand)}
+#inventory-logs-table tbody tr.rt-grey  td:first-child{border-left-color:#cbd5e1}
 </style>
 {% endblock %}
 

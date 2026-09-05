@@ -332,11 +332,6 @@ modifyCheckbox.addEventListener("change", function() {
 	}
 });
 
-var _qSave = document.getElementById('invoice-save');
-if (_qSave) _qSave.addEventListener('click', function () {
-	var b = this;
-	b.style.transition = 'opacity .3s'; b.style.opacity = 0;
-	setTimeout(function () { b.style.display = 'none'; }, 300);
-}, { once: true });
+// Save-button fade + the 0/negative-qty confirm are handled in invoice_insights.js.
 </script>
 {% endblock %}

@@ -319,12 +319,7 @@ def _quotation_row_dict(quotation):
 @login_required
 def quotations(request):
     """List all quotations, server-paginated natively (no jQuery DataTables)."""
-    # Default the Type filter to GST when first opened (matches the old client default).
-    if 'quotation_type' not in request.GET:
-        params = request.GET.copy()
-        params['quotation_type'] = 'gst'
-        request.GET = params
-
+    # Default the Type filter to "All Types" when first opened.
     qs, fctx = _filtered_quotations(request, search_value=request.GET.get('q', '').strip())
 
     # Keep mobile-placed cart orders priced at today's catalog (live Amount + Total).

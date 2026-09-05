@@ -83,42 +83,32 @@
 			<a href="?filter=others" class="gstat blue"><div class="gk"><span class="dot"></span> Total Others</div><div class="gv">&#8377; {{ total_others|default:0|inrs }}</div></a>
 		</div>
 
-	<div class="tablecard" style="padding:10px 14px">
-	<table class="table table-hover font-weight-bold" id="purchase-table">
-		<thead class="thead-dark">
+	<div class="tablecard">
+	<table class="gt" id="purchase-table">
+		<thead>
 			<tr>
 				<th>Date</th>
 				<th>Type</th>
-				<th>Amount</th>
+				<th class="r">Amount</th>
 				<th>Category</th>
 				<th>Reference</th>
-				<th data-noexport data-nosort>Actions</th>
+				<th class="r" data-noexport data-nosort>Actions</th>
 			</tr>
 		</thead>
-		<tbody class="two-col-form">
+		<tbody>
 			{% for purchase in purchases %}
-				{% if purchase.change_type == 0 %}
-					<tr class="table-success">
-				{% elif purchase.change_type == 1 %}
-					<tr class="table-danger">
-				{% elif purchase.change_type == 2 %}
-					<tr class="table-warning">
-				{% else %}
-					<tr class="table-info">
-				{% endif %}
-
-				<td>
-					{{ purchase.date|localtime|date:"M d, Y h:i A" }}
-					<br>
-					<small class="text-muted">{{ purchase.date|naturaltime }}</small>
+			<tr class="{% if purchase.change_type == 0 %}rt-green{% elif purchase.change_type == 1 %}rt-red{% elif purchase.change_type == 2 %}rt-amber{% else %}rt-cyan{% endif %}">
+				<td data-order="{{ purchase.date|date:'U' }}">
+					<div style="font-weight:600;color:var(--ink)">{{ purchase.date|localtime|date:"M d, Y" }}</div>
+					<div class="mut" style="font-size:11.5px">{{ purchase.date|localtime|date:"h:i A" }} · {{ purchase.date|naturaltime }}</div>
 				</td>
-				<td>{{purchase.get_change_type_display }}</td>
-				<td>{% if purchase.change %}₹ {{purchase.change|inrs}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-				<td>{% if purchase.category %}{{purchase.category}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-				<td>{% if purchase.reference %}{{ purchase.reference }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-				<td>
-					<div class="btn-group" role="group" aria-label="Basic example">
-						<a href="{% url 'purchases_logs_delete' purchase.id %}?vendor={{ vendor.id }}" class="btn btn-danger btn-sm btn-curve" title="Delete Purchase"><i class="fas fa-trash"></i></a>
+				<td><span class="gbadge {% if purchase.change_type == 0 %}ok{% elif purchase.change_type == 1 %}out{% elif purchase.change_type == 2 %}low{% else %}blue{% endif %}">{{ purchase.get_change_type_display }}</span></td>
+				<td class="r" data-order="{{ purchase.change|default:0 }}">{% if purchase.change %}<span class="num" style="{% if purchase.change < 0 %}color:var(--red){% elif purchase.change > 0 %}color:var(--green){% else %}color:var(--faint){% endif %}">&#8377; {{ purchase.change|inrs }}</span>{% else %}<span class="mut">N/A</span>{% endif %}</td>
+				<td>{% if purchase.category %}{{ purchase.category }}{% else %}<span class="mut">N/A</span>{% endif %}</td>
+				<td>{% if purchase.reference %}{{ purchase.reference }}{% else %}<span class="mut">N/A</span>{% endif %}</td>
+				<td class="r">
+					<div class="rowacts">
+						<a href="{% url 'purchases_logs_delete' purchase.id %}?vendor={{ vendor.id }}" class="gbtn gbtn-icon del" title="Delete purchase"><i class="fas fa-trash"></i></a>
 					</div>
 				</td>
 			</tr>

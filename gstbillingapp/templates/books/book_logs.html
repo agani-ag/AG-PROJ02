@@ -34,65 +34,37 @@
         <a href="?filter=others" class="gstat blue"><div class="gk"><span class="dot"></span> Total Others</div><div class="gv">₹ {{ total_others|default:0|inrs }}</div></a>
     </div>
 
-    <div class="tablecard" style="padding:10px 14px">
-<table class="table table-hover font-weight-bold" id="inventory-logs-table">
-	<thead class="thead-dark">
+    <div class="tablecard">
+<table class="gt" id="inventory-logs-table">
+	<thead>
 		<tr>
 			<th>Date</th>
 			<th>Type</th>
-			<th>Change</th>
+			<th class="r">Change</th>
 			<th>Description</th>
-			<th data-noexport data-nosort></th>
+			<th class="r" data-noexport data-nosort>Actions</th>
 		</tr>
 	</thead>
-	<tbody class="two-col-form">
+	<tbody>
 		{% for item in book_logs %}
-		<!-- <tr class="{% if item.change < 0 %}table-danger{% else %}table-success{%endif%}"> -->
-            {% if item.is_active and item.change_type == 0 %}
-                <tr class="table-success">
-            {% elif item.is_active and item.change_type == 1 %}
-                <tr class="table-danger">
-            {% elif item.is_active and item.change_type == 2 %}
-                <tr class="table-warning">
-            {% elif item.is_active and item.change_type == 3 %}
-                <tr class="table-primary">
-            {% elif item.is_active and item.change_type == 4 %}
-                <tr class="table-info">
-            {% else %}
-                <tr class="table-secondary">
-            {% endif %}
-
-			<td>{{item.date|localtime|date:"M d, Y h:i A"}}
-                <br><small class="text-muted">{{ item.date|naturaltime }}</small>
-            </td>
-			<td>{{item.get_change_type_display}}</td>
-			<td>{{ item.change|inrs }}</td>
-			<td>{{item.description}}</td>
-            <td class="text-center">
-                <div class="btn-group" role="group" aria-label="Basic example">
-                    {% if item.associated_invoice %}
-                        <a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="btn btn-primary btn-sm btn-curve">
-                            <i class="fas fa-file-invoice"></i>
-                        </a> 
-                    {% endif %}
-                    {% if item.change_type != 1 %}
-                        <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
-                            <i class="fas fa-trash"></i>
-                        </a>
-                    {% endif %}
-                    {% if not item.associated_invoice and item.change_type == 1 %}
-                        <a href="{% url 'book_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
-                            <i class="fas fa-trash"></i>
-                        </a>
-                    {% endif %}
-                    {% if not item.is_active %}
-                        <span class="btn btn-warning btn-sm btn-curve" onclick="markAsActive({{ item.id }},{{ item.change }})"><i class="fas fa-arrow-up"></i></span>
-                    {% endif %}
-                    {% if item.change_type == 4 %}
-                        <button onclick="handleBookLogChange({{ item.id }}, '{{ item.change }}')" class="btn btn-info btn-sm btn-curve"><i class="fas fa-arrow-up"></i></button>
-                    {% endif %}
-                </div>
-            </td>
+		<tr class="{% if item.is_active and item.change_type == 0 %}rt-green{% elif item.is_active and item.change_type == 1 %}rt-red{% elif item.is_active and item.change_type == 2 %}rt-amber{% elif item.is_active and item.change_type == 3 %}rt-blue{% elif item.is_active and item.change_type == 4 %}rt-cyan{% else %}rt-grey{% endif %}">
+			<td data-order="{{ item.date|date:'U' }}">
+				<div style="font-weight:600;color:var(--ink)">{{item.date|localtime|date:"M d, Y"}}</div>
+				<div class="mut" style="font-size:11.5px">{{ item.date|localtime|date:"h:i A" }} · {{ item.date|naturaltime }}</div>
+			</td>
+			<td><span class="gbadge {% if item.change_type == 0 %}ok{% elif item.change_type == 1 %}out{% elif item.change_type == 2 %}low{% elif item.change_type == 3 %}blue{% else %}grey{% endif %}">{{item.get_change_type_display}}</span></td>
+			<td class="r" data-order="{{ item.change }}"><span class="num" style="{% if item.change < 0 %}color:var(--red){% elif item.change > 0 %}color:var(--green){% else %}color:var(--faint){% endif %}">{{ item.change|inrs }}</span></td>
+			<td class="mut">{{item.description}}</td>
+			<td class="r">
+				<div class="rowacts">
+					{% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="gbtn gbtn-icon" title="View invoice"><i class="fas fa-file-invoice"></i></a>{% endif %}
+					{% if item.change_type != 1 %}<a href="{% url 'book_logs_del' item.id %}" class="gbtn gbtn-icon del" title="Delete"><i class="fas fa-trash"></i></a>{% endif %}
+					{% if not item.associated_invoice and item.change_type == 1 %}<a href="{% url 'book_logs_del' item.id %}" class="gbtn gbtn-icon del" title="Delete"><i class="fas fa-trash"></i></a>{% endif %}
+					{% if not item.is_active %}<span class="gbtn gbtn-icon gadd" onclick="markAsActive({{ item.id }},{{ item.change }})" title="Reactivate"><i class="fas fa-arrow-up"></i></span>{% endif %}
+					{% if item.change_type == 4 %}<button type="button" onclick="handleBookLogChange({{ item.id }}, '{{ item.change }}')" class="gbtn gbtn-icon" title="Update status"><i class="fas fa-arrow-up"></i></button>{% endif %}
+				</div>
+			</td>
+		</tr>
 		{% endfor %}
 	</tbody>
 </table>

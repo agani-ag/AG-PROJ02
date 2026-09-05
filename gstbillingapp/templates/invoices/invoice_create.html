@@ -219,12 +219,8 @@
 		}
 	});
 
-	var _invSave = document.getElementById('invoice-save');
-	if (_invSave) _invSave.addEventListener('click', function () {
-		var b = this;
-		b.style.transition = 'opacity .3s'; b.style.opacity = 0;
-		setTimeout(function () { b.style.display = 'none'; }, 300);
-	}, { once: true });
+	// Save-button fade + the 0/negative-qty confirm are handled in invoice_insights.js
+	// (on the form's submit event, so a cancelled confirm never hides the button).
 	</script>
 
 <style>

@@ -80,9 +80,20 @@ body{background:#eef2f7}
 .gs .tag2{display:inline-flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--line);border-radius:7px;padding:3px 9px;font-size:12px;color:var(--soft);font-weight:500}
 .gs .num{font-family:var(--disp);font-weight:600;font-variant-numeric:tabular-nums}
 .gs .mut{color:var(--faint)}
-.gs .rowacts{display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
-/* Light-tinted coloured action chips (blue for actions, red for delete). */
-.gs .rowacts .gbtn-icon{border:0;background:var(--bluebg);color:var(--brand);width:32px;height:32px;padding:0;border-radius:9px}
+.gs .rowacts{display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:nowrap}
+/* Light-tinted coloured action chips (blue for actions, red for delete).
+   Fully fixed geometry so every chip (whether <a> or <button>, and whatever the
+   icon glyph) is identical: no flex grow/shrink, centred icon, reset appearance. */
+.gs .rowacts .gbtn-icon{
+  flex:0 0 auto; box-sizing:border-box;
+  width:32px; height:32px; min-width:32px; max-width:32px; padding:0; margin:0;
+  border:0; border-radius:9px;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--bluebg); color:var(--brand);
+  font-size:13.5px; line-height:1; vertical-align:middle;
+  -webkit-appearance:none; appearance:none;
+}
+.gs .rowacts .gbtn-icon i,.gs .rowacts .gbtn-icon .gico{font-size:13.5px;line-height:1;margin:0}
 .gs .rowacts .gbtn-icon:hover{background:#d7e6ff;color:var(--brand-d);transform:translateY(-1px)}
 .gs .rowacts .gbtn-icon.del{background:var(--redbg);color:var(--red)}
 .gs .rowacts .gbtn-icon.del:hover{background:#ffd1dc;color:var(--red)}
@@ -262,6 +273,8 @@ th.gstable-sortable[data-sortdir="desc"]::after{content:"\2193";opacity:.9}
 .gnav .drop.mega{width:430px;display:grid;grid-template-columns:1fr 1fr;gap:2px 10px}
 .gnav .drop .mh{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#97a1b0;padding:8px 10px 3px;font-weight:700}
 .gnav .drop a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;font-size:13px;color:#37414f;font-weight:500;white-space:nowrap}
+.gnav .drop a > i{width:17px;text-align:center;flex:none;font-size:13px;color:#97a1b0}
+.gnav .drop a:hover > i{color:#2563eb}
 .gnav .drop a:hover{background:#f6f8fc;color:#2563eb}
 .gnav .drop a .gnav-ico{color:#97a1b0}
 .gnav .drop a:hover .gnav-ico{color:#2563eb}
@@ -355,3 +368,45 @@ th.gstable-sortable[data-sortdir="desc"]::after{content:"\2193";opacity:.9}
    the lib-drop, leaving an invisible fixed z-index:9999 box that swallowed clicks
    over the top-right (navbar dropdown + header buttons). Hide it unless shown. */
 .toast:not(.show){ display:none !important; }
+
+/* =====================================================================
+   Modernise every Bootstrap data table inside a .tablecard (list/log pages:
+   invoices, quotations, book_logs, collection_calendar, vendor logs, etc.)
+   to the light GSTSync look — light header + de-flooded row tints.
+   Scoped to .tablecard, so the invoice/quotation CREATE form tables
+   (which are NOT in a .tablecard) are left untouched.
+   ===================================================================== */
+.gs .tablecard table.table{margin:0;width:100%;font-size:13.5px;border-collapse:collapse}
+.gs .tablecard table.table thead th{
+  background:var(--wash)!important;color:var(--faint)!important;
+  border:0!important;border-bottom:1px solid var(--line)!important;
+  font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  padding:12px 16px;vertical-align:middle;white-space:nowrap}
+.gs .tablecard table.table tbody td{
+  border:0!important;border-bottom:1px solid var(--line2)!important;
+  padding:12px 16px;vertical-align:middle;color:var(--ink);background:transparent}
+.gs .tablecard table.table tbody tr:last-child td{border-bottom:0!important}
+.gs .tablecard table.table tbody tr:hover td{background:#f9fbff}
+/* De-flood Bootstrap row colours → very light tint + a coloured left accent. */
+.gs .tablecard table.table tbody tr[class*="table-"] td:first-child{border-left:3px solid transparent}
+.gs .tablecard table.table tbody tr.table-success td{background:#f4fbf6}
+.gs .tablecard table.table tbody tr.table-success td:first-child{border-left-color:var(--green)}
+.gs .tablecard table.table tbody tr.table-danger td{background:#fdf4f6}
+.gs .tablecard table.table tbody tr.table-danger td:first-child{border-left-color:var(--red)}
+.gs .tablecard table.table tbody tr.table-warning td{background:#fdfaf1}
+.gs .tablecard table.table tbody tr.table-warning td:first-child{border-left-color:var(--amber)}
+.gs .tablecard table.table tbody tr.table-primary td{background:#f5f8ff}
+.gs .tablecard table.table tbody tr.table-primary td:first-child{border-left-color:var(--brand)}
+.gs .tablecard table.table tbody tr.table-info td{background:#f3fafc}
+.gs .tablecard table.table tbody tr.table-info td:first-child{border-left-color:#0891b2}
+.gs .tablecard table.table tbody tr.table-secondary td{background:#f8fafc}
+.gs .tablecard table.table tbody tr.table-secondary td:first-child{border-left-color:#cbd5e1}
+
+/* Ledger row left-accent (shared by book_logs, book_logs_full, vendor logs). */
+.gs table tbody tr[class*="rt-"] td:first-child{border-left:3px solid transparent}
+.gs table tbody tr.rt-green td:first-child{border-left-color:var(--green)}
+.gs table tbody tr.rt-red   td:first-child{border-left-color:var(--red)}
+.gs table tbody tr.rt-amber td:first-child{border-left-color:var(--amber)}
+.gs table tbody tr.rt-blue  td:first-child{border-left-color:var(--brand)}
+.gs table tbody tr.rt-cyan  td:first-child{border-left-color:#0891b2}
+.gs table tbody tr.rt-grey  td:first-child{border-left-color:#cbd5e1}

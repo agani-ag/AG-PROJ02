@@ -242,5 +242,35 @@
         // If a customer is already selected (edit pages), load their insights on open.
         var cidInit = $id('customer-id-input');
         if (cidInit && cidInit.value) setTimeout(loadCustomerInsights, 80);
+
+        // ---- Save guard: warn (but allow) when a product row has qty 0 / negative / blank.
+        var invForm = $id('invoice-form');
+        function fadeSaveBtn() {
+            var b = $id('invoice-save');
+            if (b) { b.style.transition = 'opacity .3s'; b.style.opacity = 0; setTimeout(function () { b.style.display = 'none'; }, 300); }
+        }
+        if (invForm) invForm.addEventListener('submit', function (e) {
+            if (invForm.dataset.qtyConfirmed === '1') { fadeSaveBtn(); return; }
+            var bad = [];
+            document.querySelectorAll('#invoice-form-items-table-body > tr').forEach(function (r, i) {
+                var mi = r.querySelector('input[name=invoice-model-no]');
+                var qi = r.querySelector('input[name=invoice-qty]');
+                if (mi && (mi.value || '').trim() && qi && !(parseFloat(qi.value) > 0)) bad.push(i + 1);
+            });
+            if (!bad.length) { fadeSaveBtn(); return; }   // nothing to warn about
+            e.preventDefault();
+            if (typeof Swal === 'undefined') { if (confirm('Row(s) ' + bad.join(', ') + ' have quantity 0 or less. Save anyway?')) { invForm.dataset.qtyConfirmed = '1'; invForm.requestSubmit(); } return; }
+            Swal.fire({
+                title: 'Save with 0 / negative quantity?',
+                html: 'Row(s) <b>' + bad.join(', ') + '</b> have a quantity of <b>0 or less</b>.<br>This is unusual — do you still want to save?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, save anyway',
+                cancelButtonText: 'No, let me fix it',
+                confirmButtonColor: '#e5900f'
+            }).then(function (res) {
+                if (res.isConfirmed) { invForm.dataset.qtyConfirmed = '1'; invForm.requestSubmit(); }
+            });
+        });
     });
 })();

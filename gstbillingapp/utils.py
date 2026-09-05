@@ -361,7 +361,6 @@ def invoice_data_validator(invoice_data):
 
 
 def invoice_data_processor(invoice_post_data):
-    print(invoice_post_data)
     processed_invoice_data = {}
 
     processed_invoice_data['invoice_number'] = invoice_post_data['invoice-number']
@@ -390,12 +389,16 @@ def invoice_data_processor(invoice_post_data):
     invoice_post_data = dict(invoice_post_data)
     for idx, product in enumerate(invoice_post_data['invoice-model-no']):
         if product:
-            print(idx, product)
             item_entry = {}
             item_entry['invoice_model_no'] = product
             item_entry['invoice_product'] = invoice_post_data['invoice-product'][idx]
             item_entry['invoice_hsn'] = invoice_post_data['invoice-hsn'][idx]
-            item_entry['invoice_qty'] = int(invoice_post_data['invoice-qty'][idx])
+            # Allow 0 / negative / blank quantities to save (blank -> 0) instead of
+            # crashing on int('') — the UI warns on non-positive qty but still permits it.
+            try:
+                item_entry['invoice_qty'] = int(float(invoice_post_data['invoice-qty'][idx] or 0))
+            except (ValueError, TypeError):
+                item_entry['invoice_qty'] = 0
             item_entry['invoice_discount'] = float(invoice_post_data['invoice-discount'][idx])
             item_entry['invoice_rate_with_gst'] = float(invoice_post_data['invoice-rate-with-gst'][idx])
             item_entry['invoice_gst_percentage'] = float(invoice_post_data['invoice-gst-percentage'][idx])
@@ -410,7 +413,6 @@ def invoice_data_processor(invoice_post_data):
 
             processed_invoice_data['items'].append(item_entry)
 
-    print(processed_invoice_data)
     return processed_invoice_data
 
 
