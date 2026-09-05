@@ -1,8 +1,10 @@
 # Django imports
+import csv
 from django.db.models import Sum
 from django.db.models import Sum, Q
 from django.core.cache import cache
-from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.http import JsonResponse, HttpResponse
 from django.db.models.functions import TruncMonth
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
@@ -25,12 +27,39 @@ import json
 from datetime import date, datetime
 
 # ================= Inventory Views ===========================
+def _filtered_inventory(request):
+    qs = (Inventory.objects.filter(user=request.user)
+          .exclude(product_id__isnull=True).select_related('product').order_by('-product__id'))
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        qs = qs.filter(Q(product__model_no__icontains=q) | Q(product__product_name__icontains=q))
+    return qs, q
+
+
 @login_required
 def inventory(request):
-    context = {}
-    context['inventory_list'] = Inventory.objects.filter(user=request.user).exclude(product_id__isnull=True).order_by('-product__id')
-    context['untracked_products'] = Product.objects.filter(user=request.user, inventory=None).exclude(model_no__isnull=True)
-    return render(request, 'inventory/inventory.html', context)
+    qs, q = _filtered_inventory(request)
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return render(request, 'inventory/inventory.html', {
+        'inventory_list': page_obj, 'page_obj': page_obj, 'total_count': paginator.count,
+        'q': q, 'querystring': params.urlencode(),
+        'untracked_products': Product.objects.filter(user=request.user, inventory=None).exclude(model_no__isnull=True),
+    })
+
+
+@login_required
+def inventory_export(request):
+    qs, _q = _filtered_inventory(request)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="inventory.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Model No', 'Product Name', 'Current Stock', 'Alert Level'])
+    for inv in qs:
+        writer.writerow([inv.product.model_no, inv.product.product_name or '', inv.current_stock, inv.alert_level])
+    return response
 
 @login_required
 def inventory_logs(request, inventory_id):
@@ -47,13 +76,64 @@ def inventory_logs(request, inventory_id):
     context['nav_hide'] = request.GET.get('nav') or ''
     return render(request, 'inventory/inventory_logs.html', context)
 
+def _filtered_inventory_logs_full(request):
+    """Shared date-range filter for the Inventory Logs list + its CSV export.
+    Returns (queryset, filter_context). Server-paginated natively (no DataTables)."""
+    from datetime import timedelta
+    qs = InventoryLog.objects.filter(user=request.user).select_related('product')
+    from_date = request.GET.get('from_date', '')
+    to_date = request.GET.get('to_date', '')
+    # Default to the current month (matches the old client-side default).
+    if not from_date and not to_date:
+        today = datetime.now().date()
+        from_date = today.replace(day=1).isoformat()
+        if today.month == 12:
+            nextm = today.replace(year=today.year + 1, month=1, day=1)
+        else:
+            nextm = today.replace(month=today.month + 1, day=1)
+        to_date = (nextm - timedelta(days=1)).isoformat()
+    if from_date and to_date:
+        qs = qs.filter(date__date__range=[from_date, to_date])
+    qs = qs.order_by('-date')
+    return qs, {
+        'from_date': from_date, 'to_date': to_date,
+        'year': request.GET.get('year', ''), 'month': request.GET.get('month', ''),
+        'top_n': request.GET.get('top_n', '5'),
+    }
+
+
 @login_required
 def inventory_logs_full(request):
-    context = {}
-    inventory_logs = InventoryLog.objects.filter(user=request.user).order_by('-id')
-    context['inventory_logs'] = inventory_logs
+    qs, fctx = _filtered_inventory_logs_full(request)
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    context = dict(fctx)
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
     context['years'] = list(range(2020, datetime.now().year + 1))
     return render(request, 'inventory/inventory_logs_full.html', context)
+
+
+@login_required
+def inventory_logs_full_export(request):
+    """Server-side CSV export of the current Inventory Logs filter (all rows)."""
+    qs, _ = _filtered_inventory_logs_full(request)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="inventory-logs.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Type', 'Change', 'Description', 'Product'])
+    for o in qs:
+        writer.writerow([
+            o.date.strftime('%b %d %Y') if o.date else '',
+            o.get_change_type_display(),
+            o.change,
+            o.description or '',
+            str(o.product),
+        ])
+    return response
 
 @login_required
 def inventory_logs_add(request, inventory_id):

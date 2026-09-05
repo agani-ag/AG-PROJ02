@@ -1,97 +1,89 @@
 {% extends "base.html" %}
+{% load static %}
 {% load money %}
-{% block content %}
-<h2>{% if posting %}Edit Employee{% else %}Add Employee{% endif %}</h2>
-{% if posting and not posting.is_home %}
-<div class="alert alert-info">This is a <b>shared</b> employee (owned by
-	{{ employee.business.userprofile.business_brand|default:employee.business.userprofile.business_title|default:employee.business.username }}).
-	You can set their salary / admin / status for <b>your</b> business; their personal details are managed by their home business.</div>
-{% endif %}
-{% if error_message %}<div class="alert alert-danger">{{ error_message }}</div>{% endif %}
+{% block title %}{% if posting %}Edit{% else %}Add{% endif %} employee · GSTSync{% endblock %}
 
-<form method="POST">
-	{% csrf_token %}
-	<table class="table two-col-form">
-		<tbody>
-			<tr>
-				<th scope="row" class="text-right">Employee Name:</th>
-				<td class="form-input-td"><input type="text" name="name" value="{{ form.name.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %} required></td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Email:</th>
-				<td class="form-input-td"><input type="email" name="email" value="{{ form.email.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %}></td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Phone:</th>
-				<td class="form-input-td"><input type="tel" name="phone" pattern="^$|^[6-9][0-9]{9}$" value="{{ form.phone.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %}></td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Address:</th>
-				<td class="form-input-td"><textarea name="address" rows="3" cols="30" {% if posting and not posting.is_home %}readonly{% endif %}>{{ form.address.value|default:'' }}</textarea></td>
-			</tr>
-
-			<tr><td colspan="2"><hr><b>For {% if posting.is_home or not posting %}this business{% else %}your business{% endif %}</b></td></tr>
-
-			<tr>
-				<th scope="row" class="text-right">Base salary (₹/month):</th>
-				<td class="form-input-td">
-					<input type="number" name="salary" min="0" step="0.01" value="{{ posting.salary|default_if_none:'' }}" placeholder="e.g. 26000" class="form-control" style="max-width:220px">
-					<small class="text-muted">Used by the Attendance &amp; Salary module.</small>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Admin privilege:</th>
-				<td class="form-input-td">
-					<label class="switch"><input type="checkbox" name="is_admin" {% if posting.is_admin %}checked{% endif %}><span class="slider round"></span></label>
-					<small class="text-muted d-block">Admin employees see the full business dashboard on mobile.</small>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Attendance &amp; salary:</th>
-				<td class="form-input-td">
-					<label class="switch"><input type="checkbox" name="attendance_eligible" {% if posting.attendance_eligible %}checked{% endif %}><span class="slider round"></span></label>
-					<small class="text-muted d-block">Only when enabled does this employee get the attendance calendar and monthly salary. Off by default.</small>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Active:</th>
-				<td class="form-input-td">
-					<label class="switch"><input type="checkbox" name="is_active" {% if posting.is_active or not posting %}checked{% endif %}><span class="slider round"></span></label>
-				</td>
-			</tr>
-
-			{% if posting.is_home %}
-			<tr>
-				<th scope="row" class="text-right">Share code:</th>
-				<td class="form-input-td">
-					<input class="form-control" style="max-width:220px;font-weight:700" readonly value="{{ employee.share_code }}" onclick="this.select()">
-					<small class="text-muted">Give this to another business to share this employee with them.</small>
-				</td>
-			</tr>
-			{% endif %}
-		</tbody>
-	</table>
-
-	<div class="form-group text-right">
-		<button type="submit" class="btn btn-primary" title="Save"><i class="fas fa-save"></i></button>
-		{% if posting.is_home %}
-		<a class="btn btn-info" href="#" onclick="employeeMobileLink({{ posting.id }})" title="Mobile access link"><i class="fas fa-mobile-alt"></i></a>
-		{% endif %}
-		<a class="btn btn-danger" href="{% url 'employees' %}" title="Back"><i class="fas fa-reply"></i></a>
-	</div>
-</form>
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
 
-{% block includejs %}
+{% block content %}
+<div class="gs gs-pad">
+<form method="POST" class="gform">
+    {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'employees' %}">Employees</a> › {% if posting %}Edit{% else %}New{% endif %}</div>
+                <h1 class="disp">{% if posting %}Edit employee{% else %}Add employee{% endif %}</h1>
+            </div>
+        </div>
+
+        {% if posting and not posting.is_home %}
+        <div class="hint"><i class="fas fa-circle-info gico"></i>
+            This is a <b>shared</b> employee (owned by {{ employee.business.userprofile.business_brand|default:employee.business.userprofile.business_title|default:employee.business.username }}). You can set their salary / admin / status for <b>your</b> business; their personal details are managed by their home business.</div>
+        {% endif %}
+        {% if error_message %}<div class="hint" style="background:var(--redbg);border-color:#f7c9d3;color:var(--red)"><i class="fas fa-triangle-exclamation gico" style="color:var(--red)"></i> {{ error_message }}</div>{% endif %}
+
+        <div class="section open">
+            <div class="sh"><span class="si b"><i class="fas fa-user"></i></span>
+                <div><h3 class="disp">Personal details</h3><div class="sd">Name &amp; contact</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Employee Name <span class="req">*</span></label><input type="text" name="name" value="{{ form.name.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %} required></div>
+                <div class="field"><label>Email</label><input type="email" name="email" value="{{ form.email.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %}></div>
+                <div class="field"><label>Phone</label><input type="tel" name="phone" pattern="^$|^[6-9][0-9]{9}$" value="{{ form.phone.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %}></div>
+                <div class="field"><label>Address</label><textarea name="address" rows="3" {% if posting and not posting.is_home %}readonly{% endif %}>{{ form.address.value|default:'' }}</textarea></div>
+            </div></div>
+        </div>
+
+        <div class="section open">
+            <div class="sh"><span class="si g"><i class="fas fa-briefcase"></i></span>
+                <div><h3 class="disp">For {% if posting.is_home or not posting %}this business{% else %}your business{% endif %}</h3><div class="sd">Salary, admin &amp; status</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Base salary (₹/month)</label><input type="number" name="salary" min="0" step="0.01" value="{{ posting.salary|default_if_none:'' }}" placeholder="e.g. 26000"><div class="h">Used by the Attendance &amp; Salary module.</div></div>
+                {% if posting.is_home %}
+                <div class="field"><label>Share code</label><input readonly value="{{ employee.share_code }}" onclick="this.select()" style="font-weight:700"><div class="h">Give this to another business to share this employee with them.</div></div>
+                {% endif %}
+                <div class="field full">
+                    <label class="gtoggle"><input type="checkbox" name="is_admin" {% if posting.is_admin %}checked{% endif %}> Admin privilege</label>
+                    <div class="h">Admin employees see the full business dashboard on mobile.</div>
+                </div>
+                <div class="field full">
+                    <label class="gtoggle"><input type="checkbox" name="attendance_eligible" {% if posting.attendance_eligible %}checked{% endif %}> Attendance &amp; salary</label>
+                    <div class="h">Only when enabled does this employee get the attendance calendar and monthly salary. Off by default.</div>
+                </div>
+                <div class="field full">
+                    <label class="gtoggle"><input type="checkbox" name="is_active" {% if posting.is_active or not posting %}checked{% endif %}> Active</label>
+                </div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">{% if posting %}Editing employee{% else %}New employee · not saved{% endif %}</div>
+        <div class="end">
+            {% if posting.is_home %}<a class="gbtn" href="#" onclick="employeeMobileLink({{ posting.id }});return false;" title="Mobile access link"><i class="fas fa-mobile-alt"></i> Mobile link</a>{% endif %}
+            <a class="gbtn" href="{% url 'employees' %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> {% if posting %}Save changes{% else %}Save employee{% endif %}</button>
+        </div>
+    </div></div>
+</form>
+</div>
+
 <script>
 function employeeMobileLink(id){
-	fetch('/employees/' + id + '/mobile-link').then(r=>r.json()).then(d=>{
-		if(!d.ok){ Swal.fire('', d.message||'Not available', 'info'); return; }
-		Swal.fire({title:'Mobile Access Link',
-			html:'<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
-			     '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
-			confirmButtonText:'Copy link', preConfirm:()=>navigator.clipboard&&navigator.clipboard.writeText(d.url)});
-	});
+    fetch('/employees/' + id + '/mobile-link').then(r=>r.json()).then(d=>{
+        if(!d.ok){ Swal.fire('', d.message||'Not available', 'info'); return; }
+        Swal.fire({title:'Mobile Access Link',
+            html:'<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
+                 '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
+            confirmButtonText:'Copy link', preConfirm:()=>navigator.clipboard&&navigator.clipboard.writeText(d.url)});
+    });
 }
 </script>
 {% endblock %}

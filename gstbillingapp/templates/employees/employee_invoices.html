@@ -1,107 +1,77 @@
 {% extends "base.html" %}
 {% load money %}
+{% load static %}
+{% block title %}{{ employee.name }} — Invoices · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
-<div class="row align-items-center mb-2">
-	<div class="col">
-		<h2 class="mb-0">{{ employee.name }} — Invoices</h2>
-		<small class="text-muted">Invoices related to this employee</small>
-	</div>
-	<div class="col text-right">
-		<button type="button" class="btn btn-primary btn-sm btn-curve" onclick="openMapper()"><i class="fas fa-user-tag"></i> Map invoices</button>
-		<a href="{% url 'employees' %}" class="btn btn-secondary btn-sm btn-curve" title="Back to Employees"><i class="fas fa-arrow-left"></i> Employees</a>
-	</div>
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">{{ employee.name }} — Invoices</h1><div class="sub">Invoices related to this employee</div></div>
+        <div class="actions">
+            <button type="button" class="gbtn gbtn-primary" onclick="openMapper()"><i class="fas fa-user-tag"></i> Map invoices</button>
+            <a href="{% url 'employees' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Employees</a>
+        </div>
+    </div>
+
+    <div class="gstats">
+        <div class="gstat blue"><div class="gk"><span class="dot"></span> Total invoice value</div><div class="gv">&#8377; {{ grand_total|inr }}</div></div>
+        <div class="gstat green"><div class="gk"><span class="dot"></span> Invoices related</div><div class="gv">{{ record_count }}</div></div>
+    </div>
+
+    <form method="get" class="toolbar">
+        <select name="month" class="selctl" onchange="this.form.submit()">
+            <option value="">All months</option>
+            {% for m in months_list %}<option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>{{ m.label }}</option>{% endfor %}
+        </select>
+        <input type="date" name="date_from" value="{{ date_from }}" class="selctl" style="padding:9px 12px">
+        <input type="date" name="date_to" value="{{ date_to }}" class="selctl" style="padding:9px 12px">
+        <button type="submit" class="gbtn"><i class="fas fa-filter"></i> Apply</button>
+        <a href="{% url 'employee_invoices' posting.id %}" class="gbtn">Reset</a>
+        <button type="button" class="gbtn" onclick="printStatement()"><i class="fas fa-print"></i> Print</button>
+    </form>
+
+    <div class="tablecard" style="padding:10px 14px">
+        <table class="table table-hover" id="emp-invoice-table" style="width:100%">
+            <thead class="thead-dark">
+                <tr><th>Invoice</th><th>Date</th><th>Customer</th><th class="text-right">Amount</th></tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr onclick="window.location.href='{% url 'invoice_viewer' r.id %}'" style="cursor: pointer;">
+                    <td>{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %}</td>
+                    <td>{{ r.date|date:"d M Y" }}</td>
+                    <td>{{ r.customer }}</td>
+                    <td class="text-right" data-order="{{ r.amount }}">&#8377; {{ r.amount|inr }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
-<!-- Bulk invoice-mapping picker -->
-<div class="modal fade" id="mapModal" tabindex="-1" role="dialog">
-	<div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title"><i class="fas fa-user-tag"></i> Map invoices &mdash; {{ employee.name }}</h5>
-				<button type="button" class="close" data-dismiss="modal">&times;</button>
-			</div>
-			<div class="modal-body">
-				<input id="mapSearch" class="form-control mb-2" placeholder="Search invoice number or customer…" autocomplete="off">
-				<div class="text-muted small mb-2">Tick invoices to credit them to <b>{{ employee.name }}</b>; untick to remove. An orange tag marks one currently credited to someone else. Showing up to 200 — search to narrow.</div>
-				<div id="mapList" style="max-height:55vh;overflow:auto;border:1px solid #eee;border-radius:6px"></div>
-			</div>
-			<div class="modal-footer">
-				<span id="mapCount" class="text-muted mr-auto small"></span>
-				<button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button>
-				<button type="button" class="btn btn-primary" onclick="saveMapping()"><i class="fas fa-check"></i> Save mapping</button>
-			</div>
-		</div>
-	</div>
+<!-- Bulk invoice-mapping picker (Bootstrap modal — unchanged) -->
+<div class="gmodal" id="mapModal">
+    <div class="gmodal-panel gs lg">
+        <div class="gmodal-head"><span><i class="fas fa-user-tag"></i> Map invoices — {{ employee.name }}</span><button type="button" class="x" data-gclose>&times;</button></div>
+        <div class="gmodal-body">
+            <input id="mapSearch" class="form-control mb-2" placeholder="Search invoice number or customer…" autocomplete="off">
+            <div class="text-muted small mb-2">Tick invoices to credit them to <b>{{ employee.name }}</b>; untick to remove. An orange tag marks one currently credited to someone else. Showing up to 200 — search to narrow.</div>
+            <div id="mapList" style="max-height:55vh;overflow:auto;border:1px solid var(--line);border-radius:10px"></div>
+        </div>
+        <div class="gmodal-foot">
+            <span id="mapCount" class="text-muted small" style="margin-right:auto"></span>
+            <button type="button" class="gbtn" data-gclose>Cancel</button>
+            <button type="button" class="gbtn gbtn-primary" onclick="saveMapping()"><i class="fas fa-check"></i> Save mapping</button>
+        </div>
+    </div>
 </div>
-
-<!-- Summary -->
-<div class="row mb-3">
-	<div class="col-md-6 mb-2">
-		<div class="card">
-			<div class="card-body py-2 d-flex justify-content-between align-items-center">
-				<span class="text-muted">Total invoice value</span>
-				<span class="h4 mb-0">&#8377; {{ grand_total|inr }}</span>
-			</div>
-		</div>
-	</div>
-	<div class="col-md-6 mb-2">
-		<div class="card border-primary">
-			<div class="card-body py-2 d-flex justify-content-between align-items-center">
-				<span class="text-muted">Invoices related</span>
-				<span class="h4 mb-0 text-primary">{{ record_count }}</span>
-			</div>
-		</div>
-	</div>
-</div>
-
-<!-- Filters -->
-<form method="get" class="form-row align-items-end mb-3">
-	<div class="form-group col-md-3">
-		<label class="mb-1"><small>Month</small></label>
-		<select name="month" class="form-control form-control-sm" onchange="this.form.submit()">
-			<option value="">All months</option>
-			{% for m in months_list %}
-			<option value="{{ m.value }}" {% if m.value == selected_month %}selected{% endif %}>{{ m.label }}</option>
-			{% endfor %}
-		</select>
-	</div>
-	<div class="form-group col-md-3">
-		<label class="mb-1"><small>From</small></label>
-		<input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
-	</div>
-	<div class="form-group col-md-3">
-		<label class="mb-1"><small>To</small></label>
-		<input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
-	</div>
-	<div class="form-group col-md-3">
-		<button type="submit" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-filter"></i> Apply</button>
-		<a href="{% url 'employee_invoices' posting.id %}" class="btn btn-light btn-sm btn-curve">Reset</a>
-		<button type="button" class="btn btn-warning btn-sm btn-curve" onclick="printStatement()"><i class="fas fa-print"></i> Print</button>
-	</div>
-</form>
-
-<table class="table table-bordered" id="emp-invoice-table">
-	<thead class="thead-dark">
-		<tr>
-			<th>Invoice</th>
-			<th>Date</th>
-			<th>Customer</th>
-			<th class="text-right">Amount</th>
-		</tr>
-	</thead>
-	<tbody>
-		{% for r in rows %}
-		<tr onclick="window.location.href='{% url 'invoice_viewer' r.id %}'" style="cursor: pointer;">
-			<td>{% if r.is_gst %}#{{ r.number }}{% else %}INV-{{ r.number }}{% endif %}</td>
-			<td>{{ r.date|date:"d M Y" }}</td>
-			<td>{{ r.customer }}</td>
-			<td class="text-right" data-order="{{ r.amount }}">&#8377; {{ r.amount|inr }}</td>
-		</tr>
-		{% endfor %}
-	</tbody>
-</table>
-
 {% endblock %}
 
 {% block includejs %}
@@ -109,134 +79,123 @@
 // ---- Bulk invoice mapping ----
 var PICK_URL = "{% url 'employee_invoices_pick' posting.id %}";
 var SAVE_URL = "{% url 'employee_assign_bulk' posting.id %}";
-var mapState = {};   // invoice id -> {mine: bool (as loaded), checked: bool, num, cust}
+var mapState = {};
 var mapSearchTimer;
 
-function openMapper(){ mapState = {}; document.getElementById('mapSearch').value = ''; $('#mapModal').modal('show'); loadPick(''); }
+function openMapper(){ mapState = {}; document.getElementById('mapSearch').value = ''; gOpenModal('mapModal'); loadPick(''); }
 function loadPick(q){
-	document.getElementById('mapList').innerHTML = '<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
-	fetch(PICK_URL + '?q=' + encodeURIComponent(q))
-		.then(function(r){ return r.json(); })
-		.then(function(d){ renderPick(d.rows || []); })
-		.catch(function(){ document.getElementById('mapList').innerHTML = '<div class="text-danger p-3">Failed to load invoices.</div>'; });
+    document.getElementById('mapList').innerHTML = '<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+    fetch(PICK_URL + '?q=' + encodeURIComponent(q))
+        .then(function(r){ return r.json(); })
+        .then(function(d){ renderPick(d.rows || []); })
+        .catch(function(){ document.getElementById('mapList').innerHTML = '<div class="text-danger p-3">Failed to load invoices.</div>'; });
 }
 function _esc(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
 function renderPick(rows){
-	if(!rows.length){ document.getElementById('mapList').innerHTML = '<div class="text-muted p-3">No invoices found.</div>'; updateMapCount(); return; }
-	var html = '<table class="table table-sm table-hover mb-0"><tbody>';
-	rows.forEach(function(r){
-		var st = mapState[r.id];
-		var checked = st ? st.checked : r.mine;           // keep prior toggles across searches
-		if(!st) mapState[r.id] = { mine: r.mine, checked: checked };
-		var other = (r.assigned && !r.mine) ? ' <span class="badge badge-warning">'+_esc(r.assigned)+'</span>' : '';
-		var amt = Number(r.amount).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
-		html += '<tr>'
-			+ '<td style="width:38px"><input type="checkbox" class="mapchk" '+(checked?'checked':'')+' onchange="toggleMap('+r.id+',this.checked)"></td>'
-			+ '<td><b>'+(r.is_gst?'#':'INV-')+r.number+'</b><div class="small text-muted">'+_esc(r.date)+'</div></td>'
-			+ '<td>'+_esc(r.customer)+other+'</td>'
-			+ '<td class="text-right">&#8377; '+amt+'</td></tr>';
-	});
-	html += '</tbody></table>';
-	document.getElementById('mapList').innerHTML = html;
-	updateMapCount();
+    if(!rows.length){ document.getElementById('mapList').innerHTML = '<div class="text-muted p-3">No invoices found.</div>'; updateMapCount(); return; }
+    var html = '<table class="table table-sm table-hover mb-0"><tbody>';
+    rows.forEach(function(r){
+        var st = mapState[r.id];
+        var checked = st ? st.checked : r.mine;
+        if(!st) mapState[r.id] = { mine: r.mine, checked: checked };
+        var other = (r.assigned && !r.mine) ? ' <span class="badge badge-warning">'+_esc(r.assigned)+'</span>' : '';
+        var amt = Number(r.amount).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+        html += '<tr>'
+            + '<td style="width:38px"><input type="checkbox" class="mapchk" '+(checked?'checked':'')+' onchange="toggleMap('+r.id+',this.checked)"></td>'
+            + '<td><b>'+(r.is_gst?'#':'INV-')+r.number+'</b><div class="small text-muted">'+_esc(r.date)+'</div></td>'
+            + '<td>'+_esc(r.customer)+other+'</td>'
+            + '<td class="text-right">&#8377; '+amt+'</td></tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('mapList').innerHTML = html;
+    updateMapCount();
 }
 function toggleMap(id, checked){ if(mapState[id]) mapState[id].checked = checked; updateMapCount(); }
 function _mapDiff(){
-	var map = [], unmap = [];
-	for(var id in mapState){ var s = mapState[id];
-		if(s.checked && !s.mine) map.push(parseInt(id, 10));
-		if(!s.checked && s.mine) unmap.push(parseInt(id, 10));
-	}
-	return { map: map, unmap: unmap };
+    var map = [], unmap = [];
+    for(var id in mapState){ var s = mapState[id];
+        if(s.checked && !s.mine) map.push(parseInt(id, 10));
+        if(!s.checked && s.mine) unmap.push(parseInt(id, 10));
+    }
+    return { map: map, unmap: unmap };
 }
 function updateMapCount(){
-	var d = _mapDiff();
-	var parts = [];
-	if(d.map.length) parts.push('+' + d.map.length + ' to credit');
-	if(d.unmap.length) parts.push(d.unmap.length + ' to remove');
-	document.getElementById('mapCount').textContent = parts.join(' · ');
+    var d = _mapDiff();
+    var parts = [];
+    if(d.map.length) parts.push('+' + d.map.length + ' to credit');
+    if(d.unmap.length) parts.push(d.unmap.length + ' to remove');
+    document.getElementById('mapCount').textContent = parts.join(' · ');
 }
 function saveMapping(){
-	var d = _mapDiff();
-	if(!d.map.length && !d.unmap.length){ $('#mapModal').modal('hide'); return; }
-	fetch(SAVE_URL, { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'}, body: JSON.stringify(d) })
-		.then(function(r){ return r.json(); })
-		.then(function(res){ if(res.ok){ location.reload(); } else { alert(res.message || 'Could not save mapping.'); } })
-		.catch(function(){ alert('Network error. Nothing changed.'); });
+    var d = _mapDiff();
+    if(!d.map.length && !d.unmap.length){ gCloseModal('mapModal'); return; }
+    fetch(SAVE_URL, { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'}, body: JSON.stringify(d) })
+        .then(function(r){ return r.json(); })
+        .then(function(res){ if(res.ok){ location.reload(); } else { alert(res.message || 'Could not save mapping.'); } })
+        .catch(function(){ alert('Network error. Nothing changed.'); });
 }
 document.addEventListener('DOMContentLoaded', function(){
-	var s = document.getElementById('mapSearch');
-	if(s) s.addEventListener('input', function(){ var q = this.value; clearTimeout(mapSearchTimer); mapSearchTimer = setTimeout(function(){ loadPick(q); }, 300); });
+    var s = document.getElementById('mapSearch');
+    if(s) s.addEventListener('input', function(){ var q = this.value; clearTimeout(mapSearchTimer); mapSearchTimer = setTimeout(function(){ loadPick(q); }, 300); });
 });
 
 var empInvoiceTable;
-$(document).ready(function () {
-	empInvoiceTable = $('#emp-invoice-table').DataTable({
-		"order": [],
-		"paging": true,
-		"language": { "emptyTable": "No invoices related to this employee{% if selected_month or date_from or date_to %} for this filter{% endif %}." }
-	});
+document.addEventListener('DOMContentLoaded', function () {
+    empInvoiceTable = GSTable.enhance('#emp-invoice-table', {
+        pageSize: 25, search: true, sort: true,
+        searchPlaceholder: 'Search invoice or customer…'
+    });
 });
 
-// Cell HTML -> plain text (strips the customer link etc.).
-function _text(htmlStr) {
-	var d = document.createElement('div');
-	d.innerHTML = htmlStr || '';
-	return (d.textContent || '').trim();
-}
+function _text(htmlStr) { var d = document.createElement('div'); d.innerHTML = htmlStr || ''; return (d.textContent || '').trim(); }
 
-// Letterhead print of the whole filtered statement (all rows, not just the visible page).
 function printStatement() {
-	// Open the window inside the click gesture so it isn't blocked (esp. Incognito).
-	var win = window.open('', '_blank');
-	if (!win) { alert('Please allow pop-ups for this site to print.'); return; }
+    var win = window.open('', '_blank');
+    if (!win) { alert('Please allow pop-ups for this site to print.'); return; }
+    var bodyRows = '';
+    var rows = empInvoiceTable ? empInvoiceTable.getVisibleRows() : [];
+    for (var i = 0; i < rows.length; i++) {
+        var c = rows[i].cells;
+        bodyRows += '<tr>'
+            + '<td style="text-align:center">' + (i + 1) + '</td>'
+            + '<td>' + _text(c[0].innerHTML) + '</td>'
+            + '<td>' + _text(c[1].innerHTML) + '</td>'
+            + '<td>' + _text(c[2].innerHTML) + '</td>'
+            + '<td style="text-align:right">' + _text(c[3].innerHTML) + '</td></tr>';
+    }
+    if (!bodyRows) { bodyRows = '<tr><td colspan="5" style="text-align:center;color:#666;padding:16px;">No invoices for this filter.</td></tr>'; }
 
-	var bodyRows = '';
-	var data = empInvoiceTable.rows({ search: 'applied' }).data();
-	for (var i = 0; i < data.length; i++) {
-		var c = data[i];   // [invoice, date, customer, amount] cell HTML
-		bodyRows += '<tr>'
-			+ '<td style="text-align:center">' + (i + 1) + '</td>'
-			+ '<td>' + _text(c[0]) + '</td>'
-			+ '<td>' + _text(c[1]) + '</td>'
-			+ '<td>' + _text(c[2]) + '</td>'
-			+ '<td style="text-align:right">' + _text(c[3]) + '</td></tr>';
-	}
-	if (!bodyRows) {
-		bodyRows = '<tr><td colspan="5" style="text-align:center;color:#666;padding:16px;">No invoices for this filter.</td></tr>';
-	}
+    var filters = '';
+    {% if selected_month %}filters += '<span style="margin:0 12px;"><strong>Month:</strong> {{ selected_month|escapejs }}</span>';{% endif %}
+    {% if date_from %}filters += '<span style="margin:0 12px;"><strong>From:</strong> {{ date_from|escapejs }}</span>';{% endif %}
+    {% if date_to %}filters += '<span style="margin:0 12px;"><strong>To:</strong> {{ date_to|escapejs }}</span>';{% endif %}
 
-	var filters = '';
-	{% if selected_month %}filters += '<span style="margin:0 12px;"><strong>Month:</strong> {{ selected_month|escapejs }}</span>';{% endif %}
-	{% if date_from %}filters += '<span style="margin:0 12px;"><strong>From:</strong> {{ date_from|escapejs }}</span>';{% endif %}
-	{% if date_to %}filters += '<span style="margin:0 12px;"><strong>To:</strong> {{ date_to|escapejs }}</span>';{% endif %}
+    var doc = '<html><head><title>{{ employee.name|escapejs }} - Invoices</title><style>'
+        + 'body{font-family:Arial,Helvetica,sans-serif;margin:16px;color:#111;}'
+        + 'table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;}'
+        + 'th,td{border:1px solid #ddd;padding:8px;text-align:left;}'
+        + 'thead th{background:#343a40;color:#fff;}'
+        + '@media print{@page{size:A4 portrait;margin:8mm;}}'
+        + '</style></head><body>'
+        + '<div style="text-align:center;margin-bottom:16px;">'
+        + '<h2 style="margin:0;">{{ request.user.userprofile.business_title|default:""|escapejs }}</h2>'
+        + '<p style="margin:4px 0;color:#666;font-size:13px;">{{ request.user.userprofile.business_address|default:""|escapejs }}</p>'
+        + '<hr style="margin:10px 0;">'
+        + '<h4 style="margin:0;">{{ employee.name|escapejs }} &mdash; Invoices</h4>'
+        + '<div style="margin-top:8px;font-size:13px;">'
+        + '<span style="margin:0 12px;"><strong>Invoices related:</strong> {{ record_count }}</span>'
+        + '<span style="margin:0 12px;"><strong>Total invoice value:</strong> &#8377; {{ grand_total|inr }}</span>'
+        + filters
+        + '</div><hr style="margin-top:10px;"></div>'
+        + '<table><thead><tr><th style="text-align:center;">S.No</th><th>Invoice</th><th>Date</th><th>Customer</th><th style="text-align:right;">Amount</th></tr></thead>'
+        + '<tbody>' + bodyRows + '</tbody></table>'
+        + '</body></html>';
 
-	var doc = '<html><head><title>{{ employee.name|escapejs }} - Invoices</title><style>'
-		+ 'body{font-family:Arial,Helvetica,sans-serif;margin:16px;color:#111;}'
-		+ 'table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;}'
-		+ 'th,td{border:1px solid #ddd;padding:8px;text-align:left;}'
-		+ 'thead th{background:#343a40;color:#fff;}'
-		+ '@media print{@page{size:A4 portrait;margin:8mm;}}'
-		+ '</style></head><body>'
-		+ '<div style="text-align:center;margin-bottom:16px;">'
-		+ '<h2 style="margin:0;">{{ request.user.userprofile.business_title|default:""|escapejs }}</h2>'
-		+ '<p style="margin:4px 0;color:#666;font-size:13px;">{{ request.user.userprofile.business_address|default:""|escapejs }}</p>'
-		+ '<hr style="margin:10px 0;">'
-		+ '<h4 style="margin:0;">{{ employee.name|escapejs }} &mdash; Invoices</h4>'
-		+ '<div style="margin-top:8px;font-size:13px;">'
-		+ '<span style="margin:0 12px;"><strong>Invoices related:</strong> {{ record_count }}</span>'
-		+ '<span style="margin:0 12px;"><strong>Total invoice value:</strong> &#8377; {{ grand_total|inr }}</span>'
-		+ filters
-		+ '</div><hr style="margin-top:10px;"></div>'
-		+ '<table><thead><tr><th style="text-align:center;">S.No</th><th>Invoice</th><th>Date</th><th>Customer</th><th style="text-align:right;">Amount</th></tr></thead>'
-		+ '<tbody>' + bodyRows + '</tbody></table>'
-		+ '</body></html>';
-
-	win.document.open();
-	win.document.write(doc);
-	win.document.close();
-	win.focus();
-	setTimeout(function () { win.print(); win.close(); }, 300);
+    win.document.open();
+    win.document.write(doc);
+    win.document.close();
+    win.focus();
+    setTimeout(function () { win.print(); win.close(); }, 300);
 }
 </script>
 {% endblock %}

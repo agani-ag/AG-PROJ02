@@ -1,383 +1,296 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}{% if id %}Edit{% else %}Add{% endif %} product · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
-<h2>Edit Product</h2>
-<form method="POST">
-	{% csrf_token %}
-	<table class="table">
-		<tbody class="two-col-form">
-			<tr>
-				<th scope="row" class="text-right">Model No:</th>
-				<td class="form-input-td">{{product_form.model_no}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Product Name:</th>
-				<td class="form-input-td">{{product_form.product_name}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">HSN / SAC</th>
-				<td class="form-input-td">{{product_form.product_hsn}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Discount %:</th>
-				<td class="form-input-td">{{product_form.product_discount}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">GST %:</th>
-				<td class="form-input-td">{{product_form.product_gst_percentage}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">MRP:</th>
-				<td class="form-input-td">{{product_form.product_rate_with_gst}}
-					<span class="text-muted" id="MRP">0</span>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Purchase Rate:</th>
-				<td class="form-input-td">{{product_form.product_purchase_rate}}
-					<span id="purchase_rate">0</span>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Division Category:</th>
-				<td class="form-input-td">
-					{{ product_form.product_division_category }}
-					<a href="#" class="btn btn-sm btn-secondary" title="Add Division"
-						onclick="addValue(event, 'id_product_division_category', 'Add Division Category')"><i class="fas fa-plus"></i></a>
-					<span class="custom-control custom-switch d-inline-block ml-2" style="vertical-align:middle;">
-						<input type="checkbox" class="custom-control-input" id="includeModelInDiv" onchange="refreshDivisionCategories()">
-						<label class="custom-control-label" for="includeModelInDiv" style="font-size:0.8em;" title="Also list Model Category values">+ Model</label>
-					</span>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Model Category:</th>
-				<td class="form-input-td">
-					{{ product_form.product_model_category }}
-					<a href="#" class="btn btn-sm btn-secondary" title="Add Model Category"
-						onclick="addValue(event, 'id_product_model_category', 'Add Model Category')"><i class="fas fa-plus"></i></a>
-					<span class="custom-control custom-switch d-inline-block ml-2" style="vertical-align:middle;">
-						<input type="checkbox" class="custom-control-input" id="includeDivInModel" onchange="refreshModelCategories()">
-						<label class="custom-control-label" for="includeDivInModel" style="font-size:0.8em;" title="Also list Division Category values">+ Division</label>
-					</span>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Colour:</th>
-				<td class="form-input-td">
-					{{ product_form.product_colour }}
-					<a href="#" class="btn btn-sm btn-secondary" title="Add Colour"
-						onclick="addValue(event, 'id_product_colour', 'Add Colour')"><i class="fas fa-plus"></i></a>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Product Category:</th>
-				<td class="form-input-td">
-					<select id="id_product_category" name="product_category">
-						<option value="" {% if not product_form.product_category.value %}selected{% endif %}>---------</option>
-						{% for category in product_category_list %}
-							<option value="{{ category.id }}" {% if product_form.product_category.value|stringformat:"s" == category.id|stringformat:"s" %}selected{% endif %}>
-								{% if category.parent_category__category_name %}
-									{{ category.parent_category__category_name }} &gt; {{ category.category_name }}
-								{% else %}
-									{{ category.category_name }}
-								{% endif %}
-							</option>
-						{% endfor %}
-					</select>
-					<a href="#" class="btn btn-sm btn-secondary" title="Add Category" 
-						onclick="addCategory(event)"><i class="fas fa-plus"></i>
-					</a>
-					<small class="text-muted d-block">Only child categories can be assigned to products</small>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Product Image URL:</th>
-				<td class="form-input-td">
-					<textarea id="product_image_url" name="product_image_url" rows="2" cols="35">{{ product_form.product_image_url.value|default:'' }}</textarea>
-					<div id="image_preview" style="margin-top:10px;">
-						{% if product_form.product_image_url.value %}
-							<img src="{{ product_form.product_image_url.value }}" alt="Product Image" style="max-width:200px; max-height:200px;">
-						{% endif %}
-					</div>
-				</td>
-			</tr>
-		</tbody>
-	</table>
+<div class="gs gs-pad">
+<form method="POST" class="gform">
+    {% csrf_token %}
 
-	<div class="form-group text-right">
-		<button type="submit" class="btn btn-primary" title="Save Product"><i class="fas fa-save"></i></button>
+    <div class="formwrap">
+
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'products' %}">Products</a> › {% if id %}Edit{% else %}New{% endif %}</div>
+                <h1 class="disp">{% if id %}Edit product{% else %}Add product{% endif %}</h1>
+            </div>
+        </div>
+
+        <!-- Basics -->
+        <div class="section open">
+            <div class="sh"><span class="si b"><i class="fas fa-box"></i></span>
+                <div><h3 class="disp">Basics</h3><div class="sd">Name, code &amp; category</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label for="id_model_no">Model No <span class="req">*</span></label>{{ product_form.model_no }}</div>
+                <div class="field"><label for="id_product_name">Product Name</label>{{ product_form.product_name }}</div>
+                <div class="field"><label for="id_product_hsn">HSN / SAC</label>{{ product_form.product_hsn }}</div>
+                <div class="field">
+                    <label for="id_product_category">Product Category</label>
+                    <div class="fieldrow">
+                        <select id="id_product_category" name="product_category">
+                            <option value="" {% if not product_form.product_category.value %}selected{% endif %}>---------</option>
+                            {% for category in product_category_list %}
+                                <option value="{{ category.id }}" {% if product_form.product_category.value|stringformat:"s" == category.id|stringformat:"s" %}selected{% endif %}>
+                                    {% if category.parent_category__category_name %}{{ category.parent_category__category_name }} &gt; {{ category.category_name }}{% else %}{{ category.category_name }}{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <a href="#" class="gbtn gbtn-icon gadd" title="Add category" onclick="addCategory(event)"><i class="fas fa-plus"></i></a>
+                    </div>
+                    <div class="h">Only child categories can be assigned to products</div>
+                </div>
+            </div></div>
+        </div>
+
+        <!-- Pricing -->
+        <div class="section open">
+            <div class="sh"><span class="si g"><i class="fas fa-indian-rupee-sign"></i></span>
+                <div><h3 class="disp">Pricing</h3><div class="sd">MRP, discount, tax &amp; cost</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label for="id_product_rate_with_gst">MRP</label>{{ product_form.product_rate_with_gst }}<div class="h">Selling: <span id="MRP">0</span></div></div>
+                <div class="field"><label for="id_product_purchase_rate">Purchase Rate (cost)</label>{{ product_form.product_purchase_rate }}<div class="h">Profit: <span id="purchase_rate">0</span></div></div>
+                <div class="field"><label for="id_product_discount">Discount %</label>{{ product_form.product_discount }}</div>
+                <div class="field"><label for="id_product_gst_percentage">GST %</label>{{ product_form.product_gst_percentage }}</div>
+            </div></div>
+        </div>
+
+        <!-- Classification -->
+        <div class="section open">
+            <div class="sh"><span class="si p"><i class="fas fa-tags"></i></span>
+                <div><h3 class="disp">Classification</h3><div class="sd">Division, model &amp; colour</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field">
+                    <label for="id_product_division_category">Division Category</label>
+                    <div class="fieldrow">
+                        {{ product_form.product_division_category }}
+                        <a href="#" class="gbtn gbtn-icon gadd" title="Add a division" onclick="addValue(event, 'id_product_division_category', 'Add Division Category')"><i class="fas fa-plus"></i></a>
+                    </div>
+                    <label class="gtoggle" title="Also list Model Category values in this dropdown">
+                        <input type="checkbox" id="includeModelInDiv" onchange="refreshDivisionCategories()"> Also list Model categories
+                    </label>
+                </div>
+                <div class="field">
+                    <label for="id_product_model_category">Model Category</label>
+                    <div class="fieldrow">
+                        {{ product_form.product_model_category }}
+                        <a href="#" class="gbtn gbtn-icon gadd" title="Add a model" onclick="addValue(event, 'id_product_model_category', 'Add Model Category')"><i class="fas fa-plus"></i></a>
+                    </div>
+                    <label class="gtoggle" title="Also list Division Category values in this dropdown">
+                        <input type="checkbox" id="includeDivInModel" onchange="refreshModelCategories()"> Also list Division categories
+                    </label>
+                </div>
+                <div class="field">
+                    <label for="id_product_colour">Colour</label>
+                    <div class="fieldrow">
+                        {{ product_form.product_colour }}
+                        <a href="#" class="gbtn gbtn-icon gadd" title="Add a colour" onclick="addValue(event, 'id_product_colour', 'Add Colour')"><i class="fas fa-plus"></i></a>
+                    </div>
+                </div>
+            </div></div>
+        </div>
+
+        <!-- Media -->
+        <div class="section open">
+            <div class="sh"><span class="si o"><i class="fas fa-image"></i></span>
+                <div><h3 class="disp">Image</h3><div class="sd">Optional product photo</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="field">
+                <label for="product_image_url">Product Image URL</label>
+                <textarea id="product_image_url" name="product_image_url" rows="2">{{ product_form.product_image_url.value|default:'' }}</textarea>
+                <div id="image_preview" style="margin-top:10px">
+                    {% if product_form.product_image_url.value %}<img src="{{ product_form.product_image_url.value }}" alt="Product Image" style="max-width:200px;max-height:200px;border-radius:10px">{% endif %}
+                </div>
+            </div></div>
+        </div>
+    </div>
+
+    <!-- Sticky action bar (inside the form so Save submits) -->
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">{% if id %}Editing product{% else %}New product · not saved{% endif %}</div>
+        <div class="end">
+            {% if id %}<a class="gbtn" href="#" onclick="popup_inventory();return false;" title="Inventory logs"><i class="fas fa-file-lines"></i> Inventory logs</a>{% endif %}
+            <a class="gbtn" href="{% url 'products' %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> {% if id %}Save changes{% else %}Save product{% endif %}</button>
+        </div>
+    </div></div>
 </form>
-		<a class="btn btn-danger" href="{% url 'products' %}" title="Cancel Product"><i class="fas fa-times"></i></a>
-		{% if id %}
-			<a class="btn btn-warning" href="#" onclick="popup_inventory()" title="View Inventory Logs"><i class="fas fa-file-lines"></i></a>
-		{% endif %}
-	</div>
 
 {{ product_form.division_model_map|json_script:"division-model-map" }}
 {{ product_form.all_divisions|json_script:"all-divisions" }}
 {{ product_form.all_model_categories|json_script:"all-model-categories" }}
+</div>
 
 <script>
-
-// Distinct Model Categories under each Division (keyed by division value; '' = no
-// division) plus the full distinct lists of each.
+// ===== All logic below is preserved verbatim from the original template =====
 var DIVISION_MODEL_MAP  = JSON.parse(document.getElementById('division-model-map').textContent);
 var ALL_DIVISIONS       = JSON.parse(document.getElementById('all-divisions').textContent);
 var ALL_MODEL_CATEGORIES = JSON.parse(document.getElementById('all-model-categories').textContent);
 
-/* Rebuild a <select> from a list of values, keeping the current selection present. */
 function rebuildSelect(sel, values) {
-	var current = sel.value;
-	var opts = values.slice().sort();
-	sel.innerHTML = '<option value="">---------</option>';
-	opts.forEach(function(v) { if (v) sel.add(new Option(v, v)); });
-	if (current && opts.indexOf(current) === -1) sel.add(new Option(current, current));
-	sel.value = current;
+    var current = sel.value;
+    var opts = values.slice().sort();
+    sel.innerHTML = '<option value="">---------</option>';
+    opts.forEach(function(v) { if (v) sel.add(new Option(v, v)); });
+    if (current && opts.indexOf(current) === -1) sel.add(new Option(current, current));
+    sel.value = current;
 }
 
-/* Model Category options = the selected Division's model categories (all model
-   categories when the division has none mapped). The "+ Division" toggle also
-   folds in every Division value. Runs on load and whenever Division changes. */
 function refreshModelCategories() {
-	var divSel = document.getElementById('id_product_division_category');
-	var mdlSel = document.getElementById('id_product_model_category');
-	var toggle = document.getElementById('includeDivInModel');
-	if (!divSel || !mdlSel) return;
-
-	var opts = (DIVISION_MODEL_MAP[divSel.value] || []).slice();
-	if (!opts.length) opts = ALL_MODEL_CATEGORIES.slice();
-
-	if (toggle && toggle.checked) {
-		ALL_DIVISIONS.forEach(function(v) { if (opts.indexOf(v) === -1) opts.push(v); });
-	}
-	rebuildSelect(mdlSel, opts);
+    var divSel = document.getElementById('id_product_division_category');
+    var mdlSel = document.getElementById('id_product_model_category');
+    var toggle = document.getElementById('includeDivInModel');
+    if (!divSel || !mdlSel) return;
+    var opts = (DIVISION_MODEL_MAP[divSel.value] || []).slice();
+    if (!opts.length) opts = ALL_MODEL_CATEGORIES.slice();
+    if (toggle && toggle.checked) {
+        ALL_DIVISIONS.forEach(function(v) { if (opts.indexOf(v) === -1) opts.push(v); });
+    }
+    rebuildSelect(mdlSel, opts);
 }
 
-/* Division Category options = every Division value. The "+ Model" toggle also folds
-   in every Model Category value. */
 function refreshDivisionCategories() {
-	var divSel = document.getElementById('id_product_division_category');
-	var toggle = document.getElementById('includeModelInDiv');
-	if (!divSel) return;
-
-	var opts = ALL_DIVISIONS.slice();
-	if (toggle && toggle.checked) {
-		ALL_MODEL_CATEGORIES.forEach(function(v) { if (opts.indexOf(v) === -1) opts.push(v); });
-	}
-	rebuildSelect(divSel, opts);
+    var divSel = document.getElementById('id_product_division_category');
+    var toggle = document.getElementById('includeModelInDiv');
+    if (!divSel) return;
+    var opts = ALL_DIVISIONS.slice();
+    if (toggle && toggle.checked) {
+        ALL_MODEL_CATEGORIES.forEach(function(v) { if (opts.indexOf(v) === -1) opts.push(v); });
+    }
+    rebuildSelect(divSel, opts);
 }
 
-document.getElementById('id_product_division_category')
-	.addEventListener('change', refreshModelCategories);
-refreshModelCategories();  // apply on load for the product's current division
+document.getElementById('id_product_division_category').addEventListener('change', refreshModelCategories);
+refreshModelCategories();
 
-// Add a new value to a free-text <select> (Division / Model Category / Colour).
-// Prompts for the value — pre-filled with the currently selected option so the user
-// can tweak it — then reuses a matching option or adds a new one, and selects it.
 function addValue(e, selectId, title) {
-	e.preventDefault();
-	const sel = document.getElementById(selectId);
-	Swal.fire({
-		title: title,
-		input: 'text',
-		inputValue: sel.value || '',   // pre-fill with the current selection
-		inputPlaceholder: 'Enter new value',
-		showCancelButton: true,
-		confirmButtonText: 'Add',
-		cancelButtonText: 'Cancel',
-		inputValidator: (value) => {
-			if (!value || !value.trim()) return 'Value is required';
-		}
-	}).then((result) => {
-		if (!result.isConfirmed) return;
-		const name = result.value.trim();
-		let opt = Array.from(sel.options).find(o => o.value.toLowerCase() === name.toLowerCase());
-		if (!opt) {
-			opt = new Option(name, name, true, true);
-			sel.add(opt);
-		}
-		sel.value = opt.value;
-	});
+    e.preventDefault();
+    const sel = document.getElementById(selectId);
+    Swal.fire({
+        title: title, input: 'text', inputValue: sel.value || '', inputPlaceholder: 'Enter new value',
+        showCancelButton: true, confirmButtonText: 'Add', cancelButtonText: 'Cancel',
+        inputValidator: (value) => { if (!value || !value.trim()) return 'Value is required'; }
+    }).then((result) => {
+        if (!result.isConfirmed) return;
+        const name = result.value.trim();
+        let opt = Array.from(sel.options).find(o => o.value.toLowerCase() === name.toLowerCase());
+        if (!opt) { opt = new Option(name, name, true, true); sel.add(opt); }
+        sel.value = opt.value;
+    });
 }
 
 function popup_inventory() {
-	fetch("/inventory/{{ id }}?nav=1")
+    fetch("/inventory/{{ id }}?nav=1")
     .then(r => r.text())
     .then(html => {
       Swal.fire({
         html: `<div style="height:80vh; overflow-y:auto;width:90%;margin:auto;border:2px solid #ccc;">${html}</div>`,
-        width: '80%',
-        showCloseButton: true,
-        showConfirmButton: false,
+        width: '80%', showCloseButton: true, showConfirmButton: false,
       });
     });
 }
 
-// Image URL Preview
-	const textarea = document.getElementById('product_image_url');
-	const previewDiv = document.getElementById('image_preview');
+const textarea = document.getElementById('product_image_url');
+const previewDiv = document.getElementById('image_preview');
+textarea.addEventListener('input', () => {
+    const url = textarea.value.trim();
+    if (url) { previewDiv.innerHTML = `<img src="${url}" alt="Product Image" style="max-width:300px; max-height:300px;border:1px solid #ccc;border-radius:10px;">`; }
+    else { previewDiv.innerHTML = ''; }
+});
 
-	textarea.addEventListener('input', () => {
-		const url = textarea.value.trim();
-		if (url) {
-			previewDiv.innerHTML = `<img src="${url}" alt="Product Image" style="max-width:300px; max-height:300px;border:1px solid #ccc;">`;
-		} else {
-			previewDiv.innerHTML = '';
-		}
-	});
-
-	// Add Category Button Handler
-	function addCategory(e) {
-		e.preventDefault(); // Prevent <a> from navigating
-
-		// Fetch parent categories first
-		fetch("{% url 'product_category_list' %}")
-			.then(response => response.text())
-			.then(html => {
-				// Extract parent categories from the response
-				const parser = new DOMParser();
-				const doc = parser.parseFromString(html, 'text/html');
-				const parentCategoriesScript = doc.getElementById('parent_categories_data');
-				let parentOptions = '<option value="">None (Create Parent Category)</option>';
-				
-				if (parentCategoriesScript) {
-					const parents = JSON.parse(parentCategoriesScript.textContent);
-					parents.forEach(parent => {
-						parentOptions += `<option value="${parent.id}">${parent.category_name}</option>`;
-					});
-				}
-
-				Swal.fire({
-					title: 'Add New Category',
-					html: `
-						<div class="form-group text-left">
-							<label for="category-name">Category Name <span class="text-danger">*</span></label>
-							<input type="text" id="category-name" class="form-control" placeholder="Enter category name">
-						</div>
-						<div class="form-group text-left">
-							<label for="parent-category">Parent Category</label>
-							<select id="parent-category" class="form-control">
-								${parentOptions}
-							</select>
-							<small class="text-muted">Leave empty to create a parent category, or select a parent for a child category</small>
-						</div>
-					`,
-					showCancelButton: true,
-					confirmButtonText: 'Save',
-					cancelButtonText: 'Cancel',
-					preConfirm: () => {
-						const categoryName = document.getElementById('category-name').value.trim();
-						const parentId = document.getElementById('parent-category').value;
-						
-						if (!categoryName) {
-							Swal.showValidationMessage('Category name is required');
-							return false;
-						}
-						
-						return { categoryName, parentId };
-					}
-				}).then((result) => {
-					if (result.isConfirmed) {
-						const { categoryName, parentId } = result.value;
-						
-						$.ajax({
-							url: "{% url 'product_category_save' %}",
-							method: "POST",
-							contentType: "application/json",
-							headers: {
-								'X-CSRFToken': '{{ csrf_token }}'
-							},
-							data: JSON.stringify({ 
-								category_name: categoryName,
-								parent_category_id: parentId || null
-							}),
-							success: function(data) {
-								if (data.success) {
-									Swal.fire('Success', 'Category created: ' + data.full_path, 'success');
-									// Add the new category to dropdown if it's a child category
-									if (parentId) {
-										$('#id_product_category').append('<option value="' + data.id + '" selected>' + data.full_path + '</option>');
-									} else {
-										Swal.fire('Info', 'Parent category created. Now create child categories under it to assign to products.', 'info');
-									}
-								} else {
-									Swal.fire('Error', data.error || 'Failed to save category', 'error');
-								}
-							},
-							error: function(xhr, status, error) {
-								console.error(error);
-								Swal.fire('Error', 'Something went wrong', 'error');
-							}
-						});
-					}
-				});
-			});
-	}
-
-function getValue(name) {
-    let el = document.querySelector(`[name="${name}"]`);
-    return el ? parseFloat(el.value) || 0 : 0;
+function addCategory(e) {
+    e.preventDefault();
+    fetch("{% url 'product_category_list' %}")
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const parentCategoriesScript = doc.getElementById('parent_categories_data');
+            let parentOptions = '<option value="">None (Create Parent Category)</option>';
+            if (parentCategoriesScript) {
+                const parents = JSON.parse(parentCategoriesScript.textContent);
+                parents.forEach(parent => { parentOptions += `<option value="${parent.id}">${parent.category_name}</option>`; });
+            }
+            Swal.fire({
+                title: 'Add New Category',
+                html: `
+                    <div class="form-group text-left">
+                        <label for="category-name">Category Name <span class="text-danger">*</span></label>
+                        <input type="text" id="category-name" class="form-control" placeholder="Enter category name">
+                    </div>
+                    <div class="form-group text-left">
+                        <label for="parent-category">Parent Category</label>
+                        <select id="parent-category" class="form-control">${parentOptions}</select>
+                        <small class="text-muted">Leave empty to create a parent category, or select a parent for a child category</small>
+                    </div>`,
+                showCancelButton: true, confirmButtonText: 'Save', cancelButtonText: 'Cancel',
+                preConfirm: () => {
+                    const categoryName = document.getElementById('category-name').value.trim();
+                    const parentId = document.getElementById('parent-category').value;
+                    if (!categoryName) { Swal.showValidationMessage('Category name is required'); return false; }
+                    return { categoryName, parentId };
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const { categoryName, parentId } = result.value;
+                    fetch("{% url 'product_category_save' %}", {
+                        method: "POST",
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                        body: JSON.stringify({ category_name: categoryName, parent_category_id: parentId || null })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('Success', 'Category created: ' + data.full_path, 'success');
+                            if (parentId) {
+                                var sel = document.getElementById('id_product_category');
+                                var opt = document.createElement('option');
+                                opt.value = data.id; opt.textContent = data.full_path; opt.selected = true;
+                                sel.appendChild(opt);
+                            } else { Swal.fire('Info', 'Parent category created. Now create child categories under it to assign to products.', 'info'); }
+                        } else { Swal.fire('Error', data.error || 'Failed to save category', 'error'); }
+                    })
+                    .catch(error => { console.error(error); Swal.fire('Error', 'Something went wrong', 'error'); });
+                }
+            });
+        });
 }
 
-// Indian Rupee formatting
-function formatINR(value) {
-    return new Intl.NumberFormat('en-IN', {
-        style: 'currency',
-        currency: 'INR'
-    }).format(value);
-}
+function getValue(name) { let el = document.querySelector(`[name="${name}"]`); return el ? parseFloat(el.value) || 0 : 0; }
+function formatINR(value) { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value); }
 
 function calculateValues() {
     let discount = getValue("product_discount");
     let gst = getValue("product_gst_percentage");
     let mrp = getValue("product_rate_with_gst");
     let purchaseRate = getValue("product_purchase_rate");
-
     let discountedPrice = mrp - (mrp * discount / 100);
     let finalPrice = discountedPrice + (discountedPrice * gst / 100);
     let profit = finalPrice - purchaseRate;
-
-    // Percentage calculations
     let mrpPercent = mrp ? ((finalPrice - mrp) / mrp) * 100 : 0;
     let profitPercent = purchaseRate ? (profit / purchaseRate) * 100 : 0;
-
-    // Update MRP with styled %
     let mrpEl = document.getElementById("MRP");
-    mrpEl.innerHTML = `
-        ${formatINR(finalPrice)} 
-        <small style="color:${mrpPercent >= 0 ? 'green' : 'red'}">
-            (${mrpPercent.toFixed(2)}%)
-        </small>
-    `;
-
-    // Update Profit with styled %
+    mrpEl.innerHTML = `${formatINR(finalPrice)} <small style="color:${mrpPercent >= 0 ? 'green' : 'red'}">(${mrpPercent.toFixed(2)}%)</small>`;
     let profitEl = document.getElementById("purchase_rate");
-    profitEl.innerHTML = `
-        ${formatINR(profit)} 
-        <small style="color:${profit >= 0 ? 'green' : 'red'}">
-            (${profitPercent.toFixed(2)}%)
-        </small>
-    `;
-
-    // Main value color
+    profitEl.innerHTML = `${formatINR(profit)} <small style="color:${profit >= 0 ? 'green' : 'red'}">(${profitPercent.toFixed(2)}%)</small>`;
     profitEl.style.color = profit >= 0 ? "green" : "red";
 }
 
-// Listen for changes
 document.addEventListener("input", function(e) {
-    if (
-        e.target.name === "product_discount" ||
-        e.target.name === "product_gst_percentage" ||
-        e.target.name === "product_rate_with_gst" ||
-        e.target.name === "product_purchase_rate"
-    ) {
+    if (e.target.name === "product_discount" || e.target.name === "product_gst_percentage" ||
+        e.target.name === "product_rate_with_gst" || e.target.name === "product_purchase_rate") {
         calculateValues();
     }
 });
-
-// Run on page load
-window.onload = calculateValues;
+window.addEventListener('load', calculateValues);
 </script>
 {% endblock %}

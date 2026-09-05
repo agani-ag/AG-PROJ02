@@ -24,7 +24,7 @@ def _safe_next(request):
 # ================= User Management =============================
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect(_safe_next(request) or "invoice_create")
+        return redirect(_safe_next(request) or "landing_page")
     context = {}
     if request.GET.get("admin"):
         context["admin"] = True
@@ -45,7 +45,7 @@ def login_view(request):
                 else:
                     request.session.set_expiry(0)     # expire at browser close
                 # Honour ?next=/... so a deep link resumes where the user was headed.
-                return redirect(_safe_next(request) or "invoice_create")
+                return redirect(_safe_next(request) or "landing_page")
         else:
             context["error_message"] = auth_form.get_invalid_login_error()
     context["auth_form"] = auth_form
@@ -54,7 +54,7 @@ def login_view(request):
 
 def signup_view(request):
     if request.user.is_authenticated:
-        return redirect("invoice_create")
+        return redirect("landing_page")
     context = {}
     signup_form = UserCreationForm()
     profile_edit_form = UserProfileForm()
@@ -78,7 +78,7 @@ def signup_view(request):
             userprofile.user = user
             userprofile.save()
             login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-            return redirect("invoice_create")
+            return redirect("landing_page")
 
     return render(request, 'auth/signup.html', context)
 

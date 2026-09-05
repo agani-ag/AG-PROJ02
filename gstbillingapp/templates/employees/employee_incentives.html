@@ -1,66 +1,72 @@
 {% extends "base.html" %}
 {% load money %}
+{% load static %}
+{% block title %}Incentives — {{ employee.name }} · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap">
-    <h2 class="mb-0">Incentives — <span class="text-primary">{{ employee.name }}</span></h2>
-    <div>
-        <a href="{% url 'employee_salary' posting.id %}" class="btn btn-success btn-sm btn-curve"><i class="fas fa-wallet"></i> Salary</a>
-        <a href="{% url 'employees' %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-reply"></i></a>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><a href="{% url 'employees' %}">Employees</a> › Incentives</div>
+            <h1 class="disp">{{ employee.name }}</h1>
+        </div>
+        <div class="actions">
+            <a href="{% url 'employee_salary' posting.id %}" class="gbtn"><i class="fas fa-wallet"></i> Salary</a>
+            <a href="{% url 'employees' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Employees</a>
+        </div>
+    </div>
+
+    <div class="gstats">
+        <div class="gstat blue"><div class="gk"><span class="dot"></span> Total</div><div class="gv">₹ {{ total|inrs }}</div></div>
+        <div class="gstat green"><div class="gk"><span class="dot"></span> Paid</div><div class="gv">₹ {{ paid|inrs }}</div></div>
+        <div class="gstat amber"><div class="gk"><span class="dot"></span> Unpaid</div><div class="gv">₹ {{ unpaid|inrs }}</div></div>
+    </div>
+
+    <div class="section open gform" style="margin-bottom:16px">
+        <div class="sh"><span class="si g"><i class="fas fa-gift"></i></span>
+            <div><h3 class="disp">Add incentive</h3></div></div>
+        <div class="body">
+            <form method="POST"><div class="grid" style="align-items:end">
+                {% csrf_token %}
+                <div class="field"><label>Date</label><input type="date" name="date" value="{% now 'Y-m-d' %}"></div>
+                <div class="field"><label>Amount (₹)</label><input type="number" min="0.01" step="0.01" name="amount" required></div>
+                <div class="field"><label>Description</label><input type="text" name="description" placeholder="Reason / note"></div>
+                <div class="field" style="display:flex;flex-direction:column;gap:10px">
+                    <label class="gtoggle"><input type="checkbox" name="is_paid" id="isPaid"> Paid</label>
+                    <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add</button>
+                </div>
+            </div></form>
+        </div>
+    </div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr><th>Date</th><th>Description</th><th class="r">Amount</th><th>Status</th><th class="r">Actions</th></tr></thead>
+            <tbody>
+                {% for inc in incentives %}
+                <tr id="inc-{{ inc.id }}">
+                    <td class="mut">{{ inc.date|date:"d M Y" }}</td>
+                    <td>{{ inc.description|default:"—" }}</td>
+                    <td class="r num">₹ {{ inc.amount|inrs }}</td>
+                    <td><span class="gbadge {% if inc.is_paid %}ok{% else %}low{% endif %} paid-badge" style="cursor:pointer" onclick="togglePaid({{ inc.id }}, this)">{% if inc.is_paid %}Paid{% else %}Unpaid{% endif %}</span></td>
+                    <td class="r"><div class="rowacts"><button class="gbtn gbtn-icon del" onclick="delInc({{ inc.id }})"><i class="fas fa-trash"></i></button></div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5"><div class="empty"><div class="ei"><i class="fas fa-gift fa-lg"></i></div><h3>No incentives yet</h3><p>Add one using the form above.</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
     </div>
 </div>
-<hr>
-
-<div class="row text-center mb-3">
-    <div class="col"><div class="card bg-info text-white"><div class="card-body py-2"><h6 class="mb-0">Total</h6><h4 class="mb-0">₹ {{ total|inrs }}</h4></div></div></div>
-    <div class="col"><div class="card bg-success text-white"><div class="card-body py-2"><h6 class="mb-0">Paid</h6><h4 class="mb-0">₹ {{ paid|inrs }}</h4></div></div></div>
-    <div class="col"><div class="card bg-warning text-white"><div class="card-body py-2"><h6 class="mb-0">Unpaid</h6><h4 class="mb-0">₹ {{ unpaid|inrs }}</h4></div></div></div>
-</div>
-
-<div class="card mb-3">
-    <div class="card-header bg-dark text-white">Add incentive</div>
-    <div class="card-body">
-        <form method="POST" class="form-row align-items-end">
-            {% csrf_token %}
-            <div class="form-group col-md-3">
-                <label>Date</label>
-                <input type="date" name="date" class="form-control" value="{% now 'Y-m-d' %}">
-            </div>
-            <div class="form-group col-md-3">
-                <label>Amount (₹)</label>
-                <input type="number" min="0.01" step="0.01" name="amount" class="form-control" required>
-            </div>
-            <div class="form-group col-md-4">
-                <label>Description</label>
-                <input type="text" name="description" class="form-control" placeholder="Reason / note">
-            </div>
-            <div class="form-group col-md-2">
-                <div class="form-check mb-2"><input type="checkbox" name="is_paid" class="form-check-input" id="isPaid"><label class="form-check-label" for="isPaid">Paid</label></div>
-                <button type="submit" class="btn btn-success btn-curve btn-block"><i class="fas fa-plus"></i> Add</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<table class="table table-striped">
-    <thead class="thead-dark"><tr><th>Date</th><th>Description</th><th class="text-right">Amount</th><th class="text-center">Status</th><th></th></tr></thead>
-    <tbody>
-        {% for inc in incentives %}
-        <tr id="inc-{{ inc.id }}">
-            <td>{{ inc.date|date:"d M Y" }}</td>
-            <td>{{ inc.description|default:"—" }}</td>
-            <td class="text-right font-weight-bold">₹ {{ inc.amount|inrs }}</td>
-            <td class="text-center">
-                <span class="badge badge-{% if inc.is_paid %}success{% else %}warning{% endif %} paid-badge" style="cursor:pointer" onclick="togglePaid({{ inc.id }}, this)">{% if inc.is_paid %}Paid{% else %}Unpaid{% endif %}</span>
-            </td>
-            <td class="text-right">
-                <button class="btn btn-danger btn-sm btn-curve" onclick="delInc({{ inc.id }})"><i class="fas fa-trash"></i></button>
-            </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="5" class="text-center text-muted">No incentives yet.</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
 {% endblock %}
 
 {% block includejs %}
@@ -69,11 +75,7 @@ const CSRF = "{{ csrf_token }}";
 function togglePaid(id, el){
     fetch("/incentives/"+id+"/toggle-paid", {method:'POST', headers:{'X-CSRFToken':CSRF}})
     .then(r=>r.json()).then(d=>{
-        if(d.ok){
-            el.className = 'badge badge-'+(d.is_paid?'success':'warning')+' paid-badge';
-            el.style.cursor='pointer'; el.textContent = d.is_paid?'Paid':'Unpaid';
-            setTimeout(()=>location.reload(), 300);
-        }
+        if(d.ok){ el.textContent = d.is_paid?'Paid':'Unpaid'; setTimeout(()=>location.reload(), 300); }
     });
 }
 function delInc(id){

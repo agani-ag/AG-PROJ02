@@ -1,222 +1,141 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}Update book logs · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
-<h2>Update Book Logs</h2>
-
-<form method="POST">
+<div class="gs gs-pad">
+<form method="POST" class="gform">
     {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'book_logs_full' %}">Books</a> › New entry</div>
+                <h1 class="disp">Update book logs</h1>
+            </div>
+        </div>
 
-    <table class="table">
-        <tbody class="two-col-form">
-
-        <!-- DATE -->
-        <tr>
-            <th scope="row" class="text-right">Date & Time:</th>
-            <td class="form-input-td">
-                <input type="datetime-local" value="{% now "Y-m-d H:i:s" %}" name="date">
-            </td>
-        </tr>
-
-        <!-- CUSTOMER -->
-        <tr>
-            <th class="text-right">Customer:</th>
-            <td class="d-flex gap-2">
-                <div style="display:none">{{ form.parent_book }}</div>
-                <input type="text" id="customerDisplay" placeholder="Select Customer" readonly>
-                <button type="button" id="changeCustomerBtn" class="btn btn-primary">
-                    <i class="fa fa-search"></i>
-                </button>
-            </td>
-        </tr>
-
-        <!-- INVOICE -->
-        <tr>
-            <th class="text-right">Invoice Number:</th>
-            <td class="d-flex gap-2">
-                <!-- Hidden field for storing the selected invoice ID -->
-                <input type="hidden" name="associated_invoice" id="invoiceHidden" value="{{ form.associated_invoice.value }}">
-                <input type="text" id="invoiceDisplay" placeholder="Select Invoice" readonly>
-                <button type="button" id="changeInvoiceBtn" class="btn btn-primary">
-                    <i class="fa fa-search"></i>
-                </button>
-            </td>
-        </tr>
-
-        <!-- AMOUNT -->
-        <tr>
-            <th class="text-right">Amount:</th>
-            <td>{{ form.change }}</td>
-        </tr>
-
-        <!-- MODE -->
-        <tr>
-            <th class="text-right">Mode:</th>
-            <td>{{ form.change_type }}</td>
-        </tr>
-
-        <!-- DESCRIPTION -->
-        <tr>
-            <th class="text-right">Description:</th>
-            <td>{{ form.description }}</td>
-        </tr>
-
-        </tbody>
-    </table>
-
-    <div class="d-flex justify-content-end gap-2">
-        <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save"></i>
-        </button>
+        <div class="section open">
+            <div class="sh"><span class="si b"><i class="fas fa-book"></i></span>
+                <div><h3 class="disp">Book entry</h3><div class="sd">Customer, invoice &amp; amount</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Date &amp; Time</label><input type="datetime-local" value="{% now 'Y-m-d H:i:s' %}" name="date"></div>
+                <div class="field">
+                    <label>Customer</label>
+                    <div class="fieldrow">
+                        <div style="display:none">{{ form.parent_book }}</div>
+                        <input type="text" id="customerDisplay" placeholder="Select customer" readonly>
+                        <button type="button" id="changeCustomerBtn" class="gbtn gbtn-icon gadd" title="Find customer"><i class="fas fa-search"></i></button>
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Invoice Number</label>
+                    <div class="fieldrow">
+                        <input type="hidden" name="associated_invoice" id="invoiceHidden" value="{{ form.associated_invoice.value }}">
+                        <input type="text" id="invoiceDisplay" placeholder="Select invoice" readonly>
+                        <button type="button" id="changeInvoiceBtn" class="gbtn gbtn-icon gadd" title="Find invoice"><i class="fas fa-search"></i></button>
+                    </div>
+                </div>
+                <div class="field"><label>Amount</label>{{ form.change }}</div>
+                <div class="field"><label>Mode</label>{{ form.change_type }}</div>
+                <div class="field full"><label>Description</label>{{ form.description }}</div>
+            </div></div>
+        </div>
     </div>
+
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">New entry · not saved</div>
+        <div class="end">
+            <a class="gbtn" href="{% url 'book_logs_full' %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> Save entry</button>
+        </div>
+    </div></div>
 </form>
+</div>
 {% endblock %}
 
 {% block includejs %}
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-// ================= CUSTOMER POPUP =================
 function openCustomerPopup() {
-    $.ajax({
-        url: "{% url 'customer_book_filter' %}",
-        success: function(customers) {
+    fetch("{% url 'customer_book_filter' %}")
+        .then(res => res.json())
+        .then(customers => {
             let html = `
                 <input type="text" id="customerSearch" class="form-control mb-2" placeholder="Search customer...">
                 <table class="table table-bordered" id="customerTable">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Address</th>
-                            <th>Phone</th>
-                            <th>GSTIN</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
+                    <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>GSTIN</th></tr></thead>
+                    <tbody>`;
             customers.forEach(c => {
-                html += `
-                    <tr class="customerRow" style="cursor:pointer"
-                        data-id="${c.id}"
-                        data-name="${c.name}">
-                        <td>${c.name}</td>
-                        <td>${c.address || '-'}</td>
-                        <td>${c.phone || '-'}</td>
-                        <td>${c.gstin || '-'}</td>
-                    </tr>
-                `;
+                html += `<tr class="customerRow" style="cursor:pointer" data-id="${c.id}" data-name="${c.name}">
+                    <td>${c.name}</td><td>${c.address || '-'}</td><td>${c.phone || '-'}</td><td>${c.gstin || '-'}</td></tr>`;
             });
             html += `</tbody></table>`;
-
             Swal.fire({
-                title: "Select Customer",
-                html: html,
-                width: "1000px",
-                showCancelButton: true,
+                title: "Select Customer", html: html, width: "1000px", showCancelButton: true,
                 didOpen: () => {
-                    // Search filter
-                    $('#customerSearch').on('keyup', function() {
-                        let val = $(this).val().toLowerCase();
-                        $('#customerTable tbody tr').filter(function() {
-                            $(this).toggle($(this).text().toLowerCase().indexOf(val) > -1);
+                    document.getElementById('customerSearch').addEventListener('keyup', function() {
+                        var val = this.value.toLowerCase();
+                        document.querySelectorAll('#customerTable tbody tr').forEach(function(tr) {
+                            tr.style.display = (tr.textContent.toLowerCase().indexOf(val) > -1) ? '' : 'none';
                         });
                     });
-                    // Row click select
-                    $('.customerRow').on('click', function() {
-                        let id = $(this).data('id');
-                        let name = $(this).data('name');
-
-                        $('select[name="parent_book"]').val(id);
-                        $('#customerDisplay').val(name);
-
-                        // Clear invoice when customer changes
-                        $('#invoiceHidden').val('');
-                        $('#invoiceDisplay').val('');
-
-                        Swal.close();
+                    document.querySelectorAll('.customerRow').forEach(function(row) {
+                        row.addEventListener('click', function() {
+                            document.querySelector('select[name="parent_book"]').value = this.getAttribute('data-id');
+                            document.getElementById('customerDisplay').value = this.getAttribute('data-name');
+                            document.getElementById('invoiceHidden').value = ''; document.getElementById('invoiceDisplay').value = '';
+                            Swal.close();
+                        });
                     });
                 }
             });
-        }
-    });
+        });
 }
 
-// ================= INVOICE POPUP =================
 function openInvoicePopup(customerId) {
-    if (!customerId) {
-        Swal.fire("Please select customer first");
-        return;
-    }
-
-    $.ajax({
-        url: "{% url 'customer_invoice_filter' %}",
-        data: { customer: customerId },
-        success: function(invoices) {
-            if (invoices.length === 0) {
-                Swal.fire("No invoices found");
-                return;
-            }
-
-            let html = `
-                <table class="table table-bordered">
-                    <thead>
-                        <tr>
-                            <th>Invoice No</th>
-                            <th>Date</th>
-                            <th>GST</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
+    if (!customerId) { Swal.fire("Please select customer first"); return; }
+    fetch("{% url 'customer_invoice_filter' %}?customer=" + encodeURIComponent(customerId))
+        .then(res => res.json())
+        .then(invoices => {
+            if (invoices.length === 0) { Swal.fire("No invoices found"); return; }
+            let html = `<table class="table table-bordered"><thead><tr><th>Invoice No</th><th>Date</th><th>GST</th></tr></thead><tbody>`;
             invoices.forEach(inv => {
-                html += `
-                    <tr class="invoiceRow" style="cursor:pointer"
-                        data-id="${inv.id}"
-                        data-invoice_number="${inv.invoice_number}">
-                        <td>${inv.invoice_number}</td>
-                        <td>${inv.invoice_date}</td>
-                        <td>${inv.non_gst ? "Non-GST" : "GST"}</td>
-                    </tr>
-                `;
+                html += `<tr class="invoiceRow" style="cursor:pointer" data-id="${inv.id}" data-invoice_number="${inv.invoice_number}">
+                    <td>${inv.invoice_number}</td><td>${inv.invoice_date}</td><td>${inv.non_gst ? "Non-GST" : "GST"}</td></tr>`;
             });
             html += `</tbody></table>`;
-
             Swal.fire({
-                title: "Select Invoice",
-                html: html,
-                width: "900px",
-                showCancelButton: true,
+                title: "Select Invoice", html: html, width: "900px", showCancelButton: true,
                 didOpen: () => {
-                    $('.invoiceRow').on('click', function() {
-                        let id = $(this).data('id');
-                        let invoice_number = $(this).data('invoice_number');
-
-                        // Set hidden input for form submission
-                        $('#invoiceHidden').val(id);
-
-                        // Set display field
-                        $('#invoiceDisplay').val(invoice_number);
-
-                        Swal.close();
+                    document.querySelectorAll('.invoiceRow').forEach(function(row) {
+                        row.addEventListener('click', function() {
+                            document.getElementById('invoiceHidden').value = this.getAttribute('data-id');
+                            document.getElementById('invoiceDisplay').value = this.getAttribute('data-invoice_number');
+                            Swal.close();
+                        });
                     });
                 }
             });
-        }
-    });
+        });
 }
 
-// ================= EVENTS =================
-$(document).ready(function() {
-    $('#changeCustomerBtn').on('click', openCustomerPopup);
-    $('#changeInvoiceBtn').on('click', function() {
-        openInvoicePopup($('select[name="parent_book"]').val());
-    });
-
-    // Autofill on edit
-    let cust = $('select[name="parent_book"] option:selected');
-    if (cust.val()) $('#customerDisplay').val(cust.text());
-
-    let invHidden = $('#invoiceHidden');
-    if (invHidden.val()) $('#invoiceDisplay').val(invHidden.val());
+document.addEventListener('DOMContentLoaded', function() {
+    var ccb = document.getElementById('changeCustomerBtn');
+    if (ccb) ccb.addEventListener('click', openCustomerPopup);
+    var cib = document.getElementById('changeInvoiceBtn');
+    if (cib) cib.addEventListener('click', function() { openInvoicePopup(document.querySelector('select[name="parent_book"]').value); });
+    var sel = document.querySelector('select[name="parent_book"]');
+    var opt = sel && sel.selectedOptions[0];
+    if (opt && opt.value) document.getElementById('customerDisplay').value = opt.textContent;
+    var invHidden = document.getElementById('invoiceHidden');
+    if (invHidden && invHidden.value) document.getElementById('invoiceDisplay').value = invHidden.value;
 });
 </script>
 {% endblock %}

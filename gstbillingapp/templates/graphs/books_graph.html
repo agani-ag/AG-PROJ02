@@ -118,8 +118,8 @@ function loadSalesData(filter = 'this_month', startDate = null, endDate = null) 
     
     // Get selected transaction types
     var selectedTypes = [];
-    $('.transaction-type-check:checked').each(function() {
-        selectedTypes.push($(this).val());
+    document.querySelectorAll('.transaction-type-check:checked').forEach(function(el) {
+        selectedTypes.push(el.value);
     });
     
     if (selectedTypes.length === 0) {
@@ -135,26 +135,24 @@ function loadSalesData(filter = 'this_month', startDate = null, endDate = null) 
     
     console.log('AJAX URL:', url);
     
-    $.ajax({
-        url: url,
+    fetch(url, {
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
-        },
-        success: function(response) {
-            console.log('Response:', response);
-            if (response.success) {
-                drawChart(response.data, response.transaction_types, response.type_names);
-                updateStats(response.totals, response.type_names);
-            } else {
-                alert('No data returned');
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('Error loading sales data:', error);
-            console.error('Status:', status);
-            console.error('Response:', xhr.responseText);
-            alert('Error loading sales data: ' + error);
         }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(response) {
+        console.log('Response:', response);
+        if (response.success) {
+            drawChart(response.data, response.transaction_types, response.type_names);
+            updateStats(response.totals, response.type_names);
+        } else {
+            alert('No data returned');
+        }
+    })
+    .catch(function(error) {
+        console.error('Error loading sales data:', error);
+        alert('Error loading sales data: ' + error);
     });
 }
 
@@ -164,8 +162,8 @@ function drawChart(data, transactionTypes, typeNames) {
         return;
     }
     
-    var showDaily = $('#showDailySales').is(':checked');
-    var showCumulative = $('#showCumulativeSales').is(':checked');
+    var showDaily = document.getElementById('showDailySales').checked;
+    var showCumulative = document.getElementById('showCumulativeSales').checked;
     
     // Color mapping for different transaction types
     var typeColors = {
@@ -285,79 +283,88 @@ function updateStats(totals, typeNames) {
         allTotal += totals[type];
     }
     
-    $('#totalSales').text('₹' + allTotal.toLocaleString('en-IN', {maximumFractionDigits: 0}));
-    $('#avgSales').text(numTypes + ' Type(s)');
-    
+    document.getElementById('totalSales').textContent = '₹' + allTotal.toLocaleString('en-IN', {maximumFractionDigits: 0});
+    document.getElementById('avgSales').textContent = numTypes + ' Type(s)';
+
     // Show breakdown
     var breakdown = [];
     for (var type in totals) {
         breakdown.push(typeNames[type] + ': ₹' + totals[type].toLocaleString('en-IN', {maximumFractionDigits: 0}));
     }
-    $('#peakSales').html(breakdown.join('<br>'));
-    $('#numDays').text('Multi-Type');
+    document.getElementById('peakSales').innerHTML = breakdown.join('<br>');
+    var numDaysEl = document.getElementById('numDays');
+    if (numDaysEl) numDaysEl.textContent = 'Multi-Type';
 }
 
-$(document).ready(function() {
+document.addEventListener('DOMContentLoaded', function() {
     // Set today as max date for date inputs
     var today = new Date().toISOString().split('T')[0];
-    $('#startDate, #endDate').attr('max', today);
-    $('#endDate').val(today);
-    
+    document.querySelectorAll('#startDate, #endDate').forEach(function(el) {
+        el.setAttribute('max', today);
+    });
+    document.getElementById('endDate').value = today;
+
     // Load initial data
     loadSalesData(currentFilter);
-    
+
     // Transaction type checkbox change
-    $('.transaction-type-check').change(function() {
-        var startDate = currentFilter === 'custom' ? $('#startDate').val() : null;
-        var endDate = currentFilter === 'custom' ? $('#endDate').val() : null;
-        loadSalesData(currentFilter, startDate, endDate);
+    document.querySelectorAll('.transaction-type-check').forEach(function(el) {
+        el.addEventListener('change', function() {
+            var startDate = currentFilter === 'custom' ? document.getElementById('startDate').value : null;
+            var endDate = currentFilter === 'custom' ? document.getElementById('endDate').value : null;
+            loadSalesData(currentFilter, startDate, endDate);
+        });
     });
-    
+
     // Filter dropdown change
-    $('#filterSelect').change(function() {
-        var filter = $(this).val();
+    document.getElementById('filterSelect').addEventListener('change', function() {
+        var filter = this.value;
         console.log('Filter changed to:', filter);
-        
+
         if (filter === 'custom') {
-            $('#customDateRange').css('display', 'inline');
+            document.getElementById('customDateRange').style.display = 'inline';
         } else {
-            $('#customDateRange').css('display', 'none');
+            document.getElementById('customDateRange').style.display = 'none';
             currentFilter = filter;
             loadSalesData(filter);
         }
     });
-    
+
     // Date input change for custom range
-    $('#startDate, #endDate').change(function() {
-        var startDate = $('#startDate').val();
-        var endDate = $('#endDate').val();
-        
-        if (startDate && endDate) {
-            if (startDate > endDate) {
-                alert('Start date cannot be after end date');
+    document.querySelectorAll('#startDate, #endDate').forEach(function(el) {
+        el.addEventListener('change', function() {
+            var startDate = document.getElementById('startDate').value;
+            var endDate = document.getElementById('endDate').value;
+
+            if (startDate && endDate) {
+                if (startDate > endDate) {
+                    alert('Start date cannot be after end date');
+                    return;
+                }
+                currentFilter = 'custom';
+                loadSalesData('custom', startDate, endDate);
+            }
+        });
+    });
+
+    // Chart line visibility toggles
+    document.querySelectorAll('#showDailySales, #showCumulativeSales').forEach(function(el) {
+        el.addEventListener('change', function() {
+            var dailyChecked = document.getElementById('showDailySales').checked;
+            var cumulativeChecked = document.getElementById('showCumulativeSales').checked;
+
+            // At least one must be checked
+            if (!dailyChecked && !cumulativeChecked) {
+                alert('At least one chart line must be visible');
+                this.checked = true;
                 return;
             }
-            currentFilter = 'custom';
-            loadSalesData('custom', startDate, endDate);
-        }
-    });
-    
-    // Chart line visibility toggles
-    $('#showDailySales, #showCumulativeSales').change(function() {
-        var dailyChecked = $('#showDailySales').is(':checked');
-        var cumulativeChecked = $('#showCumulativeSales').is(':checked');
-        
-        // At least one must be checked
-        if (!dailyChecked && !cumulativeChecked) {
-            alert('At least one chart line must be visible');
-            $(this).prop('checked', true);
-            return;
-        }
-        
-        // Redraw chart with current data
-        var startDate = currentFilter === 'custom' ? $('#startDate').val() : null;
-        var endDate = currentFilter === 'custom' ? $('#endDate').val() : null;
-        loadSalesData(currentFilter, startDate, endDate);
+
+            // Redraw chart with current data
+            var startDate = currentFilter === 'custom' ? document.getElementById('startDate').value : null;
+            var endDate = currentFilter === 'custom' ? document.getElementById('endDate').value : null;
+            loadSalesData(currentFilter, startDate, endDate);
+        });
     });
 });
 </script>

@@ -1,187 +1,123 @@
 {% extends "base.html" %}
-
 {% load static %}
+{% block title %}Products · GSTSync{% endblock %}
 
-
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
-		<div class="row">
-			<div class="col">
-				<h2>Products</h2>
-			</div>
-			<div class="col text-right" style="padding-top: 0.5%;">
-				<a href="{% url 'products_aggrid' %}" class="btn btn-info btn-sm btn-curve" title="AG Grid View" style="text-decoration: none;">
-					<i class="fas fa-table-cells"></i> AG Grid
-				</a>
-				<a href="{% url 'product_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Product">
-					<i class="fas fa-plus"></i>
-				</a>
-			</div>
-		</div>
+<div class="gs">
 
-		<table class="table table-bordered" id="product-table">
-			<thead class="thead-dark">
-				<tr>
-					<th>Model No</th>
-					<th>Product Name</th>
-					<th>Category</th>
-					<th>MRP</th>
-					<th>Discount%</th>
-					<th>GST%</th>
-					<th>Actions</th>
-				</tr>
-			</thead>
-			<tbody class="two-col-form">
-				{% for product in products %}
-				<tr>
-	 				<td>{{product.model_no}}</td>
-	 				<td>{% if product.product_name %}{{product.product_name}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-	 				<td>
-						{% if product.product_category %}
-							{% if product.product_category.parent_category %}
-								<span class="badge badge-secondary">{{product.product_category.parent_category.category_name}}</span>
-								<span class="badge badge-primary">{{product.product_category.category_name}}</span>
-							{% else %}
-								<span class="badge badge-primary">{{product.product_category.category_name}}</span>
-							{% endif %}
-						{% else %}
-							<span class="text-muted">-</span>
-						{% endif %}
-					</td>
-	 				<td>{{product.product_rate_with_gst}}</td>
-	 				<td>{{product.product_discount}}%</td>
-	 				<td>{{product.product_gst_percentage}}%</td>
-	 				<td>
-						<div class="btn-group" role="group" aria-label="Basic example">
-							<a href="{% url 'product_edit' product.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Product"><i class="fas fa-pen-to-square"></i></a>
-							<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#productDeleteModal" data-product-id="{{product.id}}" data-product-name="{{product.model_no}}" title="Delete Product"><i class="fas fa-trash"></i></button>
-							<a href="{% url 'inventory_logs' product.id %}" class="btn btn-warning btn-sm btn-curve" title="View Inventory Logs"><i class="fas fa-file-lines"></i></a>
-						</div>
-					</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
+    <div class="page-head">
+        <div>
+            <h1 class="disp">Products</h1>
+            <div class="sub">{{ total_count }} product{{ total_count|pluralize }}</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'products_aggrid' %}" class="gbtn" title="Grid view"><i class="fas fa-table-cells"></i> Grid</a>
+            <a href="{% url 'products_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn" title="Export to CSV"><i class="fas fa-file-arrow-down"></i> Export</a>
+            <a href="{% url 'product_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add product</a>
+        </div>
+    </div>
 
-<div class="modal fade" id="productDeleteModal" tabindex="-1" role="dialog" aria-labelledby="productDeleteModalLabel" aria-hidden="true">
-	<div class="modal-dialog" role="document">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title" id="productDeleteModalLabel">Are you sure?</h5>
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-					<span aria-hidden="true">&times;</span>
-				</button>
-			</div>
-			<form method="POST" action="{% url 'product_delete' %}">
-			{% csrf_token %}
-			<div class="modal-body">
-				Are you sure you want to delete <b><span class="product-name"></span></b>?
-					<div class="form-group">
-						<input hidden="true" type="text" class="form-control" name="product_id">
-					</div>
-			</div>
-			<div class="modal-footer">
-				<button type="submit" class="btn btn-danger btn-sm btn-curve" >Yes</button>
-				<button type="button" class="btn btn-primary btn-sm btn-curve" data-dismiss="modal">No</button>
-			</div>
-			</form>
-		</div>
-	</div>
+    <form method="get" class="toolbar" id="filterForm">
+        <div class="search">
+            <i class="fas fa-magnifying-glass gico"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search product, model no…" autocomplete="off">
+        </div>
+        <select name="cat" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="">All categories</option>
+            {% for c in categories %}
+            <option value="{{ c.id }}" {% if cat == c.id|stringformat:'s' %}selected{% endif %}>{{ c.category_name }}</option>
+            {% endfor %}
+        </select>
+        <input type="hidden" name="sort" value="{{ sort }}">
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead>
+                <tr>
+                    <th><a href="?sort={% if sort == 'model' %}-model{% else %}model{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if cat %}&cat={{ cat }}{% endif %}">Product{% if sort == 'model' %} <i class="fas fa-arrow-up gico"></i>{% elif sort == '-model' %} <i class="fas fa-arrow-down gico"></i>{% endif %}</a></th>
+                    <th>Category</th>
+                    <th class="r"><a href="?sort={% if sort == 'mrp' %}-mrp{% else %}mrp{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if cat %}&cat={{ cat }}{% endif %}">MRP{% if sort == 'mrp' %} <i class="fas fa-arrow-up gico"></i>{% elif sort == '-mrp' %} <i class="fas fa-arrow-down gico"></i>{% endif %}</a></th>
+                    <th class="r">Discount %</th>
+                    <th class="r">GST %</th>
+                    <th class="r">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                <tr>
+                    <td>
+                        <div class="prim">
+                            <span class="pi"><i class="fas fa-box"></i></span>
+                            <div>
+                                <div class="nm">{{ product.product_name|default:"Unnamed product" }}</div>
+                                <div class="mn">{{ product.model_no }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if product.product_category %}
+                            {% if product.product_category.parent_category %}<span class="gbadge grey">{{ product.product_category.parent_category.category_name }}</span> {% endif %}
+                            <span class="tag2">{{ product.product_category.category_name }}</span>
+                        {% else %}<span class="mut">—</span>{% endif %}
+                    </td>
+                    <td class="r num">{{ product.product_rate_with_gst }}</td>
+                    <td class="r num">{{ product.product_discount }}%</td>
+                    <td class="r num">{{ product.product_gst_percentage }}%</td>
+                    <td class="r">
+                        <div class="rowacts">
+                            <a href="{% url 'product_edit' product.id %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
+                            <a href="{% url 'inventory_logs' product.id %}" class="gbtn gbtn-icon" title="Inventory logs"><i class="fas fa-file-lines"></i></a>
+                            <button type="button" class="gbtn gbtn-icon del" title="Delete"
+                                onclick="confirmDelete('{{ product.id }}', '{{ product.model_no|escapejs }}')"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6">
+                    <div class="empty">
+                        <div class="ei"><i class="fas fa-box fa-lg"></i></div>
+                        <h3>No products found</h3>
+                        <p>{% if q or cat %}Try clearing the search or filter.{% else %}Add your first product to get started.{% endif %}</p>
+                        {% if q or cat %}<a href="{% url 'products' %}" class="gbtn">Clear filters</a>{% else %}<a href="{% url 'product_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add product</a>{% endif %}
+                    </div>
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
+
 </div>
+
+<form id="del-form" method="POST" action="{% url 'product_delete' %}" style="display:none">
+    {% csrf_token %}
+    <input type="hidden" name="product_id" id="del-id">
+</form>
 {% endblock %}
-
-
-
-
 
 {% block includejs %}
-<script type="text/javascript">
-$('#productDeleteModal').on('show.bs.modal', function (event) {
-	var button = $(event.relatedTarget) // Button that triggered the modal
-	var product_id = button.data('product-id') // Extract info from data-* attributes
-	var model_no = button.data('product-name') // Extract info from data-* attributes
-	// If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
-	// Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
-	var modal = $(this)
-	modal.find('.modal-body input').val(product_id)
-	console.log(model_no)
-	modal.find('.product-name').html(model_no)
-})
-
-$(document).ready( function () {
-	$('#product-table').DataTable({
-		"order": [],
-		"columnDefs": [ {
-			"targets": 6,
-			"sortable": false,
-			"searchable": false
-		}],
-		"paging": true,
-		dom: 'Bfrtip',
-        buttons: [
-            {
-                extend: 'excelHtml5',
-                text: '<i class="fas fa-file-excel"></i> Excel',
-                className: 'btn btn-success btn-sm btn-curve'
-            },
-            {
-                extend: 'pdfHtml5',
-                text: '<i class="fas fa-file-pdf"></i> PDF',
-                className: 'btn btn-danger btn-sm btn-curve'
-            },
-            {
-                extend: 'print',
-                text: '<i class="fas fa-print"></i> Print',
-                className: 'btn btn-warning btn-sm btn-curve',
-                title: '',
-                customize: function (win) {
-                    var body = $(win.document.body);
-                    body.css('font-family', 'Arial, sans-serif');
-
-                    // Build header
-                    var header = '<div style="text-align:center; margin-bottom:20px;">' +
-                        '<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
-                        '<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
-                        '<p style="margin:2px 0; color:#666; font-size:13px;">' +
-                            'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
-                            '{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
-							'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
-                        '</p>' +
-                        '<hr style="margin:10px 0;">' +
-                        '<h4 style="margin:0;">Products</h4>' +
-                        '<hr style="margin-top:10px;">' +
-                    '</div>';
-                    body.find('table').before(header);
-
-                    // Hide Actions column
-                    body.find('table th:last-child, table td:last-child').hide();
-
-                    // Add S.No column header
-                    body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
-
-                    // Add S.No to each row
-                    body.find('table tbody tr').each(function(index) {
-                        $(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
-                    });
-
-                    // Style the table
-                    body.find('table')
-                        .css('width', '100%')
-                        .css('border-collapse', 'collapse')
-                        .css('font-size', '13px');
-                    body.find('table th, table td')
-                        .css('border', '1px solid #ddd')
-                        .css('padding', '8px');
-                    body.find('table thead th')
-                        .css('background-color', '#343a40')
-                        .css('color', '#fff')
-                        .css('text-align', 'left');
-                }
-            }
-        ]
-	});
-});
-
+<script>
+// submit search on Enter (the input's implicit form submit already does this);
+// category change auto-submits via onchange. Delete uses SweetAlert (global).
+function confirmDelete(id, name){
+    Swal.fire({
+        title: 'Delete product?',
+        html: 'Delete <b>' + name + '</b>? This cannot be undone.',
+        icon: 'warning', showCancelButton: true,
+        confirmButtonText: 'Delete', confirmButtonColor: '#e11d48', cancelButtonText: 'Cancel'
+    }).then(function(r){
+        if (r.isConfirmed){ document.getElementById('del-id').value = id; document.getElementById('del-form').submit(); }
+    });
+}
 </script>
 {% endblock %}
-{% block body_libs %}{% include "partials/libs/export_body.html" %}{% endblock %}

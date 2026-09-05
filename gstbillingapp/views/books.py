@@ -1,5 +1,7 @@
 # Django imports
-from django.http import JsonResponse
+import csv
+from django.core.paginator import Paginator
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -27,11 +29,38 @@ import datetime
 import num2words
 
 # ===================== Book views =============================
+def _filtered_books(request):
+    qs = (Book.objects.filter(user=request.user).exclude(customer_id__isnull=True)
+          .select_related('customer').order_by('customer__customer_name'))
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        qs = qs.filter(customer__customer_name__icontains=q)
+    return qs, q
+
+
 @login_required
 def books(request):
-    context = {}
-    context['book_list'] = Book.objects.filter(user=request.user).exclude(customer_id__isnull=True).order_by('customer__customer_name')
-    return render(request, 'books/books.html', context)
+    qs, q = _filtered_books(request)
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return render(request, 'books/books.html', {
+        'book_list': page_obj, 'page_obj': page_obj, 'total_count': paginator.count,
+        'q': q, 'querystring': params.urlencode(),
+    })
+
+
+@login_required
+def books_export(request):
+    qs, _q = _filtered_books(request)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="books.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Customer', 'Current Balance'])
+    for b in qs:
+        writer.writerow([b.customer.customer_name, b.current_balance])
+    return response
 
 @login_required
 def book_logs(request, book_id):
@@ -129,35 +158,111 @@ def book_logs_del(request, booklog_id):
     return redirect('book_logs', book.id)
 
 # ================= Full Books Views ===========================
+def _filtered_book_logs_full(request):
+    """Shared filter for the All-Book-Details list + its CSV export.
+    Returns (queryset, filter_context). Mirrors the old AJAX endpoint's filters,
+    but server-paginated natively (no jQuery DataTables)."""
+    from datetime import timedelta
+    from django.utils import timezone
+
+    qs = BookLog.objects.filter(
+        parent_book__isnull=False, parent_book__user=request.user
+    ).select_related('parent_book__customer', 'associated_invoice')
+
+    change_type = request.GET.get('change_type', 'all')
+    date_filter = request.GET.get('date_filter', 'all')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
+    q = request.GET.get('q', '').strip()
+
+    if change_type and change_type != 'all':
+        try:
+            qs = qs.filter(change_type=int(change_type))
+        except (ValueError, TypeError):
+            pass
+
+    if date_filter and date_filter != 'all':
+        if date_filter == 'today':
+            qs = qs.filter(date__date=timezone.now().date())
+        elif date_filter == 'week':
+            week_start = timezone.now().date() - timedelta(days=timezone.now().weekday())
+            qs = qs.filter(date__date__gte=week_start)
+        elif date_filter == 'month':
+            qs = qs.filter(date__date__gte=timezone.now().date().replace(day=1))
+        elif date_filter == 'custom' and start_date and end_date:
+            try:
+                qs = qs.filter(date__date__gte=start_date, date__date__lte=end_date)
+            except Exception:
+                pass
+
+    if q:
+        qs = qs.filter(
+            Q(description__icontains=q) |
+            Q(parent_book__customer__customer_name__icontains=q) |
+            Q(change__icontains=q)
+        )
+
+    qs = qs.order_by('-date')
+    return qs, {
+        'change_type': change_type, 'date_filter': date_filter,
+        'start_date': start_date, 'end_date': end_date, 'q': q,
+    }
+
+
 @login_required
 def book_logs_full(request):
-    context = {}
-    # Only get totals for the summary cards, not all records
-    book_logs_queryset = BookLog.objects.filter(parent_book__isnull=False, parent_book__user=request.user)
-    
-    # Aggregate totals by change_type in a single query
-    totals = book_logs_queryset.aggregate(
+    qs, fctx = _filtered_book_logs_full(request)
+
+    # Filtered totals for the summary cards (reflect the active filters).
+    totals = qs.aggregate(
         total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
         total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
         total_returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
         total_others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
     )
+    total_purchased = abs(totals['total_purchased'] or 0)
+    total_paid = abs(totals['total_paid'] or 0)
+    total_returned = abs(totals['total_returned'] or 0)
+    total_others = abs(totals['total_others'] or 0)
+    total_balance = total_purchased - (total_paid + total_returned + total_others)
 
-    # Fill in context with totals, using 0 if None
-    total_purchased = totals['total_purchased'] or 0
-    total_paid = totals['total_paid'] or 0
-    total_returned = totals['total_returned'] or 0
-    total_others = totals['total_others'] or 0
-    total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
-    
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+
+    context = dict(fctx)
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
     context['total_balance'] = total_balance
-    context['total_balance_word'] = num2words.num2words(abs(int(context['total_balance'])), lang='en_IN').title()
-    context['total_purchased'] = abs(total_purchased)
-    context['total_paid'] = abs(total_paid)
-    context['total_returned'] = abs(total_returned)
-    context['total_others'] = abs(total_others)
-    
+    context['total_balance_word'] = num2words.num2words(abs(int(total_balance)), lang='en_IN').title()
+    context['total_purchased'] = total_purchased
+    context['total_paid'] = total_paid
+    context['total_returned'] = total_returned
+    context['total_others'] = total_others
     return render(request, 'books/book_logs_full.html', context)
+
+
+@login_required
+def book_logs_full_export(request):
+    """Server-side CSV export of the current All-Book-Details filter (all rows)."""
+    qs, _ = _filtered_book_logs_full(request)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="book-logs-all.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Type', 'Change', 'Description', 'Customer'])
+    for item in qs:
+        if not item.parent_book or not item.parent_book.customer:
+            continue
+        writer.writerow([
+            item.date.strftime('%b %d, %Y %I:%M %p') if item.date else '',
+            item.get_change_type_display(),
+            format_inr_smart(item.change),
+            item.description or '',
+            item.parent_book.customer.customer_name,
+        ])
+    return response
 
 @login_required
 def book_logs_full_ajax(request):

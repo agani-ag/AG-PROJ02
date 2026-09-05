@@ -1,7 +1,9 @@
 # Django imports
+import csv
 from django.utils import timezone
 from django.contrib import messages
-from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.http import JsonResponse, HttpResponse
 from django.db.models.functions import Abs, Cast
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Case, When, FloatField, F, Q
@@ -60,8 +62,43 @@ def purchases_logs(request):
         purchases_logs = purchases_logs.filter(change_type=3)
     else:
         purchases_logs = purchases_logs.filter(Q(change_type=0) | Q(change_type=1) | Q(change_type=2) | Q(change_type=3))
-    context['purchases'] = purchases_logs    
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        purchases_logs = purchases_logs.filter(Q(reference__icontains=q) | Q(vendor__vendor_name__icontains=q))
+    paginator = Paginator(purchases_logs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    context['purchases'] = page_obj
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
+    context['q'] = q
+    context['active_filter'] = request.GET.get('filter', '')
     return render(request, 'purchases/purchases.html', context)
+
+
+@login_required
+def purchases_logs_export(request):
+    logs = PurchaseLog.objects.filter(user=request.user).select_related('vendor').order_by('-date')
+    f = request.GET.get('filter')
+    fmap = {'paid': 0, 'purchased': 1, 'returned': 2, 'others': 3}
+    if f in fmap:
+        logs = logs.filter(change_type=fmap[f])
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        logs = logs.filter(Q(reference__icontains=q) | Q(vendor__vendor_name__icontains=q))
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="purchases.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Type', 'Amount', 'Reference', 'Vendor'])
+    for p in logs:
+        writer.writerow([
+            p.date.strftime('%Y-%m-%d %H:%M') if p.date else '',
+            p.get_change_type_display(), p.change, p.reference or '',
+            p.vendor.vendor_name if p.vendor else '',
+        ])
+    return response
 
 @login_required
 def purchases_logs_overdue(request):

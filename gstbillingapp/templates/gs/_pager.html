@@ -1,0 +1,27 @@
+{# Reusable server-side pager. Expects: page_obj, total_count, querystring (GET minus page). #}
+<div class="tfoot">
+    <span class="cnt">
+        {% if total_count %}Showing <b>{{ page_obj.start_index }}–{{ page_obj.end_index }}</b> of <b>{{ total_count }}</b>{% else %}No records{% endif %}
+    </span>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="pager">
+        {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if querystring %}&{{ querystring }}{% endif %}" title="Previous">&lsaquo;</a>
+        {% else %}<span class="dis">&lsaquo;</span>{% endif %}
+
+        {% for n in page_obj.paginator.page_range %}
+            {% if n == page_obj.number %}
+                <span class="on">{{ n }}</span>
+            {% elif n <= 2 or n > page_obj.paginator.num_pages|add:"-2" or n >= page_obj.number|add:"-1" and n <= page_obj.number|add:"1" %}
+                <a href="?page={{ n }}{% if querystring %}&{{ querystring }}{% endif %}">{{ n }}</a>
+            {% elif n == 3 or n == page_obj.paginator.num_pages|add:"-2" %}
+                <span class="dis">…</span>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if querystring %}&{{ querystring }}{% endif %}" title="Next">&rsaquo;</a>
+        {% else %}<span class="dis">&rsaquo;</span>{% endif %}
+    </nav>
+    {% endif %}
+</div>

@@ -1,241 +1,74 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}Business profile · GSTSync{% endblock %}
 
 {% block includecss %}
-<style>
-	.profile-header {
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		color: white;
-		padding: 28px 24px;
-		border-radius: 16px;
-		margin-bottom: 24px;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-	}
-	.profile-header h2 { margin: 0; font-weight: 700; font-size: 1.5rem; }
-	.profile-header p { margin: 4px 0 0; opacity: 0.85; font-size: 0.85rem; }
-	.section-card {
-		background: #fff;
-		border-radius: 14px;
-		box-shadow: 0 2px 16px rgba(0,0,0,0.06);
-		margin-bottom: 20px;
-		overflow: hidden;
-		border: 1px solid #e5e5ea;
-	}
-	.section-header {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 16px 20px;
-		background: linear-gradient(135deg, rgba(102,126,234,0.06), rgba(118,75,162,0.06));
-		border-bottom: 1px solid #e5e5ea;
-		font-weight: 700;
-		font-size: 0.95rem;
-		color: #1c1c1e;
-	}
-	.section-header > i {
-		color: #667eea;
-		font-size: 1rem;
-		width: 32px;
-		height: 32px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: rgba(102,126,234,0.1);
-		border-radius: 8px;
-	}
-	.section-body { padding: 20px; }
-	.form-row-custom {
-		display: flex;
-		gap: 16px;
-		margin-bottom: 16px;
-		flex-wrap: wrap;
-	}
-	.form-group-custom {
-		flex: 1;
-		min-width: 200px;
-	}
-	.form-group-custom label {
-		display: block;
-		font-weight: 600;
-		font-size: 0.8rem;
-		color: #8e8e93;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		margin-bottom: 6px;
-	}
-	.form-group-custom input,
-	.form-group-custom select,
-	.form-group-custom textarea {
-		width: 100%;
-		padding: 10px 14px;
-		border: 1.5px solid #e5e5ea;
-		border-radius: 10px;
-		font-size: 0.9rem;
-		font-weight: 500;
-		color: #1c1c1e;
-		transition: border-color 0.2s, box-shadow 0.2s;
-		background: #fafafa;
-	}
-	.form-group-custom input:focus,
-	.form-group-custom select:focus,
-	.form-group-custom textarea:focus {
-		outline: none;
-		border-color: #667eea;
-		box-shadow: 0 0 0 3px rgba(102,126,234,0.12);
-		background: #fff;
-	}
-	.form-group-custom textarea { resize: vertical; min-height: 70px; }
-	.uid-display {
-		padding: 10px 14px;
-		background: linear-gradient(135deg, rgba(52,199,89,0.08), rgba(52,199,89,0.04));
-		border: 1.5px solid rgba(52,199,89,0.25);
-		border-radius: 10px;
-		color: #34c759;
-		font-weight: 700;
-		font-size: 0.9rem;
-		font-family: 'SF Mono', monospace;
-		letter-spacing: 0.3px;
-	}
-	.map-container {
-		height: 420px;
-		border-radius: 12px;
-		overflow: hidden;
-		border: 1.5px solid #e5e5ea;
-	}
-	.btn-actions {
-		display: flex;
-		gap: 12px;
-		justify-content: flex-end;
-		margin-top: 8px;
-		padding: 20px 0;
-	}
-	.btn-save {
-		padding: 12px 32px;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		color: white;
-		border: none;
-		border-radius: 12px;
-		font-weight: 700;
-		font-size: 0.9rem;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		box-shadow: 0 4px 16px rgba(102,126,234,0.35);
-		cursor: pointer;
-		transition: transform 0.15s, box-shadow 0.15s;
-	}
-	.btn-save:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(102,126,234,0.45); }
-	.btn-save:active { transform: scale(0.97); }
-	.btn-cancel {
-		padding: 12px 24px;
-		background: #fff;
-		color: #ff3b30;
-		border: 1.5px solid #ff3b30;
-		border-radius: 12px;
-		font-weight: 600;
-		font-size: 0.9rem;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		cursor: pointer;
-		transition: all 0.15s;
-		text-decoration: none;
-	}
-	.btn-cancel:hover { background: #fff5f5; color: #ff3b30; text-decoration: none; }
-	.coord-group { display: flex; gap: 12px; }
-	.coord-group .form-group-custom { flex: 1; }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
 
 {% block content %}
+<div class="gs gs-pad">
+<form method="POST" class="gform">
+    {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'user_profile' %}">Profile</a> › Edit</div>
+                <h1 class="disp">Business profile</h1>
+            </div>
+        </div>
 
-<form method="POST">
-	{% csrf_token %}
+        <div class="section open">
+            <div class="sh"><span class="si b"><i class="fas fa-store"></i></span>
+                <div><h3 class="disp">Business</h3><div class="sd">Name, GST &amp; bank</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Business Name</label>{{ user_profile_form.business_title }}</div>
+                <div class="field"><label>Brand</label>{{ user_profile_form.business_brand }}</div>
+                <div class="field"><label>GST Number</label>{{ user_profile_form.business_gst }}</div>
+                <div class="field"><label>Bank Details</label>{{ user_profile_form.bankdetails }}</div>
+                <div class="field full"><label>Address</label><textarea name="business_address" rows="2">{{ user_profile_form.business_address.value|default:'' }}</textarea></div>
+            </div></div>
+        </div>
 
-	<!-- Business Information -->
-	<div class="section-card">
-		<div class="section-header">
-			<i class="fas fa-building"></i> Business Information
-		</div>
-		<div class="section-body">
-			<div class="form-row-custom">
-				<div class="form-group-custom">
-					<label><i class="fas fa-store" style="margin-right:4px;"></i> Business Name</label>
-					{{ user_profile_form.business_title }}
-				</div>
-				<div class="form-group-custom">
-					<label><i class="fas fa-tag" style="margin-right:4px;"></i> Brand</label>
-					{{ user_profile_form.business_brand }}
-				</div>
-			</div>
-			<div class="form-row-custom">
-				<div class="form-group-custom">
-					<label><i class="fas fa-map-marker-alt" style="margin-right:4px;"></i> Address</label>
-					<textarea name="business_address" rows="2">{{ user_profile_form.business_address.value|default:'' }}</textarea>
-				</div>
-			</div>
-			<div class="form-row-custom">
-				<div class="form-group-custom">
-					<label><i class="fas fa-id-card" style="margin-right:4px;"></i> GST Number</label>
-					{{ user_profile_form.business_gst }}
-				</div>
-				<div class="form-group-custom">
-					<label><i class="fas fa-university" style="margin-right:4px;"></i> Bank Details</label>
-					{{ user_profile_form.bankdetails }}
-				</div>
-			</div>
-		</div>
-	</div>
+        <div class="section open">
+            <div class="sh"><span class="si t"><i class="fas fa-address-card"></i></span>
+                <div><h3 class="disp">Contact</h3><div class="sd">Email &amp; phone</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Email</label>{{ user_profile_form.business_email }}</div>
+                <div class="field"><label>Phone</label>{{ user_profile_form.business_phone }}</div>
+            </div></div>
+        </div>
 
-	<!-- Contact Details -->
-	<div class="section-card">
-		<div class="section-header">
-			<i class="fas fa-address-book"></i> Contact Details
-		</div>
-		<div class="section-body">
-			<div class="form-row-custom">
-				<div class="form-group-custom">
-					<label><i class="fas fa-envelope" style="margin-right:4px;"></i> Email</label>
-					{{ user_profile_form.business_email }}
-				</div>
-				<div class="form-group-custom">
-					<label><i class="fas fa-phone" style="margin-right:4px;"></i> Phone</label>
-					{{ user_profile_form.business_phone }}
-				</div>
-			</div>
-		</div>
-	</div>
+        <div class="section open">
+            <div class="sh"><span class="si g"><i class="fas fa-location-dot"></i></span>
+                <div><h3 class="disp">Location</h3><div class="sd">Search, drag the pin, or use current location</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body">
+                <div class="grid">
+                    <div class="field"><label>Latitude</label>{{ user_profile_form.business_latitude }}</div>
+                    <div class="field"><label>Longitude</label>{{ user_profile_form.business_longitude }}</div>
+                </div>
+                <div id="map" style="height:350px;width:100%;border:1px solid var(--line);border-radius:12px;margin-top:14px"></div>
+            </div>
+        </div>
+    </div>
 
-	<!-- Location -->
-	<div class="section-card">
-		<div class="section-header">
-			<i class="fas fa-map-marked-alt"></i> Business Location
-		</div>
-		<div class="section-body">
-			<div class="coord-group" style="margin-bottom:16px;">
-				<div class="form-group-custom">
-					<label><i class="fas fa-arrows-alt-v" style="margin-right:4px;"></i> Latitude</label>
-					{{ user_profile_form.business_latitude }}
-				</div>
-				<div class="form-group-custom">
-					<label><i class="fas fa-arrows-alt-h" style="margin-right:4px;"></i> Longitude</label>
-					{{ user_profile_form.business_longitude }}
-				</div>
-			</div>
-			<div class="map-container" id="map"></div>
-		</div>
-	</div>
-
-	<!-- Actions -->
-	<div class="btn-actions">
-		<a href="{% url 'user_profile' %}" class="btn-cancel"><i class="fas fa-times"></i> Cancel</a>
-		<button type="submit" class="btn-save"><i class="fas fa-save"></i> Save Changes</button>
-	</div>
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">Editing business profile</div>
+        <div class="end">
+            <a class="gbtn" href="{% url 'user_profile' %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> Save profile</button>
+        </div>
+    </div></div>
 </form>
-
+</div>
 {% endblock %}
+
 {% block includejs %}
 <script>
 let map;
@@ -245,216 +78,70 @@ var editModeActive = false;
 var latitude = parseFloat(document.getElementsByName("business_latitude")[0].value) || 12.602429;
 var longitude = parseFloat(document.getElementsByName("business_longitude")[0].value) || 78.595726;
 
-// 🚀 Init map
-function initMap(lat = latitude, lng = longitude) { // Headquarters Location
+function initMap(lat = latitude, lng = longitude) {
     map = L.map('map').setView([lat, lng], 13);
-
-    let cartoLayer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        {
-            attribution: '&copy; OpenStreetMap &copy; CartoDB'
-        }
-    );
-
-    let topoLayer = L.tileLayer(
-        'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-        {
-            attribution: '&copy; OpenTopoMap'
-        }
-    );
-
-    let darkLayer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        {
-            attribution: '&copy; OpenStreetMap &copy; CartoDB'
-        }
-    );
-
-    let osmLayer = L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {
-            attribution: '&copy; OpenStreetMap'
-        }
-    );
-    
-    let googleLayer = L.tileLayer(
-        'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        { 
-            attribution: '&copy; Google Maps',
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        }
-    );
-
-    let satelliteLayer = L.tileLayer(
-        'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-        {
-            attribution: '&copy; Google Maps',
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        }
-    );
-
-    // Default layer
+    let cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
+    let topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap' });
+    let darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
+    let osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
+    let googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
+    let satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
     satelliteLayer.addTo(map);
-    // Layer control
-    let baseMaps = {
-        "☀️ Light": cartoLayer,
-        "🌙 Dark": darkLayer,
-        "🗺️ Google": googleLayer,
-        "⛰️ Terrain": topoLayer,
-        "🗺️ OSM": osmLayer,
-        "🛰️ Satellite": satelliteLayer
-    };
+    let baseMaps = { "☀️ Light": cartoLayer, "🌙 Dark": darkLayer, "🗺️ Google": googleLayer, "⛰️ Terrain": topoLayer, "🗺️ OSM": osmLayer, "🛰️ Satellite": satelliteLayer };
     L.control.layers(baseMaps).addTo(map);
     marker = L.marker([lat, lng], { draggable: true }).addTo(map);
-
-    // 🔍 Search bar (Leaflet Geocoder)
-    geocoder = L.Control.geocoder({
-        defaultMarkGeocode: false
-    })
-    .on('markgeocode', function(e) {
-        let center = e.geocode.center;
-        map.setView(center, 15);
-        marker.setLatLng(center);
-        setLatLng(center.lat, center.lng);
-    })
-    .addTo(map);
-
-    // 📍 Add "Use Current Location" button on map
+    geocoder = L.Control.geocoder({ defaultMarkGeocode: false })
+        .on('markgeocode', function(e) { let center = e.geocode.center; map.setView(center, 15); marker.setLatLng(center); setLatLng(center.lat, center.lng); })
+        .addTo(map);
     let locateControl = L.control({ position: 'topleft' });
     locateControl.onAdd = function(map) {
         let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-        div.style.backgroundColor = 'white';
-        div.style.width = '34px';
-        div.style.height = '34px';
-        div.style.cursor = 'pointer';
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
-        div.style.justifyContent = 'center';
-        div.title = "Use Current Location";
-        div.innerHTML = '📍';
+        div.style.backgroundColor = 'white'; div.style.width = '34px'; div.style.height = '34px'; div.style.cursor = 'pointer';
+        div.style.display = 'flex'; div.style.alignItems = 'center'; div.style.justifyContent = 'center'; div.title = "Use Current Location"; div.innerHTML = '📍';
         L.DomEvent.disableClickPropagation(div);
-        div.onclick = function(e) {
-            e.preventDefault();
-            getLiveLocation();
-        };
+        div.onclick = function(e) { e.preventDefault(); getLiveLocation(); };
         return div;
     };
     locateControl.addTo(map);
-
-	// 📍 Add "Edit Mode" button on map
     let editModeControl = L.control({ position: 'topleft' });
     editModeControl.onAdd = function(map) {
         let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-        div.style.backgroundColor = 'white';
-        div.style.width = '34px';
-        div.style.height = '34px';
-        div.style.cursor = 'pointer';
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
-        div.style.justifyContent = 'center';
-        div.title = "Edit Mode";
-        div.innerHTML = '✏️';
+        div.style.backgroundColor = 'white'; div.style.width = '34px'; div.style.height = '34px'; div.style.cursor = 'pointer';
+        div.style.display = 'flex'; div.style.alignItems = 'center'; div.style.justifyContent = 'center'; div.title = "Edit Mode"; div.innerHTML = '✏️';
         L.DomEvent.disableClickPropagation(div);
-        div.onclick = function(e) {
-            e.preventDefault();
-            editMode();
-        };
+        div.onclick = function(e) { e.preventDefault(); editMode(); };
         return div;
     };
     editModeControl.addTo(map);
-
-    // 🖱 Drag marker
-    marker.on('dragend', function () {
-        if (editModeActive) {
-            let pos = marker.getLatLng();
-            setLatLng(pos.lat, pos.lng);
-        }
-    });
-
-    // 🖱 Click map
-    map.on('click', function (e) {
-        if (editModeActive) {
-            let lat = e.latlng.lat;
-            let lng = e.latlng.lng;
-            marker.setLatLng([lat, lng]);
-            setLatLng(lat, lng);
-        }
-    });
+    marker.on('dragend', function () { if (editModeActive) { let pos = marker.getLatLng(); setLatLng(pos.lat, pos.lng); } });
+    map.on('click', function (e) { if (editModeActive) { let lat = e.latlng.lat; let lng = e.latlng.lng; marker.setLatLng([lat, lng]); setLatLng(lat, lng); } });
 }
 
-// 📍 Set lat/lng everywhere
 function setLatLng(lat, lng) {
     document.getElementById("id_business_latitude").value = lat.toFixed(6);
     document.getElementById("id_business_longitude").value = lng.toFixed(6);
-    if (map && marker) {
-        marker.setLatLng([lat, lng]);
-        map.setView([lat, lng], 15);
-    }
+    if (map && marker) { marker.setLatLng([lat, lng]); map.setView([lat, lng], 15); }
 }
 
 function editMode() {
-	editModeActive = !editModeActive;
-	if (editModeActive) {
-		swal.fire({
-			title: 'Edit Mode Activated',
-			text: 'You can now click on the map to set your location.',
-			icon: 'info'
-		});
-	} else {
-		swal.fire({
-			title: 'Edit Mode Deactivated',
-			text: 'Clicking on the map will no longer change your location.',
-			icon: 'info'
-		});
-	}
+    editModeActive = !editModeActive;
+    swal.fire({ title: editModeActive ? 'Edit Mode Activated' : 'Edit Mode Deactivated',
+        text: editModeActive ? 'You can now click on the map to set your location.' : 'Clicking on the map will no longer change your location.', icon: 'info' });
 }
 
 function getLiveLocation() {
-    if (!navigator.geolocation) {
-        swal.fire({
-            title: 'Error',
-            text: 'Geolocation is not supported by your browser.',
-            icon: 'error'
-        });
-        return;
-    }
-    swal.fire({
-        title: 'Fetching Location...',
-        text: 'Please allow location access',
-        allowOutsideClick: false,
-        didOpen: () => {
-            swal.showLoading();
-        }
-    });
-
+    if (!navigator.geolocation) { swal.fire({ title: 'Error', text: 'Geolocation is not supported by your browser.', icon: 'error' }); return; }
+    swal.fire({ title: 'Fetching Location...', text: 'Please allow location access', allowOutsideClick: false, didOpen: () => { swal.showLoading(); } });
     navigator.geolocation.getCurrentPosition(
-        function(position) {
-            let lat = position.coords.latitude;
-            let lng = position.coords.longitude;
-            setLatLng(lat, lng);
-            swal.close();
-        },
-        function(error) {
-            swal.fire({
-                title: 'Needed Permission',
-                text: 'Please allow location access to use this feature.',
-                icon: 'warning'
-            });
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000
-        }
+        function(position) { let lat = position.coords.latitude; let lng = position.coords.longitude; setLatLng(lat, lng); swal.close(); },
+        function(error) { swal.fire({ title: 'Needed Permission', text: 'Please allow location access to use this feature.', icon: 'warning' }); },
+        { enableHighAccuracy: true, timeout: 10000 }
     );
 }
 
-// 🚀 Init on load
-document.addEventListener("DOMContentLoaded", function () {
-    initMap();
-});
+document.addEventListener("DOMContentLoaded", function () { initMap(); });
 </script>
-
 {% endblock %}
-{% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}
 
+{% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}
 {% block body_libs %}{% include "partials/libs/leaflet_body.html" %}{% endblock %}

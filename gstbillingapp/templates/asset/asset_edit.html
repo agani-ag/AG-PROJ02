@@ -1,81 +1,78 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}{% if asset_form.instance.pk %}Edit{% else %}Add{% endif %} asset · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
 {% block content %}
+<div class="gs gs-pad">
+<form method="POST" class="gform">
+    {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'assets' %}">Assets</a> › {% if asset_form.instance.pk %}Edit{% else %}New{% endif %}</div>
+                <h1 class="disp">{% if asset_form.instance.pk %}Edit asset{% else %}Add asset{% endif %}</h1>
+            </div>
+        </div>
 
-<h2>Edit Asset</h2>
-<form method="POST">
-	{% csrf_token %}
-	<table class="table">
-		<tbody class="two-col-form">
-			<tr>
-				<th scope="row" class="text-right">Name:</th>
-				<td class="form-input-td">{{asset_form.name}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Category:</th>
-				<td>
-					<select id="categorySelect" style="width: 200px;" onchange="toggleCategoryTextbox()">
-						{% for category in categories %}
-							<option value="{{ category }}" {% if asset_form.category.value == category %}selected{% endif %}>{{ category }}</option>
-						{% endfor %}
-						<option value="">Other (Please specify)</option>
-					</select>
-				</td>
-			</tr>
-			<tr id="customCategoryRow" style="display: none;">
-				<th scope="row" class="text-right">Custom Category:</th>
-				<td>
-					<input type="text" id="customCategory" style="width: 200px;" placeholder="Enter custom category" />
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Value (₹):</th>
-				<td class="form-input-td">{{asset_form.value}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Date:</th>
-				<th>
-					<input type="date" name="date" value="{{ asset_form.date.value|date:'Y-m-d' }}" required>
-				</th>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Description:</th>
-				<td class="form-input-td">{{asset_form.description}}</td>
-			</tr>
-		</tbody>
-	</table>
+        <div class="section open">
+            <div class="sh"><span class="si b"><i class="fas fa-cube"></i></span>
+                <div><h3 class="disp">Asset details</h3><div class="sd">Name, category &amp; value</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label for="id_name">Name <span class="req">*</span></label>{{ asset_form.name }}</div>
+                <div class="field">
+                    <label for="categorySelect">Category</label>
+                    <select id="categorySelect" name="category" class="control" onchange="toggleCategoryTextbox()">
+                        {% for category in categories %}<option value="{{ category }}" {% if asset_form.category.value == category %}selected{% endif %}>{{ category }}</option>{% endfor %}
+                        <option value="">Other (please specify)</option>
+                    </select>
+                </div>
+                <div class="field" id="customCategoryRow" style="display:none">
+                    <label for="customCategory">Custom category</label>
+                    <input type="text" id="customCategory" class="control" placeholder="Enter custom category">
+                </div>
+                <div class="field"><label for="id_value">Value (₹)</label>{{ asset_form.value }}</div>
+                <div class="field"><label for="assetDate">Date</label><input type="date" id="assetDate" name="date" class="control" value="{{ asset_form.date.value|date:'Y-m-d' }}" required></div>
+                <div class="field full"><label for="id_description">Description</label>{{ asset_form.description }}</div>
+            </div></div>
+        </div>
+    </div>
 
-	<div class="form-group text-right">
-		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">{% if asset_form.instance.pk %}Editing asset{% else %}New asset · not saved{% endif %}</div>
+        <div class="end">
+            <a class="gbtn" href="{% url 'assets' %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> {% if asset_form.instance.pk %}Save changes{% else %}Save asset{% endif %}</button>
+        </div>
+    </div></div>
 </form>
-		<a class="btn btn-danger" href="{% url 'assets' %}"><i class="fas fa-cancel"></i></a>
-	</div>
+</div>
 
 <script>
 function toggleCategoryTextbox() {
     var categorySelect = document.getElementById('categorySelect');
     var customCategoryRow = document.getElementById('customCategoryRow');
     var customCategoryInput = document.getElementById('customCategory');
-    
-    // Show or hide the custom category input field based on selection
     if (categorySelect.value === "") {
-        customCategoryRow.style.display = 'table-row';
-		customCategoryInput.required = true;
-		customCategoryInput.setAttribute('name', 'category');
-		categorySelect.removeAttribute('name');
+        customCategoryRow.style.display = '';
+        customCategoryInput.required = true;
+        customCategoryInput.setAttribute('name', 'category');
+        categorySelect.removeAttribute('name');
     } else {
         customCategoryRow.style.display = 'none';
-        // Ensure that the custom category input is cleared if it's hidden
         customCategoryInput.value = '';
-		customCategoryInput.required = false;
-		categorySelect.setAttribute('name', 'category');
-		customCategoryInput.removeAttribute('name');
+        customCategoryInput.required = false;
+        categorySelect.setAttribute('name', 'category');
+        customCategoryInput.removeAttribute('name');
     }
 }
-
-// Trigger toggleCategoryTextbox on page load to ensure it works with the current selection
-document.addEventListener('DOMContentLoaded', function() {
-    toggleCategoryTextbox();
-});
+document.addEventListener('DOMContentLoaded', toggleCategoryTextbox);
 </script>
 {% endblock %}

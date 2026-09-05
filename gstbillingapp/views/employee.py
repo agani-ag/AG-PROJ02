@@ -12,10 +12,13 @@ from ..forms import EmployeeForm
 from ..mobile_auth import mint_employee_token, mint_customer_token
 from ..utils import calculate_employee_salary
 
+import csv
 import json
 import calendar
 import datetime
+from django.core.paginator import Paginator
 from django.db.models import Sum, Q
+from django.http import HttpResponse
 
 
 def _invoice_total(invoice_json):
@@ -40,11 +43,44 @@ def _posting(request, posting_id):
         pk=posting_id, business=request.user)
 
 
+def _filtered_postings(request):
+    qs = (EmployeePosting.objects.filter(business=request.user)
+          .select_related("employee").order_by("-is_home", "employee__name"))
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        qs = qs.filter(Q(employee__name__icontains=q) | Q(employee__email__icontains=q))
+    return qs, q
+
+
 @login_required
 def employees(request):
-    postings = (EmployeePosting.objects.filter(business=request.user)
-                .select_related("employee").order_by("-is_home", "employee__name"))
-    return render(request, "employees/employees.html", {"postings": postings})
+    qs, q = _filtered_postings(request)
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    params = request.GET.copy()
+    params.pop("page", None)
+    return render(request, "employees/employees.html", {
+        "postings": page_obj, "page_obj": page_obj, "total_count": paginator.count,
+        "q": q, "querystring": params.urlencode(),
+    })
+
+
+@login_required
+def employees_export(request):
+    qs, _q = _filtered_postings(request)
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="employees.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["Name", "Email", "Type", "Salary", "Admin", "Status"])
+    for p in qs:
+        writer.writerow([
+            p.employee.name, p.employee.email or "",
+            "Own" if p.is_home else "Shared",
+            p.salary if p.attendance_eligible else "",
+            "Yes" if p.is_admin else "No",
+            "Active" if p.is_active else "Inactive",
+        ])
+    return response
 
 
 @login_required

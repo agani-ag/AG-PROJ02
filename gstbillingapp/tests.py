@@ -9,6 +9,78 @@ from django.contrib.auth.models import User
 from .models import Customer, Book, BookLog, Invoice, ChequeLeaf
 
 
+class ProductsListTests(TestCase):
+    """The migrated (server-paginated) Products list + CSV export."""
+    def setUp(self):
+        from .models import Product, ProductCategory
+        self.user = User.objects.create_user("prodowner", password="pw12345!")
+        self.client.force_login(self.user)
+        self.cat = ProductCategory.objects.create(user=self.user, category_name="Cement")
+        for i in range(30):
+            Product.objects.create(user=self.user, model_no=f"MDL-{i:03d}",
+                                   product_name=f"Widget {i}", product_category=self.cat,
+                                   product_rate_with_gst=100 + i)
+        Product.objects.create(user=self.user, model_no="SPECIAL-1", product_name="Findable Gadget")
+
+    def test_list_paginates(self):
+        r = self.client.get(reverse("products"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'class="gs"')          # new design system in use
+        self.assertContains(r, "31 products")          # total count shown
+        # 25 per page → only 25 rows rendered, not all 31
+        self.assertEqual(r.content.decode().count('class="prim"'), 25)
+        r2 = self.client.get(reverse("products"), {"page": 2})
+        self.assertEqual(r2.content.decode().count('class="prim"'), 6)
+
+    def test_search_filters(self):
+        # icontains search (case-insensitive); model uppercases product_name on save.
+        r = self.client.get(reverse("products"), {"q": "Findable"})
+        self.assertContains(r, "SPECIAL-1")
+        self.assertNotContains(r, "MDL-000")
+
+    def test_category_filter(self):
+        r = self.client.get(reverse("products"), {"cat": self.cat.id})
+        self.assertContains(r, "30 products")
+
+    def test_csv_export_all_rows(self):
+        r = self.client.get(reverse("products_export"))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "text/csv")
+        body = r.content.decode()
+        self.assertIn("Model No,Product Name,Category", body)
+        # header + 31 rows
+        self.assertEqual(len([ln for ln in body.splitlines() if ln.strip()]), 32)
+
+    def test_export_respects_search(self):
+        r = self.client.get(reverse("products_export"), {"q": "Findable"})
+        lines = [ln for ln in r.content.decode().splitlines() if ln.strip()]
+        self.assertEqual(len(lines), 2)  # header + 1 match
+
+    def _form_post(self, model_no):
+        return {
+            'model_no': model_no, 'product_name': 'New One', 'product_hsn': '1234',
+            'product_gst_percentage': 18, 'product_purchase_rate': 100,
+            'product_rate_with_gst': 150, 'product_discount': 5,
+            'product_division_category': '', 'product_model_category': '',
+            'product_colour': '', 'product_image_url': '', 'product_category': '',
+        }
+
+    def test_add_product_via_form(self):
+        from .models import Product
+        r = self.client.post(reverse("product_add"), self._form_post("NEWPROD-1"))
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(Product.objects.filter(user=self.user, model_no="NEWPROD-1").exists())
+
+    def test_edit_product_via_form(self):
+        from .models import Product
+        p = Product.objects.create(user=self.user, model_no="EDIT-ME", product_name="Old")
+        data = self._form_post("EDIT-ME"); data['product_name'] = "Renamed"
+        r = self.client.post(reverse("product_edit", args=[p.id]), data)
+        self.assertEqual(r.status_code, 302)
+        p.refresh_from_db()
+        self.assertEqual(p.product_name, "RENAMED")  # model uppercases on save
+
+
 class LoginRememberMeTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("shopowner", password="pw12345!")

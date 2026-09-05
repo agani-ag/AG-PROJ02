@@ -1,8 +1,11 @@
 # Django imports
+import csv
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import IntegerField, Sum, Case, When, FloatField, F, Q
+from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import IntegerField, Sum, Case, When, FloatField, F
 
 # Models
 from ..models import Asset, AssetLog
@@ -12,11 +15,37 @@ from gstbillingapp.forms import AssetForm, AssetLogForm
 import num2words
 
 # ================= Asset Management =============================
+def _filtered_assets(request):
+    qs = Asset.objects.filter(user=request.user)
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(category__icontains=q))
+    return qs.order_by('-id'), q
+
+
 @login_required
 def assets(request):
-    context = {}
-    context['assets'] = Asset.objects.filter(user=request.user)
-    return render(request, 'asset/assets.html', context)
+    qs, q = _filtered_assets(request)
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return render(request, 'asset/assets.html', {
+        'assets': page_obj, 'page_obj': page_obj, 'total_count': paginator.count,
+        'q': q, 'querystring': params.urlencode(),
+    })
+
+
+@login_required
+def assets_export(request):
+    qs, _q = _filtered_assets(request)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="assets.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Name', 'Category', 'Value', 'Date'])
+    for a in qs:
+        writer.writerow([a.name, a.category or '', a.value, a.date or ''])
+    return response
 
 @login_required
 def asset_add(request):
@@ -90,8 +119,43 @@ def asset_log(request, asset_id):
         context['selected_category'] = request.GET.get('category')
         context['total_transactions'] = asset_logs.aggregate(total=Sum('change'))['total'] or 0
     context['total_transactions_word'] = num2words.num2words(abs(int(context['total_transactions'])), lang='en_IN').title()
-    context['logs'] = asset_logs.order_by('-date')
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        asset_logs = asset_logs.filter(Q(category__icontains=q) | Q(description__icontains=q))
+    paginator = Paginator(asset_logs.order_by('-date'), 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    context['logs'] = page_obj
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
+    context['q'] = q
+    context['active_filter'] = request.GET.get('filter', '')
     return render(request, 'asset/asset_log.html', context)
+
+
+@login_required
+def asset_log_export(request, asset_id):
+    asset = get_object_or_404(Asset, id=asset_id, user=request.user)
+    logs = AssetLog.objects.filter(asset=asset)
+    f = request.GET.get('filter')
+    if f == 'credit':
+        logs = logs.filter(change_type=0)
+    elif f == 'debit':
+        logs = logs.filter(change_type=1)
+    if request.GET.get('category'):
+        logs = logs.filter(category=request.GET.get('category'))
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        logs = logs.filter(Q(category__icontains=q) | Q(description__icontains=q))
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="asset-{asset_id}-logs.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Transaction', 'Amount', 'Category'])
+    for lg in logs.order_by('-date'):
+        writer.writerow([lg.date, lg.get_change_type_display(), lg.change, lg.category or ''])
+    return response
 
 @login_required
 def asset_log_add(request, asset_id):

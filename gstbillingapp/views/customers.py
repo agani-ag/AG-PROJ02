@@ -1,7 +1,10 @@
 # Django imports
+import csv
 from gstbilling import settings
 from django.utils import timezone
-from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -24,11 +27,37 @@ from ..utils import _escape_md
 CPASSWORD = 'pass123'
 
 # ================= Customer Views ===========================
+def _filtered_customers(request):
+    qs = Customer.objects.filter(user=request.user).order_by('customer_name')
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        qs = qs.filter(Q(customer_name__icontains=q) | Q(customer_phone__icontains=q) | Q(customer_gst__icontains=q))
+    return qs, q
+
+
 @login_required
 def customers(request):
-    context = {}
-    context['customers'] = Customer.objects.filter(user=request.user).order_by('customer_name')
-    return render(request, 'customers/customers.html', context)
+    qs, q = _filtered_customers(request)
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return render(request, 'customers/customers.html', {
+        'customers': page_obj, 'page_obj': page_obj, 'total_count': paginator.count,
+        'q': q, 'querystring': params.urlencode(),
+    })
+
+
+@login_required
+def customers_export(request):
+    qs, _q = _filtered_customers(request)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="customers.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Customer Name', 'Address', 'Phone', 'GST'])
+    for c in qs:
+        writer.writerow([c.customer_name, c.customer_address or '', c.customer_phone or '', c.customer_gst or ''])
+    return response
 
 
 @login_required

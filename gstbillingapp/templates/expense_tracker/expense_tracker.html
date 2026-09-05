@@ -1,206 +1,90 @@
 {% extends "base.html" %}
-
 {% load static %}
 {% load humanize %}
 {% load money %}
-{% block content %}
+{% block title %}Expenses · GSTSync{% endblock %}
 
-    <div class="row">
-        <div class="col">
-            <h3>Expenses</h3>
-        </div>
-
-        <div class="col text-right" style="padding-top: 0.5%;">
-            <a href="{% url 'expense_tracker_add' %}" class="btn btn-primary btn-sm btn-curve">
-                <i class="fas fa-plus"></i>
-            </a>
-        </div>
-    </div>
-    <!-- Summary Card -->
-     <div class="row mb-3">
-        <div class="col-md-3">
-            <div class="card bg-danger text-white">
-                <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-receipt"></i> Current Year
-                        <span class="badge badge-light">{% now "Y" %}</span></h6>
-                    <h3>₹ {{ total_current_year | default:0 | inrs }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-circle-check"></i> Current Month
-                        <span class="badge badge-light">{% now "F" %}</span></h6>
-                    <h3>₹ {{ total_current_month | default:0 | inrs }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-orange text-white">
-                <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-reply"></i> Last Month
-                        <span class="badge badge-light">{{ total_last_month_name }}</span></h6>
-                    <h3>₹ {{ total_last_month | default:0 | inrs }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-violet text-white">
-                <div class="card-body">
-                    <h6 class="card-title"><i class="fas fa-recycle"></i> Total Expenses
-                        <span class="badge badge-light">{{ start_end_year }}</span></h6>
-                    <h3>₹ {{ total_expenses | default:0 | inrs }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 mt-1">
-            <dropdown class="mb-3">
-                <button class="btn btn-secondary dropdown-toggle" type="button" id="filterDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    Filter by Category {% if selected_category %}({{ selected_category }}){% endif %}
-                </button>
-                <div class="dropdown-menu" aria-labelledby="filterDropdown">
-                    {% for category in categories %}
-                    <a class="dropdown-item" href="?category={{ category }}">{{ category }}</a>
-                    {% endfor %}
-                </div>
-            </dropdown>
-        </div>
-        <div class="col-md-3 mt-1 ml-auto" style="display:flex; justify-content:flex-end;">
-            <dropdown class="mb-3">
-                <button class="btn btn-secondary dropdown-toggle" type="button" id="filterDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                    Filter by Reference {% if selected_reference %}({{ selected_reference }}){% endif %}
-                </button>
-                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="filterDropdown">
-                    {% for reference in references %}
-                    <a class="dropdown-item" href="?reference={{ reference }}">{{ reference }}</a>
-                    {% endfor %}
-                </div>
-            </dropdown> 
-        </div>
-    </div>
-    <table class="table table-hover font-weight-bold" id="purchase-table">
-        <thead class="thead-dark">
-            <tr>
-                <th>Date</th>
-                <th>Category</th>
-                <th>Amount</th>
-                <th>Reference</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody class="two-col-form">
-            {% for expense in expenses %}
-            <tr class="{% if purchase.amount > 0 %} table-success {% else %} table-danger {% endif %}">
-                <td>{{expense.date}}</td>
-                <td>{{expense.category }}</td>
-                <td>{% if expense.amount %}₹ {{expense.amount|inrs}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-                <td>{{expense.reference}}</td>
-                <td>
-                    <div class="btn-group" role="group" aria-label="Basic example">
-                        <a href="javascript:void(0);" onclick="showDescription('{{ expense.description|escapejs }}')" class="btn btn-primary btn-sm btn-curve" title="View Description"><i class="fas fa-info-circle"></i></a>
-                        <a href="{% url 'expense_tracker_delete' expense.id %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-trash"></i></a>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
 
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Expenses</h1><div class="sub">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }}</div></div>
+        <div class="actions">
+            <a href="{% url 'expense_tracker_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-arrow-down"></i> Export</a>
+            <a href="{% url 'expense_tracker_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add expense</a>
+        </div>
+    </div>
+
+    <div class="gstats">
+        <div class="gstat red"><div class="gk"><span class="dot"></span> Current Year <span class="gbadge grey">{% now "Y" %}</span></div><div class="gv">₹ {{ total_current_year|default:0|inrs }}</div></div>
+        <div class="gstat green"><div class="gk"><span class="dot"></span> Current Month <span class="gbadge grey">{% now "F" %}</span></div><div class="gv">₹ {{ total_current_month|default:0|inrs }}</div></div>
+        <div class="gstat amber"><div class="gk"><span class="dot"></span> Last Month <span class="gbadge grey">{{ total_last_month_name }}</span></div><div class="gv">₹ {{ total_last_month|default:0|inrs }}</div></div>
+        <div class="gstat blue"><div class="gk"><span class="dot"></span> Total <span class="gbadge grey">{{ start_end_year }}</span></div><div class="gv">₹ {{ total_expenses|default:0|inrs }}</div></div>
+    </div>
+
+    <form method="get" class="toolbar">
+        <div class="search"><i class="fas fa-magnifying-glass gico"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search category, reference…" autocomplete="off"></div>
+        <select class="selctl" onchange="if(this.value)location.href='?category='+encodeURIComponent(this.value); else location.href='{% url 'expense_tracker' %}';">
+            <option value="">All categories</option>
+            {% for category in categories %}<option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>{% endfor %}
+        </select>
+        <select class="selctl" onchange="if(this.value)location.href='?reference='+encodeURIComponent(this.value); else location.href='{% url 'expense_tracker' %}';">
+            <option value="">All references</option>
+            {% for reference in references %}<option value="{{ reference }}" {% if selected_reference == reference %}selected{% endif %}>{{ reference }}</option>{% endfor %}
+        </select>
+        {% if selected_category or selected_reference or q %}<a href="{% url 'expense_tracker' %}" class="gbtn">Clear</a>{% endif %}
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Date</th><th>Category</th><th class="r">Amount</th><th>Reference</th><th class="r">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for expense in expenses %}
+                <tr>
+                    <td class="mut">{{ expense.date|date:"M d, Y" }}</td>
+                    <td><span class="tag2">{{ expense.category }}</span></td>
+                    <td class="r num">{% if expense.amount %}₹ {{ expense.amount|inrs }}{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td>{{ expense.reference|default:"—" }}</td>
+                    <td class="r"><div class="rowacts">
+                        <button type="button" class="gbtn gbtn-icon" title="Description" onclick="showDescription('{{ expense.description|escapejs }}')"><i class="fas fa-circle-info"></i></button>
+                        <button type="button" class="gbtn gbtn-icon del" title="Delete" onclick="deleteExpense({{ expense.id }})"><i class="fas fa-trash"></i></button>
+                    </div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5"><div class="empty">
+                    <div class="ei"><i class="fas fa-receipt fa-lg"></i></div>
+                    <h3>No expenses found</h3>
+                    <p>{% if q or selected_category or selected_reference %}Try clearing the filters.{% else %}Add your first expense.{% endif %}</p>
+                    {% if q or selected_category or selected_reference %}<a href="{% url 'expense_tracker' %}" class="gbtn">Clear filters</a>{% else %}<a href="{% url 'expense_tracker_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add expense</a>{% endif %}
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
+</div>
+{% endblock %}
 
 {% block includejs %}
-<script type="text/javascript">
-	$(document).ready( function () {
-		$('#purchase-table').DataTable({
-			"order": [],
-			"columnDefs": [ {
-				"targets": 3,
-				"sortable": false,
-				"searchable": false
-			} ],
-			"paging": true,
-            dom: 'Bfrtip',
-			buttons: [
-				{
-					extend: 'excelHtml5',
-					text: '<i class="fas fa-file-excel"></i> Excel',
-					className: 'btn btn-success btn-sm btn-curve'
-				},
-				{
-					extend: 'pdfHtml5',
-					text: '<i class="fas fa-file-pdf"></i> PDF',
-					className: 'btn btn-danger btn-sm btn-curve'
-				},
-				{
-					extend: 'print',
-					text: '<i class="fas fa-print"></i> Print',
-					className: 'btn btn-warning btn-sm btn-curve',
-					title: '',
-					customize: function (win) {
-						var body = $(win.document.body);
-						body.css('font-family', 'Arial, sans-serif');
-
-						// Build header
-						var header = '<div style="text-align:center; margin-bottom:20px;">' +
-							'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
-							'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
-							'<p style="margin:2px 0; color:#666; font-size:13px;">' +
-								'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
-								'{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
-                                '{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
-							'</p>' +
-							'<hr style="margin:10px 0;">' +
-							'<h4 style="margin:0;">Expense Report</h4>' +
-							'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
-								'<span style="color:#dc3545;"><strong>Current Year ({% now "Y" %}):</strong> ₹ {{ total_current_year|default:0|inrs }}</span>' +
-								'<span style="color:#28a745;"><strong>Current Month ({% now "F" %}):</strong> ₹ {{ total_current_month|default:0|inrs }}</span>' +
-								'<span style="color:#6f42c1;"><strong>Total Expenses:</strong> ₹ {{ total_expenses|default:0|inrs }}</span>' +
-							'</div>' +
-							'<hr style="margin-top:15px;">' +
-						'</div>';
-						body.find('table').before(header);
-
-						// Hide Actions column
-						body.find('table th:last-child, table td:last-child').hide();
-
-						// Add S.No column header
-						body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
-
-						// Add S.No to each row
-						body.find('table tbody tr').each(function(index) {
-							$(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
-						});
-
-						// Style the table
-						body.find('table')
-							.css('width', '100%')
-							.css('border-collapse', 'collapse')
-							.css('font-size', '13px');
-						body.find('table th, table td')
-							.css('border', '1px solid #ddd')
-							.css('padding', '8px');
-						body.find('table thead th')
-							.css('background-color', '#343a40')
-							.css('color', '#fff')
-							.css('text-align', 'left');
-					}
-                }
-			]
-		});
-	});
-    function showDescription(description) {
-        Swal.fire({
-            title: 'Expense Description',
-            text: description || 'No description provided.',
-            icon: 'info',
-            confirmButtonText: 'Close',
-            customClass: {
-                popup: 'swal-wide'
-            }
-        });
-    }
+<script>
+function showDescription(description){
+    Swal.fire({ title:'Expense Description', text: description || 'No description provided.', icon:'info', confirmButtonText:'Close' });
+}
+function deleteExpense(id){
+    Swal.fire({ title:'Delete expense?', text:'This cannot be undone.', icon:'warning',
+        showCancelButton:true, confirmButtonText:'Delete', confirmButtonColor:'#e11d48', cancelButtonText:'Cancel'
+    }).then(function(r){ if(r.isConfirmed){ window.location.href = "/expensetracker/delete/" + id; } });
+}
 </script>
 {% endblock %}
-
-{% block body_libs %}{% include "partials/libs/export_body.html" %}{% endblock %}

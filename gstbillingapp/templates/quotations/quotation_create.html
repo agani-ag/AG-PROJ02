@@ -51,10 +51,29 @@
 				<td class="form-input-td"><input autocomplete="off" name="customer-phone" type="tel" class="form-control" id="customer-phone-input" placeholder="Customer Mobile Number" readonly></td>
 				<th scope="row">Customer GST</th>
 				<td class="form-input-td"><input autocomplete="off" name="customer-gst" type="text" class="form-control" id="customer-gst-input" placeholder="Customer GST" maxlength="15" pattern="([A-Za-z0-9]{15})|(^$)" readonly></td>
+				<input type="hidden" id="customer-id-input" name="customer-id">
 			</tr>
 
 		</tbody>
 	</table>
+
+	<!-- Know-your-customer panel (balance / dues / credit / usual items) — filled by invoice_insights.js -->
+	<div id="customer-insights-panel" class="card mb-3" style="display:none; border-left:4px solid #6c757d;">
+		<div class="card-body py-2 px-3">
+			<div class="d-flex flex-wrap align-items-center" style="gap:.4rem;">
+				<span id="ci-balance" class="badge"></span>
+				<span id="ci-aging" class="badge badge-light border" style="display:none;"></span>
+				<span id="ci-cheque" class="badge badge-danger" style="display:none;"></span>
+				<span id="ci-collection" class="badge badge-light border"></span>
+				<span id="ci-credit" class="badge" style="display:none;"></span>
+				<span id="ci-lastpay" class="text-muted small"></span>
+				<span id="ci-lastorder" class="text-muted small"></span>
+			</div>
+			<div id="ci-usual" class="mt-1" style="display:none;">
+				<small class="text-muted">Usual items (click to add):</small> <span id="ci-usual-chips"></span>
+			</div>
+		</div>
+	</div>
 
 	<table class="table table-bordered">
 		<tbody class="two-col-form">
@@ -109,7 +128,7 @@
 		</thead>
 		<tbody id="invoice-form-items-table-body">
 			<tr>
-				<td class="invoice-item-slno">1</td>
+				<td class="invoice-item-slno"><span class="slno-num">1</span><button type="button" class="row-del" onclick="delete_invoice_item_row(this)" title="Remove this row">&times;</button></td>
 				<td class="formSS-input-td"><input name="invoice-model-no" type="text" class="form-control product_search_area product_search_input" placeholder="Model No"></td>
 				<td class="form-input-td"><input name="invoice-product" type="text" class="form-control" placeholder="Product"></td>
 				<td class="form-input-td"><input name="invoice-hsn" type="text" class="form-control" placeholder="HSN"></td>
@@ -117,7 +136,7 @@
 
 				<td class="form-input-td"><input name="invoice-discount" type="number" step="any" class="form-control" value='0' placeholder="Discount" min="0"></td>
 
-				<td class="form-input-td"><input name="invoice-qty" type="number" step="any" class="form-control" placeholder="Qty" value='1' min="1"></td>
+				<td class="form-input-td"><input name="invoice-qty" type="number" step="any" class="form-control" placeholder="Qty" value='1'></td>
 				<td class="form-input-td"><input name="invoice-rate-with-gst" type="number" step="any" class="form-control" placeholder="MRP" min="1"></td>
 				<td class="form-input-td"><input name="invoice-gst-percentage" type="number" step="any" class="form-control" placeholder="GST %" min="1"></td>
 
@@ -141,6 +160,8 @@
 		</tr>
 
 	</table>
+	<!-- Group B: per-line qty / stock / below-cost alerts -->
+	<div id="item-alerts" class="mb-2"></div>
 	{% csrf_token %}
 	<div class="d-flex justify-content-between">
 		<div>
@@ -161,8 +182,11 @@
 {% endblock %}
 
 {% block includejs %}
+<!-- main.js still uses jQuery; load it locally here (jQuery was dropped from base.html). -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="{% static "gstbillingapp/js/fuse-3.4.6.min.js" %}"></script>
-<script src="{% static "gstbillingapp/js/main.js" %}?v=2"></script>
+<script src="{% static "gstbillingapp/js/main.js" %}?v={{ ASSET_VER }}"></script>
+<script src="{% static 'gstbillingapp/js/invoice_insights.js' %}?v={{ ASSET_VER }}"></script>
 
 <script>
 	function cancel_quotation() {

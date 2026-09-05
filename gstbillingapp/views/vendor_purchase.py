@@ -1,6 +1,8 @@
 # Django imports
+import csv
 from django.utils import timezone
-from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.http import JsonResponse, HttpResponse
 from django.db.models.functions import Abs, Cast
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -16,11 +18,37 @@ from ..utils import (
 import num2words
 
 # ================= Vendor Purchase Views ==============================
+def _filtered_vendors(request):
+    qs = VendorPurchase.objects.filter(user=request.user).order_by('vendor_name')
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        qs = qs.filter(Q(vendor_name__icontains=q) | Q(vendor_phone__icontains=q) | Q(vendor_gst__icontains=q))
+    return qs, q
+
+
 @login_required
 def vendors_purchase(request):
-    context = {}
-    context['vendors'] = VendorPurchase.objects.filter(user=request.user)
-    return render(request, 'vendor_purchase/vendors_purchase.html', context)
+    qs, q = _filtered_vendors(request)
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return render(request, 'vendor_purchase/vendors_purchase.html', {
+        'vendors': page_obj, 'page_obj': page_obj, 'total_count': paginator.count,
+        'q': q, 'querystring': params.urlencode(),
+    })
+
+
+@login_required
+def vendors_purchase_export(request):
+    qs, _q = _filtered_vendors(request)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="vendors.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Vendor Name', 'Address', 'Phone', 'GST'])
+    for v in qs:
+        writer.writerow([v.vendor_name, v.vendor_address or '', v.vendor_phone or '', v.vendor_gst or ''])
+    return response
 
 
 @login_required

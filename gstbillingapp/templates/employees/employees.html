@@ -1,143 +1,146 @@
 {% extends "base.html" %}
 {% load static %}
 {% load money %}
+{% block title %}Employees · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
-<div class="row">
-	<div class="col"><h2>Employees</h2></div>
-	<div class="col text-right" style="padding-top: 0.5%;">
-		<button class="btn btn-info btn-sm btn-curve" onclick="addShared()" title="Add shared employee"><i class="fas fa-user-plus"></i> Add shared</button>
-		<a href="{% url 'employee_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Employee"><i class="fas fa-plus"></i></a>
-	</div>
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Employees</h1><div class="sub">{{ total_count }} on your team</div></div>
+        <div class="actions">
+            <button class="gbtn" onclick="addShared()" title="Add shared employee"><i class="fas fa-user-plus"></i> Add shared</button>
+            <a href="{% url 'employees_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-arrow-down"></i> Export</a>
+            <a href="{% url 'employee_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add employee</a>
+        </div>
+    </div>
+
+    <form method="get" class="toolbar">
+        <div class="search"><i class="fas fa-magnifying-glass gico"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search employee name, email…" autocomplete="off"></div>
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Employee</th><th>Type</th><th class="r">Salary</th><th>Admin</th><th>Status</th><th class="r">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for p in postings %}
+                <tr>
+                    <td><div class="prim"><span class="pi"><i class="fas fa-user"></i></span>
+                        <div><div class="nm">{{ p.employee.name }}</div>{% if p.employee.email %}<div class="mn">{{ p.employee.email }}</div>{% endif %}</div></div></td>
+                    <td>{% if p.is_home %}<span class="gbadge blue">Own</span>{% else %}<span class="gbadge grey">Shared</span><div class="mn">from {{ p.employee.business.userprofile.business_brand|default:p.employee.business.userprofile.business_title|default:p.employee.business.username }}</div>{% endif %}</td>
+                    <td class="r num">{% if p.attendance_eligible %}{% if p.salary %}₹ {{ p.salary|inrs }}{% else %}<span class="mut">—</span>{% endif %}{% else %}<span class="gbadge grey">Not on payroll</span>{% endif %}</td>
+                    <td>{% if p.is_admin %}<span class="gbadge blue">Admin</span>{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td>{% if p.is_active %}<span class="gbadge ok">Active</span>{% else %}<span class="gbadge grey">Inactive</span>{% endif %}</td>
+                    <td class="r"><div class="rowacts">
+                        <a href="{% url 'employee_edit' p.id %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
+                        <a href="{% url 'employee_salary' p.id %}" class="gbtn gbtn-icon" title="Attendance &amp; Salary"><i class="fas fa-wallet"></i></a>
+                        <a href="{% url 'employee_incentives' p.id %}" class="gbtn gbtn-icon" title="Incentives"><i class="fas fa-gift"></i></a>
+                        <a href="{% url 'employee_invoices' p.id %}" class="gbtn gbtn-icon" title="Related invoices"><i class="fas fa-file-invoice"></i></a>
+                        {% if p.is_home %}
+                        <button type="button" class="gbtn gbtn-icon" onclick="shareCode('{{ p.employee.share_code }}', '{{ p.employee.name|escapejs }}')" title="Share code"><i class="fas fa-share-alt"></i></button>
+                        <button type="button" class="gbtn gbtn-icon" onclick="mobileLink({{ p.id }})" title="Mobile access link"><i class="fas fa-mobile-alt"></i></button>
+                        {% endif %}
+                        <button type="button" class="gbtn gbtn-icon del" title="Remove"
+                            onclick="removeEmployee({{ p.id }}, '{{ p.employee.name|escapejs }}', {{ p.is_home|yesno:'true,false' }})"><i class="fas fa-trash"></i></button>
+                    </div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty">
+                    <div class="ei"><i class="fas fa-users fa-lg"></i></div>
+                    <h3>No employees found</h3>
+                    <p>{% if q %}Try a different search.{% else %}Add your first employee.{% endif %}</p>
+                    {% if q %}<a href="{% url 'employees' %}" class="gbtn">Clear search</a>{% else %}<a href="{% url 'employee_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add employee</a>{% endif %}
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
 </div>
 
-<table class="table table-bordered" id="employee-table">
-	<thead class="thead-dark">
-		<tr><th>Name</th><th>Type</th><th class="text-right">Salary</th><th>Admin</th><th>Status</th><th>Actions</th></tr>
-	</thead>
-	<tbody class="two-col-form">
-		{% for p in postings %}
-		<tr>
-			<td>{{ p.employee.name }}{% if not p.employee.email %}{% else %}<br><small class="text-muted">{{ p.employee.email }}</small>{% endif %}</td>
-			<td>{% if p.is_home %}<span class="badge badge-primary">Own</span>{% else %}<span class="badge badge-info">Shared</span><br><small class="text-muted">from {{ p.employee.business.userprofile.business_brand|default:p.employee.business.userprofile.business_title|default:p.employee.business.username }}</small>{% endif %}</td>
-			<td class="text-right">{% if p.attendance_eligible %}{% if p.salary %}₹ {{ p.salary|inrs }}{% else %}<span class="text-muted">—</span>{% endif %}{% else %}<span class="badge badge-light border">Not on payroll</span>{% endif %}</td>
-			<td>{% if p.is_admin %}<span class="badge badge-dark">Admin</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
-			<td>{% if p.is_active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-secondary">Inactive</span>{% endif %}</td>
-			<td>
-				<div class="btn-group" role="group">
-					<a href="{% url 'employee_edit' p.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit"><i class="fas fa-pen-to-square"></i></a>
-					<a href="{% url 'employee_salary' p.id %}" class="btn btn-dark btn-sm btn-curve" title="Attendance &amp; Salary"><i class="fas fa-wallet"></i></a>
-					<a href="{% url 'employee_incentives' p.id %}" class="btn btn-warning btn-sm btn-curve" title="Incentives"><i class="fas fa-gift"></i></a>
-					<a href="{% url 'employee_invoices' p.id %}" class="btn btn-success btn-sm btn-curve" title="Related invoices"><i class="fas fa-file-invoice"></i></a>
-					{% if p.is_home %}
-					<button type="button" class="btn btn-secondary btn-sm btn-curve" onclick="shareCode('{{ p.employee.share_code }}', '{{ p.employee.name|escapejs }}')" title="Share code"><i class="fas fa-share-alt"></i></button>
-					<button type="button" class="btn btn-info btn-sm btn-curve" onclick="mobileLink({{ p.id }})" title="Mobile Access Link"><i class="fas fa-mobile-alt"></i></button>
-					{% endif %}
-					<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#employeeDeleteModal" data-posting-id="{{ p.id }}" data-employee-name="{{ p.employee.name }}" data-is-home="{{ p.is_home|yesno:'1,0' }}" title="Remove"><i class="fas fa-trash"></i></button>
-				</div>
-			</td>
-		</tr>
-		{% endfor %}
-	</tbody>
-</table>
-
-<div class="modal fade" id="employeeDeleteModal" tabindex="-1" role="dialog" aria-hidden="true">
-	<div class="modal-dialog" role="document"><div class="modal-content">
-		<div class="modal-header"><h5 class="modal-title">Are you sure?</h5>
-			<button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
-		<form method="POST" id="employeeDeleteForm">{% csrf_token %}
-			<div class="modal-body"><span id="delMsg"></span></div>
-			<div class="modal-footer">
-				<button type="submit" class="btn btn-danger">Yes</button>
-				<button type="button" class="btn btn-primary" data-dismiss="modal">No</button>
-			</div>
-		</form>
-	</div></div>
-</div>
+<form id="del-form" method="POST" style="display:none">{% csrf_token %}</form>
 {% endblock %}
 
 {% block includejs %}
 <script type="text/javascript">
-$('#employeeDeleteModal').on('show.bs.modal', function (event) {
-	var button = $(event.relatedTarget);
-	var id = button.data('posting-id'), name = button.data('employee-name'), home = String(button.data('is-home')) === '1';
-	var modal = $(this);
-	modal.find('#delMsg').html(home
-		? 'Remove <b>' + name + '</b> and all their attendance / salary / incentives?'
-		: 'Remove shared employee <b>' + name + '</b> from your team? (Their home business keeps them.)');
-	modal.find('#employeeDeleteForm').attr('action', '/employees/' + id + '/delete');
-});
-
-$(document).ready(function () {
-	$('#employee-table').DataTable({
-		"order": [], "columnDefs": [{ "targets": 5, "sortable": false, "searchable": false }],
-		"paging": true, dom: 'Bfrtip',
-		buttons: [
-			{ extend: 'excelHtml5', text: '<i class="fas fa-file-excel"></i> Excel', className: 'btn btn-success btn-sm btn-curve' },
-			{ extend: 'pdfHtml5', text: '<i class="fas fa-file-pdf"></i> PDF', className: 'btn btn-danger btn-sm btn-curve' },
-			{ extend: 'print', text: '<i class="fas fa-print"></i> Print', className: 'btn btn-warning btn-sm btn-curve', title: '' }
-		]
-	});
-});
-
 function _csrf() { return document.querySelector('[name=csrfmiddlewaretoken]').value; }
 
+function removeEmployee(id, name, home){
+    Swal.fire({
+        title: 'Remove employee?',
+        html: home ? 'Remove <b>' + name + '</b> and all their attendance / salary / incentives?'
+                   : 'Remove shared employee <b>' + name + '</b> from your team? (Their home business keeps them.)',
+        icon: 'warning', showCancelButton: true, confirmButtonText: 'Remove', confirmButtonColor: '#e11d48', cancelButtonText: 'Cancel'
+    }).then(function(r){
+        if (r.isConfirmed){ var f = document.getElementById('del-form'); f.action = '/employees/' + id + '/delete'; f.submit(); }
+    });
+}
+
 function mobileLink(id) {
-	fetch('/employees/' + id + '/mobile-link').then(r => r.json()).then(d => {
-		if (!d.ok) { Swal.fire('', d.message || 'Not available', 'info'); return; }
-		Swal.fire({
-			title: 'Mobile Access Link',
-			html: '<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
-			      '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
-			confirmButtonText: 'Copy link',
-			preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(d.url)
-		});
-	});
+    fetch('/employees/' + id + '/mobile-link').then(r => r.json()).then(d => {
+        if (!d.ok) { Swal.fire('', d.message || 'Not available', 'info'); return; }
+        Swal.fire({
+            title: 'Mobile Access Link',
+            html: '<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
+                  '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
+            confirmButtonText: 'Copy link',
+            preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(d.url)
+        });
+    });
 }
 
 function shareCode(code, name) {
-	Swal.fire({
-		title: 'Share ' + name,
-		html: '<small class="text-muted">Give this code to another business. They paste it in <b>Add shared</b> to add ' + name + ' to their team.</small>' +
-		      '<input class="form-control mt-2 text-center" style="font-size:20px;font-weight:700" readonly value="' + code + '" onclick="this.select()">',
-		confirmButtonText: 'Copy code',
-		preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(code)
-	});
+    Swal.fire({
+        title: 'Share ' + name,
+        html: '<small class="text-muted">Give this code to another business. They paste it in <b>Add shared</b> to add ' + name + ' to their team.</small>' +
+              '<input class="form-control mt-2 text-center" style="font-size:20px;font-weight:700" readonly value="' + code + '" onclick="this.select()">',
+        confirmButtonText: 'Copy code',
+        preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(code)
+    });
 }
 
 function addShared() {
-	Swal.fire({
-		title: 'Add shared employee',
-		html: '<small class="text-muted">Paste the employee share code the other business gave you.</small>' +
-		      '<input id="sc" class="form-control mt-2 text-center" placeholder="EMP-XXXXXX" style="text-transform:uppercase">' +
-		      '<div id="scInfo" class="mt-2 small"></div>',
-		showCancelButton: true, confirmButtonText: 'Add',
-		didOpen: () => {
-			var el = document.getElementById('sc');
-			el.addEventListener('input', function () {
-				var code = el.value.trim();
-				if (code.length < 4) { document.getElementById('scInfo').innerHTML = ''; return; }
-				fetch('/employees/employee-lookup?code=' + encodeURIComponent(code)).then(r => r.json()).then(d => {
-					document.getElementById('scInfo').innerHTML = d.ok
-						? '<span class="text-success">' + d.name + ' — from ' + d.home + '</span>'
-						: '<span class="text-danger">' + (d.message || 'Not found') + '</span>';
-				});
-			});
-		},
-		preConfirm: () => {
-			var code = document.getElementById('sc').value.trim();
-			if (!code) { Swal.showValidationMessage('Enter a code'); return false; }
-			return code;
-		}
-	}).then(res => {
-		if (!res.isConfirmed) return;
-		var f = document.createElement('form'); f.method = 'POST'; f.action = '{% url "employee_add_shared" %}';
-		f.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="' + _csrf() + '">' +
-		              '<input type="hidden" name="share_code" value="' + res.value + '">';
-		document.body.appendChild(f); f.submit();
-	});
+    Swal.fire({
+        title: 'Add shared employee',
+        html: '<small class="text-muted">Paste the employee share code the other business gave you.</small>' +
+              '<input id="sc" class="form-control mt-2 text-center" placeholder="EMP-XXXXXX" style="text-transform:uppercase">' +
+              '<div id="scInfo" class="mt-2 small"></div>',
+        showCancelButton: true, confirmButtonText: 'Add',
+        didOpen: () => {
+            var el = document.getElementById('sc');
+            el.addEventListener('input', function () {
+                var code = el.value.trim();
+                if (code.length < 4) { document.getElementById('scInfo').innerHTML = ''; return; }
+                fetch('/employees/employee-lookup?code=' + encodeURIComponent(code)).then(r => r.json()).then(d => {
+                    document.getElementById('scInfo').innerHTML = d.ok
+                        ? '<span class="text-success">' + d.name + ' — from ' + d.home + '</span>'
+                        : '<span class="text-danger">' + (d.message || 'Not found') + '</span>';
+                });
+            });
+        },
+        preConfirm: () => {
+            var code = document.getElementById('sc').value.trim();
+            if (!code) { Swal.showValidationMessage('Enter a code'); return false; }
+            return code;
+        }
+    }).then(res => {
+        if (!res.isConfirmed) return;
+        var f = document.createElement('form'); f.method = 'POST'; f.action = '{% url "employee_add_shared" %}';
+        f.innerHTML = '<input type="hidden" name="csrfmiddlewaretoken" value="' + _csrf() + '">' +
+                      '<input type="hidden" name="share_code" value="' + res.value + '">';
+        document.body.appendChild(f); f.submit();
+    });
 }
 </script>
 {% endblock %}
-
-{% block body_libs %}{% include "partials/libs/export_body.html" %}{% endblock %}

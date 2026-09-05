@@ -1,6 +1,7 @@
 # Django imports
 from django.contrib import messages
-from django.db.models import Max, Sum
+from django.core.paginator import Paginator
+from django.db.models import Max, Sum, Q
 from django.db import transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -141,12 +142,176 @@ def invoice_create(request):
     return render(request, 'invoices/invoice_create.html', context)
 
 
+def _filtered_invoices(request, search_value=''):
+    """Shared filter for the Invoices list + its print/ajax feed.
+    Mirrors the invoices_ajax filters; returns (queryset, filter_context)."""
+    from datetime import timedelta
+    from django.utils import timezone
+
+    invoice_type = request.GET.get('invoice_type', 'all')
+    date_filter = request.GET.get('date_filter', 'all')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
+    customer_id = request.GET.get('customer_id', '')
+
+    qs = Invoice.objects.filter(user=request.user).select_related('invoice_customer')
+
+    if customer_id and customer_id.isdigit():
+        qs = qs.filter(invoice_customer__id=int(customer_id))
+
+    if invoice_type == 'gst':
+        qs = qs.filter(is_gst=True)
+    elif invoice_type == 'non_gst':
+        qs = qs.filter(is_gst=False)
+    elif invoice_type == 'not_pushed':
+        qs = qs.filter(books_reflected=False)
+    elif invoice_type == 'missing_in_books':
+        existing_invoice_ids = set(BookLog.objects.filter(
+            parent_book__user=request.user, associated_invoice__isnull=False
+        ).values_list('associated_invoice_id', flat=True))
+        qs = qs.filter(books_reflected=True).exclude(id__in=existing_invoice_ids)
+
+    if date_filter and date_filter != 'all':
+        if date_filter == 'today':
+            qs = qs.filter(invoice_date=timezone.now().date())
+        elif date_filter == 'week':
+            week_start = timezone.now().date() - timedelta(days=timezone.now().weekday())
+            qs = qs.filter(invoice_date__gte=week_start)
+        elif date_filter == 'month':
+            qs = qs.filter(invoice_date__gte=timezone.now().date().replace(day=1))
+        elif date_filter == 'custom' and start_date and end_date:
+            try:
+                qs = qs.filter(invoice_date__gte=start_date, invoice_date__lte=end_date)
+            except Exception:
+                pass
+
+    if search_value:
+        qs = qs.filter(
+            Q(invoice_number__icontains=search_value) |
+            Q(invoice_customer__customer_name__icontains=search_value)
+        )
+
+    return qs, {
+        'invoice_type': invoice_type, 'customer_id': customer_id,
+        'date_filter': date_filter, 'start_date': start_date, 'end_date': end_date,
+    }
+
+
+def _invoices_total_amount(queryset):
+    """Sum of invoice_total_amt_with_gst across the whole (unpaginated) queryset."""
+    total = 0.0
+    for invoice_json_str in queryset.values_list('invoice_json', flat=True):
+        try:
+            total += float(json.loads(invoice_json_str).get('invoice_total_amt_with_gst', 0))
+        except Exception:
+            pass
+    return total
+
+
+def _invoice_row_dict(invoice, request, invoice_type):
+    """Build one invoices-table row (shared by the native list + the ajax/print feed)."""
+    # Invoice number
+    if invoice.is_gst:
+        invoice_num = str(invoice.invoice_number)
+    else:
+        invoice_num = f'<span class="text-danger font-weight-bold">INV-{invoice.invoice_number}</span>'
+
+    # Customer
+    if invoice.invoice_customer:
+        customer_html = f'<a href="/books/{invoice.invoice_customer.id}" style="text-decoration: none;color: black;" title="View Books">{invoice.invoice_customer.customer_name}</a>'
+    else:
+        customer_html = '<span class="text-danger">N/A</span>'
+
+    # Invoice Amount (from invoice_json)
+    try:
+        invoice_json = json.loads(invoice.invoice_json)
+        invoice_amount = float(invoice_json.get('invoice_total_amt_with_gst', 0))
+    except Exception:
+        invoice_json = {}
+        invoice_amount = 0.0
+
+    # Division Category Totals
+    totals_by_category = {}
+    amount_without_gst = 0.0
+    for item in invoice_json.get('items', []):
+        category = (
+            item.get('product_division_category')
+            or item.get('division_category')
+            or ''
+        )
+        if not category:
+            model = item.get('invoice_model_no')
+            if model:
+                product = Product.objects.filter(user=request.user, model_no=model).first()
+                if product:
+                    category = product.product_division_category
+        category = category.strip().upper() if category else "UNSPECIFIED"
+        try:
+            amount = float(item.get("invoice_amt_without_gst") or 0)
+        except Exception:
+            qty = float(item.get("invoice_qty") or 1)
+            rate = float(item.get("invoice_rate_without_gst") or 0)
+            amount = qty * rate
+        totals_by_category[category] = totals_by_category.get(category, 0) + amount
+        amount_without_gst += amount
+
+    # Actions
+    actions_html = '<div class="btn-group" role="group">'
+    actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-primary btn-sm btn-curve" title="View Invoice"><i class="fa fa-eye"></i></a>'
+    if invoice.invoice_customer:
+        category_json = html.escape(json.dumps(totals_by_category))
+        actions_html += f'''
+                <button type="button" class="btn btn-orange btn-sm btn-curve"
+                    data-category="{category_json}" data-total="{amount_without_gst}"
+                    onclick="dc_invoice_map(this)" title="Division Category"><i class="fa fa-snowflake"></i></button>
+        '''
+    if invoice_type in ['not_pushed', 'missing_in_books']:
+        button_title = 'Push to Books' if invoice_type == 'not_pushed' else 'Fix & Push to Books'
+        actions_html += f'<button type="button" onclick="pushToBooks({invoice.id})" class="btn btn-success btn-sm btn-curve" title="{button_title}"><i class="fa fa-book"></i></button>'
+
+    customer_info = invoice.invoice_customer.customer_name if invoice.invoice_customer else "N/A"
+    _del_label = f"{invoice.invoice_number}, for {customer_info}".replace("\\", "\\\\").replace("'", "\\'")
+    actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" onclick="openInvoiceDelete({invoice.id}, \'{_del_label}\')" title="Delete Invoice"><i class="fa fa-trash"></i></button>'
+    actions_html += '</div>'
+
+    return {
+        'invoice_number': invoice_num,
+        'invoice_date': invoice.invoice_date.strftime('%b %d, %Y'),
+        'customer': customer_html,
+        'invoice_amount': f"₹ {format_inr_smart(invoice_amount)}",
+        'actions': actions_html,
+    }
+
+
 @login_required
 def invoices(request):
-    context = {}
-    # Get all customers for dropdown filter
-    customers = Customer.objects.filter(user=request.user).order_by('customer_name')
-    context['customers'] = customers
+    # Default the Type filter to GST when the page is first opened (no querystring),
+    # matching the old client-side default.
+    if 'invoice_type' not in request.GET:
+        params = request.GET.copy()
+        params['invoice_type'] = 'gst'
+        request.GET = params
+
+    qs, fctx = _filtered_invoices(request, search_value=request.GET.get('q', '').strip())
+    qs = qs.order_by('-invoice_date', '-id')
+
+    total_invoice_amount = _invoices_total_amount(qs)
+
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    rows = [_invoice_row_dict(inv, request, fctx['invoice_type']) for inv in page_obj]
+
+    params = request.GET.copy()
+    params.pop('page', None)
+
+    context = dict(fctx)
+    context['customers'] = Customer.objects.filter(user=request.user).order_by('customer_name')
+    context['rows'] = rows
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
+    context['q'] = request.GET.get('q', '').strip()
+    context['total_invoice_amount'] = total_invoice_amount
     return render(request, 'invoices/invoices.html', context)
 
 @login_required
@@ -254,89 +419,8 @@ def invoices_ajax(request):
         # Pagination - apply after total calculation
         queryset = queryset[start:start + length]
         
-        # Prepare data for current page
-        data = []
-        for invoice in queryset:
-            # Invoice number
-            if invoice.is_gst:
-                invoice_num = str(invoice.invoice_number)
-            else:
-                invoice_num = f'<span class="text-danger font-weight-bold">INV-{invoice.invoice_number}</span>'
-
-            # Customer
-            if invoice.invoice_customer:
-                customer_html = f'<a href="/books/{invoice.invoice_customer.id}" style="text-decoration: none;color: black;" title="View Books">{invoice.invoice_customer.customer_name}</a>'
-            else:
-                customer_html = '<span class="text-danger">N/A</span>'
-
-            # Invoice Amount (from invoice_json)
-            try:
-                invoice_json = json.loads(invoice.invoice_json)
-                invoice_amount = float(invoice_json.get('invoice_total_amt_with_gst', 0))
-            except Exception:
-                invoice_amount = 0.0
-
-            # Division Category Totals
-            totals_by_category = {}
-            amount_without_gst = 0.0
-
-            for item in invoice_json.get('items', []):
-                category = (
-                    item.get('product_division_category')
-                    or item.get('division_category')
-                    or ''
-                )
-
-                if not category:
-                    model = item.get('invoice_model_no')
-                    if model:
-                        product = Product.objects.filter(
-                            user=request.user,
-                            model_no=model
-                        ).first()
-                        if product:
-                            category = product.product_division_category
-
-                category = category.strip().upper() if category else "UNSPECIFIED"
-
-                try:
-                    amount = float(item.get("invoice_amt_without_gst") or 0)
-                except:
-                    qty = float(item.get("invoice_qty") or 1)
-                    rate = float(item.get("invoice_rate_without_gst") or 0)
-                    amount = qty * rate
-
-                totals_by_category[category] = totals_by_category.get(category, 0) + amount
-                amount_without_gst += amount
-
-            # Actions
-            actions_html = '<div class="btn-group" role="group">'
-            # actions_html += f'<button type="button" onclick="popup_invoice({invoice.id})" class="btn btn-primary btn-sm btn-curve" title="Preview Invoice"><i class="fa fa-eye"></i></button>'
-            # actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve" title="View Invoice"><i class="fa fa-external-link-square"></i></a>'
-            actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-primary btn-sm btn-curve" title="View Invoice"><i class="fa fa-eye"></i></a>'
-            if invoice.invoice_customer:
-                category_json = html.escape(json.dumps(totals_by_category))
-                actions_html += f'''
-                        <button type="button" class="btn btn-orange btn-sm btn-curve"
-                            data-category="{category_json}" data-total="{amount_without_gst}"
-                            onclick="dc_invoice_map(this)" title="Division Category"><i class="fa fa-snowflake"></i></button>
-                '''
-            # Add push/fix button for not_pushed or missing_in_books filters
-            if invoice_type in ['not_pushed', 'missing_in_books']:
-                button_title = 'Push to Books' if invoice_type == 'not_pushed' else 'Fix & Push to Books'
-                actions_html += f'<button type="button" onclick="pushToBooks({invoice.id})" class="btn btn-success btn-sm btn-curve" title="{button_title}"><i class="fa fa-book"></i></button>'
-
-            customer_info = invoice.invoice_customer.customer_name if invoice.invoice_customer else "N/A"
-            actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{invoice.id}" data-invoice-number="{invoice.invoice_number}, for {customer_info}" title="Delete Invoice"><i class="fa fa-trash"></i></button>'
-            actions_html += '</div>'
-
-            data.append({
-                'invoice_number': invoice_num,
-                'invoice_date': invoice.invoice_date.strftime('%b %d, %Y'),
-                'customer': customer_html,
-                'invoice_amount': f"₹ {format_inr_smart(invoice_amount)}",
-                'actions': actions_html
-            })
+        # Prepare data for current page (shared row-builder — same output as the native list)
+        data = [_invoice_row_dict(invoice, request, invoice_type) for invoice in queryset]
 
         return JsonResponse({
             'draw': draw,

@@ -4,68 +4,37 @@
 {% load humanize %}
 {% load money %}
 
-{% block content %}
-<h2>Book Details</h2>
-<hr>
-<div class="row">
-	<div class="col">
-		<h3>Customer: <span class="text-primary">{{book.customer.customer_name}}</span></h3>
-        <h3>Current Balance: {% if book.current_balance > 0 %}
-            <a class="text-success" href="?filter=balance">{{ book.current_balance|inrs }}</a>
-            {% else %}<a class="text-danger" href="?filter=balance">{{ book.current_balance|inrs }}</a>{% endif %}</h3>
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
-	</div>
-	<div class="col text-right">
-		<a href="{% url 'book_logs_add' book.id %}" class="btn btn-primary btn-sm btn-curve">
-			<i class="fas fa-plus"></i></a>
-		<a href="{% url 'books' %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-reply"></i></a>
-		<a href="{% url 'customer_edit' book.customer.id %}" class="btn btn-warning btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
-        <a href="#" class="btn btn-info btn-sm btn-curve" onclick="recalculate({{ book.id }})"><i class="fas fa-sync-alt"></i></a>
-        {% if book.current_balance >= -10 and book.current_balance <= 10 %}
-            <a href="#" class="btn btn-info btn-sm btn-curve" onclick="roundOff({{ book.id }})"><i class="fas fa-calculator"></i></a>
-        {% endif %}
-	</div>
-</div>
-<hr>
-<!-- Summary Cards Row -->
-<div class="row mb-3">
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-receipt"></i> Total Sales</h6>
-                <h3>₹ {{ total_purchased | default:0 | inrs }}</h3>
-                <a href="?filter=purchased" class="stretched-link"></a>
-            </div>
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><a href="{% url 'books' %}">Books</a> › Ledger</div>
+            <h1 class="disp">{{ book.customer.customer_name }}</h1>
+            <div class="sub">Balance: {% if book.current_balance > 0 %}<a href="?filter=balance" style="color:var(--green)">{{ book.current_balance|inrs }}</a>{% else %}<a href="?filter=balance" style="color:var(--red)">{{ book.current_balance|inrs }}</a>{% endif %}</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'customer_edit' book.customer.id %}" class="gbtn"><i class="fas fa-pen-to-square"></i> Customer</a>
+            <a href="#" class="gbtn" onclick="recalculate({{ book.id }});return false;"><i class="fas fa-sync-alt"></i> Recalculate</a>
+            {% if book.current_balance >= -10 and book.current_balance <= 10 %}<a href="#" class="gbtn" onclick="roundOff({{ book.id }});return false;"><i class="fas fa-calculator"></i> Round off</a>{% endif %}
+            <a href="{% url 'book_logs_add' book.id %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add entry</a>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-circle-check"></i> Total Paid</h6>
-                <h3>₹ {{ total_paid | default:0 | inrs }}</h3>
-                <a href="?filter=paid" class="stretched-link"></a>
-            </div>
-        </div>
+
+    <div class="gstats">
+        <a href="?filter=purchased" class="gstat red"><div class="gk"><span class="dot"></span> Total Sales</div><div class="gv">₹ {{ total_purchased|default:0|inrs }}</div></a>
+        <a href="?filter=paid" class="gstat green"><div class="gk"><span class="dot"></span> Total Paid</div><div class="gv">₹ {{ total_paid|default:0|inrs }}</div></a>
+        <a href="?filter=returned" class="gstat amber"><div class="gk"><span class="dot"></span> Total Returned</div><div class="gv">₹ {{ total_returned|default:0|inrs }}</div></a>
+        <a href="?filter=others" class="gstat blue"><div class="gk"><span class="dot"></span> Total Others</div><div class="gv">₹ {{ total_others|default:0|inrs }}</div></a>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-orange text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
-                <h3>₹ {{ total_returned | default:0 | inrs }}</h3>
-                <a href="?filter=returned" class="stretched-link"></a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-violet text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
-                <h3>₹ {{ total_others | default:0 | inrs }}</h3>
-                <a href="?filter=others" class="stretched-link"></a>
-            </div>
-        </div>
-    </div>
-</div>
+
+    <div class="tablecard" style="padding:10px 14px">
 <table class="table table-hover font-weight-bold" id="inventory-logs-table">
 	<thead class="thead-dark">
 		<tr>
@@ -73,7 +42,7 @@
 			<th>Type</th>
 			<th>Change</th>
 			<th>Description</th>
-			<th></th>
+			<th data-noexport data-nosort></th>
 		</tr>
 	</thead>
 	<tbody class="two-col-form">
@@ -127,91 +96,38 @@
 		{% endfor %}
 	</tbody>
 </table>
-
-
-
+    </div>
+</div>
 {% endblock %}
 
 
 {% block includejs %}
 <script type="text/javascript">
-$(document).ready( function () {
-	$('#inventory-logs-table').DataTable({
-		"order": [],
-        "columnDefs": [ {
-            "targets": 4,
-            "sortable": false,
-            "searchable": false
-        } ],
-		"paging": true,
-		dom: 'Bfrtip',
-        buttons: [
-            {
-                extend: 'excelHtml5',
-                text: '<i class="fas fa-file-excel"></i> Excel',
-                className: 'btn btn-success btn-sm btn-curve'
-            },
-            {
-                extend: 'pdfHtml5',
-                text: '<i class="fas fa-file-pdf"></i> PDF',
-                className: 'btn btn-danger btn-sm btn-curve'
-            },
-            {
-                extend: 'print',
-                text: '<i class="fas fa-print"></i> Print',
-                className: 'btn btn-warning btn-sm btn-curve',
-                title: '',
-                customize: function (win) {
-                    var body = $(win.document.body);
-                    body.css('font-family', 'Arial, sans-serif');
-
-                    // Build header
-                    var header = '<div style="text-align:center; margin-bottom:20px;">' +
-                        '<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
-                        '<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
-                        '<p style="margin:2px 0; color:#666; font-size:13px;">' +
-                            'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
-                            '{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
-                            '{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
-                        '</p>' +
-                        '<hr style="margin:10px 0;">' +
-                        '<h4 style="margin:0;">Book Details - {{ book.customer.customer_name|escapejs }}</h4>' +
-                        '<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
-                            '<span style="color:#dc3545;"><strong>Total Sales:</strong> ₹ {{ total_purchased|default:0|inrs }}</span>' +
-                            '<span style="color:#28a745;"><strong>Total Paid:</strong> ₹ {{ total_paid|default:0|inrs }}</span>' +
-                            '<span style="color:#fd7e14;"><strong>Returned:</strong> ₹ {{ total_returned|default:0|inrs }}</span>' +
-                            '<span><strong>Balance:</strong> ₹ {{ book.current_balance|inrs }}</span>' +
-                        '</div>' +
-                        '<hr style="margin-top:10px;">' +
-                    '</div>';
-                    body.find('table').before(header);
-
-                    // Hide Actions column
-                    body.find('table th:last-child, table td:last-child').hide();
-
-                    // Add S.No column header
-                    body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
-
-                    // Add S.No to each row
-                    body.find('table tbody tr').each(function(index) {
-                        $(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
-                    });
-
-                    // Style the table
-                    body.find('table')
-                        .css('width', '100%')
-                        .css('border-collapse', 'collapse')
-                        .css('font-size', '13px');
-                    body.find('table th, table td')
-                        .css('border', '1px solid #ddd')
-                        .css('padding', '8px');
-                    body.find('table thead th')
-                        .css('background-color', '#343a40')
-                        .css('color', '#fff')
-                        .css('text-align', 'left');
-                }
-            }
-        ]
+document.addEventListener('DOMContentLoaded', function () {
+	GSTable.enhance('#inventory-logs-table', {
+		pageSize: 25, search: true, sort: true,
+		exportCsv: true, print: true,
+		searchPlaceholder: 'Search ledger…',
+		exportName: 'book-logs-{{ book.customer.customer_name|escapejs }}',
+		printTitle: 'Book Details - {{ book.customer.customer_name|escapejs }}',
+		printHeadHtml: '<div style="text-align:center; margin-bottom:20px;">' +
+			'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
+			'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
+			'<p style="margin:2px 0; color:#666; font-size:13px;">' +
+				'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
+				'{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
+				'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
+			'</p>' +
+			'<hr style="margin:10px 0;">' +
+			'<h4 style="margin:0;">Book Details - {{ book.customer.customer_name|escapejs }}</h4>' +
+			'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
+				'<span style="color:#dc3545;"><strong>Total Sales:</strong> &#8377; {{ total_purchased|default:0|inrs }}</span>' +
+				'<span style="color:#28a745;"><strong>Total Paid:</strong> &#8377; {{ total_paid|default:0|inrs }}</span>' +
+				'<span style="color:#fd7e14;"><strong>Returned:</strong> &#8377; {{ total_returned|default:0|inrs }}</span>' +
+				'<span><strong>Balance:</strong> &#8377; {{ book.current_balance|inrs }}</span>' +
+			'</div>' +
+			'<hr style="margin-top:10px;">' +
+		'</div>'
 	});
 });
 
@@ -228,27 +144,14 @@ function markAsActive(booklogId, change) {
     }).then((result) => {
         if (result.isConfirmed) {
             // Make AJAX call to mark as active
-            $.ajax({
-                url: '/books/api/active',
-                method: 'GET',
-                data: { booklog: booklogId, change: change },
-                success: function(response) {
-                    Swal.fire(
-                        'Marked!',
-                        response.message,
-                        'success'
-                    ).then(() => {
-                        location.reload();
-                    });
-                },
-                error: function() {
-                    Swal.fire(
-                        'Error!',
-                        'There was an error marking the book log as active.',
-                        'error'
-                    );
-                }
-            });
+            fetch('/books/api/active?booklog=' + encodeURIComponent(booklogId) + '&change=' + encodeURIComponent(change))
+                .then(response => response.json())
+                .then(response => {
+                    Swal.fire('Marked!', response.message, 'success').then(() => { location.reload(); });
+                })
+                .catch(() => {
+                    Swal.fire('Error!', 'There was an error marking the book log as active.', 'error');
+                });
         }
     });
 }
@@ -368,29 +271,20 @@ function markAsActive(booklogId, change) {
         }).then((result) => {
             if (result.isConfirmed) {
                 // Make AJAX call to round off balance
-                $.ajax({
-                    url: '/books/api/roundoff',
+                fetch('/books/api/roundoff', {
                     method: 'POST',
-                    data: { book_id: bookId },
                     headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
-                    success: function(response) {
-                        Swal.fire(
-                            'Rounded Off!',
-                            response.message,
-                            'success'
-                        ).then(() => {
-                            location.reload();
-                        });
-                    },
-                    error: function() {
-                        Swal.fire(
-                            'Error!',
-                            'There was an error rounding off the balance.',
-                            'error'
-                        );
-                    }
+                    body: new URLSearchParams({ book_id: bookId })
+                })
+                .then(response => response.json())
+                .then(response => {
+                    Swal.fire('Rounded Off!', response.message, 'success').then(() => { location.reload(); });
+                })
+                .catch(() => {
+                    Swal.fire('Error!', 'There was an error rounding off the balance.', 'error');
                 });
             }
         });
@@ -409,33 +303,23 @@ function markAsActive(booklogId, change) {
         }).then((result) => {
             if (result.isConfirmed) {
                 // Make AJAX call to recalculate balance
-                $.ajax({
-                    url: '/books/api/recalculate',
+                fetch('/books/api/recalculate', {
                     method: 'POST',
-                    data: { book_id: bookId },
                     headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
-                    success: function(response) {
-                        Swal.fire(
-                            'Recalculated!',
-                            response.message,
-                            'success'
-                        ).then(() => {
-                            location.reload();
-                        });
-                    },
-                    error: function() {
-                        Swal.fire(
-                            'Error!',
-                            'There was an error recalculating the balance.',
-                            'error'
-                        );
-                    }
+                    body: new URLSearchParams({ book_id: bookId })
+                })
+                .then(response => response.json())
+                .then(response => {
+                    Swal.fire('Recalculated!', response.message, 'success').then(() => { location.reload(); });
+                })
+                .catch(() => {
+                    Swal.fire('Error!', 'There was an error recalculating the balance.', 'error');
                 });
             }
         });
     }
 </script>
 {% endblock %}
-{% block body_libs %}{% include "partials/libs/export_body.html" %}{% endblock %}

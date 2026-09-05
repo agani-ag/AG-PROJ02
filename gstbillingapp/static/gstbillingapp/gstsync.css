@@ -1,0 +1,357 @@
+/* =====================================================================
+   GSTSync design system — lean, self-contained, scoped under .gs
+   Loaded only by migrated screens; everything is namespaced so it never
+   collides with the app's Bootstrap. Clashing component names are g-prefixed
+   (.gbtn, .gbadge) to stay clear of Bootstrap's .btn / .badge.
+   ===================================================================== */
+.gs{
+  --brand:#2563eb; --brand-d:#1d4ed8; --brand2:#4f46e5; --ink:#0f172a; --soft:#5b6472; --faint:#97a1b0;
+  --line:#e7ebf2; --line2:#eef2f7; --card:#ffffff; --wash:#f6f8fc;
+  --green:#16a34a; --greenbg:#e7f8ec; --red:#e11d48; --redbg:#ffe4ea; --amber:#e5900f; --amberbg:#fff3e0;
+  --blue:#2563eb; --bluebg:#e8f1ff;
+  --r:12px; --r-lg:16px;
+  --sh-sm:0 1px 2px rgba(15,23,42,.05); --sh:0 1px 2px rgba(15,23,42,.04),0 8px 22px -14px rgba(15,23,42,.18);
+  --sh-pop:0 16px 40px -12px rgba(15,23,42,.28);
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --disp:"Space Grotesk",var(--sans);
+  font-family:var(--sans); color:var(--ink); font-size:14px; line-height:1.5;
+}
+.gs *{box-sizing:border-box}
+.gs .disp{font-family:var(--disp);letter-spacing:-.3px}
+
+/* Soft off-white page background so the white cards/sections stand apart.
+   Only migrated pages load this stylesheet, so this is safe and consistent. */
+body{background:#eef2f7}
+.gs .gico{width:18px;height:18px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:middle}
+.gs .gico.sm{width:15px;height:15px}
+.gs a{text-decoration:none;color:inherit}
+
+/* ---- page header ---- */
+.gs .page-head{display:flex;align-items:center;gap:14px;margin:4px 0 18px;flex-wrap:wrap}
+.gs .page-head h1{font-family:var(--disp);font-size:22px;font-weight:700;margin:0;color:var(--ink)}
+.gs .page-head .sub{font-size:12.5px;color:var(--soft);margin-top:1px}
+.gs .page-head .actions{margin-left:auto;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.gs .eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--soft);margin-bottom:5px}
+.gs .eyebrow a{color:var(--brand)}
+
+/* ---- buttons ---- */
+.gs .gbtn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;color:#334155;
+  font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:10px;cursor:pointer;font-family:var(--sans);transition:.15s;white-space:nowrap;text-decoration:none;line-height:1.1}
+.gs .gbtn:hover{border-color:#cfd8e6;background:var(--wash);color:#334155;text-decoration:none}
+.gs .gbtn .gico{width:16px;height:16px}
+.gs .gbtn-primary{border:0;color:#fff;background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 8px 18px -9px rgba(37,99,235,.7)}
+.gs .gbtn-primary:hover{background:linear-gradient(135deg,#1d4ed8,#4338ca);color:#fff;transform:translateY(-1px)}
+.gs .gbtn-danger{color:var(--red);border-color:var(--redbg);background:#fff}
+.gs .gbtn-danger:hover{background:var(--redbg);border-color:var(--red);color:var(--red)}
+.gs .gbtn-icon{padding:8px;border-radius:8px}
+.gs .gbtn-group{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.gs .gbtn-group .gbtn{border:0;border-radius:0;border-right:1px solid var(--line)}
+.gs .gbtn-group .gbtn:last-child{border-right:0}
+
+/* ---- toolbar / search / filters ---- */
+.gs .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:13px;flex-wrap:wrap}
+.gs .search{position:relative;flex:1;min-width:190px;max-width:340px}
+.gs .search .gico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--faint);width:16px;height:16px}
+.gs .search input{width:100%;padding:9px 12px 9px 36px;border:1px solid var(--line);border-radius:10px;font-size:13.5px;font-family:var(--sans);outline:none;background:#fff;transition:.15s}
+.gs .search input:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.gs .selctl{padding:9px 30px 9px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-weight:500;color:var(--soft);background:#fff;font-family:var(--sans);cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2397a1b0' stroke-width='2' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.gs .selctl:focus{border-color:var(--brand);outline:none}
+.gs .spacer{margin-left:auto}
+
+/* ---- table ---- */
+.gs .tablecard{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);overflow:hidden}
+.gs .tbl-scroll{overflow-x:auto}
+.gs table.gt{width:100%;border-collapse:collapse;font-size:13.5px;min-width:720px;margin:0;background:transparent}
+.gs table.gt thead th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:12px 16px;background:var(--wash);border-bottom:1px solid var(--line);white-space:nowrap}
+.gs table.gt thead th.r{text-align:right}
+.gs table.gt thead th a{color:var(--faint);display:inline-flex;align-items:center;gap:5px}
+.gs table.gt thead th a:hover{color:var(--brand)}
+.gs table.gt thead th .gico{width:12px;height:12px;opacity:.6}
+.gs table.gt tbody td{padding:12px 16px;border-bottom:1px solid var(--line2);vertical-align:middle;color:var(--ink)}
+.gs table.gt tbody td.r{text-align:right}
+.gs table.gt tbody tr{transition:background .12s}
+.gs table.gt tbody tr:hover{background:#f9fbff}
+.gs table.gt tbody tr:last-child td{border-bottom:0}
+.gs .prim{display:flex;align-items:center;gap:11px}
+.gs .prim .pi{width:36px;height:36px;border-radius:9px;background:var(--bluebg);color:var(--brand);display:flex;align-items:center;justify-content:center;flex:none}
+.gs .prim .nm{font-weight:600;color:var(--ink)}
+.gs .prim .mn{font-size:12px;color:var(--faint)}
+.gs .tag2{display:inline-flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--line);border-radius:7px;padding:3px 9px;font-size:12px;color:var(--soft);font-weight:500}
+.gs .num{font-family:var(--disp);font-weight:600;font-variant-numeric:tabular-nums}
+.gs .mut{color:var(--faint)}
+.gs .rowacts{display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+/* Light-tinted coloured action chips (blue for actions, red for delete). */
+.gs .rowacts .gbtn-icon{border:0;background:var(--bluebg);color:var(--brand);width:32px;height:32px;padding:0;border-radius:9px}
+.gs .rowacts .gbtn-icon:hover{background:#d7e6ff;color:var(--brand-d);transform:translateY(-1px)}
+.gs .rowacts .gbtn-icon.del{background:var(--redbg);color:var(--red)}
+.gs .rowacts .gbtn-icon.del:hover{background:#ffd1dc;color:var(--red)}
+.gs .rowacts .gbtn-icon.gadd{background:var(--greenbg);color:var(--green)}
+.gs .rowacts .gbtn-icon.gadd:hover{background:#cdefd7;color:var(--green)}
+
+/* ---- Bootstrap-table + AG-Grid action buttons → light coloured chips
+   (invoices, books, quotations, inventory, vendor logs, aggrid lists) ---- */
+.gs td .btn-group,.gs th .btn-group{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;vertical-align:middle}
+.gs td .btn-group > .btn{margin:0!important}
+.gs td .btn.btn-sm.btn-curve,.gs td .btn-group .btn,
+[class*="ag-theme-"] .btn.btn-sm.btn-curve{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:32px;height:32px;padding:0 8px;border:0!important;border-radius:9px!important;
+  box-shadow:none!important;font-size:13px;line-height:1;font-weight:600;transition:.15s}
+.gs td .btn.btn-sm.btn-curve:hover,.gs td .btn-group .btn:hover,
+[class*="ag-theme-"] .btn.btn-sm.btn-curve:hover{transform:translateY(-1px);filter:brightness(.97)}
+.gs td .btn-primary,[class*="ag-theme-"] .btn-primary.btn-sm.btn-curve{background:var(--bluebg)!important;color:var(--brand)!important}
+.gs td .btn-info,[class*="ag-theme-"] .btn-info.btn-sm.btn-curve{background:#eef0ff!important;color:#4f46e5!important}
+.gs td .btn-warning,[class*="ag-theme-"] .btn-warning.btn-sm.btn-curve{background:var(--amberbg)!important;color:var(--amber)!important}
+.gs td .btn-success,[class*="ag-theme-"] .btn-success.btn-sm.btn-curve{background:var(--greenbg)!important;color:var(--green)!important}
+.gs td .btn-danger,[class*="ag-theme-"] .btn-danger.btn-sm.btn-curve{background:var(--redbg)!important;color:var(--red)!important}
+.gs td .btn-orange,[class*="ag-theme-"] .btn-orange.btn-sm.btn-curve{background:#fff1e6!important;color:#ea7317!important}
+.gs td .btn-secondary,.gs td .btn-dark,.gs td .btn-light{background:var(--wash)!important;color:var(--soft)!important;border:1px solid var(--line)!important}
+
+/* ---- badges ---- */
+.gs .gbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+.gs .gbadge.ok{background:var(--greenbg);color:var(--green)}
+.gs .gbadge.low{background:var(--amberbg);color:var(--amber)}
+.gs .gbadge.out{background:var(--redbg);color:var(--red)}
+.gs .gbadge.blue{background:var(--bluebg);color:var(--brand)}
+.gs .gbadge.grey{background:var(--wash);color:var(--soft);border:1px solid var(--line)}
+
+/* ---- pager / table footer ---- */
+.gs .tfoot{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line);background:var(--wash);flex-wrap:wrap}
+.gs .tfoot .cnt{font-size:12.5px;color:var(--soft)}
+.gs .pager{margin-left:auto;display:flex;align-items:center;gap:5px}
+.gs .pager a,.gs .pager span{min-width:31px;height:31px;padding:0 9px;border:1px solid var(--line);background:#fff;border-radius:8px;font-weight:600;font-size:13px;color:var(--soft);cursor:pointer;font-family:var(--sans);display:inline-flex;align-items:center;justify-content:center}
+.gs .pager a:hover{border-color:#cfd8e6;color:var(--brand)}
+.gs .pager .on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.gs .pager .dis{opacity:.4;pointer-events:none}
+
+/* ---- gstable.js vanilla enhancer (search + sort + paginate + export).
+   Unscoped so it works whether or not the page wraps the table in .gs. ---- */
+.gstable-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.gstable-bar-sp{flex:1 1 auto}
+.gstable-bar .search{position:relative;display:flex;align-items:center;min-width:240px;max-width:340px;flex:1 1 240px}
+.gstable-bar .search i{position:absolute;left:12px;color:#97a1b0;font-size:13px;pointer-events:none}
+.gstable-bar .search input{width:100%;padding:9px 12px 9px 34px;border:1px solid #e7ebf2;border-radius:10px;background:#fff;font:inherit;font-size:13.5px;color:#0f172a;outline:none}
+.gstable-bar .search input:focus{border-color:#b9cdf5;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+th.gstable-sortable{cursor:pointer;user-select:none;position:relative}
+th.gstable-sortable:hover{color:#2563eb}
+th.gstable-sortable::after{content:"\2195";opacity:.35;margin-left:6px;font-size:11px}
+th.gstable-sortable[data-sortdir="asc"]::after{content:"\2191";opacity:.9}
+th.gstable-sortable[data-sortdir="desc"]::after{content:"\2193";opacity:.9}
+.gstable-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 2px 4px}
+.gstable-info{font-size:12.5px;color:#5b6472}
+.gstable-pager{margin-left:auto;display:flex;align-items:center;gap:5px}
+.gstable-pg{min-width:31px;height:31px;padding:0 9px;border:1px solid #e7ebf2;background:#fff;border-radius:8px;font-weight:600;font-size:13px;color:#5b6472;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center}
+.gstable-pg:hover:not(:disabled){border-color:#cfd8e6;color:#2563eb}
+.gstable-pg.active{background:#2563eb;color:#fff;border-color:#2563eb}
+.gstable-pg:disabled{opacity:.4;cursor:default}
+.gstable-gap{color:#97a1b0;padding:0 2px}
+
+/* ---- empty state ---- */
+.gs .empty{text-align:center;padding:56px 20px;color:var(--soft)}
+.gs .empty .ei{width:56px;height:56px;border-radius:16px;background:var(--wash);color:var(--faint);display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px}
+.gs .empty .ei .gico{width:26px;height:26px}
+.gs .empty h3{font-family:var(--disp);font-size:16px;margin:0 0 4px;color:var(--ink)}
+.gs .empty p{margin:0 0 16px;font-size:13.5px}
+
+/* ---- summary stat cards (clickable filters) ---- */
+.gs .gstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:15px}
+.gs .gstat{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--sh);transition:transform .15s,box-shadow .18s,border-color .18s}
+.gs a.gstat:hover{transform:translateY(-2px);border-color:#cfd8e6;color:inherit;text-decoration:none}
+.gs .gstat.on{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.13)}
+.gs .gstat .gk{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--soft)}
+.gs .gstat .gk .dot{width:9px;height:9px;border-radius:3px;flex:none}
+.gs .gstat .gv{font-family:var(--disp);font-size:20px;font-weight:700;margin-top:5px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.gs .gstat.green .dot{background:var(--green)} .gs .gstat.red .dot{background:var(--red)}
+.gs .gstat.amber .dot{background:var(--amber)} .gs .gstat.blue .dot{background:var(--brand)}
+
+/* ---- hint strip ---- */
+.gs .hint{display:flex;align-items:flex-start;gap:9px;margin-top:12px;font-size:12.5px;color:var(--soft);background:var(--bluebg);border:1px solid #d6e4ff;border-radius:10px;padding:9px 13px}
+.gs .hint .gico{color:var(--brand);margin-top:1px;width:16px;height:16px}
+
+/* =====================  FORM pattern (create / edit)  ===================== */
+.gs .formwrap{max-width:1080px;margin:0 auto}
+.gs .section{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);margin-bottom:14px;overflow:hidden}
+.gs .section > .sh{display:flex;align-items:center;gap:11px;padding:15px 18px;cursor:pointer;border-bottom:1px solid transparent}
+.gs .section.open > .sh{border-bottom-color:var(--line2)}
+.gs .section .sh .si{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;flex:none}
+.gs .section .sh h3{font-family:var(--disp);font-size:15px;font-weight:700;margin:0}
+.gs .section .sh .sd{font-size:12px;color:var(--faint)}
+.gs .section .sh .chev{margin-left:auto;color:var(--faint);transition:transform .2s}
+.gs .section:not(.open) .chev{transform:rotate(-90deg)}
+.gs .section .body{padding:18px}
+.gs .section:not(.open) .body{display:none}
+.gs .si.b{background:linear-gradient(135deg,#2563eb,#4f8cff)} .gs .si.g{background:linear-gradient(135deg,#16a34a,#34d17a)}
+.gs .si.p{background:linear-gradient(135deg,#8b3ffc,#b07bff)} .gs .si.o{background:linear-gradient(135deg,#ea6a2a,#ff9a4c)}
+.gs .si.t{background:linear-gradient(135deg,#0d9aa6,#22c6d6)}
+
+.gs .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px}
+.gs .grid.c3{grid-template-columns:1fr 1fr 1fr}
+.gs .grid .full{grid-column:1 / -1}
+@media(max-width:640px){.gs .grid,.gs .grid.c3{grid-template-columns:1fr}}
+.gs .field label{display:block;font-size:12.5px;font-weight:600;color:#42506a;margin-bottom:6px}
+.gs .field label .req{color:var(--red)} .gs .field label .opt{color:var(--faint);font-weight:500}
+.gs .control{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;font-family:var(--sans);color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;height:auto}
+.gs .control:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.gs .control[readonly]{background:var(--wash);color:var(--soft)}
+.gs textarea.control{resize:vertical;min-height:70px}
+.gs select.control{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2397a1b0' stroke-width='2' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.gs .field .h{font-size:11.5px;color:var(--faint);margin-top:5px}
+.gs .prefix{position:relative}
+.gs .prefix .p{position:absolute;left:1px;top:1px;bottom:1px;display:flex;align-items:center;padding:0 11px;color:var(--soft);font-weight:600}
+.gs .prefix .control{padding-left:32px}
+.gs .suffix{position:relative}
+.gs .suffix .s{position:absolute;right:1px;top:1px;bottom:1px;display:flex;align-items:center;padding:0 11px;color:var(--soft);font-weight:600;background:var(--wash);border-left:1px solid var(--line);border-radius:0 9px 9px 0}
+.gs .suffix .control{padding-right:44px}
+
+/* ---- auto-style bare Django-rendered form controls inside .gform ----
+   (lets us relayout ModelForm widgets without changing their markup/ids/names) */
+.gs .gform input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button]):not([type=file]),
+.gs .gform select,
+.gs .gform textarea{
+  width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;
+  font-family:var(--sans);color:var(--ink);background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;height:auto}
+.gs .gform input:not([type=checkbox]):not([type=radio]):focus,
+.gs .gform select:focus,.gs .gform textarea:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.gs .gform select{appearance:none;padding-right:32px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2397a1b0' stroke-width='2' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.gs .gform textarea{resize:vertical;min-height:64px}
+.gs .fieldrow{display:flex;gap:8px;align-items:stretch}
+.gs .fieldrow > select,.gs .fieldrow > input{flex:1;min-width:0}
+/* brand-tinted "add value" button that matches the control's height */
+.gs .gadd{flex:none;width:42px;justify-content:center;color:var(--brand);background:var(--bluebg);border-color:#cdddf7}
+.gs .gadd:hover{background:#dbe9ff;border-color:var(--brand);color:var(--brand)}
+/* optional "also list …" power-option — a plain, reliable native checkbox */
+.gs .gtoggle{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;font-weight:500;color:var(--soft);cursor:pointer;user-select:none}
+.gs .gtoggle input[type=checkbox]{-webkit-appearance:checkbox;appearance:auto;display:inline-block;position:static;
+  width:16px;height:16px;margin:0;flex:none;accent-color:var(--brand);opacity:1;cursor:pointer}
+.gs .gtoggle:hover{color:var(--ink)}
+
+/* ================= Vanilla modal (.gmodal — replaces Bootstrap modal, unscoped) ================= */
+.gmodal{position:fixed;inset:0;z-index:1050;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;
+  background:rgba(15,23,42,.5);overflow:auto;font-family:"Inter",-apple-system,sans-serif}
+.gmodal.show{display:flex}
+.gmodal .gmodal-panel{background:#fff;border-radius:16px;box-shadow:0 30px 60px -20px rgba(15,23,42,.5);width:100%;max-width:520px;overflow:hidden;margin:auto 0}
+.gmodal.lg .gmodal-panel{max-width:820px}
+.gmodal .gmodal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 20px;border-bottom:1px solid #eef2f7;
+  font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:16px;color:#0f172a}
+.gmodal .gmodal-head .x{background:none;border:0;font-size:22px;cursor:pointer;color:#97a1b0;line-height:1;padding:0 4px}
+.gmodal .gmodal-body{padding:18px 20px}
+.gmodal .gmodal-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid #eef2f7}
+
+/* ================= Global top nav (.gnav — outside .gs, so unscoped) ================= */
+.gnav{position:sticky;top:0;z-index:1000;background:#fff;border-bottom:1px solid #e7ebf2;
+  font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.gnav .gnav-row{display:flex;align-items:center;gap:12px;height:56px;width:100%;margin:0;padding:0 24px}
+.gnav a{text-decoration:none;color:inherit}
+.gnav .gnav-ico{width:15px;height:15px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.gnav .brand{display:flex;align-items:center;gap:10px;font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:15px;color:#0f172a;padding-right:6px}
+.gnav .brand .mark{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;background:linear-gradient(135deg,#3b82f6,#7c3aed);flex:none}
+.gnav .brand .mark .gnav-ico{stroke:#fff;width:16px;height:16px}
+.gnav .brand .biz{color:#5b6472;font-weight:600;font-size:12.5px;border-left:1px solid #e7ebf2;padding-left:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.gnav .items{display:flex;align-items:center;gap:1px;margin-left:auto}
+.gnav .mi{position:relative}
+.gnav .mi>a{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:9px;color:#5b6472;font-weight:500;font-size:13.5px;cursor:pointer;transition:.15s;white-space:nowrap}
+.gnav .mi>a:hover,.gnav .mi.open>a{background:#f6f8fc;color:#0f172a}
+.gnav .mi>a .cv{width:12px;height:12px;opacity:.55;transition:transform .18s}
+.gnav .mi.open>a .cv{transform:rotate(180deg)}
+.gnav .drop{position:absolute;top:calc(100% + 6px);right:0;min-width:214px;background:#fff;border:1px solid #e7ebf2;border-radius:14px;
+  box-shadow:0 16px 40px -12px rgba(15,23,42,.28);padding:6px;opacity:0;visibility:hidden;transform:translateY(-6px);
+  transition:opacity .15s,transform .15s,visibility .15s;z-index:1001}
+.gnav .mi.open .drop{opacity:1;visibility:visible;transform:none}
+.gnav .drop.mega{width:430px;display:grid;grid-template-columns:1fr 1fr;gap:2px 10px}
+.gnav .drop .mh{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#97a1b0;padding:8px 10px 3px;font-weight:700}
+.gnav .drop a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;font-size:13px;color:#37414f;font-weight:500;white-space:nowrap}
+.gnav .drop a:hover{background:#f6f8fc;color:#2563eb}
+.gnav .drop a .gnav-ico{color:#97a1b0}
+.gnav .drop a:hover .gnav-ico{color:#2563eb}
+.gnav .drop a.primary{color:#2563eb;font-weight:600}
+.gnav .drop .divider{height:1px;background:#eef2f7;margin:5px 6px}
+.gnav .drop.mega .col-b{border-left:1px solid #eef2f7;padding-left:8px}
+.gnav .avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;cursor:pointer;margin-left:6px;flex:none}
+.gnav .burger{display:none;margin-left:auto;background:none;border:0;padding:8px;cursor:pointer;color:#0f172a}
+@media(max-width:980px){
+  .gnav .items{position:fixed;top:56px;left:0;right:0;background:#fff;border-bottom:1px solid #e7ebf2;flex-direction:column;align-items:stretch;
+    gap:0;padding:8px;box-shadow:0 12px 30px -12px rgba(15,23,42,.2);max-height:calc(100vh - 56px);overflow:auto;display:none}
+  .gnav .items.show{display:flex}
+  .gnav .mi>a{justify-content:space-between}
+  .gnav .drop,.gnav .drop.mega{position:static;opacity:1;visibility:visible;transform:none;box-shadow:none;border:0;
+    display:block;padding:0 0 6px 14px;min-width:0;width:auto}
+  .gnav .drop.mega{grid-template-columns:1fr}
+  .gnav .drop.mega .col-b{border-left:0;padding-left:0}
+  .gnav .mi:not(.open) .drop{display:none}
+  .gnav .burger{display:block}
+}
+
+/* ---- sticky action bar ---- */
+.gs-actionbar{position:fixed;left:0;right:0;bottom:0;z-index:1030;background:rgba(255,255,255,.93);backdrop-filter:saturate(180%) blur(12px);border-top:1px solid #e7ebf2;box-shadow:0 -6px 20px -12px rgba(15,23,42,.2)}
+.gs-actionbar .inner{display:flex;align-items:center;gap:12px;height:64px;max-width:1080px;margin:0 auto;padding:0 24px}
+.gs-actionbar .msg{font-size:12.5px;color:#97a1b0;display:flex;align-items:center;gap:8px}
+.gs-actionbar .end{margin-left:auto;display:flex;gap:10px}
+.gs-pad{padding-bottom:90px}
+
+/* =====================================================================
+   Invoice / Quotation creator — delete-row control + product/customer
+   search dropdown (overrides the old dark panel in main.css).
+   Unscoped because the search panels sit outside .gs.
+   ===================================================================== */
+.invoice-item-slno{white-space:nowrap;text-align:center;vertical-align:middle}
+.invoice-item-slno .slno-num{font-weight:600;color:#5b6472;font-size:13px}
+.row-del{margin-left:6px;border:0;background:transparent;color:#c3ccd8;cursor:pointer;
+  font-size:17px;line-height:1;padding:1px 6px;border-radius:7px;transition:.13s;font-family:inherit}
+.row-del:hover{background:#ffe4ea;color:#e11d48;transform:scale(1.08)}
+
+/* Redesigned search dropdown — clean floating card instead of the dark box. */
+#customer_search_bar, #product_search_bar{
+  display:none;position:absolute;right:14px;bottom:0;width:340px;max-width:92vw;height:82%;
+  background:#fff;border:1px solid #e7ebf2;border-radius:16px;
+  box-shadow:0 20px 48px -14px rgba(15,23,42,.32);padding:8px;overflow-y:auto;z-index:1200;
+  font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  -webkit-overflow-scrolling:touch;scrollbar-width:thin}
+#customer_search_bar::-webkit-scrollbar, #product_search_bar::-webkit-scrollbar{width:8px}
+#customer_search_bar::-webkit-scrollbar-thumb, #product_search_bar::-webkit-scrollbar-thumb{background:#dfe6f0;border-radius:8px}
+
+.customer-search-result, .product-search-result{
+  padding:10px 12px;margin:5px 3px;border:1px solid transparent;border-radius:11px;
+  cursor:pointer;background:#fff;transition:.12s;position:relative}
+.customer-search-result + .customer-search-result,
+.product-search-result + .product-search-result{border-top:1px solid #f1f4f9}
+.customer-search-result:hover, .product-search-result:hover{
+  background:#f2f7ff;border-color:#d7e6ff;box-shadow:0 4px 14px -8px rgba(37,99,235,.4)}
+.customer-search-result .sr-title, .product-search-result .sr-title{
+  font-family:"Space Grotesk",var(--sans,"Inter"),sans-serif;font-weight:700;
+  color:#0f172a;font-size:14px;letter-spacing:-.2px;margin-bottom:2px;line-height:1.25}
+.customer-search-result:hover .sr-title, .product-search-result:hover .sr-title{color:#1d4ed8}
+.sr-sub{font-size:12.5px;color:#334155;line-height:1.35}
+.sr-meta{font-size:11.5px;color:#97a1b0;margin-top:4px;font-weight:500}
+
+/* ---- Fixes: solid CTA buttons keep white icons; search icon sits inside the box ---- */
+/* `.gs a{color:inherit}` was dimming anchor-buttons (e.g. Cancel). Restore white on
+   solid Bootstrap colour buttons. Row-action chips use !important so they stay tinted. */
+.gs a.btn-primary,.gs a.btn-secondary,.gs a.btn-success,.gs a.btn-danger,
+.gs a.btn-warning,.gs a.btn-info,.gs a.btn-dark{color:#fff}
+.gs a.btn-primary:hover,.gs a.btn-secondary:hover,.gs a.btn-success:hover,.gs a.btn-danger:hover,
+.gs a.btn-warning:hover,.gs a.btn-info:hover,.gs a.btn-dark:hover{color:#fff}
+
+/* Font-Awesome search icon inside .gs .search (markup uses <i>, not .gico). */
+.gs .search > i,.gs .search > .fas,.gs .search > .fa{
+  position:absolute;left:13px;top:50%;transform:translateY(-50%);
+  color:var(--faint);font-size:13px;pointer-events:none;z-index:1}
+
+/* ---- Print: never print the app chrome (navbar / sticky action bar / search panels).
+   Fixes the navbar bleeding into printed invoices & quotations. ---- */
+@media print {
+  .gnav, .gs-actionbar, #customer_search_bar, #product_search_bar { display:none !important; }
+  body { background:#fff !important; }
+}
+
+/* Invoice/quotation item-row flags (below-cost / qty / stock) — shared by the
+   creator pages via invoice_insights.js. */
+#invoice-form-items-table-body tr.item-row-danger td { background:#f8d7da !important; }
+#invoice-form-items-table-body tr.item-row-warning td { background:#fff3cd !important; }
+
+/* Bootstrap toast: its JS plugin (which set display:none when idle) was removed in
+   the lib-drop, leaving an invisible fixed z-index:9999 box that swallowed clicks
+   over the top-right (navbar dropdown + header buttons). Hide it unless shown. */
+.toast:not(.show){ display:none !important; }

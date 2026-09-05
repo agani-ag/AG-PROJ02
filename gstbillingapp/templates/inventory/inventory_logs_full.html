@@ -2,18 +2,23 @@
 {% load static humanize %}
 
 {% block content %}
-<h3>Inventory Logs Dashboard</h3>
-<hr>
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Inventory Logs</h1><div class="sub">All stock movements</div></div>
+        <div class="actions">
+            <a href="{% url 'inventory_logs_full_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-csv"></i> Export CSV</a>
+        </div>
+    </div>
 
 <!-- FILTER BAR -->
-<div class="row mb-4 g-3 align-items-end">
+<form method="get" id="filterForm" class="row mb-4 g-3 align-items-end">
     <!-- Year -->
     <div class="col-md-2">
         <label class="form-label"><i class="bi bi-calendar-event-fill"></i> Year</label>
-        <select id="year_picker" class="form-control" data-bs-toggle="tooltip" title="Select Year">
+        <select id="year_picker" name="year" class="form-control" title="Select Year" onchange="applyFilters('year')">
             <option value="">--All--</option>
             {% for y in years %}
-                <option value="{{ y }}">{{ y }}</option>
+                <option value="{{ y }}" {% if year == y|stringformat:'s' %}selected{% endif %}>{{ y }}</option>
             {% endfor %}
         </select>
     </div>
@@ -21,37 +26,37 @@
     <!-- Month -->
     <div class="col-md-2">
         <label class="form-label"><i class="bi bi-calendar-month-fill"></i> Month</label>
-        <input type="month" id="month_picker" class="form-control" data-bs-toggle="tooltip" title="Select Month">
+        <input type="month" id="month_picker" name="month" value="{{ month }}" class="form-control" title="Select Month" onchange="applyFilters('month')">
     </div>
 
     <!-- Top N products -->
     <div class="col-md-2">
         <label class="form-label"><i class="bi bi-star-fill"></i> Top Products</label>
-        <input type="number" id="top_n" class="form-control" value="5" min="1" max="20" data-bs-toggle="tooltip" title="Top N products">
+        <input type="number" id="top_n" name="top_n" class="form-control" value="{{ top_n|default:'5' }}" min="1" max="20" title="Top N products" onchange="applyFilters('topn')">
     </div>
 
     <!-- From Date -->
     <div class="col-md-2">
         <label class="form-label"><i class="bi bi-arrow-down-left-circle"></i> From</label>
-        <input type="date" id="from_date" class="form-control" data-bs-toggle="tooltip" title="Start Date">
+        <input type="date" id="from_date" name="from_date" value="{{ from_date }}" class="form-control" title="Start Date" onchange="applyFilters('date')">
     </div>
 
     <!-- To Date -->
     <div class="col-md-2">
         <label class="form-label"><i class="bi bi-arrow-up-right-circle"></i> To</label>
-        <input type="date" id="to_date" class="form-control" data-bs-toggle="tooltip" title="End Date">
+        <input type="date" id="to_date" name="to_date" value="{{ to_date }}" class="form-control" title="End Date" onchange="applyFilters('date')">
     </div>
 
     <!-- Quick Actions -->
     <div class="col-md-2 d-flex justify-content-between">
-        <button class="btn btn-success btn-sm" id="this_month" data-bs-toggle="tooltip" title="Current Month">
+        <button type="button" class="btn btn-success btn-sm" id="this_month" title="Current Month" onclick="setThisMonthAndApply()">
             <i class="bi bi-calendar-check-fill"></i>
         </button>
-        <button class="btn btn-secondary btn-sm" id="reset" data-bs-toggle="tooltip" title="Reset">
+        <a class="btn btn-secondary btn-sm" href="{% url 'inventory_logs_full' %}" title="Reset">
             <i class="bi bi-arrow-counterclockwise"></i>
-        </button>
+        </a>
     </div>
-</div>
+</form>
 
 <!-- CHARTS -->
 <div class="row mb-4">
@@ -75,18 +80,34 @@
 </div>
 
 <!-- TABLE -->
-<table id="inventory-logs-table" class="table table-hover font-weight-bold">
-    <thead class="thead-dark">
-        <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th>Change</th>
-            <th>Description</th>
-            <th>Product</th>
-        </tr>
-    </thead>
-    <tbody></tbody>
-</table>
+<div class="tablecard" style="padding:10px 14px">
+    <table id="inventory-logs-table" class="table table-hover font-weight-bold">
+        <thead class="thead-dark">
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Change</th>
+                <th>Description</th>
+                <th>Product</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in page_obj %}
+            <tr>
+                <td>{{ o.date|date:"M d Y" }}</td>
+                <td>{{ o.get_change_type_display }}</td>
+                <td>{{ o.change }}</td>
+                <td>{{ o.description }}</td>
+                <td>{{ o.product }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted" style="padding:24px">No stock movements for this range.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% include "gs/_pager.html" %}
+</div>
+</div>
 {% endblock %}
 
 {% block includejs %}
@@ -94,131 +115,83 @@
 <script>
 google.charts.load('current', {packages:['corechart']});
 
-// ----------------- Helper Functions -----------------
-function setDateRange(from, to){
-    $('#from_date').val(from.toISOString().split('T')[0]);
-    $('#to_date').val(to.toISOString().split('T')[0]);
+// ----------------- Filter helpers -----------------
+function fmtDate(d){ return d.toISOString().split('T')[0]; }
+function setRange(from, to){
+    document.getElementById('from_date').value = fmtDate(from);
+    document.getElementById('to_date').value = fmtDate(to);
 }
-
-function setThisMonth(){
-    let d = new Date();
-    let firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
-    let lastDay = new Date(d.getFullYear(), d.getMonth()+1, 0);
-    setDateRange(firstDay, lastDay);
-    $('#month_picker').val(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
-    $('#year_picker').val(d.getFullYear());
+function computeRangeFromMonthYear(){
+    var month = document.getElementById('month_picker').value;
+    var year = document.getElementById('year_picker').value;
+    if (month){
+        var p = month.split('-');
+        setRange(new Date(p[0], p[1]-1, 1), new Date(p[0], p[1], 0));
+    } else if (year){
+        setRange(new Date(year, 0, 1), new Date(year, 11, 31));
+    }
 }
-
-function setThisYear(){
-    let year = new Date().getFullYear();
-    let firstDay = new Date(year, 0, 1);
-    let lastDay = new Date(year, 11, 31);
-    setDateRange(firstDay, lastDay);
-    $('#year_picker').val(year);
+function applyFilters(source){
+    if (source === 'year' || source === 'month') computeRangeFromMonthYear();
+    document.getElementById('filterForm').submit();
+}
+function setThisMonthAndApply(){
+    var d = new Date();
+    var firstDay = new Date(d.getFullYear(), d.getMonth(), 1);
+    var lastDay = new Date(d.getFullYear(), d.getMonth()+1, 0);
+    setRange(firstDay, lastDay);
+    document.getElementById('month_picker').value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    document.getElementById('year_picker').value = d.getFullYear();
+    document.getElementById('filterForm').submit();
 }
 
 // ----------------- Draw Charts -----------------
 function drawCharts(){
-    let year = $('#year_picker').val();
-    let month = $('#month_picker').val();
-    let topN = parseInt($('#top_n').val()) || 5;
-
-    if(month){
-        let parts = month.split('-');
-        let firstDay = new Date(parts[0], parts[1]-1, 1);
-        let lastDay = new Date(parts[0], parts[1], 0);
-        setDateRange(firstDay, lastDay);
-    } else if(year){
-        let firstDay = new Date(year, 0, 1);
-        let lastDay = new Date(year, 11, 31);
-        setDateRange(firstDay, lastDay);
-    }
-
-    let params = {
-        from_date: $('#from_date').val(),
-        to_date: $('#to_date').val(),
+    var year = document.getElementById('year_picker').value;
+    var topN = parseInt(document.getElementById('top_n').value) || 5;
+    var params = new URLSearchParams({
+        from_date: document.getElementById('from_date').value,
+        to_date: document.getElementById('to_date').value,
         year: year
-    };
+    });
 
     // -------- Monthly Trend (Stacked Area) --------
-    $.get("{% url 'inventory_trend_chart' %}", params, function(res){
-        let data = google.visualization.arrayToDataTable(res);
-        let options = {
-            height:350,
-            title:'Monthly Stock Trend',
-            legend:{position:'bottom'},
-            isStacked:true,
-            series:{
-                0:{color:'green'},
-                1:{color:'red'}
-            },
-            pointSize:5
-        };
-        let chart = new google.visualization.AreaChart(document.getElementById('trend_chart'));
-        chart.draw(data, options);
-    });
+    fetch("{% url 'inventory_trend_chart' %}?" + params.toString())
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            var data = google.visualization.arrayToDataTable(res);
+            var options = {
+                height:350, title:'Monthly Stock Trend', legend:{position:'bottom'},
+                isStacked:true, series:{ 0:{color:'green'}, 1:{color:'red'} }, pointSize:5
+            };
+            var chart = new google.visualization.AreaChart(document.getElementById('trend_chart'));
+            chart.draw(data, options);
+        }).catch(function(){});
 
     // -------- Product Pie Chart --------
-    $.get("{% url 'inventory_product_chart' %}", params, function(res){
-        let products = res.slice(1)
-            .sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]))
-            .slice(0, topN);
-
-        let dataArray = [res[0]];
-        let palette = ['#4caf50','#f44336','#2196f3','#ff9800','#9c27b0','#00bcd4','#ffc107','#e91e63','#3f51b5','#795548'];
-        let colors = [];
-
-        products.forEach((item,i)=>{
-            dataArray.push([item[0], Math.abs(item[1])]);
-            colors.push(palette[i % palette.length]);
-        });
-
-        let data = google.visualization.arrayToDataTable(dataArray);
-        let options = {
-            height:350,
-            is3D:true,
-            title:'Top '+topN+' Products Stock Changes',
-            slices: colors.map(c=>({color:c}))
-        };
-        let chart = new google.visualization.PieChart(document.getElementById('product_chart'));
-        chart.draw(data, options);
-    });
+    fetch("{% url 'inventory_product_chart' %}?" + params.toString())
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            var products = res.slice(1).sort(function(a,b){ return Math.abs(b[1])-Math.abs(a[1]); }).slice(0, topN);
+            var dataArray = [res[0]];
+            var palette = ['#4caf50','#f44336','#2196f3','#ff9800','#9c27b0','#00bcd4','#ffc107','#e91e63','#3f51b5','#795548'];
+            var colors = [];
+            products.forEach(function(item,i){
+                dataArray.push([item[0], Math.abs(item[1])]);
+                colors.push(palette[i % palette.length]);
+            });
+            var data = google.visualization.arrayToDataTable(dataArray);
+            var options = {
+                height:350, is3D:true, title:'Top '+topN+' Products Stock Changes',
+                slices: colors.map(function(c){ return {color:c}; })
+            };
+            var chart = new google.visualization.PieChart(document.getElementById('product_chart'));
+            chart.draw(data, options);
+        }).catch(function(){});
 }
 
-// ----------------- DataTable -----------------
-let table = $('#inventory-logs-table').DataTable({
-    processing:true,
-    serverSide:true,
-    pageLength:25,
-    ajax:{
-        url:"{% url 'inventory_logs_ajax' %}",
-        data:function(d){
-            d.from_date = $('#from_date').val();
-            d.to_date = $('#to_date').val();
-        }
-    }
-});
-
-// ----------------- Event Listeners -----------------
-$('#year_picker, #month_picker, #top_n').change(function(){
-    table.draw();
-    drawCharts();
-});
-
-// Quick buttons
-$('#this_month').click(function(){ setThisMonth(); table.draw(); drawCharts(); });
-$('#reset').click(function(){ setThisMonth(); table.draw(); drawCharts(); });
-
 // ----------------- Initial Load -----------------
-google.charts.setOnLoadCallback(function(){
-    setThisMonth();
-    drawCharts();
-});
-
-// Initialize Bootstrap tooltips
-var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-  return new bootstrap.Tooltip(tooltipTriggerEl);
-});
+google.charts.setOnLoadCallback(function(){ drawCharts(); });
+window.addEventListener('resize', function(){ if (window.google && google.visualization) drawCharts(); });
 </script>
 {% endblock %}

@@ -1,217 +1,94 @@
 {% extends "base.html" %}
-{% load tz %}
 {% load static %}
 {% load humanize %}
 {% load money %}
-{% block content %}
+{% load tz %}
+{% block title %}Purchases · GSTSync{% endblock %}
 
-	<div>
-		<div class="row mb-3">
-			<div class="col-md-6">
-				<h2>Purchases Logs</h2>
-			</div>
-			<div class="col-md-6 text-right" style="margin-top: auto;">
-				<a href="{% url 'purchases_logs_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add New Purchase">
-					<i class="fas fa-plus"></i>
-				</a>
-				<a href="{% url 'purchases_logs_overdue' %}" class="btn btn-warning btn-sm btn-curve" title="View Overdue Purchases">
-					<i class="fas fa-exclamation-triangle"></i></a>
-			</div>
-		</div>
-		
-		<!-- Summary Cards Row -->
-		<div class="row mb-3">
-			<div class="col-md-3">
-				<div class="card bg-danger text-white">
-					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-receipt"></i> Total Purchased</h6>
-						<h3>₹ {{ total_purchased | default:0 | inrs }}</h3>
-						<a href="?filter=purchased" class="stretched-link"></a>
-					</div>
-				</div>
-			</div>
-			<div class="col-md-3">
-				<div class="card bg-success text-white">
-					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-circle-check"></i> Total Paid</h6>
-						<h3>₹ {{ total_paid | default:0 | inrs }}</h3>
-						<a href="?filter=paid" class="stretched-link"></a>
-					</div>
-				</div>
-			</div>
-			<div class="col-md-3">
-				<div class="card bg-orange text-white">
-					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
-						<h3>₹ {{ total_returned | default:0 | inrs }}</h3>
-						<a href="?filter=returned" class="stretched-link"></a>
-					</div>
-				</div>
-			</div>
-			<div class="col-md-3">
-				<div class="card bg-violet text-white">
-					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
-						<h3>₹ {{ total_others | default:0 | inrs }}</h3>
-						<a href="?filter=others" class="stretched-link"></a>
-					</div>
-				</div>
-			</div>
-		</div>
-		<p class="font-weight-bold">
-			<span>Current Balance:</span> 
-			{% if total_balance > 0 %} 
-				<span class="text-danger"><a href="?filter=balance" class="text-danger">
-			{% else %}	
-				<span class="text-success"><a href="?filter=balance" class="text-success">
-			{% endif %}
-				₹ {{ total_balance | default:0 | inrs }} </a></span>
-			<span>({{ total_balance_word }})</span>
-			{% if balance_status %}
-				/ "<span class="text-violet"><i class="fas fa-exclamation-triangle text-danger"></i> {{ balance_status }}</span>"
-			{% endif %}
-		</p>
-	<table class="table table-hover font-weight-bold" id="purchase-table">
-		<thead class="thead-dark">
-			<tr>
-				<th>Date</th>
-				<th>Type</th>
-				<th>Amount</th>
-				<th>Reference</th>
-				<th>Vendor</th>
-				<th>Actions</th>
-			</tr>
-		</thead>
-		<tbody class="two-col-form">
-			{% for purchase in purchases %}
-				{% if purchase.change_type == 0 %}
-					<tr class="table-success">
-				{% elif purchase.change_type == 1 %}
-					<tr class="table-danger">
-				{% elif purchase.change_type == 2 %}
-					<tr class="table-warning">
-				{% else %}
-					<tr class="table-info">
-				{% endif %}
-
-				<td>
-					{{ purchase.date|localtime|date:"M d, Y h:i A" }}
-					<br>
-					<small class="text-muted">{{ purchase.date|naturaltime }}</small>
-				</td>
-				<td>{{purchase.get_change_type_display }}</td>
-				<td>{% if purchase.change %}₹ {{purchase.change|inrs}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-				<td>
-					{% if purchase.reference %}
-						{{purchase.reference}}
-					{% else %}
-						<span class="text-danger">N/A</span>
-					{% endif %}
-					{% if purchase.change != 0 %}
-						<br><span class="text-muted">{{ purchase.category }}</span>
-					{% endif %}
-				</td>
-				<td>
-					{% if purchase.vendor %}
-						<a href="{% url 'purchases_vendor_logs' purchase.vendor.id %}" style="text-decoration: none; color: black;">{{ purchase.vendor.vendor_name }}</a>
-					{% else %}
-						<span class="text-danger">N/A</span>
-					{% endif %}
-				</td>
-				<td>
-					<div class="btn-group" role="group" aria-label="Basic example">
-						<a href="{% url 'purchases_logs_delete' purchase.id %}" class="btn btn-danger btn-sm btn-curve" title="Delete Purchase"><i class="fas fa-trash"></i></a>
-					</div>
-				</td>
-			</tr>
-			{% endfor %}
-		</tbody>
-	</table>
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
 
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Purchases Logs</h1><div class="sub">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} · balance ₹ {{ total_balance|floatformat:0|intcomma }}{% if balance_status %} ({{ balance_status }}){% endif %}</div></div>
+        <div class="actions">
+            <a href="{% url 'purchases_logs_overdue' %}" class="gbtn"><i class="fas fa-triangle-exclamation"></i> Overdue</a>
+            <a href="{% url 'purchases_logs_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-arrow-down"></i> Export</a>
+            <a href="{% url 'purchases_logs_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add purchase</a>
+        </div>
+    </div>
+
+    <div class="gstats">
+        <a href="?filter=purchased" class="gstat red {% if active_filter == 'purchased' %}on{% endif %}">
+            <div class="gk"><span class="dot"></span> Total Purchased</div><div class="gv">₹ {{ total_purchased|default:0|inrs }}</div></a>
+        <a href="?filter=paid" class="gstat green {% if active_filter == 'paid' %}on{% endif %}">
+            <div class="gk"><span class="dot"></span> Total Paid</div><div class="gv">₹ {{ total_paid|default:0|inrs }}</div></a>
+        <a href="?filter=returned" class="gstat amber {% if active_filter == 'returned' %}on{% endif %}">
+            <div class="gk"><span class="dot"></span> Total Returned</div><div class="gv">₹ {{ total_returned|default:0|inrs }}</div></a>
+        <a href="?filter=others" class="gstat blue {% if active_filter == 'others' %}on{% endif %}">
+            <div class="gk"><span class="dot"></span> Total Others</div><div class="gv">₹ {{ total_others|default:0|inrs }}</div></a>
+    </div>
+
+    <form method="get" class="toolbar">
+        <div class="search"><i class="fas fa-magnifying-glass gico"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search reference, vendor…" autocomplete="off"></div>
+        {% if active_filter %}<input type="hidden" name="filter" value="{{ active_filter }}">
+        <a href="{% url 'purchases_logs' %}" class="gbtn">Clear filter</a>{% endif %}
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Date</th><th>Type</th><th class="r">Amount</th><th>Reference</th><th>Vendor</th><th class="r">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for purchase in purchases %}
+                <tr>
+                    <td>{{ purchase.date|localtime|date:"M d, Y" }}<div class="mn">{{ purchase.date|naturaltime }}</div></td>
+                    <td>
+                        {% if purchase.change_type == 0 %}<span class="gbadge ok">{{ purchase.get_change_type_display }}</span>
+                        {% elif purchase.change_type == 1 %}<span class="gbadge out">{{ purchase.get_change_type_display }}</span>
+                        {% elif purchase.change_type == 2 %}<span class="gbadge low">{{ purchase.get_change_type_display }}</span>
+                        {% else %}<span class="gbadge blue">{{ purchase.get_change_type_display }}</span>{% endif %}
+                    </td>
+                    <td class="r num">{% if purchase.change %}₹ {{ purchase.change|inrs }}{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td>{% if purchase.reference %}{{ purchase.reference }}{% else %}<span class="mut">—</span>{% endif %}{% if purchase.change != 0 and purchase.category %}<div class="mn">{{ purchase.category }}</div>{% endif %}</td>
+                    <td>{% if purchase.vendor %}<a href="{% url 'purchases_vendor_logs' purchase.vendor.id %}" class="nm">{{ purchase.vendor.vendor_name }}</a>{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td class="r"><div class="rowacts">
+                        <button type="button" class="gbtn gbtn-icon del" title="Delete"
+                            onclick="deletePurchase({{ purchase.id }}, '{{ purchase.reference|default:''|escapejs }}')"><i class="fas fa-trash"></i></button>
+                    </div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty">
+                    <div class="ei"><i class="fas fa-truck fa-lg"></i></div>
+                    <h3>No purchases found</h3>
+                    <p>{% if q or active_filter %}Try clearing the filters.{% else %}Add your first purchase log.{% endif %}</p>
+                    {% if q or active_filter %}<a href="{% url 'purchases_logs' %}" class="gbtn">Clear filters</a>{% else %}<a href="{% url 'purchases_logs_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add purchase</a>{% endif %}
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
+</div>
+{% endblock %}
 
 {% block includejs %}
-<script type="text/javascript">
-	$(document).ready( function () {
-		$('#purchase-table').DataTable({
-			"order": [],
-			"columnDefs": [ {
-				"targets": 5,
-				"sortable": false,
-				"searchable": false
-			} ],
-			"paging": true,
-			dom: 'Bfrtip',
-			buttons: [
-				{
-					extend: 'excelHtml5',
-					text: '<i class="fas fa-file-excel"></i> Excel',
-					className: 'btn btn-success btn-sm btn-curve'
-				},
-				{
-					extend: 'pdfHtml5',
-					text: '<i class="fas fa-file-pdf"></i> PDF',
-					className: 'btn btn-danger btn-sm btn-curve'
-				},
-				{
-					extend: 'print',
-					text: '<i class="fas fa-print"></i> Print',
-					className: 'btn btn-warning btn-sm btn-curve',
-					title: '',
-					customize: function (win) {
-						var body = $(win.document.body);
-						body.css('font-family', 'Arial, sans-serif');
-
-						// Build header
-						var header = '<div style="text-align:center; margin-bottom:20px;">' +
-							'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
-							'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
-							'<p style="margin:2px 0; color:#666; font-size:13px;">' +
-								'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
-								'{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
-								'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
-							'</p>' +
-							'<hr style="margin:10px 0;">' +
-							'<h4 style="margin:0;">Purchases Logs</h4>' +
-							'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
-								'<span style="color:#dc3545;"><strong>Total Sales:</strong> ₹ {{ total_purchased|default:0|inrs }}</span>' +
-								'<span style="color:#28a745;"><strong>Total Paid:</strong> ₹ {{ total_paid|default:0|inrs }}</span>' +
-								'<span style="color:#fd7e14;"><strong>Returned:</strong> ₹ {{ total_returned|default:0|inrs }}</span>' +
-								'<span><strong>Balance:</strong> ₹ {{ total_balance|default:0|inrs }}</span>' +
-							'</div>' +
-							'<hr style="margin-top:10px;">' +
-						'</div>';
-						body.find('table').before(header);
-
-						// Hide Actions column
-						body.find('table th:last-child, table td:last-child').hide();
-
-						// Add S.No column header
-						body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
-
-						// Add S.No to each row
-						body.find('table tbody tr').each(function(index) {
-							$(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
-						});
-
-						// Style the table
-						body.find('table')
-							.css('width', '100%')
-							.css('border-collapse', 'collapse')
-							.css('font-size', '13px');
-						body.find('table th, table td')
-							.css('border', '1px solid #ddd')
-							.css('padding', '8px');
-						body.find('table thead th')
-							.css('background-color', '#343a40')
-							.css('color', '#fff')
-							.css('text-align', 'left');
-					}
-				}
-			]
-		});
-	});
+<script>
+function deletePurchase(id, ref){
+    Swal.fire({
+        title: 'Delete purchase?',
+        html: ref ? 'Delete purchase <b>' + ref + '</b>? This cannot be undone.' : 'Delete this purchase log? This cannot be undone.',
+        icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#e11d48', cancelButtonText: 'Cancel'
+    }).then(function(r){ if(r.isConfirmed){ window.location.href = "/purchases_logs/delete/" + id; } });
+}
 </script>
 {% endblock %}
-
-{% block body_libs %}{% include "partials/libs/export_body.html" %}{% endblock %}

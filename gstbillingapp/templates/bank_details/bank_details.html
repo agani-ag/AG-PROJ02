@@ -1,81 +1,72 @@
 {% extends "base.html" %}
-
 {% load static %}
-{% load humanize %}
-{% block content %}
+{% block title %}Bank Details · GSTSync{% endblock %}
 
-    <div class="row">
-        <div class="col">
-            <h3>
-                Bank Details
-            </h3>
-        </div>
-
-        <div class="col text-right" style="padding-top: 0.5%;">
-            <a href="{% url 'bank_details_add' %}" class="btn btn-primary btn-sm btn-curve">
-                <i class="fas fa-plus"></i>
-            </a>
-        </div>
-    </div>
-    <!-- <hr> -->
-
-    <table class="table table-hover font-weight-bold" id="purchase-table">
-        <thead class="thead-dark">
-            <tr>
-                <th>Account Name</th>
-                <th>Account Number</th>
-                <th>Bank Name</th>
-                <th>IFSC Code</th>
-                <th>Category</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody class="two-col-form">
-            {% for bank_detail in bank_details %}
-            <tr class="{% if purchase.amount > 0 %} table-success {% else %} table-danger {% endif %}">
-                <td>{{bank_detail.account_name}}</td>
-                <td>{{bank_detail.account_number }}</td>
-                <td>{% if bank_detail.bank_name %}{{bank_detail.bank_name}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-                <td>{% if bank_detail.ifsc_code %}{{bank_detail.ifsc_code}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-                <td>{{bank_detail.get_whom_account_display}}</td>
-                <td>
-                    <div class="btn-group" role="group" aria-label="Basic example">
-                        <a href="{% url 'bank_details_edit' bank_detail.pk %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
-                        <a href="#" class="btn btn-danger btn-sm btn-curve" onclick="deleteBankDetail({{ bank_detail.pk }}, '{{ bank_detail.account_name }}', '{{ bank_detail.account_number }}')"><i class="fas fa-trash"></i></a>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
 
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Bank Details</h1><div class="sub">{{ total_count }} account{{ total_count|pluralize }}</div></div>
+        <div class="actions">
+            <a href="{% url 'bank_details_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add bank</a>
+        </div>
+    </div>
+
+    <form method="get" class="toolbar">
+        <div class="search"><i class="fas fa-magnifying-glass gico"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search account, bank…" autocomplete="off"></div>
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Account</th><th>Account Number</th><th>Bank</th><th>IFSC</th><th>Category</th><th class="r">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for b in bank_details %}
+                <tr>
+                    <td><div class="prim"><span class="pi"><i class="fas fa-building-columns"></i></span><div class="nm">{{ b.account_name }}</div></div></td>
+                    <td class="num">{{ b.account_number }}</td>
+                    <td>{% if b.bank_name %}{{ b.bank_name }}{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td>{% if b.ifsc_code %}{{ b.ifsc_code }}{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td><span class="tag2">{{ b.get_whom_account_display }}</span></td>
+                    <td class="r"><div class="rowacts">
+                        <a href="{% url 'bank_details_edit' b.pk %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
+                        <button type="button" class="gbtn gbtn-icon del" title="Delete"
+                            onclick="deleteBankDetail({{ b.pk }}, '{{ b.account_name|escapejs }}', '{{ b.account_number|escapejs }}')"><i class="fas fa-trash"></i></button>
+                    </div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty">
+                    <div class="ei"><i class="fas fa-building-columns fa-lg"></i></div>
+                    <h3>No bank details found</h3>
+                    <p>{% if q %}Try a different search.{% else %}Add your first bank account.{% endif %}</p>
+                    {% if q %}<a href="{% url 'bank_details' %}" class="gbtn">Clear search</a>{% else %}<a href="{% url 'bank_details_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add bank</a>{% endif %}
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
+</div>
+{% endblock %}
 
 {% block includejs %}
-<script type="text/javascript">
-	$(document).ready( function () {
-		$('#purchase-table').DataTable({
-			"order": [],
-			"columnDefs": [ {
-				"targets": 3,
-				"sortable": false,
-				"searchable": false
-			} ],
-			"paging": true
-		});
-	});
-
-    function deleteBankDetail(bankDetailId,AccountName,AccountNumber) {
-		swal.fire({
-			title: 'Delete Bank Detail',
-            html: '<b>Are you sure you want to delete the bank detail for ' + AccountName + ' with account number ' + AccountNumber + '?</b>',
-			icon: 'warning',
-			confirmButtonText: 'OK'
-		}).then((result) => {
-			if (result.isConfirmed) {
-				window.location.href = "/bank_details/delete/" + bankDetailId;
-			}
-		});
-	};
+<script>
+function deleteBankDetail(id, name, number){
+    Swal.fire({
+        title: 'Delete bank detail?',
+        html: 'Delete the account for <b>' + name + '</b> (' + number + ')?',
+        icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#e11d48', cancelButtonText: 'Cancel'
+    }).then(function(r){ if(r.isConfirmed){ window.location.href = "/bank_details/delete/" + id; } });
+}
 </script>
 {% endblock %}

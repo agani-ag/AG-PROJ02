@@ -3,75 +3,34 @@
 {% load static %}
 {% load humanize %}
 
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
 {% block content %}
-<h2>Inventory Details</h2>
-<hr>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><a href="{% url 'inventory' %}">Inventory</a> › Logs</div>
+            <h1 class="disp">{{ inventory.product.product_name|default:inventory.product.model_no }}</h1>
+            <div class="sub">
+                Model {{ inventory.product.model_no|default:"—" }} · HSN {{ inventory.product.product_hsn|default:"—" }} · Price {{ inventory.product.product_rate_with_gst|default:"—" }}
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+                {% if inventory.current_stock > 0 %}<span class="gbadge ok">Stock {{ inventory.current_stock }}</span>{% else %}<span class="gbadge out">Stock {{ inventory.current_stock }}</span>{% endif %}
+                <span class="gbadge low" style="cursor:pointer" onclick="alert_levelupdate({{ inventory.id }}, {{ inventory.alert_level }})" title="Update stock alert level">Alert {{ inventory.alert_level }}</span>
+            </div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'product_edit' inventory.product.id %}" class="gbtn"><i class="fas fa-pen-to-square"></i> Product</a>
+            <a href="{% url 'inventory_logs_add' inventory.id %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add entry</a>
+        </div>
+    </div>
 
-<div class="row">
-	<div class="col">
-		<h6>
-			Model No: 
-			{% if inventory.product.model_no %}
-				<b>{{inventory.product.model_no}}</b>
-			{% else %}
-				<b class="text-danger">N/A</b>
-			{% endif %}
-		</h6>
-		<h6>
-			Product: 
-			{% if inventory.product.product_name %}
-				<b>{{inventory.product.product_name}}</b>
-			{% else %}
-				<b class="text-danger">N/A</b>
-			{% endif %}
-			</h6>
-		<h6>
-			HSN: 
-			{% if inventory.product.product_hsn %}
-				<b>{{inventory.product.product_hsn}}</b>
-			{% else %}
-				<b class="text-danger">N/A</b>
-			{% endif %}
-		</h6>
-		<h6>
-			Price: 
-			{% if inventory.product.product_rate_with_gst %}
-				<b>{{inventory.product.product_rate_with_gst}}</b>
-				{% if sales_price != inventory.product.product_rate_with_gst %}
-					<small class="text-muted font-weight-bold">({{ sales_price|floatformat:2 }})</small>
-				{% endif %}
-			{% else %}
-				<b class="text-danger">N/A</b>
-			{% endif %}
-		</h6>
-		<h4 class="d-flex align-items-center gap-2">
-			<span class="fw-semibold">Current Stock:</span>
-			{% if inventory.current_stock > 0 %}
-				<span class="badge rounded-pill bg-success px-3 py-2 fs-6">
-					{{ inventory.current_stock }}
-				</span>
-			{% else %}
-				<span class="badge rounded-pill bg-danger px-3 py-2 fs-6">
-					{{ inventory.current_stock }}
-				</span>
-			{% endif %}
-			<span class="text-muted">|</span>
-			<span class="badge rounded-pill bg-warning text-dark px-3 py-2" style="cursor:pointer;"
-				onclick="alert_levelupdate({{ inventory.id }}, {{ inventory.alert_level }})" title="Update Stock Alert Level">{{ inventory.alert_level }}
-			</span>
-
-		</h4>
-	</div>
-	<div class="col text-right">
-		<a href="{% url 'inventory_logs_add' inventory.id %}" class="btn btn-primary btn-sm btn-curve" title="Add Logs">
-			<i class="fas fa-plus"></i></a>
-		<a href="{% url 'inventory' %}" class="btn btn-danger btn-sm btn-curve" title="Back to Inventory"><i class="fas fa-reply"></i></a>
-		<a href="{% url 'product_edit' inventory.product.id %}" class="btn btn-warning btn-sm btn-curve" title="Edit Product"><i class="fas fa-pen-to-square"></i></a>
-	</div>
-</div>
-
-<hr>
-
+    <div class="tablecard" style="padding:10px 14px">
 <table class="table table-hover font-weight-bold" id="inventory-logs-table">
 	<thead class="thead-dark">
 		<tr>
@@ -79,7 +38,7 @@
 			<th>Type</th>
 			<th>Change</th>
 			<th>Description</th>
-			<th></th>
+			<th data-noexport data-nosort></th>
 		</tr>
 	</thead>
 	<tbody class="two-col-form">
@@ -99,85 +58,37 @@
 		{% endfor %}
 	</tbody>
 </table>
-
-
-
+    </div>
+</div>
 {% endblock %}
 
 
 {% block includejs %}
 <script type="text/javascript">
-$(document).ready( function () {
-	$('#inventory-logs-table').DataTable({
-		"order": [],
-		"paging": true,
-		dom: 'Bfrtip',
-        buttons: [
-            {
-                extend: 'excelHtml5',
-                text: '<i class="fas fa-file-excel"></i> Excel',
-                className: 'btn btn-success btn-sm btn-curve'
-            },
-            {
-                extend: 'pdfHtml5',
-                text: '<i class="fas fa-file-pdf"></i> PDF',
-                className: 'btn btn-danger btn-sm btn-curve'
-            },
-            {
-                extend: 'print',
-                text: '<i class="fas fa-print"></i> Print',
-                className: 'btn btn-warning btn-sm btn-curve',
-                title: '',
-                customize: function (win) {
-                    var body = $(win.document.body);
-                    body.css('font-family', 'Arial, sans-serif');
-
-                    // Build header
-                    var header = '<div style="text-align:center; margin-bottom:20px;">' +
-                        '<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
-                        '<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
-                        '<p style="margin:2px 0; color:#666; font-size:13px;">' +
-                            'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
-                            '{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
-							'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
-                        '</p>' +
-                        '<hr style="margin:10px 0;">' +
-                        '<h4 style="margin:0;">Inventory Logs - {{ inventory.product.model_no|escapejs }}</h4>' +
-                        '<p style="margin:4px 0; color:#666;">{{ inventory.product.product_name|escapejs }}</p>' +
-                        '<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
-                            '<span><strong>Price:</strong> ₹ {{ inventory.product.product_rate_with_gst }}</span>' +
-                            '<span><strong>Current Stock:</strong> {{ inventory.current_stock }}</span>' +
-                        '</div>' +
-                        '<hr style="margin-top:10px;">' +
-                    '</div>';
-                    body.find('table').before(header);
-
-                    // Hide Actions column
-                    body.find('table th:last-child, table td:last-child').hide();
-
-                    // Add S.No column header
-                    body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
-
-                    // Add S.No to each row
-                    body.find('table tbody tr').each(function(index) {
-                        $(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
-                    });
-
-                    // Style the table
-                    body.find('table')
-                        .css('width', '100%')
-                        .css('border-collapse', 'collapse')
-                        .css('font-size', '13px');
-                    body.find('table th, table td')
-                        .css('border', '1px solid #ddd')
-                        .css('padding', '8px');
-                    body.find('table thead th')
-                        .css('background-color', '#343a40')
-                        .css('color', '#fff')
-                        .css('text-align', 'left');
-                }
-            }
-        ]
+document.addEventListener('DOMContentLoaded', function () {
+	GSTable.enhance('#inventory-logs-table', {
+		pageSize: 25, search: true, sort: true,
+		exportCsv: true, print: true,
+		searchPlaceholder: 'Search logs…',
+		exportName: 'inventory-logs-{{ inventory.product.model_no|escapejs }}',
+		printTitle: 'Inventory Logs - {{ inventory.product.model_no|escapejs }}',
+		printHeadHtml: '<div style="text-align:center; margin-bottom:20px;">' +
+			'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
+			'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
+			'<p style="margin:2px 0; color:#666; font-size:13px;">' +
+				'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
+				'{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
+				'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
+			'</p>' +
+			'<hr style="margin:10px 0;">' +
+			'<h4 style="margin:0;">Inventory Logs - {{ inventory.product.model_no|escapejs }}</h4>' +
+			'<p style="margin:4px 0; color:#666;">{{ inventory.product.product_name|escapejs }}</p>' +
+			'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
+				'<span><strong>Price:</strong> &#8377; {{ inventory.product.product_rate_with_gst }}</span>' +
+				'<span><strong>Current Stock:</strong> {{ inventory.current_stock }}</span>' +
+			'</div>' +
+			'<hr style="margin-top:10px;">' +
+		'</div>'
 	});
 });
 
@@ -227,4 +138,3 @@ function alert_levelupdate(inventoryId, currentLevel) {
 }
 </script>
 {% endblock %}
-{% block body_libs %}{% include "partials/libs/export_body.html" %}{% endblock %}

@@ -9,9 +9,38 @@ function add_invoice_item_row() {
     $('#invoice-form-items-table-body >tr:last').clone(true).insertAfter('#invoice-form-items-table-body >tr:last');
     $('#invoice-form-items-table-body >tr:last input').val('');
 
-    $('#invoice-form-items-table-body >tr:last td')[0].innerHTML = invoice_item_row_counter
+    // Update the Sl No — keep the delete control if the row has one (.slno-num);
+    // otherwise fall back to writing the whole cell (quotation pages without it).
+    var $sltd = $('#invoice-form-items-table-body >tr:last td').eq(0);
+    var $slnum = $sltd.find('.slno-num');
+    if ($slnum.length) { $slnum.text(invoice_item_row_counter); }
+    else { $sltd[0].innerHTML = invoice_item_row_counter; }
     update_amounts($('#invoice-form-items-table-body input[name=invoice-qty]:last'));
     update_amounts($('#invoice-form-items-table-body input[name=invoice-discount]:last'));
+}
+
+// DELETE INVOICE ROW ====================================================
+function delete_invoice_item_row(btn) {
+    var $rows = $('#invoice-form-items-table-body > tr');
+    var $row = $(btn).closest('tr');
+    if ($rows.length <= 1) {
+        // Always keep at least one row — clear it instead of removing.
+        $row.find('input').val('');
+        update_amounts($row.find('input[name=invoice-qty]'));
+        return;
+    }
+    $row.remove();
+    // Renumber the remaining rows so Sl No stays 1..N.
+    $('#invoice-form-items-table-body > tr').each(function (i) {
+        var $n = $(this).find('.slno-num');
+        if ($n.length) { $n.text(i + 1); }
+        else { $(this).find('td').eq(0).text(i + 1); }
+    });
+    update_invoice_totals();
+    // Nudge the invoice-create page's live item alerts / credit badge to recompute
+    // (they listen for native input/change events on the table body).
+    var firstQty = document.querySelector('#invoice-form-items-table-body input[name=invoice-qty]');
+    if (firstQty) firstQty.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 function setup_invoice_rows() {
@@ -147,10 +176,12 @@ function update_amounts(element){
 
 function customer_result_to_domstr(result) {
     var $dom = $("<div>", { class: 'customer-search-result' }).data('customer', result);
-    $dom.append($("<div>").text(result['customer_name']));
-    $dom.append($("<div>").text(result['customer_address']));
-    $dom.append($("<div>").text(result['customer_phone']));
-    $dom.append($("<div>").text(result['customer_gst']));
+    $dom.append($("<div>", { class: 'sr-title' }).text(result['customer_name'] || '—'));
+    if (result['customer_address']) $dom.append($("<div>", { class: 'sr-sub' }).text(result['customer_address']));
+    var meta = [];
+    if (result['customer_phone']) meta.push('📱 ' + result['customer_phone']);
+    if (result['customer_gst']) meta.push('GST ' + result['customer_gst']);
+    if (meta.length) $dom.append($("<div>", { class: 'sr-meta' }).text(meta.join('   ·   ')));
     return $dom;
 }
 
@@ -293,9 +324,13 @@ var selected_item_input;
 
 function product_result_to_domstr(result) {
     var $dom = $("<div>", { class: 'product-search-result' }).data('product', result);
-    $dom.append($("<h5>").text(result['model_no']));
-    $dom.append($("<div>").text(result['product_name'] + " | " + result['product_hsn'] + " | " + result['product_gst_percentage'] + "%" +
-        " | " + result['product_discount'] + "%"));
+    $dom.append($("<div>", { class: 'sr-title' }).text(result['model_no'] || '—'));
+    if (result['product_name']) $dom.append($("<div>", { class: 'sr-sub' }).text(result['product_name']));
+    var meta = [];
+    if (result['product_hsn']) meta.push('HSN ' + result['product_hsn']);
+    if (result['product_gst_percentage'] !== undefined && result['product_gst_percentage'] !== '') meta.push('GST ' + result['product_gst_percentage'] + '%');
+    if (result['product_discount']) meta.push('Disc ' + result['product_discount'] + '%');
+    if (meta.length) $dom.append($("<div>", { class: 'sr-meta' }).text(meta.join('   ·   ')));
     return $dom;
 }
 
@@ -307,11 +342,14 @@ function product_result_click() {
     selected_item_input.parent().parent().find('input[name=invoice-hsn]').val(product_data_json['product_hsn']);    
     selected_item_input.parent().parent().find('input[name=invoice-rate-with-gst]').val(product_data_json['product_rate_with_gst']);    
     selected_item_input.parent().parent().find('input[name=invoice-gst-percentage]').val(product_data_json['product_gst_percentage']);   
-    selected_item_input.parent().parent().find('input[name=invoice-discount]').val(product_data_json['product_discount']);   
+    selected_item_input.parent().parent().find('input[name=invoice-discount]').val(product_data_json['product_discount']);
 
-    // $('#customer-address-input').val(customer_data_json['customer_address']);
-    // $('#customer-phone-input').val(customer_data_json['customer_phone']);
-    // $('#customer-gst-input').val(customer_data_json['customer_gst']);
+    // Always default the quantity to 1 on product select (unless a positive qty is
+    // already typed), so a freshly picked item is billable straight away.
+    var $qty = selected_item_input.parent().parent().find('input[name=invoice-qty]');
+    var qv = parseFloat($qty.val());
+    if (!qv || qv <= 0) { $qty.val(1); }
+
     initialize_auto_calculation();
 }
 

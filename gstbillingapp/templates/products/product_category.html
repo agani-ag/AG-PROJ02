@@ -1,22 +1,32 @@
 {% extends "base.html" %}
+{% load static %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
-<div class="row mb-2">
-    <div class="col">
-        <h2>Product Categories <span class="badge badge-secondary" id="categoryCount">0</span></h2>
-        <small class="text-muted">Create parent categories (e.g., ORGANIC, NON-ORGANIC) and child categories (e.g., FRUITS, VEGETABLES)</small>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <h1 class="disp">Product Categories <span class="gbadge grey" id="categoryCount">0</span></h1>
+            <div class="sub">Create parent categories (e.g., ORGANIC) and child categories (e.g., FRUITS)</div>
+        </div>
+        <div class="actions">
+            <button class="gbtn" id="saveBtn" onclick="saveAllChanges()" style="display:none">
+                <i class="fas fa-save"></i> Save Changes <span class="gbadge blue" id="changeCount">0</span>
+            </button>
+            <button class="gbtn gbtn-primary" onclick="addRow()"><i class="fas fa-plus"></i> Add Category</button>
+        </div>
     </div>
-    <div class="col text-right" style="padding-top: 0.5%;">
-        <button class="btn btn-success btn-sm btn-curve" id="saveBtn" onclick="saveAllChanges()" style="display: none; margin-right: 10px;" title="Save Changes">
-            <i class="fas fa-save"></i> Save Changes <span id="changeCount" class="badge badge-light">0</span>
-        </button>
-        <button class="btn btn-primary btn-sm btn-curve" onclick="addRow()" title="Add Category">
-            <i class="fas fa-plus"></i> Add Category
-        </button>
+
+    <div class="tablecard" style="padding:12px">
+        <div id="myGrid" class="ag-theme-alpine" style="height: 500px;"></div>
     </div>
 </div>
-
-<div id="myGrid" class="ag-theme-alpine" style="height: 500px;"></div>
 
 <!-- Pass categories as JSON -->
 {{ categories|json_script:"categories_data" }}

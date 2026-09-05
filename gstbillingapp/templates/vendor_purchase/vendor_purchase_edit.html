@@ -1,72 +1,66 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}{% if vendor_purchase_form.instance.pk %}Edit{% else %}Add{% endif %} vendor · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
 {% block content %}
+<div class="gs gs-pad">
+<form method="POST" class="gform">
+    {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'vendors_purchase' %}">Vendors</a> › {% if vendor_purchase_form.instance.pk %}Edit{% else %}New{% endif %}</div>
+                <h1 class="disp">{% if vendor_purchase_form.instance.pk %}Edit vendor{% else %}Add vendor{% endif %}</h1>
+            </div>
+        </div>
 
-<h2>Edit Vendor Purchase</h2>
-<form method="POST">
-	{% csrf_token %}
-	<table class="table">
-		<tbody class="two-col-form">
-			<tr>
-				<th scope="row" class="text-right">Vendor Name:</th>
-				<td class="form-input-td">{{vendor_purchase_form.vendor_name}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Address:</th>
-				<td class="form-input-td">{{vendor_purchase_form.vendor_address}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Phone</th>
-				<td class="form-input-td">
-					<input type="tel" name="vendor_phone" pattern="^[6-9][0-9]{9}$"
-					value="{{vendor_purchase_form.vendor_phone.value|default:''}}">
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">GST %:</th>
-				<td class="form-input-td">
-					<input type="text" name="vendor_gst" value="{{vendor_purchase_form.vendor_gst.value|default:''}}" 
-						   pattern="^$|^[A-Za-z0-9]{15}$" 
-						   title="GST number must be exactly 15 alphanumeric characters or left empty">
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Email:</th>
-				<td class="form-input-td">{{vendor_purchase_form.vendor_email}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Latitude:</th>
-				<td class="form-input-td">
-					<input type="number" step="0.000001" name="vendor_latitude" 
-					value="{{vendor_purchase_form.vendor_latitude.value|default:''}}">
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Longitude:</th>
-				<td class="form-input-td">
-					<input type="number" step="0.000001" name="vendor_longitude" 
-					value="{{vendor_purchase_form.vendor_longitude.value|default:''}}">
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Bank Details:</th>
-				<td class="form-input-td">{{vendor_purchase_form.bankdetails}}</td>
-			</tr>
-			<tr>
-				<td colspan="2">
-					<div id="map" style="height: 350px; width: 100%; border: 1px solid #ccc;"></div>
-				</td>
-			</tr>
-		</tbody>
-	</table>
+        <div class="section open">
+            <div class="sh"><span class="si b"><i class="fas fa-truck"></i></span>
+                <div><h3 class="disp">Vendor details</h3><div class="sd">Name, contact &amp; bank</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Vendor Name</label>{{ vendor_purchase_form.vendor_name }}</div>
+                <div class="field"><label>Phone</label><input type="tel" name="vendor_phone" pattern="^[6-9][0-9]{9}$" value="{{ vendor_purchase_form.vendor_phone.value|default:'' }}"></div>
+                <div class="field"><label>GST</label><input type="text" name="vendor_gst" value="{{ vendor_purchase_form.vendor_gst.value|default:'' }}" pattern="^$|^[A-Za-z0-9]{15}$" title="GST number must be exactly 15 alphanumeric characters or left empty"></div>
+                <div class="field"><label>Email</label>{{ vendor_purchase_form.vendor_email }}</div>
+                <div class="field full"><label>Address</label>{{ vendor_purchase_form.vendor_address }}</div>
+                <div class="field full"><label>Bank Details</label>{{ vendor_purchase_form.bankdetails }}</div>
+            </div></div>
+        </div>
 
-	<div class="form-group text-right">
-		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+        <div class="section open">
+            <div class="sh"><span class="si g"><i class="fas fa-location-dot"></i></span>
+                <div><h3 class="disp">Location</h3><div class="sd">Search, drag the pin, or use current location</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body">
+                <div class="grid">
+                    <div class="field"><label>Latitude</label><input type="number" step="0.000001" name="vendor_latitude" value="{{ vendor_purchase_form.vendor_latitude.value|default:'' }}"></div>
+                    <div class="field"><label>Longitude</label><input type="number" step="0.000001" name="vendor_longitude" value="{{ vendor_purchase_form.vendor_longitude.value|default:'' }}"></div>
+                </div>
+                <div id="map" style="height:350px;width:100%;border:1px solid var(--line);border-radius:12px;margin-top:14px"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">{% if vendor_purchase_form.instance.pk %}Editing vendor{% else %}New vendor · not saved{% endif %}</div>
+        <div class="end">
+            <a class="gbtn" href="{% url 'vendors_purchase' %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> {% if vendor_purchase_form.instance.pk %}Save changes{% else %}Save vendor{% endif %}</button>
+        </div>
+    </div></div>
 </form>
-		<a class="btn btn-danger" href="{% url 'vendors_purchase' %}"><i class="fas fa-cancel"></i></a>
-	</div>
+</div>
 
 {% endblock %}
+
 {% block includejs %}
 <script>
 let map;
@@ -76,216 +70,70 @@ var editModeActive = false;
 var latitude = parseFloat(document.getElementsByName("vendor_latitude")[0].value) || 12.602429;
 var longitude = parseFloat(document.getElementsByName("vendor_longitude")[0].value) || 78.595726;
 
-// 🚀 Init map
-function initMap(lat = latitude, lng = longitude) { // Headquarters Location
+function initMap(lat = latitude, lng = longitude) {
     map = L.map('map').setView([lat, lng], 13);
-
-    let cartoLayer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        {
-            attribution: '&copy; OpenStreetMap &copy; CartoDB'
-        }
-    );
-
-    let topoLayer = L.tileLayer(
-        'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-        {
-            attribution: '&copy; OpenTopoMap'
-        }
-    );
-
-    let darkLayer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        {
-            attribution: '&copy; OpenStreetMap &copy; CartoDB'
-        }
-    );
-
-    let osmLayer = L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {
-            attribution: '&copy; OpenStreetMap'
-        }
-    );
-    
-    let googleLayer = L.tileLayer(
-        'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        { 
-            attribution: '&copy; Google Maps',
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        }
-    );
-
-    let satelliteLayer = L.tileLayer(
-        'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-        {
-            attribution: '&copy; Google Maps',
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        }
-    );
-
-    // Default layer
+    let cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
+    let topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap' });
+    let darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
+    let osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
+    let googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
+    let satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
     satelliteLayer.addTo(map);
-    // Layer control
-    let baseMaps = {
-        "☀️ Light": cartoLayer,
-        "🌙 Dark": darkLayer,
-        "🗺️ Google": googleLayer,
-        "⛰️ Terrain": topoLayer,
-        "🗺️ OSM": osmLayer,
-        "🛰️ Satellite": satelliteLayer
-    };
+    let baseMaps = { "☀️ Light": cartoLayer, "🌙 Dark": darkLayer, "🗺️ Google": googleLayer, "⛰️ Terrain": topoLayer, "🗺️ OSM": osmLayer, "🛰️ Satellite": satelliteLayer };
     L.control.layers(baseMaps).addTo(map);
     marker = L.marker([lat, lng], { draggable: true }).addTo(map);
-
-    // 🔍 Search bar (Leaflet Geocoder)
-    geocoder = L.Control.geocoder({
-        defaultMarkGeocode: false
-    })
-    .on('markgeocode', function(e) {
-        let center = e.geocode.center;
-        map.setView(center, 15);
-        marker.setLatLng(center);
-        setLatLng(center.lat, center.lng);
-    })
-    .addTo(map);
-
-    // 📍 Add "Use Current Location" button on map
+    geocoder = L.Control.geocoder({ defaultMarkGeocode: false })
+        .on('markgeocode', function(e) { let center = e.geocode.center; map.setView(center, 15); marker.setLatLng(center); setLatLng(center.lat, center.lng); })
+        .addTo(map);
     let locateControl = L.control({ position: 'topleft' });
     locateControl.onAdd = function(map) {
         let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-        div.style.backgroundColor = 'white';
-        div.style.width = '34px';
-        div.style.height = '34px';
-        div.style.cursor = 'pointer';
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
-        div.style.justifyContent = 'center';
-        div.title = "Use Current Location";
-        div.innerHTML = '📍';
+        div.style.backgroundColor = 'white'; div.style.width = '34px'; div.style.height = '34px'; div.style.cursor = 'pointer';
+        div.style.display = 'flex'; div.style.alignItems = 'center'; div.style.justifyContent = 'center'; div.title = "Use Current Location"; div.innerHTML = '📍';
         L.DomEvent.disableClickPropagation(div);
-        div.onclick = function(e) {
-            e.preventDefault();
-            getLiveLocation();
-        };
+        div.onclick = function(e) { e.preventDefault(); getLiveLocation(); };
         return div;
     };
     locateControl.addTo(map);
-
-	// 📍 Add "Edit Mode" button on map
     let editModeControl = L.control({ position: 'topleft' });
     editModeControl.onAdd = function(map) {
         let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-        div.style.backgroundColor = 'white';
-        div.style.width = '34px';
-        div.style.height = '34px';
-        div.style.cursor = 'pointer';
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
-        div.style.justifyContent = 'center';
-        div.title = "Edit Mode";
-        div.innerHTML = '✏️';
+        div.style.backgroundColor = 'white'; div.style.width = '34px'; div.style.height = '34px'; div.style.cursor = 'pointer';
+        div.style.display = 'flex'; div.style.alignItems = 'center'; div.style.justifyContent = 'center'; div.title = "Edit Mode"; div.innerHTML = '✏️';
         L.DomEvent.disableClickPropagation(div);
-        div.onclick = function(e) {
-            e.preventDefault();
-            editMode();
-        };
+        div.onclick = function(e) { e.preventDefault(); editMode(); };
         return div;
     };
     editModeControl.addTo(map);
-
-    // 🖱 Drag marker
-    marker.on('dragend', function () {
-        if (editModeActive) {
-            let pos = marker.getLatLng();
-            setLatLng(pos.lat, pos.lng);
-        }
-    });
-
-    // 🖱 Click map
-    map.on('click', function (e) {
-        if (editModeActive) {
-            let lat = e.latlng.lat;
-            let lng = e.latlng.lng;
-            marker.setLatLng([lat, lng]);
-            setLatLng(lat, lng);
-        }
-    });
+    marker.on('dragend', function () { if (editModeActive) { let pos = marker.getLatLng(); setLatLng(pos.lat, pos.lng); } });
+    map.on('click', function (e) { if (editModeActive) { let lat = e.latlng.lat; let lng = e.latlng.lng; marker.setLatLng([lat, lng]); setLatLng(lat, lng); } });
 }
 
-// 📍 Set lat/lng everywhere
 function setLatLng(lat, lng) {
     document.getElementsByName("vendor_latitude")[0].value = lat.toFixed(6);
     document.getElementsByName("vendor_longitude")[0].value = lng.toFixed(6);
-    if (map && marker) {
-        marker.setLatLng([lat, lng]);
-        map.setView([lat, lng], 15);
-    }
+    if (map && marker) { marker.setLatLng([lat, lng]); map.setView([lat, lng], 15); }
 }
 
 function editMode() {
-	editModeActive = !editModeActive;
-	if (editModeActive) {
-		swal.fire({
-			title: 'Edit Mode Activated',
-			text: 'You can now click on the map to set your location.',
-			icon: 'info'
-		});
-	} else {
-		swal.fire({
-			title: 'Edit Mode Deactivated',
-			text: 'Clicking on the map will no longer change your location.',
-			icon: 'info'
-		});
-	}
+    editModeActive = !editModeActive;
+    swal.fire({ title: editModeActive ? 'Edit Mode Activated' : 'Edit Mode Deactivated',
+        text: editModeActive ? 'You can now click on the map to set your location.' : 'Clicking on the map will no longer change your location.', icon: 'info' });
 }
 
 function getLiveLocation() {
-    if (!navigator.geolocation) {
-        swal.fire({
-            title: 'Error',
-            text: 'Geolocation is not supported by your browser.',
-            icon: 'error'
-        });
-        return;
-    }
-    swal.fire({
-        title: 'Fetching Location...',
-        text: 'Please allow location access',
-        allowOutsideClick: false,
-        didOpen: () => {
-            swal.showLoading();
-        }
-    });
-
+    if (!navigator.geolocation) { swal.fire({ title: 'Error', text: 'Geolocation is not supported by your browser.', icon: 'error' }); return; }
+    swal.fire({ title: 'Fetching Location...', text: 'Please allow location access', allowOutsideClick: false, didOpen: () => { swal.showLoading(); } });
     navigator.geolocation.getCurrentPosition(
-        function(position) {
-            let lat = position.coords.latitude;
-            let lng = position.coords.longitude;
-            setLatLng(lat, lng);
-            swal.close();
-        },
-        function(error) {
-            swal.fire({
-                title: 'Needed Permission',
-                text: 'Please allow location access to use this feature.',
-                icon: 'warning'
-            });
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000
-        }
+        function(position) { let lat = position.coords.latitude; let lng = position.coords.longitude; setLatLng(lat, lng); swal.close(); },
+        function(error) { swal.fire({ title: 'Needed Permission', text: 'Please allow location access to use this feature.', icon: 'warning' }); },
+        { enableHighAccuracy: true, timeout: 10000 }
     );
 }
 
-// 🚀 Init on load
-document.addEventListener("DOMContentLoaded", function () {
-    initMap();
-});
+document.addEventListener("DOMContentLoaded", function () { initMap(); });
 </script>
 {% endblock %}
 
 {% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}
-
 {% block body_libs %}{% include "partials/libs/leaflet_body.html" %}{% endblock %}

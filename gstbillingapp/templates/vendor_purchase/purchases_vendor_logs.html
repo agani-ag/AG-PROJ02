@@ -50,9 +50,8 @@
 </style>
 {% endblock %}
 {% block content %}
-	<h2>Vendor Details</h2>
-	<hr>
-	<div>
+<div class="gs">
+	<h1 class="disp" style="font-size:22px;margin:0 0 12px">Vendor Details</h1>
 		<div class="row">
 			<div class="col-md-6">
 				<h4>Vendor: <span class="text-primary">{{vendor.vendor_name}}</span></h4>
@@ -70,53 +69,21 @@
 					{% endif %}
 				</p>
 			</div>
-			<div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;gap: 5px;">
-				<button id="openPurchaseModal" class="btn btn-primary btn-sm btn-curve" title="Add New Purchase"><i class="fas fa-plus"></i></button>
-				<a href="{% url 'purchases_logs_overdue' %}?vendor={{ vendor.vendor_name }}" class="btn btn-warning btn-sm btn-curve" title="View Overdue Purchases">
-					<i class="fas fa-exclamation-triangle"></i></a>
+			<div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;gap: 8px;">
+				<button id="openPurchaseModal" class="gbtn gbtn-primary" title="Add New Purchase"><i class="fas fa-plus"></i> New purchase</button>
+				<a href="{% url 'purchases_logs_overdue' %}?vendor={{ vendor.vendor_name }}" class="gbtn" title="View Overdue Purchases"><i class="fas fa-exclamation-triangle"></i> Overdue</a>
 			</div>
 		</div>
 		
 		<!-- Summary Cards Row -->
-		<div class="row mb-3">
-			<div class="col-md-3">
-				<div class="card bg-danger text-white">
-					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-receipt"></i> Total Purchased</h6>
-						<h3>₹ {{ total_purchased | default:0 | inrs }}</h3>
-						<a href="?filter=purchased" class="stretched-link"></a>
-					</div>
-				</div>
-			</div>
-			<div class="col-md-3">
-				<div class="card bg-success text-white">
-					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-circle-check"></i> Total Paid</h6>
-						<h3>₹ {{ total_paid | default:0 | inrs }}</h3>
-						<a href="?filter=paid" class="stretched-link"></a>
-					</div>
-				</div>
-			</div>
-			<div class="col-md-3">
-				<div class="card bg-orange text-white">
-					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
-						<h3>₹ {{ total_returned | default:0 | inrs }}</h3>
-						<a href="?filter=returned" class="stretched-link"></a>
-					</div>
-				</div>
-			</div>
-			<div class="col-md-3">
-				<div class="card bg-violet text-white">
-					<div class="card-body">
-						<h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
-						<h3>₹ {{ total_others | default:0 | inrs }}</h3>
-						<a href="?filter=others" class="stretched-link"></a>
-					</div>
-				</div>
-			</div>
+		<div class="gstats">
+			<a href="?filter=purchased" class="gstat red"><div class="gk"><span class="dot"></span> Total Purchased</div><div class="gv">&#8377; {{ total_purchased|default:0|inrs }}</div></a>
+			<a href="?filter=paid" class="gstat green"><div class="gk"><span class="dot"></span> Total Paid</div><div class="gv">&#8377; {{ total_paid|default:0|inrs }}</div></a>
+			<a href="?filter=returned" class="gstat amber"><div class="gk"><span class="dot"></span> Total Returned</div><div class="gv">&#8377; {{ total_returned|default:0|inrs }}</div></a>
+			<a href="?filter=others" class="gstat blue"><div class="gk"><span class="dot"></span> Total Others</div><div class="gv">&#8377; {{ total_others|default:0|inrs }}</div></a>
 		</div>
 
+	<div class="tablecard" style="padding:10px 14px">
 	<table class="table table-hover font-weight-bold" id="purchase-table">
 		<thead class="thead-dark">
 			<tr>
@@ -125,7 +92,7 @@
 				<th>Amount</th>
 				<th>Category</th>
 				<th>Reference</th>
-				<th>Actions</th>
+				<th data-noexport data-nosort>Actions</th>
 			</tr>
 		</thead>
 		<tbody class="two-col-form">
@@ -158,6 +125,8 @@
 			{% endfor %}
 		</tbody>
 	</table>
+	</div>
+</div>
 {% endblock %}
 
 {% block includejs %}
@@ -205,84 +174,32 @@
   </form>
 </script>
 <script type="text/javascript">
-	$(document).ready( function () {
-		$('#purchase-table').DataTable({
-			"order": [],
-			"columnDefs": [ {
-				"targets": 5,
-				"sortable": false,
-				"searchable": false
-			} ],
-			"paging": true,
-			dom: 'Bfrtip',
-        	buttons: [
-				{
-					extend: 'excelHtml5',
-					text: '<i class="fas fa-file-excel"></i> Excel',
-					className: 'btn btn-success btn-sm btn-curve'
-				},
-				{
-					extend: 'pdfHtml5',
-					text: '<i class="fas fa-file-pdf"></i> PDF',
-					className: 'btn btn-danger btn-sm btn-curve'
-				},
-				{
-					extend: 'print',
-					text: '<i class="fas fa-print"></i> Print',
-					className: 'btn btn-warning btn-sm btn-curve',
-					title: '',
-					customize: function (win) {
-						var body = $(win.document.body);
-						body.css('font-family', 'Arial, sans-serif');
-
-						// Build header
-						var header = '<div style="text-align:center; margin-bottom:20px;">' +
-							'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
-							'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
-							'<p style="margin:2px 0; color:#666; font-size:13px;">' +
-								'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
-								'{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
-								'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
-							'</p>' +
-							'<hr style="margin:10px 0;">' +
-							'<h4 style="margin:0;">Vendor Purchase Logs - {{ vendor.vendor_name|escapejs }}</h4>' +
-							'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
-								'<span style="color:#dc3545;"><strong>Total Sales:</strong> ₹ {{ total_purchased|default:0|inrs }}</span>' +
-								'<span style="color:#28a745;"><strong>Total Paid:</strong> ₹ {{ total_paid|default:0|inrs }}</span>' +
-								'<span style="color:#fd7e14;"><strong>Returned:</strong> ₹ {{ total_returned|default:0|inrs }}</span>' +
-								'<span><strong>Balance:</strong> ₹ {{ total_balance|default:0|inrs }}</span>' +
-							'</div>' +
-							'<hr style="margin-top:10px;">' +
-						'</div>';
-						body.find('table').before(header);
-
-						// Hide Actions column
-						body.find('table th:last-child, table td:last-child').hide();
-
-						// Add S.No column header
-						body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
-
-						// Add S.No to each row
-						body.find('table tbody tr').each(function(index) {
-							$(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
-						});
-
-						// Style the table
-						body.find('table')
-							.css('width', '100%')
-							.css('border-collapse', 'collapse')
-							.css('font-size', '13px');
-						body.find('table th, table td')
-							.css('border', '1px solid #ddd')
-							.css('padding', '8px');
-						body.find('table thead th')
-							.css('background-color', '#343a40')
-							.css('color', '#fff')
-							.css('text-align', 'left');
-					}
-				}
-			]
-        });
+	document.addEventListener('DOMContentLoaded', function () {
+		GSTable.enhance('#purchase-table', {
+			pageSize: 25, search: true, sort: true,
+			exportCsv: true, print: true,
+			searchPlaceholder: 'Search purchases…',
+			exportName: 'vendor-purchases-{{ vendor.vendor_name|escapejs }}',
+			printTitle: 'Vendor Purchase Logs - {{ vendor.vendor_name|escapejs }}',
+			printHeadHtml: '<div style="text-align:center; margin-bottom:20px;">' +
+				'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
+				'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
+				'<p style="margin:2px 0; color:#666; font-size:13px;">' +
+					'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
+					'{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
+					'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
+				'</p>' +
+				'<hr style="margin:10px 0;">' +
+				'<h4 style="margin:0;">Vendor Purchase Logs - {{ vendor.vendor_name|escapejs }}</h4>' +
+				'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
+					'<span style="color:#dc3545;"><strong>Total Sales:</strong> &#8377; {{ total_purchased|default:0|inrs }}</span>' +
+					'<span style="color:#28a745;"><strong>Total Paid:</strong> &#8377; {{ total_paid|default:0|inrs }}</span>' +
+					'<span style="color:#fd7e14;"><strong>Returned:</strong> &#8377; {{ total_returned|default:0|inrs }}</span>' +
+					'<span><strong>Balance:</strong> &#8377; {{ total_balance|default:0|inrs }}</span>' +
+				'</div>' +
+				'<hr style="margin-top:10px;">' +
+			'</div>'
+		});
 	});
 
 /* Create modal */
@@ -347,4 +264,4 @@ function attachFormHandler() {
 
 {% block head_libs %}{% include "partials/libs/tingle_head.html" %}{% endblock %}
 
-{% block body_libs %}{% include "partials/libs/tingle_body.html" %}{% include "partials/libs/export_body.html" %}{% endblock %}
+{% block body_libs %}{% include "partials/libs/tingle_body.html" %}{% endblock %}

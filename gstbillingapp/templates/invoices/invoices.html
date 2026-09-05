@@ -1,77 +1,46 @@
 {% extends "base.html" %}
 {% load static %}
+{% load money %}
 
 {% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Invoices</h1><div class="sub">Total: <span id="total-invoice-amount" style="color:var(--red);font-weight:600">&#8377; {{ total_invoice_amount|inrs }}</span></div></div>
+        <div class="actions d-print-none">
+            <a href="{% url 'invoices' %}" class="gbtn" title="Clear filters"><i class="fas fa-times"></i> Clear</a>
+            <button id="printFilters" type="button" class="gbtn" onclick="printInvoices();" title="Print"><i class="fas fa-print"></i></button>
+            <a href="{% url 'invoice_create' %}" class="gbtn gbtn-primary" title="New Invoice"><i class="fas fa-plus"></i> New</a>
+        </div>
+    </div>
 
-	<h2>Invoices</h2>
+    <form method="get" class="toolbar" id="filterForm">
+        <div class="search"><i class="fas fa-search"></i>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search number or customer…">
+        </div>
+        <select name="invoice_type" id="invoiceTypeFilter" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="all" {% if invoice_type == 'all' %}selected{% endif %}>All Types</option>
+            <option value="gst" {% if invoice_type == 'gst' %}selected{% endif %}>GST</option>
+            <option value="non_gst" {% if invoice_type == 'non_gst' %}selected{% endif %}>Non-GST</option>
+            <option value="not_pushed" {% if invoice_type == 'not_pushed' %}selected{% endif %}>Not Pushed to Books</option>
+            <option value="missing_in_books" {% if invoice_type == 'missing_in_books' %}selected{% endif %}>Missing in Books</option>
+        </select>
+        <select name="customer_id" id="customerFilter" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="">All Customers</option>
+            {% for customer in customers %}<option value="{{ customer.id }}" {% if customer_id == customer.id|stringformat:'s' %}selected{% endif %}>{{ customer.customer_name }}</option>{% endfor %}
+        </select>
+        <select name="date_filter" id="dateFilter" class="selctl" onchange="onDateFilterChange()">
+            <option value="all" {% if date_filter == 'all' %}selected{% endif %}>All Time</option>
+            <option value="today" {% if date_filter == 'today' %}selected{% endif %}>Today</option>
+            <option value="week" {% if date_filter == 'week' %}selected{% endif %}>This Week</option>
+            <option value="month" {% if date_filter == 'month' %}selected{% endif %}>This Month</option>
+            <option value="custom" {% if date_filter == 'custom' %}selected{% endif %}>Custom</option>
+        </select>
+        <input type="date" name="start_date" id="startDate" value="{{ start_date }}" class="selctl" style="padding:9px 12px;{% if date_filter != 'custom' %}display:none{% endif %}" onchange="maybeSubmitDates()">
+        <input type="date" name="end_date" id="endDate" value="{{ end_date }}" class="selctl" style="padding:9px 12px;{% if date_filter != 'custom' %}display:none{% endif %}" onchange="maybeSubmitDates()">
+        <button type="submit" class="gbtn"><i class="fas fa-filter"></i> Apply</button>
+    </form>
 
-	<!-- Filter Options Row -->
-	<div class="row mb-3 align-items-end">
-		<div class="col-md-2">
-			<label for="invoiceTypeFilter" class="mb-1"><small><strong>Type:</strong></small></label>
-			<select id="invoiceTypeFilter" class="form-control form-control-sm">
-				<option value="all">All Types</option>
-				<option value="gst" selected>GST</option>
-				<option value="non_gst">Non-GST</option>
-				<option value="not_pushed">Not Pushed to Books</option>
-				<option value="missing_in_books">Missing in Books</option>
-			</select>
-		</div>
-		<div class="col-md-2">
-			<label for="customerFilter" class="mb-1"><small><strong>Customer:</strong></small></label>
-			<select id="customerFilter" class="form-control form-control-sm">
-				<option value="">All Customers</option>
-				{% for customer in customers %}
-				<option value="{{ customer.id }}">{{ customer.customer_name }}</option>
-				{% endfor %}
-			</select>
-		</div>
-		<div class="col-md-2">
-			<label for="dateFilter" class="mb-1"><small><strong>Date:</strong></small></label>
-			<select id="dateFilter" class="form-control form-control-sm">
-				<option value="all">All Time</option>
-				<option value="today">Today</option>
-				<option value="week">This Week</option>
-				<option value="month">This Month</option>
-				<option value="custom">Custom</option>
-			</select>
-		</div>
-		<div class="col-md-2" id="startDateWrapper" style="display:none;">
-			<label for="startDate" class="mb-1"><small><strong>From:</strong></small></label>
-			<input type="date" id="startDate" class="form-control form-control-sm">
-		</div>
-		<div class="col-md-2" id="endDateWrapper" style="display:none;">
-			<label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
-			<input type="date" id="endDate" class="form-control form-control-sm">
-		</div>
-		<div class="col-md-3 d-print-none">
-			<div class="btn-group btn-group-sm" role="group" aria-label="Invoice actions">
-				<button id="clearFilters" type="button" class="btn btn-secondary btn-curve" title="Clear filters">
-					<i class="fas fa-times"></i> Clear
-				</button>
-				<button id="printFilters" type="button" class="btn btn-outline-dark btn-curve" onclick="printInvoices();" title="Print">
-					<i class="fas fa-print"></i>
-				</button>
-				<a href="{% url 'invoice_create' %}" class="btn btn-primary btn-curve" title="New Invoice">
-					<i class="fas fa-plus"></i>
-				</a>
-			</div>
-		</div>
-		<div class="col-md-3">
-			<div class="card shadow-sm border-danger">
-				<div class="card-body p-2 text-center">
-					<small class="text-muted d-block" style="font-size: 0.75rem;">TOTAL AMOUNT</small>
-					<div id="total-invoice-amount" class="font-weight-bold text-danger" style="font-size: 1.3rem;">
-						<i class="fas fa-spinner fa-spin"></i>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-
-<hr>
-
-
+    <div class="tablecard" style="padding:10px 14px">
 	<table class="table table-bordered" id="invoice-table">
 		<thead class="thead-dark">
 			<tr>
@@ -83,37 +52,43 @@
 			</tr>
 		</thead>
 		<tbody>
-			<!-- Data loaded via AJAX -->
+			{% for r in rows %}
+			<tr>
+				<td>{{ r.invoice_number|safe }}</td>
+				<td>{{ r.invoice_date }}</td>
+				<td>{{ r.customer|safe }}</td>
+				<td>{{ r.invoice_amount }}</td>
+				<td>{{ r.actions|safe }}</td>
+			</tr>
+			{% empty %}
+			<tr><td colspan="5" class="text-center text-muted" style="padding:24px">No invoices match this filter.</td></tr>
+			{% endfor %}
 		</tbody>
 	</table>
+    {% include "gs/_pager.html" %}
+    </div>
 
-<div class="modal fade" id="invoiceDeleteModal" tabindex="-1" role="dialog" aria-labelledby="invoiceDeleteModalLabel" aria-hidden="true">
-	<div class="modal-dialog" role="document">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title" id="invoiceDeleteModalLabel">Are you sure?</h5>
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
-					<span aria-hidden="true">&times;</span>
-				</button>
+<div class="gmodal" id="invoiceDeleteModal">
+	<div class="gmodal-panel gs">
+		<div class="gmodal-head">Delete invoice? <button type="button" class="x" data-gclose>&times;</button></div>
+		<form method="POST" action="{% url 'invoice_delete' %}">
+		{% csrf_token %}
+		<div class="gmodal-body">
+			Are you sure you want to delete <b><span class="invoice-number"></span></b>?
+			<div style="margin-top:12px;display:grid;gap:9px">
+				<input hidden type="text" name="invoice_id">
+				<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="move-to-quotation" name="move-to-quotation" value="move-to-quotation"> <b>Move to Quotation Before Deleting</b></label>
+				<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="book-del" name="book-del" value="book-del" checked> <b>Remove Book Deductions Also</b></label>
+				<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="inventory-del" name="inventory-del" value="inventory-del" checked> <b>Remove Inventory Deductions Also</b></label>
 			</div>
-			<form method="POST" action="{% url 'invoice_delete' %}">
-			{% csrf_token %}
-			<div class="modal-body">
-				Are you sure you want to delete <b><span class="invoice-number"></span></b>?
-					<div class="form-group">
-						<input hidden="true" type="text" class="form-control" name="invoice_id">
-						<input type="checkbox" id="move-to-quotation" name="move-to-quotation" value="move-to-quotation"> <b>Move to Quotation Before Deleting</b><br>
-						<input type="checkbox" id="book-del" name="book-del" value="book-del" checked> <b>Remove Book Deductions Also</b><br>
-						<input type="checkbox" id="inventory-del" name="inventory-del" value="inventory-del" checked> <b>Remove Inventory Deductions Also</b>
-					</div>
-			</div>
-			<div class="modal-footer">
-				<button type="submit" class="btn btn-danger btn-sm btn-curve" >Yes</button>
-				<button type="button" class="btn btn-primary btn-sm btn-curve" data-dismiss="modal">No</button>
-			</div>
-			</form>
 		</div>
+		<div class="gmodal-foot">
+			<button type="button" class="gbtn" data-gclose>Cancel</button>
+			<button type="submit" class="gbtn gbtn-danger">Delete</button>
+		</div>
+		</form>
 	</div>
+</div>
 </div>
 {% endblock %}
 
@@ -121,117 +96,30 @@
 {% block includejs %}
 <script type="text/javascript">
 
-	$('#invoiceDeleteModal').on('show.bs.modal', function (event) {
-		var button = $(event.relatedTarget) // Button that triggered the modal
-		var invoice_id = button.data('invoice-id') // Extract info from data-* attributes
-		var invoice_number = button.data('invoice-number') // Extract info from data-* attributes
-		// If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
-		// Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
-		var modal = $(this)
-		modal.find('.modal-body input').val(invoice_id)
-		console.log(invoice_number)
-		modal.find('.invoice-number').html(invoice_number)
-	});
+	// Called from the server-rendered delete button in each invoice row.
+	function openInvoiceDelete(invoiceId, invoiceNumber) {
+		var modal = document.getElementById('invoiceDeleteModal');
+		modal.querySelector('input[name="invoice_id"]').value = invoiceId;
+		modal.querySelector('.invoice-number').textContent = invoiceNumber;
+		gOpenModal('invoiceDeleteModal');
+	}
 
-
-	$(document).ready( function () {
-		// Set default filter based on page mode
-		$('#invoiceTypeFilter').val('gst');
-
-		var table = $('#invoice-table').DataTable({
-			"processing": true,
-			"serverSide": true,
-			"ajax": {
-				"url": "/invoices/ajax",
-				"type": "GET",
-				"data": function(d) {
-					d.invoice_type = $('#invoiceTypeFilter').val() || 'all';
-					d.customer_id = $('#customerFilter').val() || '';
-					d.date_filter = $('#dateFilter').val() || 'all';
-					d.start_date = $('#startDate').val() || '';
-					d.end_date = $('#endDate').val() || '';
-					console.log('Sending request data:', d);
-				},
-				"error": function(xhr, error, code) {
-					console.error('AJAX Error:', {
-						status: xhr.status,
-						statusText: xhr.statusText,
-						responseText: xhr.responseText,
-						error: error,
-						code: code
-					});
-					alert('Error loading data. Check console for details.');
-				},
-				"dataSrc": function(json) {
-					console.log('Received data:', json);
-					if (json.error) {
-						alert('Server error: ' + json.error);
-						return [];
-					}
-					return json.data;
-				}
-			},
-			"columns": [
-				{ "data": "invoice_number", "orderable": true },
-				{ "data": "invoice_date", "orderable": true },
-				{ "data": "customer", "orderable": true },
-				{ "data": "invoice_amount", "orderable": false },
-				{ "data": "actions", "orderable": false }
-			],
-			"order": [[1, "desc"]],
-			"pageLength": 15,
-			"lengthMenu": [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]],
-			"searching": true,
-			"info": true
-		});
-
-	// Show total invoice amount
-	table.on('xhr', function(e, settings, json) {
-		if (json && typeof json.total_invoice_amount !== 'undefined') {
-			$('#total-invoice-amount').html('<strong>₹ ' + json.total_invoice_amount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>');
+	function onDateFilterChange() {
+		var v = document.getElementById('dateFilter').value;
+		if (v === 'custom') {
+			document.getElementById('startDate').style.display = '';
+			document.getElementById('endDate').style.display = '';
+		} else {
+			document.getElementById('filterForm').submit();
 		}
-	});
-		// Show/hide custom date range inputs
-		$('#dateFilter').on('change', function() {
-			if ($(this).val() === 'custom') {
-				$('#startDateWrapper').show();
-				$('#endDateWrapper').show();
-			} else {
-				$('#startDateWrapper').hide();
-				$('#endDateWrapper').hide();
-				table.ajax.reload();
-			}
-		});
-
-		// Auto-reload when custom date inputs change
-		$('#startDate, #endDate').on('change', function() {
-			if ($('#dateFilter').val() === 'custom' && $('#startDate').val() && $('#endDate').val()) {
-				table.ajax.reload();
-			}
-		});
-
-		// Clear filters button
-		$('#clearFilters').on('click', function() {
-			$('#invoiceTypeFilter').val('all');
-			$('#customerFilter').val('');
-			$('#dateFilter').val('all');
-			$('#startDate').val('');
-			$('#endDate').val('');
-			$('#startDateWrapper').hide();
-			$('#endDateWrapper').hide();
-			table.ajax.reload();
-		});
-
-		// Auto-reload on change for invoice type filter
-		$('#invoiceTypeFilter').on('change', function() {
-			table.ajax.reload();
-		});
-
-		// Auto-reload on change for customer filter
-		$('#customerFilter').on('change', function() {
-			table.ajax.reload();
-		});
-	});
+	}
+	function maybeSubmitDates() {
+		if (document.getElementById('dateFilter').value === 'custom'
+			&& document.getElementById('startDate').value
+			&& document.getElementById('endDate').value) {
+			document.getElementById('filterForm').submit();
+		}
+	}
 
 	function popup_invoice(invoice) {
 		fetch("/invoice/"+invoice+"?nav=1")
@@ -285,8 +173,7 @@ function pushToBooks(invoiceId) {
 						text: data.message,
 						timer: 2000
 					}).then(() => {
-						// Reload the table to update the button visibility
-						$('#invoice-table').DataTable().ajax.reload();
+						location.reload();
 					});
 				} else {
 					Swal.fire({
@@ -306,7 +193,7 @@ function pushToBooks(invoiceId) {
 			});
 		}
 	});
-}	
+}
 
 async function printInvoices() {
 	// Open the print window NOW, inside the click gesture, so the browser (esp.
@@ -318,13 +205,20 @@ async function printInvoices() {
 	}
 	win.document.write('<html><head><title>Preparing…</title></head><body style="font-family:Arial;padding:24px;color:#333;">Preparing invoices for printing…</body></html>');
 
+	function selText(id) {
+		var el = document.getElementById(id);
+		if (!el) return '';
+		return el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '';
+	}
+	function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+
 	try {
 		var params = {
-			invoice_type: $('#invoiceTypeFilter').val() || 'all',
-			customer_id: $('#customerFilter').val() || '',
-			date_filter: $('#dateFilter').val() || 'all',
-			start_date: $('#startDate').val() || '',
-			end_date: $('#endDate').val() || ''
+			invoice_type: val('invoiceTypeFilter') || 'all',
+			customer_id: val('customerFilter') || '',
+			date_filter: val('dateFilter') || 'all',
+			start_date: val('startDate') || '',
+			end_date: val('endDate') || ''
 		};
 		var qs = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
 
@@ -345,10 +239,11 @@ async function printInvoices() {
 
 		var rows = allRows;
 		var title = 'Invoices';
-		var typeText = $('#invoiceTypeFilter option:selected').text();
-		var customerText = $('#customerFilter option:selected').text() || 'All Customers';
-		var dateText = $('#dateFilter option:selected').text();
-		var total = $('#total-invoice-amount').text() || '';
+		var typeText = selText('invoiceTypeFilter');
+		var customerText = selText('customerFilter') || 'All Customers';
+		var dateText = selText('dateFilter');
+		var totalEl = document.getElementById('total-invoice-amount');
+		var total = totalEl ? totalEl.textContent : '';
 		win.document.open();   // clear the "Preparing…" placeholder before writing the report
 		var css = '';
 		css += '<style>';
@@ -385,9 +280,9 @@ async function printInvoices() {
 		for(var i=0;i<rows.length;i++){
 			var row = rows[i];
 			win.document.write('<tr>');
-			win.document.write('<td>'+ (row.invoice_number||'') +'</td>');
+			win.document.write('<td>'+ _stripHtml(row.invoice_number) +'</td>');
 			win.document.write('<td>'+ (row.invoice_date||'') +'</td>');
-			win.document.write('<td>'+ (row.customer||'') +'</td>');
+			win.document.write('<td>'+ _stripHtml(row.customer) +'</td>');
 			win.document.write('<td style="text-align:right">'+ (row.invoice_amount||'') +'</td>');
 			win.document.write('</tr>');
 		}
@@ -402,6 +297,7 @@ async function printInvoices() {
 		alert('Unable to prepare the print view: ' + (err && err.message ? err.message : err) + '. See console for details.');
 	}
 }
+function _stripHtml(s){ var d = document.createElement('div'); d.innerHTML = s || ''; return (d.textContent || '').trim(); }
 </script>
 <script src="https://www.gstatic.com/charts/loader.js"></script>
 <script>

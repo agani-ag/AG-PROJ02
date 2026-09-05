@@ -24,11 +24,14 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{% static 'gstbillingapp/main.css' %}" id="main-css">
 
-    <!-- DataTables CSS  -->
-    <link rel="stylesheet" href="{% static 'gstbillingapp/DataTables/jquery.dataTables.min.css' %}" id="datatables-css">
-    <link rel="stylesheet" href="{% static 'gstbillingapp/DataTables/dataTables.bootstrap4.min.css' %}" id="datatables-bootstrap-css">
+    <!-- DataTables removed — list pages now use native server pagination + the .gstable enhancer -->
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <!-- GSTSync design system (global, so the navbar + every page share it) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
     <!-- Per-page library CSS (Leaflet / AG-Grid / Tingle) — only the pages that use them opt in. -->
     {% block head_libs %}{% endblock %}
     {% block includecss %}
@@ -48,7 +51,7 @@
         {% if error_message %}
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
                 <strong><i class="fas fa-times-circle"></i> Error!</strong> {{ error_message }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <button type="button" class="close" onclick="this.closest('.alert').remove()" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -57,7 +60,7 @@
         {% if success_message %}
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 <strong><i class="fas fa-check-circle"></i> Success!</strong> {{ success_message }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <button type="button" class="close" onclick="this.closest('.alert').remove()" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -80,7 +83,7 @@
                         {% endif %}
                     </strong>
                     {{ message }}
-                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <button type="button" class="close" onclick="this.closest('.alert').remove()" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
@@ -101,11 +104,21 @@
     <script src="{% static 'gstbillingapp/bootstrap-4.4.1-dist/js/bootstrap.min.js' %}" id="bootstrap-js"></script>
     <script src="{% static 'gstbillingapp/DataTables/jquery.dataTables.min.js' %}" id="datatables-js"></script> -->
     
-    <!-- ONLINE MODE -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.datatables.net/1.12.1/js/jquery.dataTables.min.js"></script>
+    <!-- ONLINE MODE — jQuery + DataTables dropped globally.
+         The three invoice/quotation form pages that still use main.js load jQuery locally. -->
+    <!-- Vanilla modal helper (.gmodal) — replaces the Bootstrap modal JS -->
+    <script>
+    function gOpenModal(id){ var m=document.getElementById(id); if(m) m.classList.add('show'); }
+    function gCloseModal(ref){ var m = (ref && ref.closest) ? ref.closest('.gmodal') : document.getElementById(ref); if(m) m.classList.remove('show'); }
+    document.addEventListener('click', function(e){
+        if(e.target.classList && e.target.classList.contains('gmodal')) e.target.classList.remove('show');
+        var c = e.target.closest && e.target.closest('[data-gclose]');
+        if(c){ var m = c.closest('.gmodal'); if(m) m.classList.remove('show'); }
+    });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape') document.querySelectorAll('.gmodal.show').forEach(function(m){ m.classList.remove('show'); }); });
+    </script>
+    <!-- Vanilla table enhancer (.gstable) — replaces jQuery DataTables on list pages -->
+    <script src="{% static 'gstbillingapp/gstable.js' %}?v={{ ASSET_VER }}"></script>
     <!-- SweetAlert2 (used across the app) -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- AG GRID full-screen support: a toggle is auto-added to every grid on the page (no-op when a page has no grid) -->

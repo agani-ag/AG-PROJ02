@@ -1,74 +1,44 @@
 {% extends "base.html" %}
 {% load static %}
+{% load money %}
 
 {% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Quotations</h1><div class="sub">Total: <span id="total-quotation-amount" style="color:var(--brand);font-weight:600">&#8377; {{ total_quotation_amount|inrs }}</span></div></div>
+        <div class="actions d-print-none">
+            <a href="{% url 'quotations' %}" class="gbtn" title="Clear filters"><i class="fas fa-times"></i> Clear</a>
+            <button id="printFilters" type="button" class="gbtn" onclick="printQuotations();" title="Print"><i class="fas fa-print"></i></button>
+            <a href="{% url 'quotation_create' %}" class="gbtn gbtn-primary" title="New Quotation"><i class="fas fa-plus"></i> New</a>
+        </div>
+    </div>
 
-	<h2>Quotations</h2>
+    <form method="get" class="toolbar" id="filterForm">
+        <div class="search"><i class="fas fa-search"></i>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search number or customer…">
+        </div>
+        <select name="quotation_type" id="quotationTypeFilter" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="all" {% if quotation_type == 'all' %}selected{% endif %}>All Types</option>
+            <option value="gst" {% if quotation_type == 'gst' %}selected{% endif %}>GST</option>
+            <option value="non_gst" {% if quotation_type == 'non_gst' %}selected{% endif %}>Non-GST</option>
+        </select>
+        <select name="customer_id" id="customerFilter" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="">All Customers</option>
+            {% for customer in customers %}<option value="{{ customer.id }}" {% if customer_id == customer.id|stringformat:'s' %}selected{% endif %}>{{ customer.customer_name }}</option>{% endfor %}
+        </select>
+        <select name="date_filter" id="dateFilter" class="selctl" onchange="onDateFilterChange()">
+            <option value="all" {% if date_filter == 'all' %}selected{% endif %}>All Time</option>
+            <option value="today" {% if date_filter == 'today' %}selected{% endif %}>Today</option>
+            <option value="week" {% if date_filter == 'week' %}selected{% endif %}>This Week</option>
+            <option value="month" {% if date_filter == 'month' %}selected{% endif %}>This Month</option>
+            <option value="custom" {% if date_filter == 'custom' %}selected{% endif %}>Custom</option>
+        </select>
+        <input type="date" name="start_date" id="startDate" value="{{ start_date }}" class="selctl" style="padding:9px 12px;{% if date_filter != 'custom' %}display:none{% endif %}" onchange="maybeSubmitDates()">
+        <input type="date" name="end_date" id="endDate" value="{{ end_date }}" class="selctl" style="padding:9px 12px;{% if date_filter != 'custom' %}display:none{% endif %}" onchange="maybeSubmitDates()">
+        <button type="submit" class="gbtn"><i class="fas fa-filter"></i> Apply</button>
+    </form>
 
-	<!-- Filter Options Row -->
-	<div class="row mb-3 align-items-end">
-		<div class="col-md-2">
-			<label for="quotationTypeFilter" class="mb-1"><small><strong>Type:</strong></small></label>
-			<select id="quotationTypeFilter" class="form-control form-control-sm">
-				<option value="all" selected>All Types</option>
-				<option value="gst">GST</option>
-				<option value="non_gst">Non-GST</option>
-			</select>
-		</div>
-		<div class="col-md-2">
-			<label for="customerFilter" class="mb-1"><small><strong>Customer:</strong></small></label>
-			<select id="customerFilter" class="form-control form-control-sm">
-				<option value="">All Customers</option>
-				{% for customer in customers %}
-				<option value="{{ customer.id }}">{{ customer.customer_name }}</option>
-				{% endfor %}
-			</select>
-		</div>
-		<div class="col-md-2">
-			<label for="dateFilter" class="mb-1"><small><strong>Date:</strong></small></label>
-			<select id="dateFilter" class="form-control form-control-sm">
-				<option value="all">All Time</option>
-				<option value="today">Today</option>
-				<option value="week">This Week</option>
-				<option value="month">This Month</option>
-				<option value="custom">Custom</option>
-			</select>
-		</div>
-		<div class="col-md-1" id="startDateWrapper" style="display:none;">
-			<label for="startDate" class="mb-1"><small><strong>From:</strong></small></label>
-			<input type="date" id="startDate" class="form-control form-control-sm">
-		</div>
-		<div class="col-md-1" id="endDateWrapper" style="display:none;">
-			<label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
-			<input type="date" id="endDate" class="form-control form-control-sm">
-		</div>
-		<div class="col-md-3 d-print-none">
-			<div class="btn-group btn-group-sm" role="group" aria-label="Quotation actions">
-				<button id="clearFilters" type="button" class="btn btn-secondary btn-curve" title="Clear filters">
-					<i class="fas fa-times"></i> Clear
-				</button>
-				<button id="printFilters" type="button" class="btn btn-outline-dark btn-curve" onclick="printQuotations();" title="Print">
-					<i class="fas fa-print"></i>
-				</button>
-				<a href="{% url 'quotation_create' %}" class="btn btn-primary btn-curve" title="New Quotation">
-					<i class="fas fa-plus"></i>
-				</a>
-			</div>
-		</div>
-		<div class="col-md-3">
-			<div class="card shadow-sm border-primary">
-				<div class="card-body p-2 text-center">
-					<small class="text-muted d-block" style="font-size: 0.75rem;">TOTAL AMOUNT</small>
-					<div id="total-quotation-amount" class="font-weight-bold text-primary" style="font-size: 1.3rem;">
-						<i class="fas fa-spinner fa-spin"></i>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-
-<hr>
-
+    <div class="tablecard" style="padding:10px 14px">
 	<table class="table table-bordered" id="quotation-table">
 		<thead class="thead-dark">
 			<tr>
@@ -81,126 +51,63 @@
 			</tr>
 		</thead>
 		<tbody>
-			<!-- Data loaded via AJAX -->
+			{% for r in rows %}
+			<tr>
+				<td>{{ r.quotation_number|safe }}</td>
+				<td>{{ r.quotation_date }}</td>
+				<td>{{ r.customer|safe }}</td>
+				<td>{{ r.quotation_amount }}</td>
+				<td>{{ r.status|safe }}</td>
+				<td>{{ r.actions|safe }}</td>
+			</tr>
+			{% empty %}
+			<tr><td colspan="6" class="text-center text-muted" style="padding:24px">No quotations match this filter.</td></tr>
+			{% endfor %}
 		</tbody>
 	</table>
-
+    {% include "gs/_pager.html" %}
+    </div>
+</div>
 {% endblock %}
 
 
 {% block includejs %}
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script type="text/javascript">
 
-	$(document).ready( function () {
-		// Set default filter
-		$('#quotationTypeFilter').val('gst');
-
-		var table = $('#quotation-table').DataTable({
-			"processing": true,
-			"serverSide": true,
-			"ajax": {
-				"url": "/quotations/ajax/",
-				"type": "GET",
-				"data": function(d) {
-					d.quotation_type = $('#quotationTypeFilter').val() || 'all';
-					d.customer_id = $('#customerFilter').val() || '';
-					d.date_filter = $('#dateFilter').val() || 'all';
-					d.start_date = $('#startDate').val() || '';
-					d.end_date = $('#endDate').val() || '';
-					console.log('Sending request data:', d);
-				},
-				"error": function(xhr, error, code) {
-					console.error('AJAX Error:', {
-						status: xhr.status,
-						statusText: xhr.statusText,
-						responseText: xhr.responseText,
-						error: error,
-						code: code
-					});
-					alert('Error loading data. Check console for details.');
-				},
-				"dataSrc": function(json) {
-					console.log('Received data:', json);
-					if (json.error) {
-						alert('Server error: ' + json.error);
-						return [];
-					}
-					return json.data;
-				}
-			},
-			"columns": [
-				{ "data": "quotation_number", "orderable": true },
-				{ "data": "quotation_date", "orderable": true },
-				{ "data": "customer", "orderable": true },
-				{ "data": "quotation_amount", "orderable": false },
-				{ "data": "status", "orderable": true },
-				{ "data": "actions", "orderable": false }
-			],
-			"order": [[1, "desc"]],
-			"pageLength": 15,
-			"lengthMenu": [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]],
-			"searching": true,
-			"info": true
-		});
-
-	// Show total quotation amount
-	table.on('xhr', function(e, settings, json) {
-		if (json && typeof json.total_quotation_amount !== 'undefined') {
-			$('#total-quotation-amount').html('<strong>₹ ' + json.total_quotation_amount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>');
+	function onDateFilterChange() {
+		var v = document.getElementById('dateFilter').value;
+		if (v === 'custom') {
+			document.getElementById('startDate').style.display = '';
+			document.getElementById('endDate').style.display = '';
+		} else {
+			document.getElementById('filterForm').submit();
 		}
-	});
-		
-		// Show/hide custom date range inputs
-		$('#dateFilter').on('change', function() {
-			if ($(this).val() === 'custom') {
-				$('#startDateWrapper').show();
-				$('#endDateWrapper').show();
-			} else {
-				$('#startDateWrapper').hide();
-				$('#endDateWrapper').hide();
-				table.ajax.reload();
-			}
-		});
-
-		// Auto-reload when custom date inputs change
-		$('#startDate, #endDate').on('change', function() {
-			if ($('#dateFilter').val() === 'custom' && $('#startDate').val() && $('#endDate').val()) {
-				table.ajax.reload();
-			}
-		});
-
-		// Clear filters button
-		$('#clearFilters').on('click', function() {
-			$('#quotationTypeFilter').val('all');
-			$('#customerFilter').val('');
-			$('#dateFilter').val('all');
-			$('#startDate').val('');
-			$('#endDate').val('');
-			$('#startDateWrapper').hide();
-			$('#endDateWrapper').hide();
-			table.ajax.reload();
-		});
-
-		// Auto-reload on filter changes
-		$('#quotationTypeFilter, #customerFilter').on('change', function() {
-			table.ajax.reload();
-		});
-	});
+	}
+	function maybeSubmitDates() {
+		if (document.getElementById('dateFilter').value === 'custom'
+			&& document.getElementById('startDate').value
+			&& document.getElementById('endDate').value) {
+			document.getElementById('filterForm').submit();
+		}
+	}
+	function _stripHtml(s){ var d = document.createElement('div'); d.innerHTML = s || ''; return (d.textContent || '').trim(); }
 
 // Report-level print that fetches all records from the server-side API
 function printQuotations() {
-	var params = {
-		quotation_type: $('#quotationTypeFilter').val() || 'all',
-		customer_id: $('#customerFilter').val() || '',
-		date_filter: $('#dateFilter').val() || 'all',
-		start_date: $('#startDate').val() || '',
-		end_date: $('#endDate').val() || ''
-	};
-	// request all records - large length; server may cap but typically returns all matching rows
-	params.start = 0;
-	params.length = 1000000;
+	function selText(id) {
+		var el = document.getElementById(id);
+		if (!el) return '';
+		return el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '';
+	}
+	function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
 
+	var params = {
+		quotation_type: val('quotationTypeFilter') || 'all',
+		customer_id: val('customerFilter') || '',
+		date_filter: val('dateFilter') || 'all',
+		start_date: val('startDate') || '',
+		end_date: val('endDate') || ''
+	};
 	var qs = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
 	(async function(){
 		try {
@@ -220,10 +127,11 @@ function printQuotations() {
 
 			var rows = allRows;
 			var title = 'Quotations';
-			var typeText = $('#quotationTypeFilter option:selected').text();
-			var customerText = $('#customerFilter option:selected').text() || 'All Customers';
-			var dateText = $('#dateFilter option:selected').text();
-			var total = $('#total-quotation-amount').text() || '';
+			var typeText = selText('quotationTypeFilter');
+			var customerText = selText('customerFilter') || 'All Customers';
+			var dateText = selText('dateFilter');
+			var totalEl = document.getElementById('total-quotation-amount');
+			var total = totalEl ? totalEl.textContent : '';
 			var win = window.open('', '_blank');
 			var css = '';
 			css += '<style>';
@@ -260,11 +168,11 @@ function printQuotations() {
 			for(var i=0;i<rows.length;i++){
 				var r = rows[i];
 				win.document.write('<tr>');
-				win.document.write('<td>'+(r.quotation_number||'')+'</td>');
+				win.document.write('<td>'+_stripHtml(r.quotation_number)+'</td>');
 				win.document.write('<td>'+(r.quotation_date||'')+'</td>');
-				win.document.write('<td>'+(r.customer||'')+'</td>');
+				win.document.write('<td>'+_stripHtml(r.customer)+'</td>');
 				win.document.write('<td style="text-align:right">'+(r.quotation_amount||'')+'</td>');
-				win.document.write('<td>'+(r.status||'')+'</td>');
+				win.document.write('<td>'+_stripHtml(r.status)+'</td>');
 				win.document.write('</tr>');
 			}
 			win.document.write('</tbody></table>');
@@ -300,7 +208,7 @@ function printQuotations() {
 			.then(data => {
 				if (data.success) {
 					Swal.fire({ icon: 'success', title: 'Approved', text: data.message, timer: 1800 })
-						.then(() => $('#quotation-table').DataTable().ajax.reload());
+						.then(() => location.reload());
 				} else {
 					Swal.fire({ icon: 'error', title: 'Error', text: data.message });
 				}
@@ -336,7 +244,7 @@ function printQuotations() {
 							text: 'Quotation has been deleted.',
 							timer: 2000
 						}).then(() => {
-							$('#quotation-table').DataTable().ajax.reload();
+							location.reload();
 						});
 					} else {
 						Swal.fire({
@@ -357,6 +265,6 @@ function printQuotations() {
 			}
 		});
 	}
-	
+
 </script>
 {% endblock %}

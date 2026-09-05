@@ -1,6 +1,9 @@
 # Django imports
+import csv
 from django.contrib import messages
-from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -21,13 +24,64 @@ from ..forms import ProductForm
 import json
 
 # ================= Product Views ==============================
+_PRODUCT_SORTS = {
+    'model': 'model_no', '-model': '-model_no',
+    'name': 'product_name', '-name': '-product_name',
+    'mrp': 'product_rate_with_gst', '-mrp': '-product_rate_with_gst',
+    'new': '-id', 'old': 'id',
+}
+
+
+def _filtered_products(request):
+    """The user's products, filtered by ?q / ?cat and ordered by ?sort — shared by the
+    list page and the CSV export so both see exactly the same rows."""
+    qs = Product.objects.filter(user=request.user).select_related(
+        'product_category', 'product_category__parent_category'
+    )
+    q = (request.GET.get('q') or '').strip()
+    cat = (request.GET.get('cat') or '').strip()
+    sort = request.GET.get('sort') or 'new'
+    if q:
+        qs = qs.filter(Q(model_no__icontains=q) | Q(product_name__icontains=q))
+    if cat.isdigit():
+        qs = qs.filter(product_category_id=int(cat))
+    return qs.order_by(_PRODUCT_SORTS.get(sort, '-id')), q, cat, sort
+
+
 @login_required
 def products(request):
-    context = {}
-    context['products'] = Product.objects.filter(user=request.user).select_related(
-        'product_category', 'product_category__parent_category'
-    ).order_by('-id')
+    qs, q, cat, sort = _filtered_products(request)
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    context = {
+        'products': page_obj,
+        'page_obj': page_obj,
+        'total_count': paginator.count,
+        'q': q, 'cat': cat, 'sort': sort,
+        'querystring': params.urlencode(),
+        'categories': ProductCategory.objects.filter(user=request.user).order_by('category_name'),
+    }
     return render(request, 'products/products.html', context)
+
+
+@login_required
+def products_export(request):
+    """Server-side CSV of the full filtered product set (opens in Excel) — replaces the
+    old client-side DataTables Excel/PDF export, so no heavy JS ships on the list page."""
+    qs, _q, _cat, _sort = _filtered_products(request)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="products.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Model No', 'Product Name', 'Category', 'MRP', 'Discount %', 'GST %'])
+    for p in qs:
+        cat_name = p.product_category.category_name if p.product_category else ''
+        writer.writerow([
+            p.model_no, p.product_name or '', cat_name,
+            p.product_rate_with_gst, p.product_discount, p.product_gst_percentage,
+        ])
+    return response
 
 
 @login_required

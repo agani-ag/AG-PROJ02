@@ -4,7 +4,8 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum, Case, When, FloatField, F
+from django.core.paginator import Paginator
+from django.db.models import Sum, Case, When, FloatField, F, Q
 from django.shortcuts import render, redirect, get_object_or_404
 # Models
 from ..models import (
@@ -21,9 +22,18 @@ from ..utils import _escape_md
 # ===================== Bank Details views =============================
 @login_required
 def bank_details(request):
-    context = {}
-    context['bank_details'] = BankDetails.objects.filter(user=request.user)
-    return render(request, 'bank_details/bank_details.html', context)
+    qs = BankDetails.objects.filter(user=request.user)
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        qs = qs.filter(Q(account_name__icontains=q) | Q(account_number__icontains=q) | Q(bank_name__icontains=q))
+    paginator = Paginator(qs.order_by('-id'), 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return render(request, 'bank_details/bank_details.html', {
+        'bank_details': page_obj, 'page_obj': page_obj, 'total_count': paginator.count,
+        'q': q, 'querystring': params.urlencode(),
+    })
 
 @login_required
 def bank_details_add(request):
@@ -95,7 +105,19 @@ def cheque_leafs(request):
         context['selected_period'] = "Previous Month"
     else:
         logs = logs.all()
-    context['cheque_leafs'] = logs
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        logs = logs.filter(Q(payee_name__icontains=q) | Q(cheque_number__icontains=q))
+    paginator = Paginator(logs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    context['cheque_leafs'] = page_obj
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
+    context['q'] = q
+    context['active_filter'] = request.GET.get('filter', '')
     return render(request, 'bank_details/cheque_leafs.html', context)
 
 @login_required

@@ -1,123 +1,71 @@
 {% extends "base.html" %}
 {% load static %}
-{% block content %}
-		<div class="row">
-			<div class="col">
-				<h2>Asset Management</h2>
-			</div>
-			<div class="col text-right" style="padding-top: 0.5%;">
-				<a href="{% url 'asset_add' %}" class="btn btn-primary btn-sm btn-curve">
-					<i class="fas fa-plus"></i>
-				</a>
-			</div>
-		</div>
+{% block title %}Assets · GSTSync{% endblock %}
 
-		<table class="table table-bordered" id="asset-table">
-			<thead class="thead-dark">
-				<tr>
-					<th>Name</th>
-					<th>Category</th>
-					<th>Value (₹)</th>
-					<th>Date</th>
-					<th>Actions</th>
-				</tr>
-			</thead>
-			<tbody class="two-col-form">
-				{% for asset in assets %}
-				<tr>
-	 				<td>{{asset.name}}</td>
-	 				<td>{% if asset.category %}{{asset.category}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-	 				<td>{% if asset.value %}{{asset.value}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-	 				<td>{% if asset.date %}{{asset.date}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-	 				<td>
-						 <div class="btn-group" role="group" aria-label="Basic example">
-							 <a href="{% url 'asset_edit' asset.id %}" class="btn btn-primary btn-sm btn-curve" title="Edit Asset"><i class="fas fa-edit"></i></a>
-							 <a href="{% url 'asset_log' asset.id %}" class="btn btn-warning btn-sm btn-curve" title="View Logs"><i class="fas fa-history"></i></a>
-							<a href="{% url 'asset_delete' asset.id %}" class="btn btn-danger btn-sm btn-curve" title="Delete Asset"><i class="fas fa-trash"></i></a>
-						</div>
-					</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
 
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Assets</h1><div class="sub">{{ total_count }} asset{{ total_count|pluralize }}</div></div>
+        <div class="actions">
+            <a href="{% url 'assets_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-arrow-down"></i> Export</a>
+            <a href="{% url 'asset_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add asset</a>
+        </div>
+    </div>
+
+    <form method="get" class="toolbar">
+        <div class="search"><i class="fas fa-magnifying-glass gico"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search name, category…" autocomplete="off"></div>
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Asset</th><th>Category</th><th class="r">Value</th><th>Date</th><th class="r">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for asset in assets %}
+                <tr>
+                    <td><div class="prim"><span class="pi"><i class="fas fa-cube"></i></span><div class="nm">{{ asset.name }}</div></div></td>
+                    <td>{% if asset.category %}<span class="tag2">{{ asset.category }}</span>{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td class="r num">{% if asset.value %}₹ {{ asset.value }}{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td class="mut">{{ asset.date|default:"—" }}</td>
+                    <td class="r"><div class="rowacts">
+                        <a href="{% url 'asset_edit' asset.id %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
+                        <a href="{% url 'asset_log' asset.id %}" class="gbtn gbtn-icon" title="Logs"><i class="fas fa-clock-rotate-left"></i></a>
+                        <button type="button" class="gbtn gbtn-icon del" title="Delete"
+                            onclick="confirmDelete('{% url 'asset_delete' asset.id %}', '{{ asset.name|escapejs }}')"><i class="fas fa-trash"></i></button>
+                    </div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5"><div class="empty">
+                    <div class="ei"><i class="fas fa-cube fa-lg"></i></div>
+                    <h3>No assets found</h3>
+                    <p>{% if q %}Try a different search.{% else %}Add your first asset.{% endif %}</p>
+                    {% if q %}<a href="{% url 'assets' %}" class="gbtn">Clear search</a>{% else %}<a href="{% url 'asset_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add asset</a>{% endif %}
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
+</div>
+{% endblock %}
 
 {% block includejs %}
-<script type="text/javascript">
-$(document).ready( function () {
-	$('#asset-table').DataTable({
-		"order": [],
-		"columnDefs": [ {
-			"targets": 4,
-			"sortable": false,
-			"searchable": false
-		}],
-		"paging": true,
-		dom: 'Bfrtip',
-        buttons: [
-            {
-                extend: 'excelHtml5',
-                text: '<i class="fas fa-file-excel"></i> Excel',
-                className: 'btn btn-success btn-sm btn-curve'
-            },
-            {
-                extend: 'pdfHtml5',
-                text: '<i class="fas fa-file-pdf"></i> PDF',
-                className: 'btn btn-danger btn-sm btn-curve'
-            },
-            {
-                extend: 'print',
-                text: '<i class="fas fa-print"></i> Print',
-                className: 'btn btn-warning btn-sm btn-curve',
-                title: '',
-                customize: function (win) {
-                    var body = $(win.document.body);
-                    body.css('font-family', 'Arial, sans-serif');
-
-                    // Build header
-                    var header = '<div style="text-align:center; margin-bottom:20px;">' +
-                        '<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
-                        '<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
-                        '<p style="margin:2px 0; color:#666; font-size:13px;">' +
-                            'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
-                            '{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
-                        '</p>' +
-                        '<hr style="margin:10px 0;">' +
-                        '<h4 style="margin:0;">Asset Management</h4>' +
-                        '<hr style="margin-top:10px;">' +
-                    '</div>';
-                    body.find('table').before(header);
-
-                    // Hide Actions column
-                    body.find('table th:last-child, table td:last-child').hide();
-
-                    // Add S.No column header
-                    body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
-
-                    // Add S.No to each row
-                    body.find('table tbody tr').each(function(index) {
-                        $(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
-                    });
-
-                    // Style the table
-                    body.find('table')
-                        .css('width', '100%')
-                        .css('border-collapse', 'collapse')
-                        .css('font-size', '13px');
-                    body.find('table th, table td')
-                        .css('border', '1px solid #ddd')
-                        .css('padding', '8px');
-                    body.find('table thead th')
-                        .css('background-color', '#343a40')
-                        .css('color', '#fff')
-                        .css('text-align', 'left');
-                }
-            }
-        ]
-	});
-});
-
+<script>
+function confirmDelete(url, name){
+    Swal.fire({ title:'Delete asset?', html:'Delete <b>'+name+'</b>? This cannot be undone.',
+        icon:'warning', showCancelButton:true, confirmButtonText:'Delete', confirmButtonColor:'#e11d48', cancelButtonText:'Cancel'
+    }).then(function(r){ if(r.isConfirmed){ window.location = url; } });
+}
 </script>
 {% endblock %}
-{% block body_libs %}{% include "partials/libs/export_body.html" %}{% endblock %}

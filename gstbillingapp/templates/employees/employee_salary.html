@@ -1,14 +1,26 @@
 {% extends "base.html" %}
 {% load money %}
+{% load static %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap">
-    <h2 class="mb-0">Attendance &amp; Salary — <span class="text-primary">{{ employee.name }}</span></h2>
-    <div>
-        <a href="{% url 'employee_incentives' posting.id %}" class="btn btn-info btn-sm btn-curve"><i class="fas fa-gift"></i> Incentives</a>
-        <a href="{% url 'employees' %}" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-reply"></i></a>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><a href="{% url 'employees' %}">Employees</a> › Attendance &amp; Salary</div>
+            <h1 class="disp">{{ employee.name }}</h1>
+        </div>
+        <div class="actions">
+            <a href="{% url 'employee_incentives' posting.id %}" class="gbtn"><i class="fas fa-gift"></i> Incentives</a>
+            <a href="{% url 'employees' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Employees</a>
+        </div>
     </div>
-</div>
-<hr>
 
 {% if not_eligible %}
 <div class="alert alert-info text-center py-5">
@@ -136,6 +148,7 @@
 .att-cell.selected{outline:3px solid #007bff;outline-offset:-3px}
 #selToggle.active{background:#007bff;color:#fff}
 </style>
+</div>
 {% endblock %}
 
 {% block includejs %}

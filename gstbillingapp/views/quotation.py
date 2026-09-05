@@ -1,6 +1,7 @@
 # Django imports
 from django.contrib import messages
-from django.db.models import Max
+from django.core.paginator import Paginator
+from django.db.models import Max, Q
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -184,13 +185,170 @@ def quotation_create(request):
     return render(request, 'quotations/quotation_create.html', context)
 
 
+def _filtered_quotations(request, search_value=''):
+    """Shared filter for the Quotations list + its print/ajax feed.
+    Mirrors the quotations_ajax filters; returns (queryset, filter_context)."""
+    from datetime import timedelta
+
+    quotation_type = request.GET.get('quotation_type', 'all')
+    status_filter = request.GET.get('status_filter', 'all')
+    date_filter = request.GET.get('date_filter', 'all')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
+    customer_id = request.GET.get('customer_id', '')
+
+    # Unconfirmed mobile carts (DRAFT + created_from_cart) stay private until PENDING.
+    qs = (Quotation.objects.filter(user=request.user)
+          .exclude(created_from_cart=True, status='DRAFT')
+          .select_related('quotation_customer'))
+
+    if customer_id and customer_id.isdigit():
+        qs = qs.filter(quotation_customer__id=int(customer_id))
+
+    if quotation_type == 'gst':
+        qs = qs.filter(is_gst=True)
+    elif quotation_type == 'non_gst':
+        qs = qs.filter(is_gst=False)
+
+    if status_filter == 'pending':
+        qs = qs.filter(status='PENDING')
+    elif status_filter == 'draft':
+        qs = qs.filter(status='DRAFT')
+    elif status_filter == 'approved':
+        qs = qs.filter(status='APPROVED')
+    elif status_filter == 'converted':
+        qs = qs.filter(status='CONVERTED')
+
+    if date_filter and date_filter != 'all':
+        if date_filter == 'today':
+            qs = qs.filter(quotation_date=timezone.now().date())
+        elif date_filter == 'week':
+            week_start = timezone.now().date() - timedelta(days=timezone.now().weekday())
+            qs = qs.filter(quotation_date__gte=week_start)
+        elif date_filter == 'month':
+            qs = qs.filter(quotation_date__gte=timezone.now().date().replace(day=1))
+        elif date_filter == 'custom' and start_date and end_date:
+            try:
+                qs = qs.filter(quotation_date__gte=start_date, quotation_date__lte=end_date)
+            except Exception:
+                pass
+
+    if search_value:
+        qs = qs.filter(
+            Q(quotation_number__icontains=search_value) |
+            Q(quotation_customer__customer_name__icontains=search_value)
+        )
+
+    return qs, {
+        'quotation_type': quotation_type, 'status_filter': status_filter,
+        'customer_id': customer_id, 'date_filter': date_filter,
+        'start_date': start_date, 'end_date': end_date,
+    }
+
+
+def _quotations_total_amount(queryset):
+    total = 0.0
+    for quotation_json_str in queryset.values_list('quotation_json', flat=True):
+        try:
+            total += float(json.loads(quotation_json_str).get('invoice_total_amt_with_gst', 0))
+        except Exception:
+            pass
+    return total
+
+
+def _quotation_row_dict(quotation):
+    """Build one quotations-table row (shared by the native list + the ajax/print feed)."""
+    if quotation.is_gst:
+        quotation_num = f'QT-{quotation.quotation_number}'
+    else:
+        quotation_num = f'<span class="text-danger font-weight-bold">QT-NG{quotation.quotation_number}</span>'
+
+    src = quotation.order_source
+    if src == 'customer':
+        quotation_num += ' <span class="badge badge-info" title="Placed by the customer in the app"><i class="fas fa-mobile-alt"></i> Customer app</span>'
+    elif src == 'employee':
+        emp_name = quotation.order_employee.name if quotation.order_employee else ''
+        suffix = f' · {emp_name}' if emp_name else ''
+        quotation_num += f' <span class="badge badge-primary" title="Placed by field-staff in the app"><i class="fas fa-mobile-alt"></i> Employee app{suffix}</span>'
+    elif src == 'app':
+        quotation_num += ' <span class="badge badge-info" title="From the mobile app"><i class="fas fa-mobile-alt"></i> Mobile app</span>'
+    else:
+        quotation_num += ' <span class="badge badge-light border" title="Created on the desktop"><i class="fas fa-desktop"></i> Desktop</span>'
+
+    if quotation.quotation_customer:
+        customer_html = f'<a href="/customer/edit/{quotation.quotation_customer.id}" style="text-decoration: none;color: black;">{quotation.quotation_customer.customer_name}</a>'
+    else:
+        customer_html = '<span class="text-danger">N/A</span>'
+
+    try:
+        quotation_json = json.loads(quotation.quotation_json)
+        quotation_amount = float(quotation_json.get('invoice_total_amt_with_gst', 0))
+    except Exception:
+        quotation_amount = 0.0
+
+    status_badges = {
+        'PENDING': '<span class="badge badge-warning"><i class="fas fa-hourglass-half"></i> Pending Approval</span>',
+        'DRAFT': '<span class="badge badge-secondary">Draft</span>',
+        'APPROVED': '<span class="badge badge-success">Approved</span>',
+        'CONVERTED': '<span class="badge badge-dark"><i class="fas fa-check-double"></i> Invoiced</span>'
+    }
+    status_html = status_badges.get(quotation.status, quotation.status)
+
+    actions_html = '<div class="btn-group" role="group">'
+    actions_html += f'<a href="/quotation/{quotation.id}" class="btn btn-primary btn-sm btn-curve" title="View"><i class="fa fa-eye"></i></a>'
+    if quotation.can_be_edited():
+        actions_html += f'<a href="/quotation/edit/{quotation.id}" class="btn btn-warning btn-sm btn-curve" title="Edit"><i class="fa fa-edit"></i></a>'
+    if quotation.needs_approval:
+        actions_html += f'<button type="button" onclick="approveQuotation({quotation.id})" class="btn btn-success btn-sm btn-curve" title="Approve order"><i class="fa fa-check"></i></button>'
+    if quotation.converted_invoice:
+        actions_html += f'<a href="/invoice/{quotation.converted_invoice.id}" class="btn btn-info btn-sm btn-curve" title="View Invoice"><i class="fa fa-file-invoice"></i></a>'
+    if quotation.can_be_deleted():
+        actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" onclick="deleteQuotation({quotation.id})" title="Delete"><i class="fa fa-trash"></i></button>'
+    actions_html += '</div>'
+
+    return {
+        'quotation_number': quotation_num,
+        'quotation_date': quotation.quotation_date.strftime('%b %d, %Y'),
+        'customer': customer_html,
+        'quotation_amount': f"₹ {format_inr_smart(quotation_amount)}",
+        'status': status_html,
+        'actions': actions_html,
+    }
+
+
 @login_required
 def quotations(request):
-    """List all quotations with server-side DataTables"""
-    context = {}
-    # Get all customers for dropdown filter
-    customers = Customer.objects.filter(user=request.user).order_by('customer_name')
-    context['customers'] = customers
+    """List all quotations, server-paginated natively (no jQuery DataTables)."""
+    # Default the Type filter to GST when first opened (matches the old client default).
+    if 'quotation_type' not in request.GET:
+        params = request.GET.copy()
+        params['quotation_type'] = 'gst'
+        request.GET = params
+
+    qs, fctx = _filtered_quotations(request, search_value=request.GET.get('q', '').strip())
+
+    # Keep mobile-placed cart orders priced at today's catalog (live Amount + Total).
+    for quotation in qs.filter(created_from_cart=True):
+        resync_quotation_prices(quotation)
+
+    qs = qs.order_by('-id')
+    total_quotation_amount = _quotations_total_amount(qs)
+
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    rows = [_quotation_row_dict(quotation) for quotation in page_obj]
+
+    params = request.GET.copy()
+    params.pop('page', None)
+
+    context = dict(fctx)
+    context['customers'] = Customer.objects.filter(user=request.user).order_by('customer_name')
+    context['rows'] = rows
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
+    context['q'] = request.GET.get('q', '').strip()
+    context['total_quotation_amount'] = total_quotation_amount
     return render(request, 'quotations/quotations.html', context)
 
 
@@ -305,78 +463,8 @@ def quotations_ajax(request):
         # Pagination
         queryset = queryset[start:start + length]
         
-        # Prepare data
-        data = []
-        for quotation in queryset:
-            # Quotation number
-            if quotation.is_gst:
-                quotation_num = f'QT-{quotation.quotation_number}'
-            else:
-                quotation_num = f'<span class="text-danger font-weight-bold">QT-NG{quotation.quotation_number}</span>'
-
-            # Where the order came from, so staff can spot a mobile order that needs
-            # verifying vs one they raised on the desktop themselves.
-            src = quotation.order_source
-            if src == 'customer':
-                quotation_num += ' <span class="badge badge-info" title="Placed by the customer in the app"><i class="fas fa-mobile-alt"></i> Customer app</span>'
-            elif src == 'employee':
-                emp_name = quotation.order_employee.name if quotation.order_employee else ''
-                suffix = f' · {emp_name}' if emp_name else ''
-                quotation_num += f' <span class="badge badge-primary" title="Placed by field-staff in the app"><i class="fas fa-mobile-alt"></i> Employee app{suffix}</span>'
-            elif src == 'app':
-                quotation_num += ' <span class="badge badge-info" title="From the mobile app"><i class="fas fa-mobile-alt"></i> Mobile app</span>'
-            else:
-                quotation_num += ' <span class="badge badge-light border" title="Created on the desktop"><i class="fas fa-desktop"></i> Desktop</span>'
-
-            # Customer
-            if quotation.quotation_customer:
-                customer_html = f'<a href="/customer/edit/{quotation.quotation_customer.id}" style="text-decoration: none;color: black;">{quotation.quotation_customer.customer_name}</a>'
-            else:
-                customer_html = '<span class="text-danger">N/A</span>'
-
-            # Quotation Amount
-            try:
-                quotation_json = json.loads(quotation.quotation_json)
-                quotation_amount = float(quotation_json.get('invoice_total_amt_with_gst', 0))
-            except Exception:
-                quotation_amount = 0.0
-
-            # Status badge
-            status_badges = {
-                'PENDING': '<span class="badge badge-warning"><i class="fas fa-hourglass-half"></i> Pending Approval</span>',
-                'DRAFT': '<span class="badge badge-secondary">Draft</span>',
-                'APPROVED': '<span class="badge badge-success">Approved</span>',
-                'CONVERTED': '<span class="badge badge-dark"><i class="fas fa-check-double"></i> Invoiced</span>'
-            }
-            status_html = status_badges.get(quotation.status, quotation.status)
-
-            # Actions — the list is for triage: view, edit, and (for a pending mobile
-            # order) approve / reject. Converting to an invoice is done inside the viewer.
-            actions_html = '<div class="btn-group" role="group">'
-            actions_html += f'<a href="/quotation/{quotation.id}" class="btn btn-primary btn-sm btn-curve" title="View"><i class="fa fa-eye"></i></a>'
-
-            if quotation.can_be_edited():
-                actions_html += f'<a href="/quotation/edit/{quotation.id}" class="btn btn-warning btn-sm btn-curve" title="Edit"><i class="fa fa-edit"></i></a>'
-
-            if quotation.needs_approval:
-                actions_html += f'<button type="button" onclick="approveQuotation({quotation.id})" class="btn btn-success btn-sm btn-curve" title="Approve order"><i class="fa fa-check"></i></button>'
-
-            if quotation.converted_invoice:
-                actions_html += f'<a href="/invoice/{quotation.converted_invoice.id}" class="btn btn-info btn-sm btn-curve" title="View Invoice"><i class="fa fa-file-invoice"></i></a>'
-
-            if quotation.can_be_deleted():
-                actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" onclick="deleteQuotation({quotation.id})" title="Delete"><i class="fa fa-trash"></i></button>'
-
-            actions_html += '</div>'
-
-            data.append({
-                'quotation_number': quotation_num,
-                'quotation_date': quotation.quotation_date.strftime('%b %d, %Y'),
-                'customer': customer_html,
-                'quotation_amount': f"₹ {format_inr_smart(quotation_amount)}",
-                'status': status_html,
-                'actions': actions_html
-            })
+        # Prepare data (shared row-builder — same output as the native list)
+        data = [_quotation_row_dict(quotation) for quotation in queryset]
 
         return JsonResponse({
             'draw': draw,

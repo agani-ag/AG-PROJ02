@@ -1,136 +1,98 @@
 {% extends "base.html" %}
-
 {% load static %}
 {% load humanize %}
-{% block content %}
+{% block title %}Cheque Leaf · GSTSync{% endblock %}
 
-<div class="row">
-    <div class="col">
-        <h3>Cheque Leaf</h3>
-    </div>
-
-    <div class="col text-right" style="padding-top: 0.5%;">
-        <a href="{% url 'cheque_leaf_add' %}" class="btn btn-primary btn-sm btn-curve">
-            <i class="fas fa-plus"></i>
-        </a>
-    </div>
-</div>
-<!-- <hr> -->
-<!-- Summary Cards Row -->
-<div class="row mb-3">
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-circle-check"></i> Total Cleared</h6>
-                <h3>₹ {{ total_cleared | default:0 | floatformat:2 | intcomma }}</h3>
-                <a href="?filter=cleared" class="stretched-link"></a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-receipt"></i> Total Pending</h6>
-                <h3>₹ {{ total_pending | default:0 | floatformat:2 | intcomma }}</h3>
-                <a href="?filter=pending" class="stretched-link"></a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-orange text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-triangle-exclamation"></i> Total Others</h6>
-                <h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
-                <a href="?filter=others" class="stretched-link"></a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-violet text-white h-100">
-            <div class="card-body d-flex flex-column">
-                <h6 class="card-title"><i class="fas fa-recycle"></i> Select Period</h6>
-                <div class="dropdown mt-auto">
-                    <button class="btn btn-light btn-sm dropdown-toggle" type="button" id="periodDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        {% if selected_period %}{{ selected_period }}{% else %}Filter by Period{% endif %}
-                    </button>
-                    <div class="dropdown-menu" aria-labelledby="periodDropdown">
-                        <a class="dropdown-item" href="?">All Periods</a>
-                        <a class="dropdown-item" href="?period=this_month"><i class="fas fa-arrow-down"></i> This Month</a>
-                        <a class="dropdown-item" href="?period=next_month"><i class="fas fa-arrow-right"></i> Next Month</a>
-                        <a class="dropdown-item" href="?period=previous_month"><i class="fas fa-arrow-left"></i> Previous Month</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<table class="table table-hover font-weight-bold" id="purchase-table">
-    <thead class="thead-dark">
-        <tr>
-            <th>Cheque Number</th>
-            <th>Payee Name</th>
-            <th>Amount</th>
-            <th>Clearance Date</th>
-            <th>Status</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody class="two-col-form">
-        {% for cheque in cheque_leafs %}
-        {% if cheque.status == 'CLEARED' %}
-            <tr class="table-success">
-        {% elif cheque.status == 'ISSUED' or cheque.status == 'PRESENTED' %}
-            <tr class="table-info">
-        {% elif cheque.status == 'CANCELLED' or cheque.status == 'UNUSED' or cheque.status == 'STOPPED' %}
-            <tr class="table-danger">
-        {% else %}
-            <tr class="table-warning">
-        {% endif %}
-
-            <td>{{cheque.cheque_number}}</td>
-            <td>{{cheque.payee_name }}</td>
-            <td>{{cheque.amount}}</td>
-            <td>{% if cheque.clearance_date %}{{cheque.clearance_date}}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-            <td>{{cheque.get_status_display}}</td>
-            <td>
-                <div class="btn-group" role="group" aria-label="Basic example">
-                    <a href="{% url 'cheque_leaf_edit' cheque.pk %}" class="btn btn-primary btn-sm btn-curve"><i class="fas fa-pen-to-square"></i></a>
-                    <button onclick="deleteChequeLeaf({{ cheque.pk }}, '{{ cheque.payee_name }}', '{{ cheque.cheque_number }}')" class="btn btn-danger btn-sm btn-curve"><i class="fas fa-trash"></i></button>
-                </div>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
 
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Cheque Leaf</h1><div class="sub">{{ total_count }} cheque{{ total_count|pluralize }}</div></div>
+        <div class="actions">
+            <a href="{% url 'cheque_leaf_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add cheque</a>
+        </div>
+    </div>
+
+    <div class="gstats">
+        <a href="?filter=cleared" class="gstat green {% if active_filter == 'cleared' %}on{% endif %}">
+            <div class="gk"><span class="dot"></span> Total Cleared</div>
+            <div class="gv">₹ {{ total_cleared|default:0|floatformat:2|intcomma }}</div></a>
+        <a href="?filter=pending" class="gstat red {% if active_filter == 'pending' %}on{% endif %}">
+            <div class="gk"><span class="dot"></span> Total Pending</div>
+            <div class="gv">₹ {{ total_pending|default:0|floatformat:2|intcomma }}</div></a>
+        <a href="?filter=others" class="gstat amber {% if active_filter == 'others' %}on{% endif %}">
+            <div class="gk"><span class="dot"></span> Total Others</div>
+            <div class="gv">₹ {{ total_others|default:0|floatformat:2|intcomma }}</div></a>
+    </div>
+
+    <form method="get" class="toolbar">
+        <div class="search"><i class="fas fa-magnifying-glass gico"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search payee, cheque number…" autocomplete="off"></div>
+        {% if active_filter %}<input type="hidden" name="filter" value="{{ active_filter }}">{% endif %}
+        <select name="period" class="selctl" onchange="this.form.submit()">
+            <option value="">All periods</option>
+            <option value="this_month" {% if selected_period == 'This Month' %}selected{% endif %}>This month</option>
+            <option value="next_month" {% if selected_period == 'Next Month' %}selected{% endif %}>Next month</option>
+            <option value="previous_month" {% if selected_period == 'Previous Month' %}selected{% endif %}>Previous month</option>
+        </select>
+        {% if active_filter or q or selected_period %}<a href="{% url 'cheque_leafs' %}" class="gbtn">Clear</a>{% endif %}
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Cheque</th><th>Payee</th><th class="r">Amount</th><th>Clearance Date</th><th>Status</th><th class="r">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for cheque in cheque_leafs %}
+                <tr>
+                    <td class="num">{{ cheque.cheque_number }}</td>
+                    <td><div class="prim"><span class="pi"><i class="fas fa-money-check"></i></span><div class="nm">{{ cheque.payee_name }}</div></div></td>
+                    <td class="r num">₹ {{ cheque.amount }}</td>
+                    <td class="mut">{{ cheque.clearance_date|default:"—" }}</td>
+                    <td>
+                        {% if cheque.status == 'CLEARED' %}<span class="gbadge ok">{{ cheque.get_status_display }}</span>
+                        {% elif cheque.status == 'BOUNCED' %}<span class="gbadge out">{{ cheque.get_status_display }}</span>
+                        {% elif cheque.status == 'CANCELLED' or cheque.status == 'UNUSED' or cheque.status == 'STOPPED' %}<span class="gbadge grey">{{ cheque.get_status_display }}</span>
+                        {% else %}<span class="gbadge blue">{{ cheque.get_status_display }}</span>{% endif %}
+                    </td>
+                    <td class="r"><div class="rowacts">
+                        <a href="{% url 'cheque_leaf_edit' cheque.pk %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
+                        <button type="button" class="gbtn gbtn-icon del" title="Delete"
+                            onclick="deleteChequeLeaf({{ cheque.pk }}, '{{ cheque.payee_name|escapejs }}', '{{ cheque.cheque_number|escapejs }}')"><i class="fas fa-trash"></i></button>
+                    </div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty">
+                    <div class="ei"><i class="fas fa-money-check fa-lg"></i></div>
+                    <h3>No cheques found</h3>
+                    <p>{% if q or active_filter or selected_period %}Try clearing the filters.{% else %}Add your first cheque.{% endif %}</p>
+                    {% if q or active_filter or selected_period %}<a href="{% url 'cheque_leafs' %}" class="gbtn">Clear filters</a>{% else %}<a href="{% url 'cheque_leaf_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add cheque</a>{% endif %}
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
+</div>
+{% endblock %}
 
 {% block includejs %}
-<script type="text/javascript">
-	$(document).ready( function () {
-		$('#purchase-table').DataTable({
-			"order": [],
-			"columnDefs": [ {
-				"targets": 3,
-				"sortable": false,
-				"searchable": false
-			} ],
-			"paging": true
-		});
-	});
-
-    function deleteChequeLeaf(chequeLeafId,PayeeName,ChequeNumber) {
-		swal.fire({
-			title: 'Delete Cheque Leaf',
-            html: '<b>Are you sure you want to delete the cheque leaf for ' + PayeeName + ' with cheque number ' + ChequeNumber + '?</b>',
-			icon: 'warning',
-			confirmButtonText: 'OK'
-		}).then((result) => {
-			if (result.isConfirmed) {
-				window.location.href = "/cheque_leaf/delete/" + chequeLeafId;
-			}
-		});
-	};
+<script>
+function deleteChequeLeaf(id, payee, number){
+    Swal.fire({
+        title: 'Delete cheque leaf?',
+        html: 'Delete the cheque for <b>' + payee + '</b> (number ' + number + ')?',
+        icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#e11d48', cancelButtonText: 'Cancel'
+    }).then(function(r){ if(r.isConfirmed){ window.location.href = "/cheque_leaf/delete/" + id; } });
+}
 </script>
 {% endblock %}

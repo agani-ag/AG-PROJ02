@@ -112,28 +112,30 @@ function loadCustomerData() {
         return;
     }
     
-    var sortBy = $('#sortBySelect').val();
-    var chartType = $('#chartTypeSelect').val();
-    var topN = chartType === 'treemap' ? 999 : parseInt($('#topNValue').val());
-    var sortOrder = $('#sortDesc').hasClass('btn-primary') ? 'desc' : 'asc';
-    
+    var sortBy = document.getElementById('sortBySelect').value;
+    var chartType = document.getElementById('chartTypeSelect').value;
+    var topN = chartType === 'treemap' ? 999 : parseInt(document.getElementById('topNValue').value);
+    var sortOrder = document.getElementById('sortDesc').classList.contains('btn-primary') ? 'desc' : 'asc';
+
     // Show/hide top N selector based on chart type
     if (chartType === 'treemap') {
-        $('#topNContainer').hide();
+        document.getElementById('topNContainer').style.display = 'none';
     } else {
-        $('#topNContainer').show();
+        document.getElementById('topNContainer').style.display = '';
     }
-    
+
     var url = window.location.pathname + '?sort_by=' + sortBy + '&top_n=' + topN + '&sort_order=' + sortOrder;
-    
+
     console.log('AJAX URL:', url);
-    
-    $.ajax({
-        url: url,
+
+    fetch(url, {
+        method: 'GET',
         headers: {
             'X-Requested-With': 'XMLHttpRequest'
-        },
-        success: function(response) {
+        }
+    })
+        .then(function(r) { return r.json(); })
+        .then(function(response) {
             console.log('Response:', response);
             if (response.success) {
                 drawChart(response.data, response.sort_by);
@@ -144,14 +146,11 @@ function loadCustomerData() {
             } else {
                 alert('No data returned');
             }
-        },
-        error: function(xhr, status, error) {
+        })
+        .catch(function(error) {
             console.error('Error loading customer data:', error);
-            console.error('Status:', status);
-            console.error('Response:', xhr.responseText);
             alert('Error loading customer data: ' + error);
-        }
-    });
+        });
 }
 
 function drawChart(data, sortBy) {
@@ -160,8 +159,8 @@ function drawChart(data, sortBy) {
         return;
     }
     
-    var chartType = $('#chartTypeSelect').val();
-    
+    var chartType = document.getElementById('chartTypeSelect').value;
+
     var columnTitle = 'Transaction Volume';
     if (sortBy === 'balance') columnTitle = 'Outstanding Balance';
     else if (sortBy === 'type_0') columnTitle = 'Paid Amount';
@@ -345,109 +344,111 @@ function updateStats(data) {
         totalBalance += customer.balance;
     });
     
-    $('#totalCustomers').text(data.length);
-    $('#totalVolume').text('₹' + totalVolume.toLocaleString('en-IN', {maximumFractionDigits: 0}));
-    $('#totalBalance').text('₹' + totalBalance.toLocaleString('en-IN', {maximumFractionDigits: 0}));
+    document.getElementById('totalCustomers').textContent = data.length;
+    document.getElementById('totalVolume').textContent = '₹' + totalVolume.toLocaleString('en-IN', {maximumFractionDigits: 0});
+    document.getElementById('totalBalance').textContent = '₹' + totalBalance.toLocaleString('en-IN', {maximumFractionDigits: 0});
 }
 
 function updateSliderMax(customerCount) {
     // Update max for number input
-    $('#topNValue').attr('max', customerCount);
-    
+    document.getElementById('topNValue').setAttribute('max', customerCount);
+
     // Update the current value if it exceeds the new max
-    var currentVal = parseInt($('#topNValue').val());
+    var currentVal = parseInt(document.getElementById('topNValue').value);
     if (currentVal > customerCount) {
-        $('#topNValue').val(customerCount);
-        $('#displayCount').text(customerCount);
+        document.getElementById('topNValue').value = customerCount;
+        document.getElementById('displayCount').textContent = customerCount;
     }
 }
 
-$(document).ready(function() {
+document.addEventListener('DOMContentLoaded', function() {
     console.log('=== Document ready - initializing customer graph ===');
-    console.log('jQuery version:', $.fn.jquery);
-    console.log('Preset buttons found:', $('.preset-btn').length);
-    console.log('All button found:', $('#allBtn').length);
-    
+    console.log('Preset buttons found:', document.querySelectorAll('.preset-btn').length);
+    console.log('All button found:', document.getElementById('allBtn') ? 1 : 0);
+
     // Load initial data
     loadCustomerData();
-    
+
     // Sort option change
-    $('#sortBySelect').change(function() {
+    document.getElementById('sortBySelect').addEventListener('change', function() {
         loadCustomerData();
     });
-    
+
     // Chart type change
-    $('#chartTypeSelect').change(function() {
+    document.getElementById('chartTypeSelect').addEventListener('change', function() {
         loadCustomerData();
     });
-    
+
     // Sort order toggle
-    $('#sortDesc').on('click', function() {
+    document.getElementById('sortDesc').addEventListener('click', function() {
         console.log('DESC clicked');
-        $(this).removeClass('btn-outline-primary').addClass('btn-primary');
-        $('#sortAsc').removeClass('btn-primary').addClass('btn-outline-primary');
+        this.classList.remove('btn-outline-primary');
+        this.classList.add('btn-primary');
+        document.getElementById('sortAsc').classList.remove('btn-primary');
+        document.getElementById('sortAsc').classList.add('btn-outline-primary');
         loadCustomerData();
     });
-    
-    $('#sortAsc').on('click', function() {
+
+    document.getElementById('sortAsc').addEventListener('click', function() {
         console.log('ASC clicked');
-        $(this).removeClass('btn-outline-primary').addClass('btn-primary');
-        $('#sortDesc').removeClass('btn-primary').addClass('btn-outline-primary');
+        this.classList.remove('btn-outline-primary');
+        this.classList.add('btn-primary');
+        document.getElementById('sortDesc').classList.remove('btn-primary');
+        document.getElementById('sortDesc').classList.add('btn-outline-primary');
         loadCustomerData();
     });
-    
+
     // Preset buttons - Direct binding with extensive logging
-    $('.preset-btn').each(function(index) {
-        var btn = $(this);
-        console.log('Binding click to button', index, 'value:', btn.attr('data-value'));
-        
-        btn.on('click', function(e) {
+    document.querySelectorAll('.preset-btn').forEach(function(btn, index) {
+        console.log('Binding click to button', index, 'value:', btn.getAttribute('data-value'));
+
+        btn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            
-            var value = parseInt($(this).attr('data-value'));
+
+            var value = parseInt(this.getAttribute('data-value'));
             console.log('===== PRESET BUTTON CLICKED =====');
             console.log('Button value:', value);
-            console.log('Button text:', $(this).text());
-            
-            var maxAllowed = parseInt($('#topNValue').attr('max')) || 100;
+            console.log('Button text:', this.textContent);
+
+            var maxAllowed = parseInt(document.getElementById('topNValue').getAttribute('max')) || 100;
             var newVal = Math.min(value, maxAllowed);
-            
+
             console.log('Setting topNValue to:', newVal);
-            $('#topNValue').val(newVal);
-            $('#displayCount').text(newVal);
-            
+            document.getElementById('topNValue').value = newVal;
+            document.getElementById('displayCount').textContent = newVal;
+
             console.log('Calling loadCustomerData...');
             loadCustomerData();
-            
+
             return false;
         });
     });
-    
+
     // All button
-    $('#allBtn').on('click', function(e) {
+    document.getElementById('allBtn').addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        
+
         console.log('===== ALL BUTTON CLICKED =====');
-        var maxAllowed = parseInt($('#topNValue').attr('max')) || 100;
+        var maxAllowed = parseInt(document.getElementById('topNValue').getAttribute('max')) || 100;
         console.log('Max allowed:', maxAllowed);
-        
-        $('#topNValue').val(maxAllowed);
-        $('#displayCount').text(maxAllowed);
-        
+
+        document.getElementById('topNValue').value = maxAllowed;
+        document.getElementById('displayCount').textContent = maxAllowed;
+
         console.log('Calling loadCustomerData...');
         loadCustomerData();
-        
+
         return false;
     });
-    
+
     // Direct input change
-    $('#topNValue').on('change', function() {
-        var maxAllowed = parseInt($(this).attr('max'));
-        var val = Math.max(1, Math.min(maxAllowed, parseInt($(this).val()) || 10));
-        $(this).val(val);
-        $('#displayCount').text(val);
+    document.getElementById('topNValue').addEventListener('change', function() {
+        var maxAllowed = parseInt(this.getAttribute('max'));
+        var val = Math.max(1, Math.min(maxAllowed, parseInt(this.value) || 10));
+        this.value = val;
+        document.getElementById('displayCount').textContent = val;
         loadCustomerData();
     });
 });

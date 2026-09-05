@@ -5,46 +5,36 @@
 
 {% block includecss %}
 <style>
+    /* Light AG-Grid theme to match the GSTSync (.gs) design system. */
     .ag-theme-alpine {
-        --ag-header-height: 45px;
-        --ag-header-foreground-color: white;
-        --ag-header-background-color: #343a40;
-        --ag-odd-row-background-color: #f8f9fa;
+        --ag-header-height: 46px;
+        --ag-header-background-color: #f6f8fc;
+        --ag-header-foreground-color: #5b6472;
+        --ag-header-cell-hover-background-color: #eef2f7;
+        --ag-border-color: #e7ebf2;
+        --ag-row-border-color: #eef2f7;
+        --ag-row-hover-color: #f9fbff;
+        --ag-odd-row-background-color: #fbfcfe;
+        --ag-selected-row-background-color: #e8f1ff;
+        --ag-range-selection-border-color: #2563eb;
+        --ag-input-focus-border-color: #2563eb;
+        --ag-font-family: "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+        --ag-font-size: 13px;
+        /* NOTE: no overflow:hidden / border-radius on the grid root, and the card
+           wrapper stays overflow:visible — an overflow:hidden ancestor clips AG-Grid's
+           cell-editor dropdowns (Category/Division/Colour) and breaks inline editing. */
     }
-    
-    .stats-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    .ag-theme-alpine .ag-header-cell-text {
+        font-weight: 700; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #97a1b0;
     }
-    
-    .stats-card h3 {
-        margin: 0;
-        font-size: 2.5rem;
-        font-weight: bold;
+    /* Logs action button — light amber chip, consistent with the app's action buttons. */
+    .ag-theme-alpine .btn-logs {
+        display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 9px;
+        padding: 5px 11px; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: .15s;
+        background: #fff3e0; color: #e5900f; font-family: inherit; line-height: 1;
     }
-    
-    .stats-card p {
-        margin: 5px 0 0 0;
-        font-size: 1rem;
-        opacity: 0.9;
-    }
-    
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-    
-    .btn-group-actions {
-        display: flex;
-        gap: 10px;
-    }
-    
+    .ag-theme-alpine .btn-logs:hover { background: #ffe7bd; color: #c9780a; transform: translateY(-1px); }
+
     .category-badge-parent {
         background: #6f42c1;
         color: white;
@@ -67,23 +57,22 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div>
-        <h2><i class="fas fa-box"></i> Products - AG Grid</h2>
-        <p class="text-muted">Edit products inline with auto-save - Total Products: {{ products_count }}</p>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><a href="{% url 'products' %}">Products</a> › Grid</div>
+            <h1 class="disp">Products grid</h1>
+            <div class="sub">Edit inline with auto-save · {{ products_count }} products</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'products' %}" class="gbtn" title="Back to List View"><i class="fas fa-list"></i> List view</a>
+            <a href="{% url 'product_add' %}" class="gbtn gbtn-primary" title="Add Product"><i class="fas fa-plus"></i> Add new</a>
+        </div>
     </div>
-    <div class="btn-group-actions">
-        <a href="{% url 'products' %}" class="btn btn-secondary btn-sm btn-curve" title="Back to List View">
-            <i class="fas fa-list"></i> List View
-        </a>
-        <a href="{% url 'product_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Product">
-            <i class="fas fa-plus"></i> Add New
-        </a>
-    </div>
-</div>
 
-<div class="card">
-    <div class="card-body">
+    <!-- Plain card frame with overflow:visible — must NOT clip AG-Grid's cell-editor
+         dropdowns, and no popupParent overlay that would block navbar clicks. -->
+    <div style="background:#fff;border:1px solid #e7ebf2;border-radius:16px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 22px -14px rgba(15,23,42,.18);padding:12px;overflow:visible">
         <div id="products-grid" class="ag-theme-alpine" style="height: 600px; width: 100%;"></div>
     </div>
 </div>
@@ -93,7 +82,7 @@
     <div class="toast-header">
         <i class="fas fa-info-circle mr-2"></i>
         <strong class="mr-auto">Notification</strong>
-        <button type="button" class="ml-2 mb-1 close" data-dismiss="toast">&times;</button>
+        <button type="button" class="ml-2 mb-1 close" onclick="this.closest('.toast').classList.remove('show')">&times;</button>
     </div>
     <div class="toast-body"></div>
 </div>
@@ -125,16 +114,16 @@
     
     // Show toast notification
     function showToast(message, type = 'info') {
-        const toast = $('#toast');
-        const toastBody = toast.find('.toast-body');
-        const toastHeader = toast.find('.toast-header');
-        
-        toastBody.text(message);
-        
+        const toast = document.getElementById('toast');
+        const toastBody = toast.querySelector('.toast-body');
+        const toastHeader = toast.querySelector('.toast-header');
+
+        toastBody.textContent = message;
+
         // Update icon and color based on type
         let icon = 'fa-info-circle';
         let bgClass = 'bg-info';
-        
+
         if (type === 'success') {
             icon = 'fa-check-circle';
             bgClass = 'bg-success';
@@ -142,12 +131,17 @@
             icon = 'fa-times-circle';
             bgClass = 'bg-danger';
         }
-        
-        toastHeader.removeClass('bg-info bg-success bg-danger').addClass(bgClass);
-        toastHeader.find('i').removeClass().addClass(`fas ${icon} mr-2 text-white`);
-        toastHeader.css('color', 'white');
-        
-        toast.toast('show');
+
+        toastHeader.classList.remove('bg-info', 'bg-success', 'bg-danger');
+        toastHeader.classList.add(bgClass);
+        const _ti = toastHeader.querySelector('i');
+        if (_ti) _ti.className = `fas ${icon} mr-2 text-white`;
+        toastHeader.style.color = 'white';
+
+        // Vanilla show + auto-hide (replaces Bootstrap toast('show'))
+        toast.classList.add('show');
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 3000);
     }
     
     // Cell style for editable cells
@@ -430,7 +424,7 @@
             pinned: 'right',
             width: 120,
             cellRenderer: params => {
-                return `<button class="btn btn-warning btn-sm" onclick="viewInventoryLogs(${params.value})" title="View Inventory Logs">
+                return `<button class="btn-logs" onclick="viewInventoryLogs(${params.value})" title="View Inventory Logs">
                     <i class="fas fa-file-lines"></i> Logs
                 </button>`;
             },
@@ -534,9 +528,6 @@
     document.addEventListener('DOMContentLoaded', function() {
         const gridDiv = document.querySelector('#products-grid');
         gridApi = agGrid.createGrid(gridDiv, gridOptions);
-
-        // Initialize Bootstrap toast
-        $('.toast').toast({ autohide: true, delay: 3000 });
     });
     
     // View inventory logs popup

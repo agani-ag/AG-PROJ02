@@ -28,6 +28,7 @@ urlpatterns = [
     # Employee (mobile field-staff) management
     path('employees', employee.employees, name='employees'),
     path('employees/add', employee.employee_add, name='employee_add'),
+    path('employees/export', employee.employees_export, name='employees_export'),
     path('employees/add-shared', employee.employee_add_shared, name='employee_add_shared'),
     path('employees/employee-lookup', employee.employee_share_lookup, name='employee_share_lookup'),
     path('employees/edit/<int:posting_id>', employee.employee_edit, name='employee_edit'),
@@ -77,6 +78,7 @@ urlpatterns = [
 
     # Customer URLs
     path('customers', customers.customers, name='customers'),
+    path('customers/export', customers.customers_export, name='customers_export'),
     path('customers/add', customers.customer_add, name='customer_add'),
     path('customers/edit/<int:customer_id>', customers.customer_edit, name='customer_edit'),
     path('customers/delete', customers.customer_delete, name='customer_delete'),
@@ -92,11 +94,13 @@ urlpatterns = [
 
     # Book URLs
     path('books', books.books, name='books'),
+    path('books/export', books.books_export, name='books_export'),
     path('books/<int:book_id>', books.book_logs, name='book_logs'),
     path('books/<int:book_id>/addupdate', books.book_logs_add, name='book_logs_add'),
     path('book/del/<int:booklog_id>', books.book_logs_del, name='book_logs_del'),
     # Full Book Logs View
     path('books/full', books.book_logs_full, name='book_logs_full'),
+    path('books/full/export', books.book_logs_full_export, name='book_logs_full_export'),
     path('books/full/ajax', books.book_logs_full_ajax, name='book_logs_full_ajax'),
     path('books/fulladdupdate', books.book_logs_full_add, name='book_logs_full_add'),
     # API Endpoints
@@ -109,6 +113,7 @@ urlpatterns = [
 
     # Product URLs
     path('products', products.products, name='products'),
+    path('products/export', products.products_export, name='products_export'),
     path('products/aggrid', products.products_aggrid, name='products_aggrid'),
     path('products/add', products.product_add, name='product_add'),
     path('products/edit/<int:product_id>', products.product_edit, name='product_edit'),
@@ -123,10 +128,12 @@ urlpatterns = [
 
     # Inventory URLs
     path('inventory', inventory.inventory, name='inventory'),
+    path('inventory/export', inventory.inventory_export, name='inventory_export'),
     path('inventory/<int:inventory_id>', inventory.inventory_logs, name='inventory_logs'),
     path('inventory/<int:inventory_id>/addupdate', inventory.inventory_logs_add, name='inventory_logs_add'),
     path('inventory/del/<int:inventorylog_id>', inventory.inventory_logs_del, name='inventory_logs_del'),
     path('inventory/logs', inventory.inventory_logs_full, name='inventory_logs_full'),
+    path('inventory/logs/export', inventory.inventory_logs_full_export, name='inventory_logs_full_export'),
     # API Endpoints
     path('inventory/api/stock-alert-level/add', inventory.invertory_stock_alert_update, name='invertory_stock_alert_update'),
     path('inventory/logs/ajax/', inventory.inventory_logs_ajax, name='inventory_logs_ajax'),
@@ -135,6 +142,7 @@ urlpatterns = [
 
     # Purchase URLs
     path('purchases_logs', purchases.purchases_logs, name='purchases_logs'),
+    path('purchases_logs/export', purchases.purchases_logs_export, name='purchases_logs_export'),
     path('purchases_logs/add', purchases.purchases_logs_add, name='purchases_logs_add'),
     path('purchases_logs/delete/<int:pid>', purchases.purchases_logs_delete, name='purchases_logs_delete'),
     # Overdue Purchases
@@ -143,6 +151,7 @@ urlpatterns = [
 
     # Vendor Purchase URLs
     path('purchases/vendors', vendor_purchase.vendors_purchase, name='vendors_purchase'),
+    path('purchases/vendors/export', vendor_purchase.vendors_purchase_export, name='vendors_purchase_export'),
     path('purchases/vendor/add', vendor_purchase.vendor_purchase_add, name='vendor_purchase_add'),
     path('purchases/vendor/edit/<int:vendor_purchase_id>', vendor_purchase.vendor_purchase_edit, name='vendor_purchase_edit'),
     path('purchases/vendor/delete', vendor_purchase.vendor_purchase_delete, name='vendor_purchase_delete'),
@@ -153,16 +162,19 @@ urlpatterns = [
     
     # Expense Tracker URLs
     path('expensetracker', expense_tracker.expense_tracker, name='expense_tracker'),
+    path('expensetracker/export', expense_tracker.expense_tracker_export, name='expense_tracker_export'),
     path('expensetracker/add', expense_tracker.expense_tracker_add, name='expense_tracker_add'),
     path('expensetracker/delete/<int:expense_id>', expense_tracker.expense_tracker_delete, name='expense_tracker_delete'),
 
     # Asset URLs
     path('assets', asset.assets, name='assets'),
+    path('assets/export', asset.assets_export, name='assets_export'),
     path('asset/add', asset.asset_add, name='asset_add'),
     path('asset/edit/<int:asset_id>', asset.asset_edit, name='asset_edit'),
     path('asset/delete/<int:asset_id>', asset.asset_delete, name='asset_delete'),
     # Asset Log URLs
     path('asset/log/<int:asset_id>', asset.asset_log, name='asset_log'),
+    path('asset/log/<int:asset_id>/export', asset.asset_log_export, name='asset_log_export'),
     path('asset/log/add/<int:asset_id>', asset.asset_log_add, name='asset_log_add'),
     path('asset/log/delete/<int:log_id>', asset.asset_log_delete, name='asset_log_delete'),
 

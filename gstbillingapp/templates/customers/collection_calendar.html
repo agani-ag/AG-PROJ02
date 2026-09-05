@@ -1,37 +1,36 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
 {% block content %}
-<div class="row align-items-center mb-3">
-	<div class="col">
-		<h2 class="mb-0">Collection Calendar {% if filter_day_display %}| {{ filter_day_display }}{% else %}| All Days{% endif %}</h2>
-	</div>
-    
-	<div class="col-auto">
-        <form method="GET" class="d-flex align-items-center gap-2">
-            <select name="filter" class="form-control form-control-sm" onchange="this.form.submit()">
-                <option value="">All Days</option>
-                <option value="1" {% if filter_day == '1' %}selected{% endif %}>Monday</option>
-				<option value="2" {% if filter_day == '2' %}selected{% endif %}>Tuesday</option>
-				<option value="3" {% if filter_day == '3' %}selected{% endif %}>Wednesday</option>
-				<option value="4" {% if filter_day == '4' %}selected{% endif %}>Thursday</option>
-				<option value="5" {% if filter_day == '5' %}selected{% endif %}>Friday</option>
-				<option value="6" {% if filter_day == '6' %}selected{% endif %}>Saturday</option>
-				<option value="0" {% if filter_day == '0' %}selected{% endif %}>Sunday</option>
-            </select>
-        </form>
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Collection Calendar</h1><div class="sub">{% if filter_day_display %}{{ filter_day_display }}{% else %}All Days{% endif %}</div></div>
+        <div class="actions">
+            <form method="GET" style="display:inline">
+                <select name="filter" class="selctl" onchange="this.form.submit()">
+                    <option value="">All Days</option>
+                    <option value="1" {% if filter_day == '1' %}selected{% endif %}>Monday</option>
+                    <option value="2" {% if filter_day == '2' %}selected{% endif %}>Tuesday</option>
+                    <option value="3" {% if filter_day == '3' %}selected{% endif %}>Wednesday</option>
+                    <option value="4" {% if filter_day == '4' %}selected{% endif %}>Thursday</option>
+                    <option value="5" {% if filter_day == '5' %}selected{% endif %}>Friday</option>
+                    <option value="6" {% if filter_day == '6' %}selected{% endif %}>Saturday</option>
+                    <option value="0" {% if filter_day == '0' %}selected{% endif %}>Sunday</option>
+                </select>
+            </form>
+            <a href="#" class="gbtn" title="Update Locations" onclick="updateLocations();return false;"><i class="fas fa-map-marker-alt"></i> Update locations</a>
+            {% if filter_day_display %}<a href="#" class="gbtn" title="Route Map" onclick="showRouteMap();return false;"><i class="fas fa-route"></i> Route map</a>{% endif %}
+            <a href="{% url 'customers' %}" class="gbtn"><i class="fas fa-users"></i> Customers</a>
+        </div>
     </div>
-
-	<div class="col-auto">
-		<a href="{% url 'customers' %}" class="btn btn-danger btn-sm btn-curve" title="Customers"><i class="fas fa-users"></i></a>
-		<a href="#" class="btn btn-success btn-sm btn-curve" title="Update Locations" onclick="updateLocations()"><i class="fas fa-map-marker-alt"></i></a>
-		{% if filter_day_display %}
-		<a href="#" class="btn btn-primary btn-sm btn-curve" title="Route Map" onclick="showRouteMap()"><i class="fas fa-route"></i></a>
-		{% endif %}
-	</div>
-	
-</div>
-
+    <div class="tablecard" style="padding:10px 14px">
 <table class="table table-bordered" id="customer-table">
 	<thead class="thead-dark">
 		<tr>
@@ -76,7 +75,8 @@
 		{% endfor %}
 	</tbody>
 </table>
-
+    </div>
+</div>
 {% endblock %}
 
 
@@ -105,73 +105,25 @@ const customers = [
     {% endfor %}
 ];
 
-$(document).ready( function () {
-	$('#customer-table').DataTable({
-		"order": [],
-		"columnDefs": [],
-		"paging": true,	
-		dom: 'Bfrtip',
-        buttons: [
-            {
-                extend: 'excelHtml5',
-                text: '<i class="fas fa-file-excel"></i> Excel',
-                className: 'btn btn-success btn-sm btn-curve'
-            },
-            {
-                extend: 'pdfHtml5',
-                text: '<i class="fas fa-file-pdf"></i> PDF',
-                className: 'btn btn-danger btn-sm btn-curve'
-            },
-            {
-                extend: 'print',
-                text: '<i class="fas fa-print"></i> Print',
-                className: 'btn btn-warning btn-sm btn-curve',
-                title: '',
-                customize: function (win) {
-                    var body = $(win.document.body);
-                    body.css('font-family', 'Arial, sans-serif');
-
-                    // Build header
-                    var header = '<div style="text-align:center; margin-bottom:20px;">' +
-                        '<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
-                        '<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
-                        '<p style="margin:2px 0; color:#666; font-size:13px;">' +
-                            'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
-                            '{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
-							'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
-                        '</p>' +
-                        '<hr style="margin:10px 0;">' +
-                        '<h4 style="margin:0;">Collection Calendar | {% if filter_day_display %}{{ filter_day_display }}{% else %}All Days{% endif %}</h4>' +
-                        '<hr style="margin-top:10px;">' +
-                    '</div>';
-                    body.find('table').before(header);
-
-                    // Days columns
-                    body.find('table th:last-child, table td:last-child').hide();
-
-                    // Add S.No column header
-                    body.find('table thead tr').prepend('<th style="background-color:#343a40; color:#fff; border:1px solid #ddd; padding:8px;">S.No</th>');
-
-                    // Add S.No to each row
-                    body.find('table tbody tr').each(function(index) {
-                        $(this).prepend('<td style="border:1px solid #ddd; padding:8px; text-align:center;">' + (index + 1) + '</td>');
-                    });
-
-                    // Style the table
-                    body.find('table')
-                        .css('width', '100%')
-                        .css('border-collapse', 'collapse')
-                        .css('font-size', '13px');
-                    body.find('table th, table td')
-                        .css('border', '1px solid #ddd')
-                        .css('padding', '8px');
-                    body.find('table thead th')
-                        .css('background-color', '#343a40')
-                        .css('color', '#fff')
-                        .css('text-align', 'left');
-                }
-            }
-        ]
+document.addEventListener('DOMContentLoaded', function () {
+	GSTable.enhance('#customer-table', {
+		pageSize: 25, search: true, sort: true,
+		exportCsv: true, print: true,
+		searchPlaceholder: 'Search customers…',
+		exportName: 'collection-calendar',
+		printTitle: 'Collection Calendar',
+		printHeadHtml: '<div style="text-align:center; margin-bottom:20px;">' +
+			'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
+			'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
+			'<p style="margin:2px 0; color:#666; font-size:13px;">' +
+				'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
+				'{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
+				'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
+			'</p>' +
+			'<hr style="margin:10px 0;">' +
+			'<h4 style="margin:0;">Collection Calendar | {% if filter_day_display %}{{ filter_day_display }}{% else %}All Days{% endif %}</h4>' +
+			'<hr style="margin-top:10px;">' +
+		'</div>'
 	});
 });
 
@@ -360,34 +312,31 @@ function UpdateCollectionDay(customerId, currentDay, currentPlace) {
     }).then((result) => {
         if (result.isConfirmed) {
 
-            $.ajax({
-                url: "{% url 'customer_collection_day_update' %}",
-                type: "POST",
-                data: {
+            fetch("{% url 'customer_collection_day_update' %}", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
                     customer_id: customerId,
                     collection_day: result.value.day,
                     customer_place: result.value.place,
                     csrfmiddlewaretoken: '{{ csrf_token }}'
-                },
-                success: function (response) {
-                    if (response.status === 'success') {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Updated!',
-                            text: response.message,
-                            timer: 1200,
-                            showConfirmButton: false
-                        }).then(() => {
-                            location.reload();
-                        });
-                    } else {
-                        Swal.fire('Error', response.message, 'error');
-                    }
-                },
-                error: function () {
-                    Swal.fire('Error', 'Server error. Try again.', 'error');
+                })
+            })
+            .then(res => res.json())
+            .then(response => {
+                if (response.status === 'success') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Updated!',
+                        text: response.message,
+                        timer: 1200,
+                        showConfirmButton: false
+                    }).then(() => { location.reload(); });
+                } else {
+                    Swal.fire('Error', response.message, 'error');
                 }
-            });
+            })
+            .catch(() => { Swal.fire('Error', 'Server error. Try again.', 'error'); });
 
         }
     });
@@ -622,29 +571,26 @@ function updateLocations() {
             if (result.value === 'locations_days') {
                 postData.update_days = '1';
             }
-            $.ajax({
-                url: "{% url 'customers_location_mapper_api' %}",
-                type: "POST",
-                data: postData,
-                success: function (response) {
-                    if (response.status === 'success') {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Done!',
-                            text: response.message,
-                            timer: 2000,
-                            showConfirmButton: false
-                        }).then(() => {
-                            location.reload();
-                        });
-                    } else {
-                        Swal.fire('Error', response.message, 'error');
-                    }
-                },
-                error: function () {
-                    Swal.fire('Error', 'Server error. Try again.', 'error');
+            fetch("{% url 'customers_location_mapper_api' %}", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams(postData)
+            })
+            .then(res => res.json())
+            .then(response => {
+                if (response.status === 'success') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Done!',
+                        text: response.message,
+                        timer: 2000,
+                        showConfirmButton: false
+                    }).then(() => { location.reload(); });
+                } else {
+                    Swal.fire('Error', response.message, 'error');
                 }
-            });
+            })
+            .catch(() => { Swal.fire('Error', 'Server error. Try again.', 'error'); });
         }
     });
 }
@@ -653,4 +599,4 @@ function updateLocations() {
 
 {% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}
 
-{% block body_libs %}{% include "partials/libs/leaflet_body.html" %}{% include "partials/libs/export_body.html" %}{% endblock %}
+{% block body_libs %}{% include "partials/libs/leaflet_body.html" %}{% endblock %}

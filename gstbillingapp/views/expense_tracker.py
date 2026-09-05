@@ -1,8 +1,11 @@
 # Django imports
-from django.db.models import Sum
+import csv
+from django.db.models import Sum, Q
 from django.utils import timezone
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db.models import Min, Max
+from django.http import HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 
@@ -76,9 +79,40 @@ def expense_tracker(request):
     years = expenses.aggregate(min_year=Min("date__year"), max_year=Max("date__year"))
     context["start_end_year"] = f"{years['min_year']} - {years['max_year']}"
 
-    context["expenses"] = expenses.order_by("-date")
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        expenses = expenses.filter(Q(category__icontains=q) | Q(reference__icontains=q))
+
+    paginator = Paginator(expenses.order_by("-date"), 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    params = request.GET.copy()
+    params.pop("page", None)
+    context["expenses"] = page_obj
+    context["page_obj"] = page_obj
+    context["total_count"] = paginator.count
+    context["querystring"] = params.urlencode()
+    context["q"] = q
 
     return render(request, "expense_tracker/expense_tracker.html", context)
+
+
+@login_required
+def expense_tracker_export(request):
+    expenses = ExpenseTracker.objects.filter(user=request.user)
+    if request.GET.get("category"):
+        expenses = expenses.filter(category=request.GET["category"])
+    if request.GET.get("reference"):
+        expenses = expenses.filter(reference=request.GET["reference"])
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        expenses = expenses.filter(Q(category__icontains=q) | Q(reference__icontains=q))
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="expenses.csv"'
+    writer = csv.writer(response)
+    writer.writerow(["Date", "Category", "Amount", "Reference"])
+    for e in expenses.order_by("-date"):
+        writer.writerow([e.date.strftime("%Y-%m-%d %H:%M") if e.date else "", e.category, e.amount, e.reference])
+    return response
 
 @login_required
 def expense_tracker_add(request):

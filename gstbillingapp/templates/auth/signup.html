@@ -1,81 +1,61 @@
 {% extends "base.html" %}
-
 {% load static %}
+{% block title %}Sign up · GSTSync{% endblock %}
 
-
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
+<div class="gs gs-pad">
+<form method="POST" class="gform">
+    {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head"><div><h1 class="disp">Sign up</h1><div class="sub">Create a new business account</div></div></div>
 
-<h2>Sign Up</h2>
-<form method="POST">
-	{% csrf_token %}
-	<table class="table">
-		<tbody class="two-col-form">
-			<tr>
-				<th scope="row" class="text-right">Username:</th>
-				<td class="form-input-td">{{signup_form.username}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Password:</th>
-				<td class="form-input-td">{{signup_form.password1}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Confirm Password:</th>
-				<td class="form-input-td">{{signup_form.password2}}</td>
-			</tr>
+        <div class="section open">
+            <div class="sh"><span class="si b"><i class="fas fa-user-plus"></i></span>
+                <div><h3 class="disp">Account</h3><div class="sd">Login credentials</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field full"><label>Username</label>{{ signup_form.username }}</div>
+                <div class="field"><label>Password</label>{{ signup_form.password1 }}</div>
+                <div class="field"><label>Confirm Password</label>{{ signup_form.password2 }}</div>
+            </div></div>
+        </div>
 
+        <div class="section open">
+            <div class="sh"><span class="si g"><i class="fas fa-building"></i></span>
+                <div><h3 class="disp">Business</h3><div class="sd">Your business profile</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Business Name</label>{{ profile_edit_form.business_title }}</div>
+                <div class="field"><label>Brand</label>{{ profile_edit_form.business_brand }}</div>
+                <div class="field"><label>Email</label>{{ profile_edit_form.business_email }}</div>
+                <div class="field"><label>Phone</label>{{ profile_edit_form.business_phone }}</div>
+                <div class="field"><label>GST</label><input type="text" name="business_gst" value="{{ profile_edit_form.business_gst.value|default:'' }}" pattern="^$|^[A-Za-z0-9]{15}$" title="GST number must be exactly 15 alphanumeric characters or left empty"></div>
+                <div class="field full"><label>Address</label><textarea name="customer_address" rows="3">{{ profile_edit_form.business_address.value|default:'' }}</textarea></div>
+            </div></div>
+        </div>
+    </div>
 
-			<tr>
-				<th scope="row" class="text-right">Business Name:</th>
-				<td class="form-input-td">{{profile_edit_form.business_title}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Address:</th>
-				<td class="form-input-td">
-					<textarea name="customer_address" rows="4" cols="30">{{profile_edit_form.business_address.value|default:''}}</textarea>
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Email:</th>
-				<td class="form-input-td">{{profile_edit_form.business_email}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Phone:</th>
-				<td class="form-input-td">{{profile_edit_form.business_phone}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">GST:</th>
-				<td class="form-input-td">
-					<input type="text" name="business_gst" value="{{profile_edit_form.business_gst.value|default:''}}" 
-						   pattern="^$|^[A-Za-z0-9]{15}$" 
-						   title="GST number must be exactly 15 alphanumeric characters or left empty">
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Brand:</th>
-				<td class="form-input-td">{{profile_edit_form.business_brand}}</td>
-			</tr>
-		</tbody>
-	</table>
-
-	<div class="text-right">
-		<button type="submit" class="btn btn-primary"><i class="fas fa-user-plus"></i></button>
-		<a href="#" class="btn btn-danger" onclick="cancelSignUp()"><i class="fas fa-cancel"></i></a>
-	</div>
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">New account · not saved</div>
+        <div class="end">
+            <a class="gbtn" href="#" onclick="cancelSignUp();return false;">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-user-plus"></i> Sign up</button>
+        </div>
+    </div></div>
 </form>
+</div>
 
 <script>
-	function cancelSignUp() {
-		swal.fire({
-			title: 'Cancel Sign Up',
-			text: 'You will be redirected to the Login page.',
-			icon: 'warning',
-			confirmButtonText: 'OK'
-		}).then((result) => {
-			if (result.isConfirmed) {
-				window.location.href = "{% url 'login_view' %}";
-			}
-		});
-	};
+function cancelSignUp() {
+    swal.fire({ title: 'Cancel Sign Up', text: 'You will be redirected to the Login page.', icon: 'warning', confirmButtonText: 'OK' })
+        .then((result) => { if (result.isConfirmed) { window.location.href = "{% url 'login_view' %}"; } });
+}
 </script>
 {% endblock %}
