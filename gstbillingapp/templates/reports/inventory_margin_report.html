@@ -3,248 +3,144 @@
 {% load humanize %}
 {% load money %}
 
-{% block title %}Inventory Margin Report - GSTSync{% endblock %}
+{% block title %}Inventory Margin Report · GSTSync{% endblock %}
 
 {% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 <style>
-/* ===== Inventory Profit Report Styles ===== */
-.txn-report .card {
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-    overflow: hidden;
-}
-.txn-report .section-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #343a40;
-    margin-bottom: 0;
-}
-.txn-report .kpi-card {
-    text-align: center;
-    padding: 1rem;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    transition: transform 0.2s ease;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-.txn-report .kpi-card:hover {
-    transform: translateY(-2px);
-}
-.txn-report .kpi-value {
-    font-size: 1.6rem;
-    font-weight: 800;
-}
-.txn-report .kpi-label {
-    font-size: .75rem;
-    text-transform: uppercase;
-    color: #6c757d;
-    letter-spacing: .04em;
-}
-.txn-report .filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px;
-}
-.txn-report .filter-bar label {
-    font-weight: 600;
-    font-size: .85rem;
-    margin-bottom: 0;
-    white-space: nowrap;
-}
-.txn-report .filter-bar select,
-.txn-report .filter-bar input[type="date"] {
-    font-weight: 600;
-    font-size: .88rem;
-    padding: 5px 10px;
-    border-radius: 6px;
-    border: 2px solid #495057;
-    cursor: pointer;
-}
-.txn-report .filter-bar select:focus,
-.txn-report .filter-bar input:focus {
-    border-color: #007bff;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(0,123,255,.15);
-}
-.txn-report .table th {
-    background: #343a40;
-    color: #fff;
-    font-size: .78rem;
-    text-transform: uppercase;
-    letter-spacing: .03em;
-    border: none;
-}
-.txn-report .table td {
-    vertical-align: middle;
-    font-size: .85rem;
-}
-.txn-report .total-row td {
-    font-weight: 700;
-    background: #f8f9fa !important;
-    border-top: 2px solid #343a40;
-}
-.profit-positive { color: #28a745; }
-.profit-negative { color: #dc3545; }
+/* Filter controls */
+.gs .imr-filters{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
+.gs .imr-filters label{font-weight:600;font-size:13px;color:var(--soft);white-space:nowrap}
+.gs .imr-filters select{font-weight:600;font-size:13px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.gs .imr-filters select:focus{border-color:var(--brand);outline:none;box-shadow:0 0 0 2px var(--bluebg)}
+.gs .imr-check{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:13px;color:var(--soft);cursor:pointer}
+.gs .imr-check input{width:17px;height:17px;cursor:pointer;accent-color:var(--brand)}
+/* Positive / negative money */
+.gs .num.pos{color:var(--green)} .gs .num.neg{color:var(--red)}
+/* Total row */
+.gs table.gt tr.total-row td{font-weight:700;background:var(--wash);border-top:2px solid var(--line2)}
+.gs table.gt td.rk{font-family:var(--disp);font-weight:700;color:var(--faint);text-align:center;width:44px}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 py-3 txn-report">
-
-    <!-- Header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+<div class="gs">
+    <div class="page-head">
         <div>
-            <h4 class="font-weight-bold mb-0"><i class="fas fa-chart-line text-success"></i> Inventory Margin Report</h4>
-            <small class="text-muted">Report Date: {{ report_date|date:"d M Y" }}</small>
+            <div class="eyebrow">Reports › Inventory</div>
+            <h1 class="disp">Inventory Margin Report</h1>
+            <div class="sub">Per-product profit from sale rate vs purchase rate, valued on current stock — as of {{ report_date|date:"d M Y" }}</div>
         </div>
-        <div>
-            <a href="{% url 'inventory_dashboard' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left mr-1"></i>Back to Inventory</a>
-        </div>
-    </div>
-
-    <!-- Filter Bar -->
-    <div class="card mb-3">
-        <div class="card-body py-2">
-            <form method="get" class="filter-bar" id="filterForm">
-                <label for="sortSelect"><i class="fas fa-sort text-primary mr-1"></i>Sort:</label>
-                <select id="sortSelect" name="sort" onchange="document.getElementById('filterForm').submit()">
-                    <option value="profit_total_desc" {% if sort_by == 'profit_total_desc' %}selected{% endif %}>Total Profit (High-Low)</option>
-                    <option value="profit_total_asc" {% if sort_by == 'profit_total_asc' %}selected{% endif %}>Total Profit (Low-High)</option>
-                    <option value="profit_unit_desc" {% if sort_by == 'profit_unit_desc' %}selected{% endif %}>Profit/Unit (High-Low)</option>
-                    <option value="profit_unit_asc" {% if sort_by == 'profit_unit_asc' %}selected{% endif %}>Profit/Unit (Low-High)</option>
-                    <option value="margin_desc" {% if sort_by == 'margin_desc' %}selected{% endif %}>Margin % (High-Low)</option>
-                    <option value="margin_asc" {% if sort_by == 'margin_asc' %}selected{% endif %}>Margin % (Low-High)</option>
-                    <option value="stock_desc" {% if sort_by == 'stock_desc' %}selected{% endif %}>Stock (High-Low)</option>
-                    <option value="stock_asc" {% if sort_by == 'stock_asc' %}selected{% endif %}>Stock (Low-High)</option>
-                    <option value="sale_rate_desc" {% if sort_by == 'sale_rate_desc' %}selected{% endif %}>Sale Rate (High-Low)</option>
-                    <option value="sale_rate_asc" {% if sort_by == 'sale_rate_asc' %}selected{% endif %}>Sale Rate (Low-High)</option>
-                    <option value="purchase_rate_desc" {% if sort_by == 'purchase_rate_desc' %}selected{% endif %}>Purchase Rate (High-Low)</option>
-                    <option value="purchase_rate_asc" {% if sort_by == 'purchase_rate_asc' %}selected{% endif %}>Purchase Rate (Low-High)</option>
-                    <option value="model_no_asc" {% if sort_by == 'model_no_asc' %}selected{% endif %}>Model No (A-Z)</option>
-                    <option value="model_no_desc" {% if sort_by == 'model_no_desc' %}selected{% endif %}>Model No (Z-A)</option>
-                    <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>Name (A-Z)</option>
-                    <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>Name (Z-A)</option>
-                </select>
-
-                <div class="d-flex align-items-center">
-                    <input type="hidden" name="hide_zero" value="0">
-                    <input type="checkbox" id="hideZero" name="hide_zero" value="1" {% if hide_zero == '1' %}checked{% endif %} onchange="document.getElementById('filterForm').submit()" style="width:18px;height:18px;cursor:pointer;">
-                    <label for="hideZero" class="ml-1 mb-0" style="font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap;">Only Positive Stock</label>
-                </div>
-
-                <a href="{% url 'inventory_margin_report' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
-            </form>
+        <div class="actions">
+            <a href="{% url 'inventory_dashboard' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Back to Inventory</a>
+            <button type="button" class="gbtn" onclick="printReport()"><i class="fas fa-print"></i> Print</button>
         </div>
     </div>
 
-    <!-- KPI Cards -->
-    <div class="row mb-3">
-        <div class="col mb-2" style="min-width:0;flex:1 1 0;">
-            <div class="kpi-card">
-                <div class="kpi-value text-dark">{{ total_products }}</div>
-                <div class="kpi-label">Products</div>
-            </div>
-        </div>
-        <div class="col mb-2" style="min-width:0;flex:1 1 0;">
-            <div class="kpi-card">
-                <div class="kpi-value text-primary">₹ {{ total_stock_value|inrs }}</div>
-                <div class="kpi-label">Stock Value (Sale)</div>
-            </div>
-        </div>
-        <div class="col mb-2" style="min-width:0;flex:1 1 0;">
-            <div class="kpi-card">
-                <div class="kpi-value text-warning">₹ {{ total_purchase_value|inrs }}</div>
-                <div class="kpi-label">Stock Value (Purchase)</div>
-            </div>
-        </div>
-        <div class="col mb-2" style="min-width:0;flex:1 1 0;">
-            <div class="kpi-card">
-                <div class="kpi-value {% if total_profit >= 0 %}text-success{% else %}text-danger{% endif %}">₹ {{ total_profit|inrs }}</div>
-                <div class="kpi-label">Total Profit</div>
-            </div>
-        </div>
-        <div class="col mb-2" style="min-width:0;flex:1 1 0;">
-            <div class="kpi-card">
-                <div class="kpi-value {% if avg_margin >= 0 %}text-success{% else %}text-danger{% endif %}">{{ avg_margin }}%</div>
-                <div class="kpi-label">Avg Margin</div>
-            </div>
-        </div>
+    <!-- KPIs -->
+    <div class="statgrid">
+        <div class="stat"><span class="si s"><i class="fas fa-boxes-stacked"></i></span>
+            <div><div class="sv">{{ total_products }}</div><div class="sk">Products</div></div></div>
+        <div class="stat"><span class="si b"><i class="fas fa-tags"></i></span>
+            <div><div class="sv">&#8377; {{ total_stock_value|inrs }}</div><div class="sk">Stock Value (Sale)</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-cart-shopping"></i></span>
+            <div><div class="sv">&#8377; {{ total_purchase_value|inrs }}</div><div class="sk">Stock Value (Purchase)</div></div></div>
+        <div class="stat"><span class="si {% if total_profit >= 0 %}g{% else %}r{% endif %}"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ total_profit|inrs }}</div><div class="sk">Total Profit</div></div></div>
+        <div class="stat"><span class="si {% if avg_margin >= 0 %}v{% else %}r{% endif %}"><i class="fas fa-percent"></i></span>
+            <div><div class="sv">{{ avg_margin }}%</div><div class="sk">Avg Margin</div></div></div>
     </div>
 
-    <!-- Table Section -->
-    <div class="card">
-        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center py-2">
-            <div>
-                <h5 class="section-title mb-0"><i class="fas fa-table mr-1"></i>Product Profit Analysis</h5>
-            </div>
-            <button class="btn btn-sm btn-outline-dark mt-1" onclick="printReport()"><i class="fas fa-print mr-1"></i>Print</button>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover table-bordered mb-0" id="txnTable">
-                    <thead>
-                        <tr>
-                            <th style="width:45px;" class="text-center">#</th>
-                            <th>Model No</th>
-                            <th>Product Name</th>
-                            <th style="width:90px;" class="text-right">Stock</th>
-                            <th style="width:120px;" class="text-right">Purchase Rate</th>
-                            <th style="width:120px;" class="text-right">Sale Rate</th>
-                            <th style="width:120px;" class="text-right">Profit/Unit</th>
-                            <th style="width:90px;" class="text-right">Margin</th>
-                            <th style="width:140px;" class="text-right">Total Profit</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for p in product_rows %}
-                        <tr>
-                            <td class="text-center font-weight-bold">{{ forloop.counter }}</td>
-                            <td><strong>{{ p.model_no }}</strong></td>
-                            <td class="text-muted">{{ p.name }}</td>
-                            <td class="text-right">{{ p.current_stock|intcomma }}</td>
-                            <td class="text-right">₹ {{ p.purchase_rate|inrs }}</td>
-                            <td class="text-right">₹ {{ p.sale_rate|inrs }}</td>
-                            <td class="text-right font-weight-bold {% if p.profit_unit >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
-                                ₹ {{ p.profit_unit|inrs }}
-                            </td>
-                            <td class="text-right {% if p.margin >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
-                                {{ p.margin }}%
-                            </td>
-                            <td class="text-right font-weight-bold {% if p.profit_total >= 0 %}profit-positive{% else %}profit-negative{% endif %}" style="font-size:.95rem;">
-                                ₹ {{ p.profit_total|inrs }}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="9" class="text-center text-muted py-4">
-                                <i class="fas fa-inbox fa-2x mb-2 d-block text-secondary"></i>
-                                No products found
-                            </td>
-                        </tr>
-                        {% endfor %}
+    <!-- Filters -->
+    <form method="get" class="imr-filters" id="filterForm">
+        <label for="sortSelect"><i class="fas fa-sort"></i> Sort</label>
+        <select id="sortSelect" name="sort" onchange="document.getElementById('filterForm').submit()">
+            <option value="profit_total_desc" {% if sort_by == 'profit_total_desc' %}selected{% endif %}>Total Profit (High-Low)</option>
+            <option value="profit_total_asc" {% if sort_by == 'profit_total_asc' %}selected{% endif %}>Total Profit (Low-High)</option>
+            <option value="profit_unit_desc" {% if sort_by == 'profit_unit_desc' %}selected{% endif %}>Profit/Unit (High-Low)</option>
+            <option value="profit_unit_asc" {% if sort_by == 'profit_unit_asc' %}selected{% endif %}>Profit/Unit (Low-High)</option>
+            <option value="margin_desc" {% if sort_by == 'margin_desc' %}selected{% endif %}>Margin % (High-Low)</option>
+            <option value="margin_asc" {% if sort_by == 'margin_asc' %}selected{% endif %}>Margin % (Low-High)</option>
+            <option value="stock_desc" {% if sort_by == 'stock_desc' %}selected{% endif %}>Stock (High-Low)</option>
+            <option value="stock_asc" {% if sort_by == 'stock_asc' %}selected{% endif %}>Stock (Low-High)</option>
+            <option value="sale_rate_desc" {% if sort_by == 'sale_rate_desc' %}selected{% endif %}>Sale Rate (High-Low)</option>
+            <option value="sale_rate_asc" {% if sort_by == 'sale_rate_asc' %}selected{% endif %}>Sale Rate (Low-High)</option>
+            <option value="purchase_rate_desc" {% if sort_by == 'purchase_rate_desc' %}selected{% endif %}>Purchase Rate (High-Low)</option>
+            <option value="purchase_rate_asc" {% if sort_by == 'purchase_rate_asc' %}selected{% endif %}>Purchase Rate (Low-High)</option>
+            <option value="model_no_asc" {% if sort_by == 'model_no_asc' %}selected{% endif %}>Model No (A-Z)</option>
+            <option value="model_no_desc" {% if sort_by == 'model_no_desc' %}selected{% endif %}>Model No (Z-A)</option>
+            <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>Name (A-Z)</option>
+            <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>Name (Z-A)</option>
+        </select>
 
-                        {% if product_rows %}
-                        <tr class="total-row">
-                            <td></td>
-                            <td colspan="7" class="font-weight-bold">TOTAL ({{ total_products }} products)</td>
-                            <td class="text-right font-weight-bold {% if total_profit >= 0 %}profit-positive{% else %}profit-negative{% endif %}" style="font-size:1rem;">
-                                ₹ {{ total_profit|inrs }}
-                            </td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-            </div>
+        <input type="hidden" name="hide_zero" value="0">
+        <label class="imr-check" for="hideZero">
+            <input type="checkbox" id="hideZero" name="hide_zero" value="1" {% if hide_zero == '1' %}checked{% endif %} onchange="document.getElementById('filterForm').submit()">
+            Only Positive Stock
+        </label>
+
+        <a href="{% url 'inventory_margin_report' %}" class="gbtn"><i class="fas fa-rotate-left"></i> Reset</a>
+    </form>
+
+    <div class="rsec"><i class="fas fa-table"></i> Product Profit Analysis</div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="txnTable">
+            <thead><tr>
+                <th class="rk">#</th>
+                <th>Model No</th>
+                <th>Product Name</th>
+                <th class="r">Stock</th>
+                <th class="r">Purchase Rate</th>
+                <th class="r">Sale Rate</th>
+                <th class="r">Profit/Unit</th>
+                <th class="r">Margin</th>
+                <th class="r">Total Profit</th>
+            </tr></thead>
+            <tbody>
+                {% for p in product_rows %}
+                <tr>
+                    <td class="rk">{{ forloop.counter }}</td>
+                    <td><strong>{{ p.model_no }}</strong></td>
+                    <td><div class="prim"><span class="pi">{{ p.name|initials }}</span><span class="nm">{{ p.name }}</span></div></td>
+                    <td class="r"><span class="num">{{ p.current_stock|intcomma }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ p.purchase_rate|inrs }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ p.sale_rate|inrs }}</span></td>
+                    <td class="r {% if p.profit_unit >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
+                        <span class="num {% if p.profit_unit >= 0 %}pos{% else %}neg{% endif %}">&#8377; {{ p.profit_unit|inrs }}</span>
+                    </td>
+                    <td class="r">
+                        <span class="gbadge {% if p.margin >= 0 %}ok{% else %}out{% endif %}">{{ p.margin }}%</span>
+                    </td>
+                    <td class="r {% if p.profit_total >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
+                        <span class="num {% if p.profit_total >= 0 %}pos{% else %}neg{% endif %}">&#8377; {{ p.profit_total|inrs }}</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="9"><div class="empty">
+                    <div class="ei"><i class="fas fa-inbox fa-lg"></i></div>
+                    <h3>No products found</h3>
+                    <p>No products match the current filter.</p>
+                </div></td></tr>
+                {% endfor %}
+
+                {% if product_rows %}
+                <tr class="total-row">
+                    <td></td>
+                    <td colspan="7"><strong>TOTAL ({{ total_products }} products)</strong></td>
+                    <td class="r {% if total_profit >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
+                        <span class="num {% if total_profit >= 0 %}pos{% else %}neg{% endif %}">&#8377; {{ total_profit|inrs }}</span>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
         </div>
     </div>
-
 </div>
 {% endblock %}
 
@@ -277,6 +173,7 @@ function printReport() {
     win.document.write('td:first-child{text-align:center;width:35px;}');
     win.document.write('tr:nth-child(even){background:#f9f9f9;}');
     win.document.write('.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
+    win.document.write('.pi{display:none;}');
     win.document.write('.font-weight-bold{font-weight:700;}');
     win.document.write('.profit-positive{color:#28a745;}.profit-negative{color:#dc3545;}');
     win.document.write('.print-footer{text-align:center;margin-top:20px;font-size:.72rem;color:#999;border-top:1px solid #ccc;padding-top:6px;}');

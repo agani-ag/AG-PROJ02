@@ -3,482 +3,235 @@
 {% load humanize %}
 {% load money %}
 
-{% block title %}Credit Aging Report - GSTSync{% endblock %}
+{% block title %}Credit Aging Report · GSTSync{% endblock %}
 
 {% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 <style>
-    /* ===== Credit Aging Report Responsive Styles ===== */
-    .credit-report .card {
-        border: none;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        overflow: hidden;
-    }
-    .credit-report .card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-    }
-    .credit-report .card-body {
-        padding: 1.1rem;
-    }
-    .credit-report .card-body h3 {
-        word-break: break-word;
-        overflow-wrap: break-word;
-    }
-    .credit-report .kpi-col {
-        margin-bottom: 1rem;
-    }
-    .credit-report .section-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-    }
-    .credit-report .section-title i {
-        margin-right: 6px;
-    }
-    .credit-report .table-responsive {
-        border-radius: 8px;
-        -webkit-overflow-scrolling: touch;
-    }
-    .credit-report .table {
-        margin-bottom: 0;
-    }
-    .credit-report .table th,
-    .credit-report .table td {
-        white-space: nowrap;
-        vertical-align: middle;
-        padding: 0.5rem 0.4rem;
-    }
-    .credit-report .aging-table th {
-        font-size: 0.75rem;
-        text-align: center;
-    }
-    .credit-report .aging-table td {
-        font-size: 0.8rem;
-        text-align: right;
-    }
-    .credit-report .aging-table .sticky-col {
-        position: sticky;
-        left: 0;
-        background: #fff;
-        z-index: 2;
-        border-right: 2px solid #dee2e6;
-    }
-    .credit-report .aging-table thead .sticky-col {
-        background: #343a40;
-        color: #fff;
-        z-index: 3;
-    }
-    .credit-report .aging-table .sticky-col-2 {
-        position: sticky;
-        left: 30px;
-        background: #fff;
-        z-index: 2;
-        border-right: 2px solid #dee2e6;
-    }
-    .credit-report .aging-table thead .sticky-col-2 {
-        background: #343a40;
-        color: #fff;
-        z-index: 3;
-    }
-    .credit-report .bucket-highlight {
-        background-color: rgba(255, 193, 7, 0.08);
-    }
-    .credit-report .bucket-danger {
-        background-color: rgba(220, 53, 69, 0.08);
-    }
-    .credit-report .total-row td {
-        font-weight: 700;
-        background-color: #f8f9fa !important;
-        border-top: 2px solid #343a40;
-    }
-    /* Utilization Progress Bar */
-    .credit-report .util-bar {
-        height: 8px;
-        border-radius: 4px;
-        background: #e9ecef;
-        overflow: hidden;
-        min-width: 60px;
-    }
-    .credit-report .util-fill {
-        height: 100%;
-        border-radius: 4px;
-        transition: width 0.4s ease;
-    }
-
-    /* ===== Mobile: < 576px ===== */
-    @media (max-width: 575.98px) {
-        .credit-report .page-header h2 {
-            font-size: 1.1rem;
-        }
-        .credit-report .page-header p {
-            font-size: 0.78rem;
-        }
-        .credit-report .section-title {
-            font-size: 1rem;
-        }
-        .credit-report .card-body {
-            padding: 0.75rem;
-        }
-        .credit-report .card-body h6 {
-            font-size: 0.72rem;
-        }
-        .credit-report .card-body h3 {
-            font-size: 1.05rem;
-        }
-        .credit-report .card-body small {
-            font-size: 0.65rem;
-        }
-        .credit-report .badge {
-            font-size: 0.55rem;
-            padding: 2px 4px;
-        }
-        .credit-report .aging-table th {
-            font-size: 0.6rem;
-            padding: 0.35rem 0.25rem;
-        }
-        .credit-report .aging-table td {
-            font-size: 0.65rem;
-            padding: 0.35rem 0.25rem;
-        }
-        .credit-report .sub-title {
-            font-size: 0.95rem;
-        }
-    }
-
-    /* ===== Tablet: 576px - 767px ===== */
-    @media (min-width: 576px) and (max-width: 767.98px) {
-        .credit-report .page-header h2 {
-            font-size: 1.3rem;
-        }
-        .credit-report .card-body h3 {
-            font-size: 1.15rem;
-        }
-        .credit-report .card-body h6 {
-            font-size: 0.78rem;
-        }
-        .credit-report .aging-table th {
-            font-size: 0.68rem;
-        }
-        .credit-report .aging-table td {
-            font-size: 0.72rem;
-        }
-    }
+/* Utilization bar */
+.gs .util-cell{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.gs .util-pct{font-size:12px;font-weight:600;color:var(--soft);min-width:42px;text-align:right;font-variant-numeric:tabular-nums}
+.gs .util-bar{height:7px;border-radius:4px;background:var(--line2);overflow:hidden;width:70px;flex:none}
+.gs .util-fill{height:100%;border-radius:4px}
+.gs .uf-r{background:var(--red)} .gs .uf-a{background:var(--amber)}
+.gs .uf-b{background:var(--brand)} .gs .uf-g{background:var(--green)}
+/* Aging table cell tints + totals */
+.gs table.gt td.bucket-highlight{background:rgba(245,158,11,.08)}
+.gs table.gt td.bucket-danger{background:rgba(220,38,38,.08)}
+.gs table.gt tr.total-row td{font-weight:700;background:var(--wash)!important;border-top:2px solid var(--line);color:var(--ink)}
+.gs table.gt td.age{color:var(--soft);font-variant-numeric:tabular-nums}
+.gs table.gt td.od{color:var(--red);font-weight:600}
+/* Sticky first two cols on the wide aging table */
+.gs #creditAgingTable th.sticky-col,.gs #creditAgingTable td.sticky-col{position:sticky;left:0;background:var(--card);z-index:2}
+.gs #creditAgingTable th.sticky-col-2,.gs #creditAgingTable td.sticky-col-2{position:sticky;left:44px;background:var(--card);z-index:2;border-right:1px solid var(--line)}
+.gs #creditAgingTable thead th.sticky-col,.gs #creditAgingTable thead th.sticky-col-2{background:var(--wash);z-index:3}
+.gs #creditAgingTable tr.total-row td.sticky-col,.gs #creditAgingTable tr.total-row td.sticky-col-2{background:var(--wash)}
+.gs #creditAgingTable tbody tr:hover td.sticky-col,.gs #creditAgingTable tbody tr:hover td.sticky-col-2{background:#f9fbff}
+.gs .rnote{font-size:12px;color:var(--soft);margin:2px 2px 12px}
+.gs .rnote i{color:var(--brand)}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="credit-report">
-
-<!-- Page Header -->
-<div class="row mb-3">
-    <div class="col page-header">
-        <h2><i class="fas fa-credit-card"></i> Credit Aging Report</h2>
-        <p class="text-muted mb-0">Credit limit utilization, overdue analysis &amp; bad debt risk &mdash; Report Date: {{ report_date|date:"d M Y" }}</p>
-    </div>
-</div>
-
-<hr>
-
-<!-- ==================== 1. CREDIT OVERVIEW KPIs ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-tachometer-alt"></i> Credit Overview</h4>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-university"></i> Total Credit Limit</h6>
-                <h3>₹ {{ total_credit_limit|default:0|inrs }}</h3>
-                <small>₹ {{ default_credit_limit|inrs }} per customer</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-danger text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-rupee-sign"></i> Total Utilized</h6>
-                <h3>₹ {{ total_utilized|default:0|inrs }}</h3>
-                <small>{{ avg_utilization|default:0 }}% avg utilization</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-orange text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-clock"></i> Overdue ({{ default_credit_period }}+ days)</h6>
-                <h3>₹ {{ total_overdue_beyond_credit|default:0|inrs }}</h3>
-                <small>Beyond credit period</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-violet text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-skull-crossbones"></i> Bad Debt Risk (180+)</h6>
-                <h3>₹ {{ total_bad_debt_risk|default:0|inrs }}</h3>
-                <small>Potential write-off</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 2. RISK & UTILIZATION SUMMARY ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-shield-alt"></i> Risk & Utilization Summary</h4>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col-6 col-sm-3 col-md-3 kpi-col">
-        <div class="card bg-danger text-white h-100">
-            <div class="card-body text-center">
-                <h6 class="card-title"><i class="fas fa-times-circle"></i> Critical</h6>
-                <h3>{{ critical_count|default:0 }}</h3>
-                <small>180+ days / bad debt</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-3 col-md-3 kpi-col">
-        <div class="card bg-orange text-white h-100">
-            <div class="card-body text-center">
-                <h6 class="card-title"><i class="fas fa-exclamation-circle"></i> High Risk</h6>
-                <h3>{{ high_risk_count|default:0 }}</h3>
-                <small>Overdue + near limit</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-3 col-md-3 kpi-col">
-        <div class="card bg-warning text-dark h-100">
-            <div class="card-body text-center">
-                <h6 class="card-title"><i class="fas fa-exclamation-triangle"></i> Medium</h6>
-                <h3>{{ medium_risk_count|default:0 }}</h3>
-                <small>Has overdue amount</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-3 col-md-3 kpi-col">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body text-center">
-                <h6 class="card-title"><i class="fas fa-check-circle"></i> Low Risk</h6>
-                <h3>{{ low_risk_count|default:0 }}</h3>
-                <small>Within limits</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Extra KPIs row -->
-<div class="row mb-4">
-    <div class="col-6 col-sm-6 col-md-4 kpi-col">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-users"></i> Total Customers</h6>
-                <h3>{{ total_customers|default:0|intcomma }}</h3>
-                <small>With credit accounts</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-4 kpi-col">
-        <div class="card bg-danger text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-ban"></i> Over Limit</h6>
-                <h3>{{ over_limit_count|default:0|intcomma }}</h3>
-                <small>Exceeded credit limit</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-4 kpi-col">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-percentage"></i> Avg Utilization</h6>
-                <h3>{{ avg_utilization|default:0 }}%</h3>
-                <small>Credit utilization rate</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 3. CREDIT UTILIZATION TABLE ==================== -->
-<div class="row mb-2">
-    <div class="col d-flex flex-wrap justify-content-between align-items-start">
+<div class="gs">
+    <div class="page-head">
         <div>
-            <h4 class="section-title"><i class="fas fa-chart-bar"></i> Credit Limit Utilization</h4>
-            <p class="text-muted mb-1" style="font-size: 0.85rem;">
-                <i class="fas fa-info-circle"></i> Default credit limit: ₹ {{ default_credit_limit|inrs }} | Credit period: {{ default_credit_period }} days
-            </p>
+            <div class="eyebrow">Reports › Aging</div>
+            <h1 class="disp">Credit Aging Report</h1>
+            <div class="sub">Credit limit utilization, overdue analysis &amp; bad debt risk — as of {{ report_date|date:"d M Y" }}</div>
         </div>
-        <button class="btn btn-sm btn-outline-dark mt-1" onclick="printTable('creditUtilTable','Credit Limit Utilization')"><i class="fas fa-print mr-1"></i>Print</button>
+        <div class="actions">
+            <button type="button" class="gbtn" onclick="printTable('creditUtilTable','Credit Limit Utilization')"><i class="fas fa-print"></i> Print</button>
+        </div>
     </div>
-</div>
-<div class="row mb-4">
-    <div class="col">
-        <div class="table-responsive">
-            <table class="table table-hover table-bordered font-weight-bold" id="creditUtilTable">
-                <thead class="thead-dark">
-                    <tr>
-                        <th>#</th>
-                        <th>Customer</th>
-                        <th class="text-right">Credit Limit</th>
-                        <th class="text-right">Outstanding</th>
-                        <th class="text-center">Utilization</th>
-                        <th class="text-right">Overdue</th>
-                        <th class="text-right">Bad Debt Risk</th>
-                        <th class="text-center">Max Age</th>
-                        <th>Credit Status</th>
-                        <th>Risk</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for customer in customer_rows %}
-                    <tr>
-                        <td>{{ forloop.counter }}</td>
-                        <td style="white-space:nowrap;">
-                             <a href="{% url 'book_logs' customer.book_id %}" style="text-decoration: none;color: black;">
-                                {{ customer.name }}</a>
-                            <br><small class="text-muted">{{ customer.phone }}</small>
-                        </td>
-                        <td class="text-right">₹ {{ customer.credit_limit|inrs }}</td>
-                        <td class="text-right">₹ {{ customer.total_outstanding|inrs }}</td>
-                        <td class="text-center" style="min-width:100px;">
-                            <div class="d-flex align-items-center justify-content-center">
-                                <span class="mr-1" style="font-size:0.75rem;">{{ customer.utilization_pct }}%</span>
-                                <div class="util-bar flex-grow-1">
-                                    <div class="util-fill {% if customer.utilization_pct > 100 %}bg-danger{% elif customer.utilization_pct > 80 %}bg-warning{% elif customer.utilization_pct > 50 %}bg-primary{% else %}bg-success{% endif %}"
-                                         style="width: {% if customer.utilization_pct > 100 %}100{% else %}{{ customer.utilization_pct }}{% endif %}%;"></div>
-                                </div>
+
+    <!-- ==================== CREDIT OVERVIEW KPIs ==================== -->
+    <div class="statgrid">
+        <div class="stat"><span class="si b"><i class="fas fa-university"></i></span>
+            <div><div class="sv">&#8377; {{ total_credit_limit|default:0|inrs }}</div><div class="sk">Total Credit Limit</div><div class="ss">&#8377; {{ default_credit_limit|inrs }} per customer</div></div></div>
+        <div class="stat"><span class="si r"><i class="fas fa-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ total_utilized|default:0|inrs }}</div><div class="sk">Total Utilized</div><div class="ss">{{ avg_utilization|default:0 }}% avg utilization</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-clock"></i></span>
+            <div><div class="sv">&#8377; {{ total_overdue_beyond_credit|default:0|inrs }}</div><div class="sk">Overdue ({{ default_credit_period }}+ days)</div><div class="ss">Beyond credit period</div></div></div>
+        <div class="stat"><span class="si v"><i class="fas fa-skull-crossbones"></i></span>
+            <div><div class="sv">&#8377; {{ total_bad_debt_risk|default:0|inrs }}</div><div class="sk">Bad Debt Risk (180+)</div><div class="ss">Potential write-off</div></div></div>
+    </div>
+
+    <!-- ==================== CREDIT UTILIZATION TABLE ==================== -->
+    <div class="rsec"><i class="fas fa-chart-bar"></i> Credit Limit Utilization</div>
+    <div class="rnote"><i class="fas fa-info-circle"></i> Default credit limit: &#8377; {{ default_credit_limit|inrs }} &nbsp;|&nbsp; Credit period: {{ default_credit_period }} days</div>
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="creditUtilTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Customer</th>
+                    <th class="r">Credit Limit</th>
+                    <th class="r">Outstanding</th>
+                    <th class="r">Utilization</th>
+                    <th class="r">Overdue</th>
+                    <th class="r">Bad Debt Risk</th>
+                    <th class="r">Max Age</th>
+                    <th>Credit Status</th>
+                    <th>Risk</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customer_rows %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                            <div>
+                                <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a>
+                                <div class="mn">{{ customer.phone }}</div>
                             </div>
-                        </td>
-                        <td class="text-right {% if customer.overdue_beyond_credit > 0 %}text-danger{% endif %}">
-                            {% if customer.overdue_beyond_credit > 0 %}₹ {{ customer.overdue_beyond_credit|inrs }}{% else %}-{% endif %}
-                        </td>
-                        <td class="text-right {% if customer.bad_debt_amount > 0 %}text-danger font-weight-bold{% endif %}">
-                            {% if customer.bad_debt_amount > 0 %}₹ {{ customer.bad_debt_amount|inrs }}{% else %}-{% endif %}
-                        </td>
-                        <td class="text-center">{{ customer.max_age_days }} days</td>
-                        <td>
-                            {% if customer.credit_status == "Over Limit" %}
-                                <span class="badge badge-danger">Over Limit</span>
-                            {% elif customer.credit_status == "Near Limit" %}
-                                <span class="badge badge-warning">Near Limit</span>
-                            {% elif customer.credit_status == "Moderate" %}
-                                <span class="badge badge-primary">Moderate</span>
-                            {% else %}
-                                <span class="badge badge-success">Healthy</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if customer.risk_level == "Critical" %}
-                                <span class="badge badge-danger">Critical</span>
-                            {% elif customer.risk_level == "High" %}
-                                <span class="badge badge-danger">High</span>
-                            {% elif customer.risk_level == "Medium" %}
-                                <span class="badge badge-warning">Medium</span>
-                            {% else %}
-                                <span class="badge badge-success">Low</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="10" class="text-center text-muted">No credit data available</td>
-                    </tr>
+                        </div>
+                    </td>
+                    <td class="r"><span class="num">&#8377; {{ customer.credit_limit|inrs }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ customer.total_outstanding|inrs }}</span></td>
+                    <td class="r">
+                        <div class="util-cell">
+                            <span class="util-pct">{{ customer.utilization_pct }}%</span>
+                            <div class="util-bar">
+                                <div class="util-fill {% if customer.utilization_pct > 100 %}uf-r{% elif customer.utilization_pct > 80 %}uf-a{% elif customer.utilization_pct > 50 %}uf-b{% else %}uf-g{% endif %}"
+                                     style="width: {% if customer.utilization_pct > 100 %}100{% else %}{{ customer.utilization_pct }}{% endif %}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="r {% if customer.overdue_beyond_credit > 0 %}od{% endif %}">
+                        {% if customer.overdue_beyond_credit > 0 %}<span class="num">&#8377; {{ customer.overdue_beyond_credit|inrs }}</span>{% else %}-{% endif %}
+                    </td>
+                    <td class="r {% if customer.bad_debt_amount > 0 %}od{% endif %}">
+                        {% if customer.bad_debt_amount > 0 %}<span class="num">&#8377; {{ customer.bad_debt_amount|inrs }}</span>{% else %}-{% endif %}
+                    </td>
+                    <td class="r age">{{ customer.max_age_days }} days</td>
+                    <td>
+                        {% if customer.credit_status == "Over Limit" %}
+                            <span class="gbadge out">Over Limit</span>
+                        {% elif customer.credit_status == "Near Limit" %}
+                            <span class="gbadge low">Near Limit</span>
+                        {% elif customer.credit_status == "Moderate" %}
+                            <span class="gbadge blue">Moderate</span>
+                        {% else %}
+                            <span class="gbadge ok">Healthy</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if customer.risk_level == "Critical" %}
+                            <span class="gbadge out">Critical</span>
+                        {% elif customer.risk_level == "High" %}
+                            <span class="gbadge out">High</span>
+                        {% elif customer.risk_level == "Medium" %}
+                            <span class="gbadge low">Medium</span>
+                        {% else %}
+                            <span class="gbadge ok">Low</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10"><div class="empty">
+                        <div class="ei"><i class="fas fa-credit-card fa-lg"></i></div>
+                        <h3>No credit data available</h3>
+                        <p>Once customers have outstanding balances, their credit utilization appears here.</p>
+                    </div></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <!-- ==================== CREDIT AGING BREAKDOWN TABLE ==================== -->
+    <div class="rsec" style="margin-top:26px"><i class="fas fa-table"></i> Credit Aging Breakdown (Days)</div>
+    <div class="rnote" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span><i class="fas fa-info-circle"></i> Outstanding distributed across aging buckets. Scroll horizontally to view all buckets.</span>
+        <button type="button" class="gbtn" onclick="printTable('creditAgingTable','Credit Aging Breakdown')"><i class="fas fa-print"></i> Print</button>
+    </div>
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="creditAgingTable">
+            <thead>
+                <tr>
+                    <th class="sticky-col">#</th>
+                    <th class="sticky-col-2">Customer</th>
+                    <th class="r">Total O/S</th>
+                    {% for bucket in aging_buckets %}
+                    <th class="r">{{ bucket.label }}</th>
                     {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 4. CREDIT AGING BREAKDOWN TABLE ==================== -->
-<div class="row mb-2">
-    <div class="col d-flex flex-wrap justify-content-between align-items-start">
-        <div>
-            <h4 class="section-title"><i class="fas fa-table"></i> Credit Aging Breakdown (Days)</h4>
-            <p class="text-muted mb-1" style="font-size: 0.85rem;">
-                <i class="fas fa-info-circle"></i> Outstanding distributed across aging buckets. Scroll horizontally to view all buckets.
-            </p>
-        </div>
-        <button class="btn btn-sm btn-outline-dark mt-1" onclick="printTable('creditAgingTable','Credit Aging Breakdown')"><i class="fas fa-print mr-1"></i>Print</button>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col">
-        <div class="table-responsive">
-            <table class="table table-hover table-bordered font-weight-bold aging-table" id="creditAgingTable">
-                <thead class="thead-dark">
-                    <tr>
-                        <th class="sticky-col" style="min-width:30px;">#</th>
-                        <th class="sticky-col-2" style="min-width:140px;">Customer</th>
-                        <th style="min-width:110px;">Total O/S</th>
-                        {% for bucket in aging_buckets %}
-                        <th style="min-width:80px;">{{ bucket.label }}</th>
-                        {% endfor %}
-                        <th style="min-width:90px;">Overdue</th>
-                        <th style="min-width:80px;">Risk</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for customer in customer_rows %}
-                    <tr>
-                        <td class="sticky-col text-center">{{ forloop.counter }}</td>
-                        <td class="sticky-col-2 text-left" style="white-space:nowrap;">
-                            <a href="{% url 'book_logs' customer.book_id %}" style="text-decoration: none;color: black;">
-                                {{ customer.name }}</a>
-                            <br><small class="text-muted">{{ customer.phone }}</small>
-                        </td>
-                        <td class="font-weight-bold">₹ {{ customer.total_outstanding|inrs }}</td>
-                        {% for amount in customer.bucket_amounts %}
-                        <td class="{% if forloop.counter0 >= 12 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
-                            {% if amount > 0 %}₹ {{ amount|inrs }}{% else %}-{% endif %}
-                        </td>
-                        {% endfor %}
-                        <td class="text-danger font-weight-bold">
-                            {% if customer.overdue_beyond_credit > 0 %}₹ {{ customer.overdue_beyond_credit|inrs }}{% else %}-{% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if customer.risk_level == "Critical" %}
-                                <span class="badge badge-danger">Critical</span>
-                            {% elif customer.risk_level == "High" %}
-                                <span class="badge badge-danger">High</span>
-                            {% elif customer.risk_level == "Medium" %}
-                                <span class="badge badge-warning">Medium</span>
-                            {% else %}
-                                <span class="badge badge-success">Low</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="{{ aging_buckets|length|add:5 }}" class="text-center text-muted">No credit aging data available</td>
-                    </tr>
+                    <th class="r">Overdue</th>
+                    <th>Risk</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customer_rows %}
+                <tr>
+                    <td class="sticky-col">{{ forloop.counter }}</td>
+                    <td class="sticky-col-2">
+                        <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                            <div>
+                                <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a>
+                                <div class="mn">{{ customer.phone }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="r"><span class="num">&#8377; {{ customer.total_outstanding|inrs }}</span></td>
+                    {% for amount in customer.bucket_amounts %}
+                    <td class="r {% if forloop.counter0 >= 12 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
+                        {% if amount > 0 %}<span class="num">&#8377; {{ amount|inrs }}</span>{% else %}-{% endif %}
+                    </td>
                     {% endfor %}
+                    <td class="r od">
+                        {% if customer.overdue_beyond_credit > 0 %}<span class="num">&#8377; {{ customer.overdue_beyond_credit|inrs }}</span>{% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if customer.risk_level == "Critical" %}
+                            <span class="gbadge out">Critical</span>
+                        {% elif customer.risk_level == "High" %}
+                            <span class="gbadge out">High</span>
+                        {% elif customer.risk_level == "Medium" %}
+                            <span class="gbadge low">Medium</span>
+                        {% else %}
+                            <span class="gbadge ok">Low</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{{ aging_buckets|length|add:5 }}"><div class="empty">
+                        <div class="ei"><i class="fas fa-table fa-lg"></i></div>
+                        <h3>No credit aging data available</h3>
+                        <p>Aging buckets populate once there is unpaid outstanding to distribute.</p>
+                    </div></td>
+                </tr>
+                {% endfor %}
 
-                    {% if customer_rows %}
-                    <!-- Totals Row -->
-                    <tr class="total-row">
-                        <td class="sticky-col"></td>
-                        <td class="sticky-col-2 text-left font-weight-bold">TOTAL</td>
-                        <td class="font-weight-bold">₹ {{ total_utilized|inrs }}</td>
-                        {% for total in bucket_totals %}
-                        <td class="{% if forloop.counter0 >= 12 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
-                            {% if total > 0 %}₹ {{ total|inrs }}{% else %}-{% endif %}
-                        </td>
-                        {% endfor %}
-                        <td class="text-danger font-weight-bold">₹ {{ total_overdue_beyond_credit|inrs }}</td>
-                        <td></td>
-                    </tr>
-                    {% endif %}
-                </tbody>
-            </table>
+                {% if customer_rows %}
+                <!-- Totals Row -->
+                <tr class="total-row">
+                    <td class="sticky-col"></td>
+                    <td class="sticky-col-2">TOTAL</td>
+                    <td class="r"><span class="num">&#8377; {{ total_utilized|inrs }}</span></td>
+                    {% for total in bucket_totals %}
+                    <td class="r {% if forloop.counter0 >= 12 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
+                        {% if total > 0 %}<span class="num">&#8377; {{ total|inrs }}</span>{% else %}-{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="r od"><span class="num">&#8377; {{ total_overdue_beyond_credit|inrs }}</span></td>
+                    <td></td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
         </div>
     </div>
-</div>
 
-</div><!-- /.credit-report -->
+</div>
 {% endblock %}
 
 {% block includejs %}
@@ -511,14 +264,15 @@ function printTable(tableId, title) {
     css += 'th:nth-child(2){text-align:left;}';
     css += 'tr:nth-child(even){background:#f9f9f9;}';
     css += '.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}';
-    css += '.badge{padding:1px 4px;border-radius:3px;font-size:.55rem;font-weight:600;}';
-    css += '.badge-danger{background:#dc3545;color:#fff;}';
-    css += '.badge-warning{background:#ffc107;color:#333;}';
-    css += '.badge-success{background:#28a745;color:#fff;}';
-    css += '.badge-primary{background:#007bff;color:#fff;}';
-    css += '.text-danger{color:#dc3545;}';
-    css += '.text-muted{color:#999;font-size:.55rem;}';
-    css += '.font-weight-bold{font-weight:700;}';
+    css += '.gbadge{padding:1px 4px;border-radius:3px;font-size:.55rem;font-weight:600;}';
+    css += '.gbadge.out{background:#dc3545;color:#fff;}';
+    css += '.gbadge.low{background:#ffc107;color:#333;}';
+    css += '.gbadge.ok{background:#28a745;color:#fff;}';
+    css += '.gbadge.blue{background:#007bff;color:#fff;}';
+    css += '.od{color:#dc3545;}';
+    css += '.mn{color:#999;font-size:.55rem;}';
+    css += '.num{font-weight:700;}';
+    css += '.pi{display:none;}';
     css += '@media print{@page{size:A4 landscape;margin:6mm;}body{margin:0;padding:4px;}}';
 
     var win = window.open('', '_blank');
@@ -555,7 +309,7 @@ function printTable(tableId, title) {
                 win.document.write('<p>Report Date: ' + reportDate + '</p>');
                 win.document.write('</div>');
             }
-            win.document.write('<p class="chunk-title">Aging Days: ' + startLabel + ' \u2013 ' + endLabel + ' &nbsp;&bull;&nbsp; Page ' + (pg + 1) + ' of ' + totalPages + '</p>');
+            win.document.write('<p class="chunk-title">Aging Days: ' + startLabel + ' – ' + endLabel + ' &nbsp;&bull;&nbsp; Page ' + (pg + 1) + ' of ' + totalPages + '</p>');
 
             /* Build chunk table */
             win.document.write('<table><thead><tr>');

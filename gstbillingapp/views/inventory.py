@@ -1,7 +1,7 @@
 # Django imports
 import csv
 from django.db.models import Sum
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, Count
 from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.http import JsonResponse, HttpResponse
@@ -70,12 +70,29 @@ def inventory_export(request):
 def inventory_logs(request, inventory_id):
     context = {}
     inventory = get_object_or_404(Inventory, id=inventory_id, user=request.user)
-    inventory_logs = InventoryLog.objects.filter(user=request.user, product=inventory.product).order_by('-id')
+    inventory_logs = list(InventoryLog.objects.filter(user=request.user, product=inventory.product).order_by('-id'))
     price = inventory.product.product_rate_with_gst if inventory.product.product_rate_with_gst else 0
     discount = inventory.product.product_discount if inventory.product.product_discount else 0
     gst = inventory.product.product_gst_percentage if inventory.product.product_gst_percentage else 0
     sales_price = price * (1 - discount / 100) * (1 + gst / 100)
+
+    # Running balance + movement totals. current_stock == sum of all changes, so walking
+    # newest→oldest: the newest row lands on current_stock, then we peel off each change.
+    running = inventory.current_stock
+    total_in = 0
+    total_out = 0
+    for log in inventory_logs:
+        log.balance_after = running
+        running -= log.change
+        if log.change > 0:
+            total_in += log.change
+        elif log.change < 0:
+            total_out += log.change
+
     context['sales_price'] = sales_price
+    context['total_in'] = total_in
+    context['total_out'] = abs(total_out)
+    context['stock_value'] = round(inventory.current_stock * sales_price, 2)
     context['inventory'] = inventory
     context['inventory_logs'] = inventory_logs
     context['nav_hide'] = request.GET.get('nav') or ''
@@ -110,6 +127,14 @@ def _filtered_inventory_logs_full(request):
 @login_required
 def inventory_logs_full(request):
     qs, fctx = _filtered_inventory_logs_full(request)
+    # Movement KPIs over the FULL filtered set (not just the current page).
+    agg = qs.aggregate(
+        total_in=Sum('change', filter=Q(change__gt=0)),
+        total_out=Sum('change', filter=Q(change__lt=0)),  # negative
+        products=Count('product', distinct=True),
+    )
+    total_in = agg['total_in'] or 0
+    total_out = agg['total_out'] or 0
     paginator = Paginator(qs, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
     params = request.GET.copy()
@@ -117,6 +142,10 @@ def inventory_logs_full(request):
     context = dict(fctx)
     context['page_obj'] = page_obj
     context['total_count'] = paginator.count
+    context['total_in'] = total_in
+    context['total_out'] = abs(total_out)
+    context['net_change'] = total_in + total_out
+    context['products_count'] = agg['products'] or 0
     context['querystring'] = params.urlencode()
     context['years'] = list(range(2020, datetime.now().year + 1))
     return render(request, 'inventory/inventory_logs_full.html', context)

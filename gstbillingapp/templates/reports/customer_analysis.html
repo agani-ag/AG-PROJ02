@@ -1,740 +1,303 @@
 {% extends "base.html" %}
-{% load humanize %}
 {% load static %}
+{% load money %}
 
-{% block title %}Customer Intelligence Analysis{% endblock %}
+{% block title %}Customer Analysis · GSTSync{% endblock %}
 
 {% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 <style>
-/* ========== Scoped under .cust-analysis ========== */
-.cust-analysis .kpi-col { margin-bottom: .75rem; }
-.cust-analysis .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,.08); border-radius: .6rem; transition: transform .15s; }
-.cust-analysis .card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,.13); }
-.cust-analysis .card-body { padding: .85rem; }
-.cust-analysis .kpi-icon { font-size: 1.6rem; opacity: .85; }
-.cust-analysis .kpi-value { font-size: 1.35rem; font-weight: 700; margin-bottom: 0; }
-.cust-analysis .kpi-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; opacity: .8; margin-bottom: 0; }
-.cust-analysis .section-title { font-size: 1.05rem; font-weight: 700; margin-top: 1rem; margin-bottom: .65rem; border-left: 4px solid #007bff; padding-left: .5rem; }
-
-/* Segment badges */
-.cust-analysis .badge-star { background: linear-gradient(135deg, #ffd700, #ffb300); color: #333; }
-.cust-analysis .badge-loyal { background: linear-gradient(135deg, #28a745, #20c997); color: #fff; }
-.cust-analysis .badge-promising { background: linear-gradient(135deg, #17a2b8, #6f42c1); color: #fff; }
-.cust-analysis .badge-atrisk { background: linear-gradient(135deg, #fd7e14, #e83e8c); color: #fff; }
-.cust-analysis .badge-critical { background: linear-gradient(135deg, #dc3545, #721c24); color: #fff; }
-
-/* Activity badges */
-.cust-analysis .act-active { color: #28a745; font-weight: 700; }
-.cust-analysis .act-semi { color: #17a2b8; font-weight: 600; }
-.cust-analysis .act-dormant { color: #fd7e14; font-weight: 600; }
-.cust-analysis .act-inactive { color: #dc3545; font-weight: 600; }
-
-/* Payment behavior */
-.cust-analysis .pmt-excellent { color: #28a745; }
-.cust-analysis .pmt-good { color: #20c997; }
-.cust-analysis .pmt-fair { color: #ffc107; }
-.cust-analysis .pmt-poor { color: #fd7e14; }
-.cust-analysis .pmt-critical { color: #dc3545; }
-
-/* Trend arrows */
-.cust-analysis .trend-growing { color: #28a745; }
-.cust-analysis .trend-stable { color: #6c757d; }
-.cust-analysis .trend-declining { color: #dc3545; }
-
-/* Health score bar */
-.cust-analysis .health-bar { height: 8px; border-radius: 4px; background: #e9ecef; overflow: hidden; min-width: 60px; }
-.cust-analysis .health-fill { height: 100%; border-radius: 4px; transition: width .4s; }
-.cust-analysis .hf-star { background: linear-gradient(90deg, #ffd700, #ff9800); }
-.cust-analysis .hf-loyal { background: linear-gradient(90deg, #28a745, #20c997); }
-.cust-analysis .hf-promising { background: linear-gradient(90deg, #17a2b8, #6f42c1); }
-.cust-analysis .hf-atrisk { background: linear-gradient(90deg, #fd7e14, #e83e8c); }
-.cust-analysis .hf-critical { background: linear-gradient(90deg, #dc3545, #721c24); }
-
-/* Score breakdown mini badges */
-.cust-analysis .score-pill { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: .65rem; font-weight: 600; margin: 0 1px; }
-.cust-analysis .sp-r { background: #e3f2fd; color: #1565c0; }
-.cust-analysis .sp-f { background: #e8f5e9; color: #2e7d32; }
-.cust-analysis .sp-m { background: #fff8e1; color: #f57f17; }
-.cust-analysis .sp-p { background: #fce4ec; color: #c62828; }
-
-/* Distribution cards */
-.cust-analysis .dist-item { display: flex; justify-content: space-between; align-items: center; padding: .35rem 0; border-bottom: 1px solid #f0f0f0; }
-.cust-analysis .dist-item:last-child { border-bottom: none; }
-.cust-analysis .dist-label { font-size: .8rem; }
-.cust-analysis .dist-count { font-weight: 700; font-size: .9rem; }
-.cust-analysis .dist-bar-wrap { height: 6px; flex: 1; margin: 0 .5rem; border-radius: 3px; background: #e9ecef; }
-.cust-analysis .dist-bar-fill { height: 100%; border-radius: 3px; }
-
-/* Table styles */
-.cust-analysis .table-sm th, .cust-analysis .table-sm td { padding: .35rem .45rem; font-size: .78rem; vertical-align: middle; white-space: nowrap; }
-.cust-analysis .table thead th { background: #343a40; color: #fff; position: sticky; top: 0; z-index: 2; border: none; font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
-.cust-analysis .rank-col { width: 36px; text-align: center; font-weight: 700; }
-.cust-analysis .sticky-col { position: sticky; left: 0; z-index: 1; background: #fff; }
-.cust-analysis .sticky-col-2 { position: sticky; left: 36px; z-index: 1; background: #fff; }
-.cust-analysis thead .sticky-col, .cust-analysis thead .sticky-col-2 { z-index: 3; background: #343a40; }
-.cust-analysis .table-hover tbody tr:nth-child(even) .sticky-col,
-.cust-analysis .table-hover tbody tr:nth-child(even) .sticky-col-2 { background: #f8f9fa; }
-.cust-analysis .table-hover tbody tr:hover .sticky-col,
-.cust-analysis .table-hover tbody tr:hover .sticky-col-2 { background: #e9ecef; }
-
-/* Segment summary cards */
-.cust-analysis .seg-card { text-align: center; padding: .6rem; border-radius: .5rem; }
-.cust-analysis .seg-count { font-size: 1.5rem; font-weight: 800; }
-.cust-analysis .seg-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; }
-
-/* Top/Bottom list */
-.cust-analysis .topbot-row { display: flex; align-items: center; padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; font-size: .82rem; }
-.cust-analysis .topbot-row:last-child { border-bottom: none; }
-.cust-analysis .topbot-rank { width: 28px; font-weight: 700; color: #6c757d; }
-.cust-analysis .topbot-name { flex: 1; font-weight: 600; }
-.cust-analysis .topbot-score { width: 45px; text-align: right; font-weight: 700; }
-
-/* Search/filter */
-.cust-analysis .filter-bar { background: #f8f9fa; border-radius: .5rem; padding: .6rem .8rem; margin-bottom: .75rem; }
-.cust-analysis .filter-bar input, .cust-analysis .filter-bar select { font-size: .82rem; }
-
-/* Mobile optimizations */
-@media (max-width: 576px) {
-    .cust-analysis .kpi-value { font-size: 1.1rem; }
-    .cust-analysis .kpi-label { font-size: .65rem; }
-    .cust-analysis .kpi-icon { font-size: 1.3rem; }
-    .cust-analysis .card-body { padding: .6rem; }
-    .cust-analysis .section-title { font-size: .95rem; }
-    .cust-analysis .seg-count { font-size: 1.2rem; }
-    .cust-analysis .table-sm th, .cust-analysis .table-sm td { padding: .25rem .3rem; font-size: .7rem; }
-    .cust-analysis .score-pill { font-size: .58rem; padding: 1px 4px; }
-    .cust-analysis h4 { font-size: 1.1rem; }
-}
-@media (min-width: 577px) and (max-width: 768px) {
-    .cust-analysis .kpi-value { font-size: 1.2rem; }
-    .cust-analysis .card-body { padding: .7rem; }
-}
+/* KPI cards */
+.ca-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:18px}
+.ca-kpi{display:flex;align-items:center;gap:13px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);padding:15px 17px}
+.ca-kpi .ci{flex:none;width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.ca-kpi .cv{font-family:var(--disp);font-size:22px;font-weight:700;color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums}
+.ca-kpi .ck{font-size:12px;color:var(--soft);margin-top:2px}
+.ci.b{background:var(--bluebg);color:var(--brand)} .ci.g{background:var(--greenbg);color:var(--green)}
+.ci.a{background:var(--amberbg);color:var(--amber)} .ci.r{background:var(--redbg);color:var(--red)}
+/* Chips */
+.ca-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ca-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--soft);font-weight:600;font-size:13px;cursor:pointer;transition:.15s}
+.ca-chip:hover{border-color:#cfd8e6;background:var(--wash)}
+.ca-chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.ca-chip .n{background:rgba(0,0,0,.06);border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:800}
+.ca-chip.on .n{background:rgba(255,255,255,.25)}
+/* Score + segment */
+.seg{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+.seg.star{background:#fff5d6;color:#a9760a} .seg.loyal{background:var(--greenbg);color:var(--green)}
+.seg.promising{background:var(--bluebg);color:var(--brand)} .seg.atrisk{background:var(--amberbg);color:var(--amber)}
+.seg.critical{background:var(--redbg);color:var(--red)}
+.hb{height:6px;border-radius:4px;background:var(--line2);overflow:hidden;width:80px;margin-top:5px}
+.hb > i{display:block;height:100%;border-radius:4px}
+.hf-star{background:linear-gradient(90deg,#ffd76a,#f0a020)} .hf-loyal{background:linear-gradient(90deg,#34d399,#16a34a)}
+.hf-promising{background:linear-gradient(90deg,#60a5fa,#2563eb)} .hf-atrisk{background:linear-gradient(90deg,#fbbf24,#e5900f)}
+.hf-critical{background:linear-gradient(90deg,#fb7185,#e11d48)}
+.scw{display:flex;align-items:center;gap:10px}
+.scw .sv{font-family:var(--disp);font-weight:700;font-size:15px;color:var(--ink);min-width:24px}
+/* Status text */
+.st-active{color:var(--green);font-weight:600} .st-semi{color:var(--brand);font-weight:600}
+.st-dormant{color:var(--amber);font-weight:600} .st-inactive{color:var(--faint);font-weight:600}
+/* Expand */
+.exp-btn{border:0;background:none;color:var(--faint);cursor:pointer;padding:6px;border-radius:8px;transition:.15s}
+.exp-btn:hover{background:var(--wash);color:var(--brand)}
+tr.mainrow{cursor:pointer}
+tr.mainrow.open{background:var(--wash)}
+tr.mainrow.open .exp-btn i{transform:rotate(180deg)}
+.exp-btn i{transition:transform .18s}
+.detail-row > td{background:var(--wash);padding:0!important}
+.detail-wrap{padding:16px 18px}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 22px}
+.dg h6{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 7px}
+.dg .drow{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:2px 0}
+.dg .drow .l{color:var(--soft)} .dg .drow .v{font-weight:600;color:var(--ink)}
+.spill{display:inline-block;font-family:var(--disp);font-weight:700}
+/* Table tweaks */
+.gs table.gt td.rk{font-family:var(--disp);font-weight:700;color:var(--faint);text-align:center;width:40px}
+.gs .search{max-width:320px}
+@media(max-width:640px){.ca-kpi .cv{font-size:18px}}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="cust-analysis">
-
-    <!-- Header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+<div class="gs">
+    <div class="page-head">
         <div>
-            <h4 class="mb-0"><i class="fas fa-users-cog mr-2 text-primary"></i>Customer Intelligence Analysis</h4>
-            <small class="text-muted">RFM Scoring &bull; Activity Tracking &bull; Payment Behavior &bull; As of {{ report_date|date:"d M Y" }}</small>
+            <div class="eyebrow">Reports › Customers</div>
+            <h1 class="disp">Customer Analysis</h1>
+            <div class="sub">Who your best customers are, who's slipping, and who owes you — as of {{ report_date|date:"d M Y" }}</div>
         </div>
-        <div>
-            <span class="badge badge-dark px-3 py-2" style="font-size:.82rem;">{{ total_customers }} Customers</span>
-        </div>
-    </div>
-    <hr class="mt-1 mb-2">
-
-    <!-- =============== ROW 1: Top KPIs =============== -->
-    <div class="row">
-        <div class="col-6 col-sm-6 col-md-3 kpi-col">
-            <div class="card bg-success text-white h-100">
-                <div class="card-body d-flex align-items-center">
-                    <i class="fas fa-bolt kpi-icon mr-2"></i>
-                    <div>
-                        <p class="kpi-value">{{ active_count }}</p>
-                        <p class="kpi-label">Active (≤30d)</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-sm-6 col-md-3 kpi-col">
-            <div class="card bg-info text-white h-100">
-                <div class="card-body d-flex align-items-center">
-                    <i class="fas fa-star kpi-icon mr-2"></i>
-                    <div>
-                        <p class="kpi-value">{{ star_count }}</p>
-                        <p class="kpi-label">Star Customers</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-sm-6 col-md-3 kpi-col">
-            <div class="card bg-warning text-dark h-100">
-                <div class="card-body d-flex align-items-center">
-                    <i class="fas fa-chart-line kpi-icon mr-2"></i>
-                    <div>
-                        <p class="kpi-value">{{ avg_health }}</p>
-                        <p class="kpi-label">Avg Health Score</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-sm-6 col-md-3 kpi-col">
-            <div class="card bg-danger text-white h-100">
-                <div class="card-body d-flex align-items-center">
-                    <i class="fas fa-exclamation-triangle kpi-icon mr-2"></i>
-                    <div>
-                        <p class="kpi-value">{{ critical_count }}</p>
-                        <p class="kpi-label">Critical Customers</p>
-                    </div>
-                </div>
-            </div>
+        <div class="actions">
+            <button type="button" class="gbtn" onclick="howScoring()"><i class="fas fa-circle-question"></i> How it works</button>
+            <button type="button" class="gbtn" onclick="printAnalysis()"><i class="fas fa-print"></i> Print</button>
         </div>
     </div>
 
-    <!-- =============== ROW 2: Segment Distribution =============== -->
-    <p class="section-title"><i class="fas fa-layer-group mr-1"></i> Customer Segments (Health Score Based)</p>
-    <div class="row">
-        <div class="col-4 col-sm-4 col-md kpi-col">
-            <div class="seg-card badge-star">
-                <div class="seg-count">{{ star_count }}</div>
-                <div class="seg-label"><i class="fas fa-crown"></i> Star (80-100)</div>
-            </div>
-        </div>
-        <div class="col-4 col-sm-4 col-md kpi-col">
-            <div class="seg-card badge-loyal">
-                <div class="seg-count">{{ loyal_count }}</div>
-                <div class="seg-label"><i class="fas fa-heart"></i> Loyal (60-79)</div>
-            </div>
-        </div>
-        <div class="col-4 col-sm-4 col-md kpi-col">
-            <div class="seg-card badge-promising">
-                <div class="seg-count">{{ promising_count }}</div>
-                <div class="seg-label"><i class="fas fa-seedling"></i> Promising (40-59)</div>
-            </div>
-        </div>
-        <div class="col-6 col-sm-6 col-md kpi-col">
-            <div class="seg-card badge-atrisk">
-                <div class="seg-count">{{ at_risk_count }}</div>
-                <div class="seg-label"><i class="fas fa-exclamation-circle"></i> At Risk (20-39)</div>
-            </div>
-        </div>
-        <div class="col-6 col-sm-6 col-md kpi-col">
-            <div class="seg-card badge-critical">
-                <div class="seg-count">{{ critical_count }}</div>
-                <div class="seg-label"><i class="fas fa-skull-crossbones"></i> Critical (0-19)</div>
-            </div>
-        </div>
+    <!-- KPIs -->
+    <div class="ca-kpis">
+        <div class="ca-kpi"><span class="ci b"><i class="fas fa-users"></i></span>
+            <div><div class="cv">{{ total_customers }}</div><div class="ck">Total customers</div></div></div>
+        <div class="ca-kpi"><span class="ci g"><i class="fas fa-star"></i></span>
+            <div><div class="cv">{{ best_count }}</div><div class="ck">Best customers</div></div></div>
+        <div class="ca-kpi"><span class="ci a"><i class="fas fa-triangle-exclamation"></i></span>
+            <div><div class="cv">{{ attention_count }}</div><div class="ck">Need attention</div></div></div>
+        <div class="ca-kpi"><span class="ci r"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="cv">&#8377; {{ total_outstanding|inrs }}</div><div class="ck">Money owed to you</div></div></div>
     </div>
 
-    <!-- =============== ROW 3: Distribution Cards =============== -->
-    <div class="row">
-        <!-- Activity Status -->
-        <div class="col-12 col-sm-6 col-md-4 kpi-col">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="font-weight-bold mb-2"><i class="fas fa-signal text-primary mr-1"></i> Activity Status</h6>
-                    <div class="dist-item">
-                        <span class="dist-label act-active"><i class="fas fa-circle fa-xs mr-1"></i>Active</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-success" style="width:{% widthratio active_count total_customers 100 %}%"></div></div>
-                        <span class="dist-count text-success">{{ active_count }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label act-semi"><i class="fas fa-circle fa-xs mr-1"></i>Semi-Active</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-info" style="width:{% widthratio semi_active_count total_customers 100 %}%"></div></div>
-                        <span class="dist-count text-info">{{ semi_active_count }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label act-dormant"><i class="fas fa-circle fa-xs mr-1"></i>Dormant</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-warning" style="width:{% widthratio dormant_count total_customers 100 %}%"></div></div>
-                        <span class="dist-count text-warning">{{ dormant_count }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label act-inactive"><i class="fas fa-circle fa-xs mr-1"></i>Inactive</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-danger" style="width:{% widthratio inactive_count total_customers 100 %}%"></div></div>
-                        <span class="dist-count text-danger">{{ inactive_count }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Frequency Pattern -->
-        <div class="col-12 col-sm-6 col-md-4 kpi-col">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="font-weight-bold mb-2"><i class="fas fa-clock text-info mr-1"></i> Frequency Pattern</h6>
-                    <div class="dist-item">
-                        <span class="dist-label">Weekly</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-success" style="width:{% widthratio weekly_count total_customers 100 %}%"></div></div>
-                        <span class="dist-count">{{ weekly_count }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label">Bi-Weekly</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-info" style="width:{% widthratio biweekly_count total_customers 100 %}%"></div></div>
-                        <span class="dist-count">{{ biweekly_count }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label">Monthly</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-primary" style="width:{% widthratio monthly_count total_customers 100 %}%"></div></div>
-                        <span class="dist-count">{{ monthly_count }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label">Quarterly</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-warning" style="width:{% widthratio quarterly_count total_customers 100 %}%"></div></div>
-                        <span class="dist-count">{{ quarterly_count }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label">One-Time</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-secondary" style="width:{% widthratio one_timer_count total_customers 100 %}%"></div></div>
-                        <span class="dist-count">{{ one_timer_count }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Payment Behavior -->
-        <div class="col-12 col-sm-12 col-md-4 kpi-col">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="font-weight-bold mb-2"><i class="fas fa-hand-holding-usd text-success mr-1"></i> Payment Behavior</h6>
-                    <div class="dist-item">
-                        <span class="dist-label pmt-excellent"><i class="fas fa-check-circle mr-1"></i>Excellent</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-success" style="width:{% widthratio excellent_pmt total_customers 100 %}%"></div></div>
-                        <span class="dist-count text-success">{{ excellent_pmt }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label pmt-good"><i class="fas fa-thumbs-up mr-1"></i>Good</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill" style="width:{% widthratio good_pmt total_customers 100 %}%;background:#20c997;"></div></div>
-                        <span class="dist-count" style="color:#20c997;">{{ good_pmt }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label pmt-fair"><i class="fas fa-minus-circle mr-1"></i>Fair</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-warning" style="width:{% widthratio fair_pmt total_customers 100 %}%"></div></div>
-                        <span class="dist-count text-warning">{{ fair_pmt }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label pmt-poor"><i class="fas fa-arrow-down mr-1"></i>Poor</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill" style="width:{% widthratio poor_pmt total_customers 100 %}%;background:#fd7e14;"></div></div>
-                        <span class="dist-count" style="color:#fd7e14;">{{ poor_pmt }}</span>
-                    </div>
-                    <div class="dist-item">
-                        <span class="dist-label pmt-critical"><i class="fas fa-times-circle mr-1"></i>Critical</span>
-                        <div class="dist-bar-wrap"><div class="dist-bar-fill bg-danger" style="width:{% widthratio critical_pmt total_customers 100 %}%"></div></div>
-                        <span class="dist-count text-danger">{{ critical_pmt }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- Quick filters -->
+    <div class="ca-chips" id="caChips">
+        <button type="button" class="ca-chip on" data-filter="all">All <span class="n">{{ total_customers }}</span></button>
+        <button type="button" class="ca-chip" data-filter="best"><i class="fas fa-star"></i> Best <span class="n">{{ best_count }}</span></button>
+        <button type="button" class="ca-chip" data-filter="slipping"><i class="fas fa-arrow-trend-down"></i> Slipping</button>
+        <button type="button" class="ca-chip" data-filter="owe"><i class="fas fa-hand-holding-dollar"></i> Owe you <span class="n">{{ owe_count }}</span></button>
+        <button type="button" class="ca-chip" data-filter="quiet"><i class="fas fa-moon"></i> Went quiet <span class="n">{{ quiet_count }}</span></button>
     </div>
 
-    <!-- =============== ROW 4: Invoice Trend Summary =============== -->
-    <div class="row">
-        <div class="col-4 col-sm-4 col-md-4 kpi-col">
-            <div class="card border-left border-success h-100" style="border-left: 4px solid #28a745 !important;">
-                <div class="card-body text-center">
-                    <i class="fas fa-arrow-up fa-lg trend-growing"></i>
-                    <p class="kpi-value mt-1">{{ growing_count }}</p>
-                    <p class="kpi-label">Growing</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-4 col-sm-4 col-md-4 kpi-col">
-            <div class="card border-left h-100" style="border-left: 4px solid #6c757d !important;">
-                <div class="card-body text-center">
-                    <i class="fas fa-minus fa-lg trend-stable"></i>
-                    <p class="kpi-value mt-1">{{ stable_count }}</p>
-                    <p class="kpi-label">Stable</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-4 col-sm-4 col-md-4 kpi-col">
-            <div class="card border-left h-100" style="border-left: 4px solid #dc3545 !important;">
-                <div class="card-body text-center">
-                    <i class="fas fa-arrow-down fa-lg trend-declining"></i>
-                    <p class="kpi-value mt-1">{{ declining_count }}</p>
-                    <p class="kpi-label">Declining</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <div class="search" style="margin-bottom:14px"><i class="fas fa-magnifying-glass gico"></i>
+        <input type="text" id="searchInput" placeholder="Search customer…" autocomplete="off"></div>
 
-    <!-- =============== ROW 5: Top 10 & Bottom 10 =============== -->
-    <div class="row">
-        <!-- Top 10 -->
-        <div class="col-12 col-md-6 kpi-col">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="font-weight-bold mb-2"><i class="fas fa-trophy text-warning mr-1"></i> Top 10 — Strongest Customers</h6>
-                    {% for c in top_10 %}
-                    <div class="topbot-row">
-                        <span class="topbot-rank">#{{ c.rank }}</span>
-                        <span class="topbot-name">{{ c.name }}</span>
-                        <span class="badge badge-pill {% if c.segment == 'Star' %}badge-star{% elif c.segment == 'Loyal' %}badge-loyal{% elif c.segment == 'Promising' %}badge-promising{% elif c.segment == 'At Risk' %}badge-atrisk{% else %}badge-critical{% endif %}" style="font-size:.68rem;">{{ c.segment }}</span>
-                        <span class="topbot-score text-success">{{ c.health_score }}</span>
-                    </div>
-                    {% empty %}
-                    <p class="text-muted text-center">No data</p>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        <!-- Bottom 10 -->
-        <div class="col-12 col-md-6 kpi-col">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="font-weight-bold mb-2"><i class="fas fa-exclamation-triangle text-danger mr-1"></i> Bottom 10 — Worst / Weakest Customers</h6>
-                    {% for c in bottom_10 %}
-                    <div class="topbot-row">
-                        <span class="topbot-rank">#{{ c.rank }}</span>
-                        <span class="topbot-name">{{ c.name }}</span>
-                        <span class="badge badge-pill {% if c.segment == 'Star' %}badge-star{% elif c.segment == 'Loyal' %}badge-loyal{% elif c.segment == 'Promising' %}badge-promising{% elif c.segment == 'At Risk' %}badge-atrisk{% else %}badge-critical{% endif %}" style="font-size:.68rem;">{{ c.segment }}</span>
-                        <span class="topbot-score text-danger">{{ c.health_score }}</span>
-                    </div>
-                    {% empty %}
-                    <p class="text-muted text-center">No data</p>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- =============== ROW 6: Score Methodology =============== -->
-    <div class="row mb-2">
-        <div class="col-12 kpi-col">
-            <div class="card">
-                <div class="card-body py-2">
-                    <h6 class="font-weight-bold mb-1"><i class="fas fa-info-circle text-primary mr-1"></i> Health Score Methodology (0-100)</h6>
-                    <div class="row text-center" style="font-size:.78rem;">
-                        <div class="col-3">
-                            <span class="score-pill sp-r">R</span><br>
-                            <strong>Recency</strong><br>0-25 pts<br>
-                            <small class="text-muted">Days since last invoice</small>
-                        </div>
-                        <div class="col-3">
-                            <span class="score-pill sp-f">F</span><br>
-                            <strong>Frequency</strong><br>0-25 pts<br>
-                            <small class="text-muted">Invoices per month</small>
-                        </div>
-                        <div class="col-3">
-                            <span class="score-pill sp-m">M</span><br>
-                            <strong>Monetary</strong><br>0-25 pts<br>
-                            <small class="text-muted">Total value percentile</small>
-                        </div>
-                        <div class="col-3">
-                            <span class="score-pill sp-p">P</span><br>
-                            <strong>Payment</strong><br>0-25 pts<br>
-                            <small class="text-muted">Pay ratio + consistency</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- =============== ROW 7: Full Customer Table =============== -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-1">
-        <p class="section-title mb-0"><i class="fas fa-table mr-1"></i> Complete Customer Analysis (Ranked by Health Score)</p>
-        <button class="btn btn-sm btn-outline-dark" onclick="printTable('customerTable','Customer Intelligence Analysis')"><i class="fas fa-print mr-1"></i>Print</button>
-    </div>
-
-    <!-- Filter Bar -->
-    <div class="filter-bar d-flex flex-wrap align-items-center">
-        <div class="mr-2 mb-1">
-            <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search customer..." style="min-width:160px;">
-        </div>
-        <div class="mr-2 mb-1">
-            <select id="filterSegment" class="form-control form-control-sm">
-                <option value="">All Segments</option>
-                <option value="Star">Star</option>
-                <option value="Loyal">Loyal</option>
-                <option value="Promising">Promising</option>
-                <option value="At Risk">At Risk</option>
-                <option value="Critical">Critical</option>
-            </select>
-        </div>
-        <div class="mr-2 mb-1">
-            <select id="filterActivity" class="form-control form-control-sm">
-                <option value="">All Activity</option>
-                <option value="Active">Active</option>
-                <option value="Semi-Active">Semi-Active</option>
-                <option value="Dormant">Dormant</option>
-                <option value="Inactive">Inactive</option>
-            </select>
-        </div>
-        <div class="mr-2 mb-1">
-            <select id="filterFrequency" class="form-control form-control-sm">
-                <option value="">All Frequency</option>
-                <option value="Weekly">Weekly</option>
-                <option value="Bi-Weekly">Bi-Weekly</option>
-                <option value="Monthly">Monthly</option>
-                <option value="Quarterly">Quarterly</option>
-                <option value="One-Time">One-Time</option>
-                <option value="Sporadic">Sporadic</option>
-            </select>
-        </div>
-        <div class="mr-2 mb-1">
-            <select id="filterPayment" class="form-control form-control-sm">
-                <option value="">All Payment</option>
-                <option value="Excellent">Excellent</option>
-                <option value="Good">Good</option>
-                <option value="Fair">Fair</option>
-                <option value="Poor">Poor</option>
-                <option value="Critical">Critical</option>
-            </select>
-        </div>
-        <div class="mb-1">
-            <button class="btn btn-sm btn-outline-secondary" onclick="resetFilters()"><i class="fas fa-redo"></i> Reset</button>
-        </div>
-    </div>
-
-    <div class="table-responsive" style="max-height: 70vh; overflow: auto;">
-        <table class="table table-sm table-bordered table-hover mb-0" id="customerTable">
-            <thead>
-                <tr>
-                    <th class="rank-col sticky-col">#</th>
-                    <th class="sticky-col-2" style="min-width:130px;">Customer</th>
-                    <th style="min-width:55px;">Score</th>
-                    <th>Segment</th>
-                    <th>R</th>
-                    <th>F</th>
-                    <th>M</th>
-                    <th>P</th>
-                    <th>Activity</th>
-                    <th>Frequency</th>
-                    <th>Trend</th>
-                    <th>Invoices</th>
-                    <th style="min-width:70px;">Inv/Month</th>
-                    <th>Last Invoice</th>
-                    <th style="min-width:70px;">Days Since</th>
-                    <th style="min-width:90px;">Total Value</th>
-                    <th style="min-width:90px;">Avg Invoice</th>
-                    <th style="min-width:90px;">Purchased</th>
-                    <th style="min-width:75px;">Paid</th>
-                    <th style="min-width:85px;">Outstanding</th>
-                    <th>Pay %</th>
-                    <th>Payment</th>
-                    <th style="min-width:65px;">Avg Gap</th>
-                    <th>Recent 90d</th>
-                    <th>Prior 90d</th>
-                </tr>
-            </thead>
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="customerTable">
+            <thead><tr>
+                <th class="rk">#</th>
+                <th>Customer</th>
+                <th>Score</th>
+                <th>Status</th>
+                <th>Last order</th>
+                <th class="r">Total business</th>
+                <th class="r">Outstanding</th>
+                <th>Payment</th>
+                <th></th>
+            </tr></thead>
             <tbody>
                 {% for c in customer_rows %}
-                <tr data-segment="{{ c.segment }}" data-activity="{{ c.activity_status }}" data-frequency="{{ c.frequency_pattern }}" data-payment="{{ c.payment_behavior }}" data-name="{{ c.name|lower }}">
-                    <td class="rank-col sticky-col">{{ c.rank }}</td>
-                    <td class="sticky-col-2 font-weight-bold">
-                        <a href="{% url 'customer_edit' c.id %}" style="text-decoration: none;color: black;">{{ c.name }}</a>
+                <tr class="mainrow" data-name="{{ c.name|lower }}" data-segment="{{ c.segment }}" data-activity="{{ c.activity_status }}" data-trend="{{ c.invoice_trend }}" data-owe="{% if c.outstanding > 0 %}1{% else %}0{% endif %}">
+                    <td class="rk">{{ c.rank }}</td>
+                    <td>
+                        <div class="prim"><span class="pi">{{ c.name|initials }}</span>
+                            <a href="{% url 'customer_edit' c.id %}" class="nm" style="color:var(--ink)" onclick="event.stopPropagation()">{{ c.name }}</a></div>
                     </td>
                     <td>
-                        <strong>{{ c.health_score }}</strong>
-                        <div class="health-bar mt-1">
-                            <div class="health-fill {% if c.segment == 'Star' %}hf-star{% elif c.segment == 'Loyal' %}hf-loyal{% elif c.segment == 'Promising' %}hf-promising{% elif c.segment == 'At Risk' %}hf-atrisk{% else %}hf-critical{% endif %}" style="width:{{ c.health_score }}%"></div>
+                        <div class="scw"><span class="sv">{{ c.health_score }}</span>
+                            <div>
+                                <span class="seg {% if c.segment == 'Star' %}star{% elif c.segment == 'Loyal' %}loyal{% elif c.segment == 'Promising' %}promising{% elif c.segment == 'At Risk' %}atrisk{% else %}critical{% endif %}">{{ c.segment }}</span>
+                                <div class="hb"><i class="{% if c.segment == 'Star' %}hf-star{% elif c.segment == 'Loyal' %}hf-loyal{% elif c.segment == 'Promising' %}hf-promising{% elif c.segment == 'At Risk' %}hf-atrisk{% else %}hf-critical{% endif %}" style="width:{{ c.health_score }}%"></i></div>
+                            </div>
                         </div>
                     </td>
-                    <td>
-                        <span class="badge badge-pill {% if c.segment == 'Star' %}badge-star{% elif c.segment == 'Loyal' %}badge-loyal{% elif c.segment == 'Promising' %}badge-promising{% elif c.segment == 'At Risk' %}badge-atrisk{% else %}badge-critical{% endif %}" style="font-size:.68rem;">{{ c.segment }}</span>
+                    <td><span class="{% if c.activity_status == 'Active' %}st-active{% elif c.activity_status == 'Semi-Active' %}st-semi{% elif c.activity_status == 'Dormant' %}st-dormant{% else %}st-inactive{% endif %}">{{ c.activity_status }}</span></td>
+                    <td>{% if c.last_invoice %}{{ c.last_invoice|date:"d M Y" }}<div class="mut" style="font-size:11.5px">{% if c.days_since_last != None %}{{ c.days_since_last }}d ago{% endif %}</div>{% else %}<span class="mut">No orders</span>{% endif %}</td>
+                    <td class="r"><span class="num">&#8377; {{ c.total_invoice_value|inrs }}</span></td>
+                    <td class="r"><span class="num" style="{% if c.outstanding > 0 %}color:var(--red){% else %}color:var(--faint){% endif %}">&#8377; {{ c.outstanding|inrs }}</span></td>
+                    <td><span class="seg {% if c.payment_behavior == 'Excellent' %}loyal{% elif c.payment_behavior == 'Good' %}promising{% elif c.payment_behavior == 'Fair' %}atrisk{% else %}critical{% endif %}">{{ c.payment_behavior }}</span></td>
+                    <td class="r"><button type="button" class="exp-btn" title="Details"><i class="fas fa-chevron-down"></i></button></td>
+                </tr>
+                <tr class="detail-row" hidden>
+                    <td colspan="9">
+                        <div class="detail-wrap"><div class="detail-grid">
+                            <div class="dg">
+                                <h6>Score breakdown</h6>
+                                <div class="drow"><span class="l">Recency</span><span class="v">{{ c.recency_score }}/25</span></div>
+                                <div class="drow"><span class="l">Frequency</span><span class="v">{{ c.frequency_score }}/25</span></div>
+                                <div class="drow"><span class="l">Value</span><span class="v">{{ c.monetary_score }}/25</span></div>
+                                <div class="drow"><span class="l">Payment</span><span class="v">{{ c.payment_score }}/25</span></div>
+                            </div>
+                            <div class="dg">
+                                <h6>Buying behaviour</h6>
+                                <div class="drow"><span class="l">Orders</span><span class="v">{{ c.invoice_count }}</span></div>
+                                <div class="drow"><span class="l">Per month</span><span class="v">{{ c.invoices_per_month }}</span></div>
+                                <div class="drow"><span class="l">Avg order</span><span class="v">&#8377; {{ c.avg_invoice_value|inrs }}</span></div>
+                                <div class="drow"><span class="l">Pattern</span><span class="v">{{ c.frequency_pattern }}</span></div>
+                                <div class="drow"><span class="l">Avg gap</span><span class="v">{{ c.avg_gap_days }}d</span></div>
+                            </div>
+                            <div class="dg">
+                                <h6>Trend (90d vs prior)</h6>
+                                <div class="drow"><span class="l">Direction</span><span class="v">
+                                    {% if c.invoice_trend == 'Growing' %}<span style="color:var(--green)">↑ Growing</span>{% elif c.invoice_trend == 'Declining' %}<span style="color:var(--red)">↓ Declining</span>{% elif c.invoice_trend == 'Stable' %}<span style="color:var(--soft)">→ Stable</span>{% else %}{{ c.invoice_trend }}{% endif %}</span></div>
+                                <div class="drow"><span class="l">Recent 90d</span><span class="v">{{ c.recent_count }} orders</span></div>
+                                <div class="drow"><span class="l">Prior 90d</span><span class="v">{{ c.prior_count }} orders</span></div>
+                                <div class="drow"><span class="l">First order</span><span class="v">{% if c.first_invoice %}{{ c.first_invoice|date:"d M Y" }}{% else %}—{% endif %}</span></div>
+                            </div>
+                            <div class="dg">
+                                <h6>Money</h6>
+                                <div class="drow"><span class="l">Purchased</span><span class="v">&#8377; {{ c.total_purchased|inrs }}</span></div>
+                                <div class="drow"><span class="l">Paid</span><span class="v">&#8377; {{ c.total_paid|inrs }}</span></div>
+                                <div class="drow"><span class="l">Outstanding</span><span class="v" style="{% if c.outstanding > 0 %}color:var(--red){% endif %}">&#8377; {{ c.outstanding|inrs }}</span></div>
+                                <div class="drow"><span class="l">Pay ratio</span><span class="v">{{ c.payment_ratio }}%</span></div>
+                            </div>
+                            <div class="dg" style="align-self:end">
+                                {% if c.book_id %}<a href="{% url 'book_logs' c.book_id %}" class="gbtn" style="width:100%;justify-content:center"><i class="fas fa-book-open"></i> View ledger</a>{% endif %}
+                                <a href="{% url 'customer_edit' c.id %}" class="gbtn" style="width:100%;justify-content:center;margin-top:8px"><i class="fas fa-user"></i> Customer</a>
+                            </div>
+                        </div></div>
                     </td>
-                    <td><span class="score-pill sp-r">{{ c.recency_score }}</span></td>
-                    <td><span class="score-pill sp-f">{{ c.frequency_score }}</span></td>
-                    <td><span class="score-pill sp-m">{{ c.monetary_score }}</span></td>
-                    <td><span class="score-pill sp-p">{{ c.payment_score }}</span></td>
-                    <td>
-                        <span class="{% if c.activity_status == 'Active' %}act-active{% elif c.activity_status == 'Semi-Active' %}act-semi{% elif c.activity_status == 'Dormant' %}act-dormant{% else %}act-inactive{% endif %}">
-                            {{ c.activity_status }}
-                        </span>
-                    </td>
-                    <td>{{ c.frequency_pattern }}</td>
-                    <td>
-                        {% if c.invoice_trend == 'Growing' %}
-                            <span class="trend-growing"><i class="fas fa-arrow-up"></i> Growing</span>
-                        {% elif c.invoice_trend == 'Declining' %}
-                            <span class="trend-declining"><i class="fas fa-arrow-down"></i> Declining</span>
-                        {% elif c.invoice_trend == 'Stable' %}
-                            <span class="trend-stable"><i class="fas fa-minus"></i> Stable</span>
-                        {% else %}
-                            <span class="text-muted">{{ c.invoice_trend }}</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-center">{{ c.invoice_count }}</td>
-                    <td>{{ c.invoices_per_month }}</td>
-                    <td>{% if c.last_invoice %}{{ c.last_invoice|date:"d M Y" }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
-                    <td class="text-center">{% if c.days_since_last != None %}{{ c.days_since_last }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
-                    <td class="text-right">₹{{ c.total_invoice_value|floatformat:0|intcomma }}</td>
-                    <td class="text-right">₹{{ c.avg_invoice_value|floatformat:0|intcomma }}</td>
-                    <td class="text-right">₹{{ c.total_purchased|floatformat:0|intcomma }}</td>
-                    <td class="text-right">₹{{ c.total_paid|floatformat:0|intcomma }}</td>
-                    <td class="text-right {% if c.outstanding > 0 %}text-danger font-weight-bold{% endif %}">₹{{ c.outstanding|floatformat:0|intcomma }}</td>
-                    <td>{{ c.payment_ratio }}%</td>
-                    <td>
-                        <span class="{% if c.payment_behavior == 'Excellent' %}pmt-excellent{% elif c.payment_behavior == 'Good' %}pmt-good{% elif c.payment_behavior == 'Fair' %}pmt-fair{% elif c.payment_behavior == 'Poor' %}pmt-poor{% else %}pmt-critical{% endif %} font-weight-bold">
-                            {{ c.payment_behavior }}
-                        </span>
-                    </td>
-                    <td class="text-center">{{ c.avg_gap_days }}d</td>
-                    <td class="text-center">{{ c.recent_count }}</td>
-                    <td class="text-center">{{ c.prior_count }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="25" class="text-center text-muted py-3">No customer data available</td></tr>
+                <tr><td colspan="9"><div class="empty">
+                    <div class="ei"><i class="fas fa-users fa-lg"></i></div>
+                    <h3>No customer data yet</h3>
+                    <p>Once you raise invoices, this page ranks and analyses every customer.</p>
+                </div></td></tr>
                 {% endfor %}
             </tbody>
         </table>
+        </div>
+        <div id="noMatch" class="mut" style="display:none;padding:22px;text-align:center">No customers match this filter.</div>
     </div>
 
-    <div class="mt-2 mb-3 text-muted" style="font-size:.72rem;">
-        <strong>Legend:</strong>
-        <span class="score-pill sp-r">R</span> Recency (0-25) &bull;
-        <span class="score-pill sp-f">F</span> Frequency (0-25) &bull;
-        <span class="score-pill sp-m">M</span> Monetary (0-25) &bull;
-        <span class="score-pill sp-p">P</span> Payment (0-25) &bull;
-        <strong>Score</strong> = R + F + M + P &bull;
-        <strong>Trend:</strong> Last 90 days vs prior 90 days invoice count &bull;
-        <strong>Avg Gap:</strong> Average days between invoices
+    <div class="mut" style="font-size:12px;margin:12px 2px 20px">
+        <strong>Score</strong> (0–100) blends how recently &amp; how often each customer buys, how much they spend, and how well they pay.
+        Tap any row for the full breakdown.
     </div>
-
 </div>
 {% endblock %}
 
 {% block includejs %}
 <script>
-var _rptDate = '{{ report_date|date:"d M Y" }}';
-(function() {
-    const searchInput = document.getElementById('searchInput');
-    const filterSegment = document.getElementById('filterSegment');
-    const filterActivity = document.getElementById('filterActivity');
-    const filterFrequency = document.getElementById('filterFrequency');
-    const filterPayment = document.getElementById('filterPayment');
-    const rows = document.querySelectorAll('#customerTable tbody tr[data-name]');
+(function(){
+    var chips = document.getElementById('caChips');
+    var searchInput = document.getElementById('searchInput');
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#customerTable tbody tr.mainrow'));
+    var noMatch = document.getElementById('noMatch');
+    var mode = 'all';
 
-    function applyFilters() {
-        const search = searchInput.value.toLowerCase().trim();
-        const seg = filterSegment.value;
-        const act = filterActivity.value;
-        const freq = filterFrequency.value;
-        const pmt = filterPayment.value;
-
-        rows.forEach(function(row) {
-            let show = true;
-            if (search && row.getAttribute('data-name').indexOf(search) === -1) show = false;
-            if (seg && row.getAttribute('data-segment') !== seg) show = false;
-            if (act && row.getAttribute('data-activity') !== act) show = false;
-            if (freq && row.getAttribute('data-frequency') !== freq) show = false;
-            if (pmt && row.getAttribute('data-payment') !== pmt) show = false;
-            row.style.display = show ? '' : 'none';
-        });
+    function matchesMode(row){
+        var seg = row.getAttribute('data-segment');
+        var act = row.getAttribute('data-activity');
+        var trend = row.getAttribute('data-trend');
+        var owe = row.getAttribute('data-owe') === '1';
+        if(mode === 'best') return seg === 'Star' || seg === 'Loyal';
+        if(mode === 'slipping') return trend === 'Declining' || act === 'Semi-Active' || act === 'Dormant';
+        if(mode === 'owe') return owe;
+        if(mode === 'quiet') return act === 'Inactive' || act === 'No Invoices';
+        return true;
     }
 
-    searchInput.addEventListener('input', applyFilters);
-    filterSegment.addEventListener('change', applyFilters);
-    filterActivity.addEventListener('change', applyFilters);
-    filterFrequency.addEventListener('change', applyFilters);
-    filterPayment.addEventListener('change', applyFilters);
+    function apply(){
+        var q = (searchInput.value || '').toLowerCase().trim();
+        var shown = 0;
+        rows.forEach(function(row){
+            var ok = matchesMode(row) && (!q || row.getAttribute('data-name').indexOf(q) !== -1);
+            row.style.display = ok ? '' : 'none';
+            // keep the detail row in sync (hide it, collapse state)
+            var detail = row.nextElementSibling;
+            if(detail && detail.classList.contains('detail-row')){
+                if(!ok){ detail.hidden = true; row.classList.remove('open'); }
+                detail.style.display = ok ? '' : 'none';
+            }
+            if(ok) shown++;
+        });
+        noMatch.style.display = shown ? 'none' : 'block';
+    }
 
-    window.resetFilters = function() {
-        searchInput.value = '';
-        filterSegment.value = '';
-        filterActivity.value = '';
-        filterFrequency.value = '';
-        filterPayment.value = '';
-        applyFilters();
-    };
+    chips.addEventListener('click', function(e){
+        var btn = e.target.closest('.ca-chip'); if(!btn) return;
+        chips.querySelectorAll('.ca-chip').forEach(function(c){ c.classList.remove('on'); });
+        btn.classList.add('on');
+        mode = btn.getAttribute('data-filter');
+        apply();
+    });
+    searchInput.addEventListener('input', apply);
+
+    // Expand / collapse detail
+    document.querySelectorAll('#customerTable tbody tr.mainrow').forEach(function(row){
+        row.addEventListener('click', function(e){
+            if(e.target.closest('a')) return;   // let links work
+            var detail = row.nextElementSibling;
+            if(!detail || !detail.classList.contains('detail-row')) return;
+            var opening = detail.hidden;
+            detail.hidden = !opening;
+            row.classList.toggle('open', opening);
+        });
+    });
 })();
 
-function printTable(tableId, title) {
-    var reportDate = _rptDate;
-    var table = document.getElementById(tableId);
-    if (!table) return;
-    var clone = table.cloneNode(true);
-    // Remove hidden (filtered) rows from print & reset sticky
-    clone.querySelectorAll('tr[style*="display: none"]').forEach(function(r){ r.remove(); });
-    clone.querySelectorAll('.sticky-col, .sticky-col-2').forEach(function(el) {
-        el.style.position = 'static';
+function howScoring(){
+    Swal.fire({
+        title: 'How the score works',
+        html: '<div style="text-align:left;font-size:14px;line-height:1.6">'
+            + 'Every customer gets a <b>score from 0 to 100</b>, built from four equal parts (25 each):'
+            + '<ul style="margin:10px 0 0;padding-left:18px">'
+            + '<li><b>Recency</b> — how recently they last bought</li>'
+            + '<li><b>Frequency</b> — how often they buy</li>'
+            + '<li><b>Value</b> — how much they spend vs others</li>'
+            + '<li><b>Payment</b> — how well &amp; consistently they pay</li>'
+            + '</ul><div style="margin-top:12px">'
+            + '<span style="color:#a9760a;font-weight:700">Star 80–100</span> · '
+            + '<span style="color:#16a34a;font-weight:700">Loyal 60–79</span> · '
+            + '<span style="color:#2563eb;font-weight:700">Promising 40–59</span> · '
+            + '<span style="color:#e5900f;font-weight:700">At Risk 20–39</span> · '
+            + '<span style="color:#e11d48;font-weight:700">Critical 0–19</span></div></div>',
+        confirmButtonText: 'Got it', confirmButtonColor: '#2563eb', width: 480
     });
+}
 
-    /* --- Shared CSS --- */
-    var css = '';
-    css += '@page{size:A4 landscape;margin:6mm;}';
-    css += 'body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:6px;color:#333;}';
-    css += '.print-header{text-align:center;margin-bottom:6px;}';
-    css += '.print-header h2{margin:0 0 2px;font-size:1rem;}';
-    css += '.print-header p{margin:0;font-size:.7rem;color:#666;}';
-    css += '.page-section{page-break-after:always;}';
-    css += '.page-section:last-child{page-break-after:auto;}';
-    css += '.chunk-title{font-size:.75rem;font-weight:700;margin:6px 0 4px;color:#495057;}';
-    css += 'table{width:100%;border-collapse:collapse;font-size:.7rem;}';
-    css += 'th,td{border:1px solid #aaa;padding:3px 5px;text-align:right;white-space:nowrap;}';
-    css += 'th{background:#343a40;color:#fff;font-size:.65rem;text-transform:uppercase;}';
-    css += 'td:nth-child(2){text-align:left;}';
-    css += 'th:nth-child(2){text-align:left;}';
-    css += 'tr:nth-child(even){background:#f9f9f9;}';
-    css += '.badge{padding:1px 5px;border-radius:3px;font-size:.55rem;font-weight:600;color:#fff;}';
-    css += '.badge-star{background:#ffc107;color:#333;}';
-    css += '.badge-loyal{background:#28a745;}';
-    css += '.badge-promising{background:#17a2b8;}';
-    css += '.badge-atrisk{background:#fd7e14;}';
-    css += '.badge-critical{background:#dc3545;}';
-    css += '.text-danger{color:#dc3545;}';
-    css += '.text-success{color:#28a745;}';
-    css += '.font-weight-bold{font-weight:700;}';
-    css += '.health-bar{height:5px;border-radius:3px;background:#ddd;overflow:hidden;min-width:40px;}';
-    css += '.health-fill{height:100%;border-radius:3px;}';
-    css += '.hf-star{background:#ffc107;}.hf-loyal{background:#28a745;}.hf-promising{background:#17a2b8;}.hf-atrisk{background:#fd7e14;}.hf-critical{background:#dc3545;}';
-    css += '.score-pill{display:inline-block;padding:1px 4px;border-radius:8px;font-size:.55rem;font-weight:600;}';
-    css += '.sp-r{background:#e3f2fd;color:#1565c0;}.sp-f{background:#e8f5e9;color:#2e7d32;}.sp-m{background:#fff8e1;color:#f57f17;}.sp-p{background:#fce4ec;color:#c62828;}';
-    css += '.act-active{color:#28a745;font-weight:700;}.act-semi{color:#17a2b8;}.act-dormant{color:#fd7e14;}.act-inactive{color:#dc3545;}';
-    css += '.trend-growing{color:#28a745;}.trend-stable{color:#6c757d;}.trend-declining{color:#dc3545;}';
-    css += '.pmt-excellent{color:#28a745;}.pmt-good{color:#20c997;}.pmt-fair{color:#ffc107;}.pmt-poor{color:#fd7e14;}.pmt-critical{color:#dc3545;}';
-    css += '@media print{@page{size:A4 landscape;margin:6mm;}body{margin:0;padding:4px;}}';
-
-    var win = window.open('', '_blank');
-    win.document.write('<html><head><title>' + title + '</title>');
-    win.document.write('<style>' + css + '</style></head><body>');
-
-    var headerRow = clone.querySelector('thead tr');
-    var allRows = clone.querySelectorAll('tbody tr');
-    var totalCols = headerRow ? headerRow.children.length : 0;
-
-    // 25 columns: #(0) Customer(1) Score(2) Segment(3) R(4) F(5) M(6) P(7)
-    // Activity(8) Frequency(9) Trend(10) Invoices(11) Inv/Month(12)
-    // Last Invoice(13) Days Since(14) Total Value(15) Avg Invoice(16)
-    // Purchased(17) Paid(18) Outstanding(19) Pay%(20) Payment(21)
-    // Avg Gap(22) Recent 90d(23) Prior 90d(24)
-
-    if (tableId === 'customerTable' && totalCols >= 25) {
-        /* ===== MULTI-PAGE LOGICAL GROUPS ===== */
-        var FROZEN = [0, 1]; // #, Customer — always repeated
-        var pages = [
-            { label: 'Health Score & Segment Analysis', cols: [2,3,4,5,6,7,8,9,10] },
-            { label: 'Invoice & Transaction Details',   cols: [11,12,13,14,15,16] },
-            { label: 'Payment & Financial Overview',    cols: [17,18,19,20,21,22,23,24] }
-        ];
-        var totalPages = pages.length;
-
-        for (var pg = 0; pg < totalPages; pg++) {
-            var pageCols = FROZEN.concat(pages[pg].cols);
-
-            win.document.write('<div class="page-section">');
-            if (pg === 0) {
-                win.document.write('<div class="print-header">');
-                win.document.write('<h2>' + title + '</h2>');
-                win.document.write('<p>Report Date: ' + reportDate + '</p>');
-                win.document.write('</div>');
-            }
-            win.document.write('<p class="chunk-title">' + pages[pg].label + ' &nbsp;&bull;&nbsp; Page ' + (pg + 1) + ' of ' + totalPages + '</p>');
-
-            /* Build chunk table */
-            win.document.write('<table><thead><tr>');
-            for (var h = 0; h < pageCols.length; h++) {
-                win.document.write('<th>' + headerRow.children[pageCols[h]].innerHTML + '</th>');
-            }
-            win.document.write('</tr></thead><tbody>');
-
-            allRows.forEach(function(row) {
-                var cells = row.children;
-                win.document.write('<tr>');
-                for (var c = 0; c < pageCols.length; c++) {
-                    var cell = cells[pageCols[c]];
-                    var cls = cell ? cell.className : '';
-                    win.document.write('<td class="' + cls + '">' + (cell ? cell.innerHTML : '') + '</td>');
-                }
-                win.document.write('</tr>');
-            });
-
-            win.document.write('</tbody></table></div>');
-        }
-    } else {
-        /* ===== FALLBACK: single-page print ===== */
-        win.document.write('<div class="print-header">');
-        win.document.write('<h2>' + title + '</h2>');
-        win.document.write('<p>Report Date: ' + reportDate + '</p>');
-        win.document.write('</div>');
-        win.document.write(clone.outerHTML);
-    }
-
-    win.document.write('</body></html>');
-    win.document.close();
-    setTimeout(function(){ win.print(); }, 400);
+function printAnalysis(){
+    var rptDate = '{{ report_date|date:"d M Y" }}';
+    var visible = Array.prototype.slice.call(document.querySelectorAll('#customerTable tbody tr.mainrow'))
+        .filter(function(r){ return r.style.display !== 'none'; });
+    var rowsHtml = visible.map(function(r){
+        var c = r.children;
+        return '<tr><td>' + c[0].innerText + '</td><td style="text-align:left">' + c[1].innerText.trim()
+            + '</td><td>' + c[2].innerText.trim().split('\n')[0] + '</td><td>' + c[3].innerText.trim()
+            + '</td><td>' + c[4].innerText.trim().replace('\n',' ') + '</td><td style="text-align:right">' + c[5].innerText.trim()
+            + '</td><td style="text-align:right">' + c[6].innerText.trim() + '</td><td>' + c[7].innerText.trim() + '</td></tr>';
+    }).join('');
+    var css = '@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#222;padding:6px}'
+        + 'h2{margin:0 0 2px;font-size:16px}p.sub{margin:0 0 10px;color:#666;font-size:12px}'
+        + 'table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ccc;padding:4px 6px;text-align:center}'
+        + 'th{background:#0f172a;color:#fff;font-size:10px;text-transform:uppercase}tr:nth-child(even){background:#f7f9fc}';
+    var w = window.open('', '_blank');
+    w.document.write('<html><head><title>Customer Analysis</title><style>' + css + '</style></head><body>');
+    w.document.write('<h2>Customer Analysis</h2><p class="sub">Ranked by score · Report date: ' + rptDate + '</p>');
+    w.document.write('<table><thead><tr><th>#</th><th style="text-align:left">Customer</th><th>Score</th><th>Status</th><th>Last order</th><th>Total business</th><th>Outstanding</th><th>Payment</th></tr></thead><tbody>'
+        + rowsHtml + '</tbody></table></body></html>');
+    w.document.close();
+    setTimeout(function(){ w.print(); }, 400);
 }
 </script>
 {% endblock %}

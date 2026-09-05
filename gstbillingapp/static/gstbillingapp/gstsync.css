@@ -127,6 +127,23 @@ body{background:#eef2f7}
 .gs .gbadge.blue{background:var(--bluebg);color:var(--brand)}
 .gs .gbadge.grey{background:var(--wash);color:var(--soft);border:1px solid var(--line)}
 
+/* ---- report stat cards (shared across all report pages) ---- */
+.gs .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:18px}
+.gs .stat{display:flex;align-items:center;gap:13px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);padding:15px 17px}
+.gs .stat .si{flex:none;width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.gs .stat .sv{font-family:var(--disp);font-size:22px;font-weight:700;color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums;word-break:break-word}
+.gs .stat .sk{font-size:12px;color:var(--soft);margin-top:2px}
+.gs .stat .ss{font-size:11px;color:var(--faint);margin-top:1px}
+.gs .si.b{background:var(--bluebg);color:var(--brand)}
+.gs .si.g{background:var(--greenbg);color:var(--green)}
+.gs .si.a{background:var(--amberbg);color:var(--amber)}
+.gs .si.r{background:var(--redbg);color:var(--red)}
+.gs .si.v{background:#ede9fe;color:#6d28d9}
+.gs .si.s{background:var(--wash);color:var(--soft)}
+/* section heading used between report blocks */
+.gs .rsec{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-size:15px;font-weight:700;color:var(--ink);margin:22px 2px 12px}
+.gs .rsec i{color:var(--brand)}
+
 /* ---- pager / table footer ---- */
 .gs .tfoot{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line);background:var(--wash);flex-wrap:wrap}
 .gs .tfoot .cnt{font-size:12.5px;color:var(--soft)}

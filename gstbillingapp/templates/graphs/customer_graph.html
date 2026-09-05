@@ -1,94 +1,116 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block title %}Customer Graph · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* Customer-graph chrome (gs) */
+.cg-controls{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+.cg-field{display:flex;flex-direction:column;gap:6px;min-width:210px;flex:1}
+.cg-field > label{font-size:12px;font-weight:600;color:var(--soft)}
+.cg-field .selctl{width:100%}
+.cg-order{display:flex;flex-direction:column;gap:6px;min-width:230px}
+.cg-order .btns{display:flex;gap:8px}
+.cg-order .btns .btn{flex:1}
+.cg-topn{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px}
+.cg-topn label{font-size:12.5px;font-weight:600;color:var(--soft)}
+#topNValue{width:82px;text-align:center;font-weight:700;font-size:14px;padding:8px 6px;border:1px solid var(--line);border-radius:10px;font-family:var(--sans);color:var(--ink);outline:none}
+#topNValue:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.cg-presets{display:inline-flex;flex-wrap:wrap;gap:6px}
+.cg-count{font-size:12px;color:var(--soft)}
+</style>
+{% endblock %}
+
 {% block content %}
-<h2 style="margin-bottom: 3px;">Customer Analytics</h2>
-<h5 style="margin-bottom: 5px;">Top Customers by Transaction Volume & Balance</h5>
-
-<div style="display: flex; gap: 15px; margin-bottom: 5px;">
-    <!-- Left Side - Sort Options -->
-    <div style="flex: 1;">
-        <div style="margin-bottom: 5px;">
-            <label style="font-size: 13px;"><strong>Sort & Filter By:</strong></label>
-            <select id="sortBySelect" class="form-control form-control-sm" style="width: 100%; margin-top: 3px; font-size: 13px;">
-                <optgroup label="Aggregated Views">
-                    <option value="volume" selected>Transaction Volume (All Types)</option>
-                    <option value="balance">Outstanding Balance</option>
-                </optgroup>
-                <optgroup label="By Transaction Type">
-                    <option value="type_0">Paid Only</option>
-                    <option value="type_1">Purchased Items Only</option>
-                    <option value="type_2">Returned Items Only</option>
-                    <option value="type_3">Other Only</option>
-                </optgroup>
-            </select>
-        </div>
-        
-        <div style="margin-top: 8px; margin-bottom: 5px;">
-            <label style="font-size: 13px;"><strong>Chart Type:</strong></label>
-            <select id="chartTypeSelect" class="form-control form-control-sm" style="width: 100%; margin-top: 3px; font-size: 13px;">
-                <option value="bar" selected>Bar Chart (Top N)</option>
-                <option value="treemap">Treemap (All Customers)</option>
-                <option value="pie">Pie Chart (Top N)</option>
-            </select>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Graphs</div>
+            <h1 class="disp">Customer Graph</h1>
+            <div class="sub">Top customers by transaction volume &amp; balance</div>
         </div>
     </div>
 
-    <!-- Right Side - Stats -->
-    <div style="flex: 1;">
-        <div style="padding: 10px; background: #f8f9fa; border-radius: 5px;">
-            <div style="display: flex; justify-content: space-around; align-items: center;">
-                <div style="text-align: center;">
-                    <strong style="color: #667eea; font-size: 12px;">Total Customers</strong><br>
-                    <span id="totalCustomers" style="font-size: 20px; color: #667eea;">0</span>
-                </div>
-                <div style="text-align: center;">
-                    <strong style="color: #56ab2f; font-size: 12px;">Total Volume</strong><br>
-                    <span id="totalVolume" style="font-size: 16px; color: #56ab2f;">₹0</span>
-                </div>
-                <div style="text-align: center;">
-                    <strong style="color: #2193b0; font-size: 12px;">Total Balance</strong><br>
-                    <span id="totalBalance" style="font-size: 16px; color: #2193b0;">₹0</span>
+    <!-- Summary stats -->
+    <div class="statgrid">
+        <div class="stat"><span class="si b"><i class="fas fa-users"></i></span>
+            <div><div class="sv"><span id="totalCustomers">0</span></div><div class="sk">Total customers</div></div></div>
+        <div class="stat"><span class="si g"><i class="fas fa-arrow-trend-up"></i></span>
+            <div><div class="sv"><span id="totalVolume">₹0</span></div><div class="sk">Total volume</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-scale-balanced"></i></span>
+            <div><div class="sv"><span id="totalBalance">₹0</span></div><div class="sk">Total balance</div></div></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="tablecard" style="padding:16px;margin-bottom:16px">
+        <div class="cg-controls">
+            <div class="cg-field">
+                <label for="sortBySelect">Sort &amp; Filter By</label>
+                <select id="sortBySelect" class="selctl">
+                    <optgroup label="Aggregated Views">
+                        <option value="volume" selected>Transaction Volume (All Types)</option>
+                        <option value="balance">Outstanding Balance</option>
+                    </optgroup>
+                    <optgroup label="By Transaction Type">
+                        <option value="type_0">Paid Only</option>
+                        <option value="type_1">Purchased Items Only</option>
+                        <option value="type_2">Returned Items Only</option>
+                        <option value="type_3">Other Only</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div class="cg-field">
+                <label for="chartTypeSelect">Chart Type</label>
+                <select id="chartTypeSelect" class="selctl">
+                    <option value="bar" selected>Bar Chart (Top N)</option>
+                    <option value="treemap">Treemap (All Customers)</option>
+                    <option value="pie">Pie Chart (Top N)</option>
+                </select>
+            </div>
+
+            <div class="cg-order">
+                <label>Sort Order</label>
+                <div class="btns">
+                    <button id="sortDesc" class="btn btn-sm btn-primary">DESC (High to Low)</button>
+                    <button id="sortAsc" class="btn btn-sm btn-outline-primary">ASC (Low to High)</button>
                 </div>
             </div>
         </div>
-        
-        <div style="margin-top: 10px;">
-            <label style="font-size: 13px;"><strong>Sort Order:</strong></label>
-            <div style="display: flex; gap: 5px; margin-top: 3px;">
-                <button id="sortDesc" class="btn btn-sm btn-primary" style="flex: 1; padding: 4px; font-size: 12px;">DESC (High to Low)</button>
-                <button id="sortAsc" class="btn btn-sm btn-outline-primary" style="flex: 1; padding: 4px; font-size: 12px;">ASC (Low to High)</button>
+    </div>
+
+    <!-- Chart -->
+    <div class="tablecard" style="padding:16px">
+        <div id="chart_div"></div>
+    </div>
+
+    <!-- Top N selector -->
+    <div class="tablecard" id="topNContainer" style="padding:14px 16px;margin-top:16px">
+        <div class="cg-topn">
+            <label for="topNValue">Number of Customers:</label>
+            <input type="number" id="topNValue" value="10" min="1" max="100">
+            <div class="cg-presets">
+                <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="5" style="padding:3px 10px;font-size:11px;">5</button>
+                <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="10" style="padding:3px 10px;font-size:11px;">10</button>
+                <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="15" style="padding:3px 10px;font-size:11px;">15</button>
+                <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="20" style="padding:3px 10px;font-size:11px;">20</button>
+                <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="30" style="padding:3px 10px;font-size:11px;">30</button>
+                <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="50" style="padding:3px 10px;font-size:11px;">50</button>
+                <button type="button" id="allBtn" class="btn btn-sm btn-success" style="padding:3px 10px;font-size:11px;font-weight:bold;">All</button>
             </div>
+            <span class="cg-count">Showing Top <strong id="displayCount">10</strong> customers</span>
         </div>
     </div>
-</div>
 
-<div id="chart_div"></div>
-
-<div id="topNContainer" style="margin-top: 10px; margin-bottom: 10px; text-align: center;">
-    <label style="font-size: 13px;"><strong>Number of Customers:</strong></label>
-    <div style="margin-top: 5px; display: inline-block;">
-        <input type="number" id="topNValue" class="form-control form-control-sm" value="10" min="1" max="100" style="width: 80px; text-align: center; font-weight: bold; font-size: 14px; display: inline-block; margin-right: 10px;">
+    <div class="hint" style="margin-top:16px">
+        <i class="fas fa-circle-info"></i>
+        <span><strong>Chart Info:</strong> Hover over bars for details.</span>
     </div>
-    <div style="display: inline-block;">
-        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="5" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">5</button>
-        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="10" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">10</button>
-        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="15" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">15</button>
-        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="20" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">20</button>
-        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="30" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">30</button>
-        <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-value="50" style="padding: 3px 10px; font-size: 11px; margin-right: 3px;">50</button>
-        <button type="button" id="allBtn" class="btn btn-sm btn-success" style="padding: 3px 10px; font-size: 11px; font-weight: bold;">All</button>
-    </div>
-    <div style="margin-top: 5px;">
-        <small style="color: #667eea; font-size: 11px;">Showing Top <strong id="displayCount">10</strong> customers</small>
-    </div>
-</div>
-
-<div style="margin-top: 15px; padding: 10px; background: #f0f8ff; border-left: 4px solid #1b9e77; border-radius: 3px;">
-    <small style="color: #555;">
-        <strong>💡 Chart Info:</strong> 
-        <span style="margin-left: 10px;">Hover over bars for details</span>
-    </small>
 </div>
 
 {% endblock %}
@@ -105,13 +127,13 @@ google.charts.setOnLoadCallback(function() {
 
 function loadCustomerData() {
     console.log('Loading customer data');
-    
+
     if (!chartLoaded) {
         console.log('Chart not loaded yet, waiting...');
         setTimeout(function() { loadCustomerData(); }, 100);
         return;
     }
-    
+
     var sortBy = document.getElementById('sortBySelect').value;
     var chartType = document.getElementById('chartTypeSelect').value;
     var topN = chartType === 'treemap' ? 999 : parseInt(document.getElementById('topNValue').value);
@@ -158,7 +180,7 @@ function drawChart(data, sortBy) {
         document.getElementById('chart_div').innerHTML = '<div style="text-align: center; padding: 50px; color: #999;">No customer data available.</div>';
         return;
     }
-    
+
     var chartType = document.getElementById('chartTypeSelect').value;
 
     var columnTitle = 'Transaction Volume';
@@ -167,7 +189,7 @@ function drawChart(data, sortBy) {
     else if (sortBy === 'type_1') columnTitle = 'Purchased Items';
     else if (sortBy === 'type_2') columnTitle = 'Returned Items';
     else if (sortBy === 'type_3') columnTitle = 'Other Transactions';
-    
+
     if (chartType === 'treemap') {
         drawTreemap(data, columnTitle, sortBy);
     } else if (chartType === 'pie') {
@@ -191,7 +213,7 @@ function drawBarChart(data, columnTitle, sortBy) {
     chartData.addColumn('string', 'Customer');
     chartData.addColumn('number', columnTitle);
     chartData.addColumn({type: 'string', role: 'style'});
-    
+
     // Add rows with alternating colors
     var colors = ['#667eea', '#5cb85c', '#f0ad4e', '#d9534f', '#5bc0de'];
     data.forEach(function(customer, index) {
@@ -199,22 +221,22 @@ function drawBarChart(data, columnTitle, sortBy) {
         var color = colors[index % colors.length];
         chartData.addRow([customer.name, value, color]);
     });
-    
+
     var formatter = new google.visualization.NumberFormat({
         prefix: '₹ ',
         groupingSymbol: ',',
         fractionDigits: 0
     });
     formatter.format(chartData, 1);
-    
+
     var options = {
         height: 500,
-        vAxis: { 
+        vAxis: {
             title: columnTitle,
             format: '₹ #,###',
             textStyle: { fontSize: 11 }
         },
-        hAxis: { 
+        hAxis: {
             title: 'Customer Name',
             textStyle: { fontSize: 11 },
             slantedText: true,
@@ -228,7 +250,7 @@ function drawBarChart(data, columnTitle, sortBy) {
         },
         bar: { groupWidth: '75%' }
     };
-    
+
     var chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
     chart.draw(chartData, options);
 }
@@ -239,14 +261,14 @@ function drawTreemap(data, columnTitle, sortBy) {
     chartData.addColumn('string', 'Parent');
     chartData.addColumn('number', columnTitle);
     chartData.addColumn('number', 'Color Value');
-    
+
     // Add root
     chartData.addRow(['All Customers', null, 0, 0]);
-    
+
     // Store customer data for tooltip with unique keys
     var customerMap = {};
     var customerIndex = 0;
-    
+
     // Add customer data
     data.forEach(function(customer) {
         var value = getCustomerValue(customer, sortBy);
@@ -258,7 +280,7 @@ function drawTreemap(data, columnTitle, sortBy) {
             customerIndex++;
         }
     });
-    
+
     // Different color schemes based on filter
     var colorScheme = {
         volume: { min: '#e8eaf6', mid: '#7986cb', max: '#3f51b5' },      // Blue-Purple
@@ -268,9 +290,9 @@ function drawTreemap(data, columnTitle, sortBy) {
         type_2: { min: '#fff8e1', mid: '#ffc107', max: '#f57f17' },      // Amber (Returned)
         type_3: { min: '#e1f5fe', mid: '#29b6f6', max: '#01579b' }       // Light Blue (Other)
     };
-    
+
     var colors = colorScheme[sortBy] || colorScheme.volume;
-    
+
     var options = {
         height: 550,
         minColor: colors.min,
@@ -288,9 +310,9 @@ function drawTreemap(data, columnTitle, sortBy) {
             var uniqueId = chartData.getValue(row, 0);
             var customer = customerMap[uniqueId];
             if (!customer) return null;
-            
+
             var name = customer.name;
-            
+
             var html = '<div style="padding: 12px; background: #fff; border: 2px solid #667eea; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 200px;">';
             html += '<div style="font-weight: bold; font-size: 14px; color: #333; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px;">' + name + '</div>';
             html += '<table style="width: 100%; font-size: 12px; color: #555;">';
@@ -304,7 +326,7 @@ function drawTreemap(data, columnTitle, sortBy) {
             return html;
         }
     };
-    
+
     var chart = new google.visualization.TreeMap(document.getElementById('chart_div'));
     chart.draw(chartData, options);
 }
@@ -313,14 +335,14 @@ function drawPieChart(data, columnTitle, sortBy) {
     var chartData = new google.visualization.DataTable();
     chartData.addColumn('string', 'Customer');
     chartData.addColumn('number', columnTitle);
-    
+
     data.forEach(function(customer) {
         var value = getCustomerValue(customer, sortBy);
         if (value > 0) {
             chartData.addRow([customer.name, value]);
         }
     });
-    
+
     var options = {
         height: 550,
         chartArea: { width: '90%', height: '85%' },
@@ -330,7 +352,7 @@ function drawPieChart(data, columnTitle, sortBy) {
         tooltip: { text: 'both' },
         sliceVisibilityThreshold: 0.01
     };
-    
+
     var chart = new google.visualization.PieChart(document.getElementById('chart_div'));
     chart.draw(chartData, options);
 }
@@ -338,12 +360,12 @@ function drawPieChart(data, columnTitle, sortBy) {
 function updateStats(data) {
     var totalVolume = 0;
     var totalBalance = 0;
-    
+
     data.forEach(function(customer) {
         totalVolume += customer.volume;
         totalBalance += customer.balance;
     });
-    
+
     document.getElementById('totalCustomers').textContent = data.length;
     document.getElementById('totalVolume').textContent = '₹' + totalVolume.toLocaleString('en-IN', {maximumFractionDigits: 0});
     document.getElementById('totalBalance').textContent = '₹' + totalBalance.toLocaleString('en-IN', {maximumFractionDigits: 0});

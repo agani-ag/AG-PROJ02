@@ -1,205 +1,113 @@
 {% extends "base.html" %}
 {% load static %}
-{% load humanize %}
 {% load money %}
 
-{% block title %}Overdue Report - GSTSync{% endblock %}
+{% block title %}Overdue Report · GSTSync{% endblock %}
 
 {% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 <style>
-/* ===== Overdue Report Styles ===== */
-.overdue-report .card {
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-    overflow: hidden;
-}
-.overdue-report .section-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #343a40;
-    margin-bottom: 0;
-}
-.overdue-report .kpi-card {
-    text-align: center;
-    padding: 1rem;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    transition: transform 0.2s ease;
-}
-.overdue-report .kpi-card:hover {
-    transform: translateY(-2px);
-}
-.overdue-report .kpi-value {
-    font-size: 1.6rem;
-    font-weight: 800;
-}
-.overdue-report .kpi-label {
-    font-size: .75rem;
-    text-transform: uppercase;
-    color: #6c757d;
-    letter-spacing: .04em;
-}
-.overdue-report .table th {
-    background: #343a40;
-    color: #fff;
-    font-size: .78rem;
-    text-transform: uppercase;
-    letter-spacing: .03em;
-    border: none;
-}
-.overdue-report .table td {
-    vertical-align: middle;
-    font-size: .85rem;
-}
-.overdue-report .days-selector {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-}
-.overdue-report .days-selector select {
-    font-weight: 700;
-    font-size: .95rem;
-    padding: 4px 12px;
-    border-radius: 6px;
-    border: 2px solid #dc3545;
-    color: #dc3545;
-    cursor: pointer;
-}
-.overdue-report .total-row td {
-    font-weight: 700;
-    background: #f8f9fa !important;
-    border-top: 2px solid #343a40;
-}
+/* ===== Overdue Report ===== */
+.od-control{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);padding:13px 16px;margin-bottom:18px}
+.od-control label{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:var(--ink);margin:0}
+.od-control label i{color:var(--red)}
+.od-control select{font-family:var(--disp);font-weight:700;font-size:13px;padding:7px 12px;border-radius:10px;border:1px solid var(--redbg);color:var(--red);background:#fff;cursor:pointer}
+.od-control .hint{font-size:12.5px;color:var(--soft)}
+.od-control .hint strong{color:var(--red)}
+.gs table.gt tr.total-row td{font-family:var(--disp);font-weight:700;background:var(--wash);border-top:2px solid var(--line);color:var(--ink)}
+.gs table.gt td.rk{font-family:var(--disp);font-weight:700;color:var(--faint);text-align:center;width:44px}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 py-3 overdue-report">
-
-    <!-- Header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+<div class="gs">
+    <div class="page-head">
         <div>
-            <h4 class="font-weight-bold mb-0"><i class="fas fa-exclamation-triangle text-danger"></i> Overdue Report</h4>
-            <small class="text-muted">Report Date: {{ report_date|date:"d M Y" }}</small>
+            <div class="eyebrow">Reports › Overdue</div>
+            <h1 class="disp">Overdue Report</h1>
+            <div class="sub">Customers with outstanding older than {{ selected_days }} days — as of {{ report_date|date:"d M Y" }}</div>
         </div>
-        <div>
-            <a href="{% url 'bi_dashboard' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left mr-1"></i>Back to BI</a>
+        <div class="actions">
+            <a href="{% url 'bi_dashboard' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Back to BI</a>
+            <button type="button" class="gbtn" onclick="printTable('overdueTable','Overdue Report ({{ selected_days }}+ Days)')"><i class="fas fa-print"></i> Print</button>
         </div>
     </div>
 
-    <!-- Days Selector -->
-    <div class="card mb-3">
-        <div class="card-body py-2 d-flex flex-wrap align-items-center justify-content-between">
-            <div class="days-selector">
-                <label class="mb-0 font-weight-bold" for="daysSelect"><i class="fas fa-calendar-alt text-danger mr-1"></i> Overdue Threshold:</label>
-                <select id="daysSelect" onchange="window.location.href='?days='+this.value">
-                    {% for d in day_options %}
-                    <option value="{{ d }}" {% if d == selected_days %}selected{% endif %}>{{ d }} Days</option>
+    <!-- Overdue threshold selector -->
+    <div class="od-control">
+        <label for="daysSelect"><i class="fas fa-calendar-alt"></i> Overdue Threshold:</label>
+        <select id="daysSelect" onchange="window.location.href='?days='+this.value">
+            {% for d in day_options %}
+            <option value="{{ d }}" {% if d == selected_days %}selected{% endif %}>{{ d }} Days</option>
+            {% endfor %}
+        </select>
+        <span class="hint">Showing outstanding older than <strong>{{ selected_days }} days</strong></span>
+    </div>
+
+    <!-- KPIs -->
+    <div class="statgrid">
+        <div class="stat"><span class="si r"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ total_overdue|inrs }}</div><div class="sk">Total Overdue</div><div class="ss">{{ selected_days }}+ days</div></div></div>
+        <div class="stat"><span class="si b"><i class="fas fa-users"></i></span>
+            <div><div class="sv">{{ total_customers }}</div><div class="sk">Customers with Overdue</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-scale-balanced"></i></span>
+            <div><div class="sv">{% if total_customers > 0 %}&#8377; {{ total_overdue|inrs }}{% else %}&#8377; 0{% endif %}</div><div class="sk">Avg Overdue / Customer</div></div></div>
+        <div class="stat"><span class="si {% if total_customers > 0 %}r{% else %}g{% endif %}"><i class="fas {% if total_customers > 0 %}fa-exclamation-circle{% else %}fa-check-circle{% endif %}"></i></span>
+            <div><div class="sv">{% if total_customers > 0 %}Action Required{% else %}All Clear{% endif %}</div><div class="sk">Status</div></div></div>
+    </div>
+
+    <!-- Table -->
+    <div class="rsec"><i class="fas fa-table"></i> Customers Overdue Beyond {{ selected_days }} Days</div>
+    <div class="tablecard">
+        <div class="tbl-scroll">
+            <table class="gt" id="overdueTable">
+                <thead>
+                    <tr>
+                        <th class="rk">#</th>
+                        <th>Customer Name</th>
+                        <th class="r">Overdue Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customer_rows %}
+                    <tr>
+                        <td class="rk">{{ forloop.counter }}</td>
+                        <td>
+                            <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                                <div>
+                                    <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a>
+                                    <div class="mn">{{ customer.phone }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="r"><span class="num" style="color:var(--red)">&#8377; {{ customer.overdue_amount|inrs }}</span></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3">
+                            <div class="empty">
+                                <div class="ei"><i class="fas fa-check-circle fa-lg"></i></div>
+                                <h3>All clear</h3>
+                                <p>No customers have overdue amounts beyond {{ selected_days }} days.</p>
+                            </div>
+                        </td>
+                    </tr>
                     {% endfor %}
-                </select>
-                <span class="text-muted" style="font-size:.82rem;">Showing outstanding older than <strong class="text-danger">{{ selected_days }} days</strong></span>
-            </div>
-        </div>
-    </div>
 
-    <!-- KPI Cards -->
-    <div class="row mb-3">
-        <div class="col-6 col-md-3 mb-2">
-            <div class="kpi-card">
-                <div class="kpi-value text-danger">₹ {{ total_overdue|inrs }}</div>
-                <div class="kpi-label">Total Overdue ({{ selected_days }}+ days)</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 mb-2">
-            <div class="kpi-card">
-                <div class="kpi-value text-primary">{{ total_customers }}</div>
-                <div class="kpi-label">Customers with Overdue</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 mb-2">
-            <div class="kpi-card">
-                <div class="kpi-value text-warning">
-                    {% if total_customers > 0 %}
-                        ₹ {{ total_overdue|inrs }}
-                    {% else %}
-                        ₹ 0
+                    {% if customer_rows %}
+                    <tr class="total-row">
+                        <td></td>
+                        <td>TOTAL ({{ total_customers }} customers)</td>
+                        <td class="r"><span class="num" style="color:var(--red)">&#8377; {{ total_overdue|inrs }}</span></td>
+                    </tr>
                     {% endif %}
-                </div>
-                <div class="kpi-label">
-                    Avg Overdue / Customer
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3 mb-2">
-            <div class="kpi-card">
-                <div class="kpi-value {% if total_customers > 0 %}text-danger{% else %}text-success{% endif %}">
-                    {% if total_customers > 0 %}
-                        <i class="fas fa-exclamation-circle"></i>
-                    {% else %}
-                        <i class="fas fa-check-circle"></i>
-                    {% endif %}
-                </div>
-                <div class="kpi-label">
-                    {% if total_customers > 0 %}Action Required{% else %}All Clear{% endif %}
-                </div>
-            </div>
+                </tbody>
+            </table>
         </div>
     </div>
-
-    <!-- Table Section -->
-    <div class="card">
-        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center py-2">
-            <div>
-                <h5 class="section-title mb-0"><i class="fas fa-table"></i> Customers Overdue Beyond {{ selected_days }} Days</h5>
-            </div>
-            <button class="btn btn-sm btn-outline-dark mt-1" onclick="printTable('overdueTable','Overdue Report ({{ selected_days }}+ Days)')"><i class="fas fa-print mr-1"></i>Print</button>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover table-bordered mb-0" id="overdueTable">
-                    <thead>
-                        <tr>
-                            <th style="width:50px;" class="text-center">#</th>
-                            <th>Customer Name</th>
-                            <th style="width:160px;" class="text-right">Overdue Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for customer in customer_rows %}
-                        <tr>
-                            <td class="text-center font-weight-bold">{{ forloop.counter }}</td>
-                            <td>
-                                <a href="{% url 'book_logs' customer.book_id %}" style="text-decoration:none;color:#333;">
-                                    <strong>{{ customer.name }}</strong>
-                                </a>
-                                <br><small class="text-muted">{{ customer.phone }}</small>
-                            </td>
-                            <td class="text-right text-danger font-weight-bold" style="font-size:.95rem;">₹ {{ customer.overdue_amount|inrs }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="3" class="text-center text-muted py-4">
-                                <i class="fas fa-check-circle text-success fa-2x mb-2 d-block"></i>
-                                No customers have overdue amounts beyond {{ selected_days }} days
-                            </td>
-                        </tr>
-                        {% endfor %}
-
-                        {% if customer_rows %}
-                        <tr class="total-row">
-                            <td></td>
-                            <td class="font-weight-bold">TOTAL ({{ total_customers }} customers)</td>
-                            <td class="text-right text-danger font-weight-bold" style="font-size:1rem;">₹ {{ total_overdue|inrs }}</td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
 </div>
 {% endblock %}
 

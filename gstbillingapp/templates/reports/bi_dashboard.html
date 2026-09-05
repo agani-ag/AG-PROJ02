@@ -1,440 +1,158 @@
 {% extends "base.html" %}
 {% load static %}
-{% load humanize %}
 {% load money %}
 
-{% block title %}Business Intelligence Dashboard - GSTSync{% endblock %}
+{% block title %}Business Cockpit · GSTSync{% endblock %}
 
 {% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 <style>
-    /* ===== Dashboard Responsive Styles ===== */
-    .bi-dashboard .card {
-        border: none;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        overflow: hidden;
-    }
-    .bi-dashboard .card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-    }
-    .bi-dashboard .card-body {
-        padding: 1.1rem;
-    }
-    .bi-dashboard .card-body h3 {
-        word-break: break-word;
-        overflow-wrap: break-word;
-    }
-    .bi-dashboard .kpi-col {
-        margin-bottom: 1rem;
-    }
-    .bi-dashboard .section-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-    }
-    .bi-dashboard .section-title i {
-        margin-right: 6px;
-    }
-    .bi-dashboard .table-responsive {
-        border-radius: 8px;
-        -webkit-overflow-scrolling: touch;
-    }
-    .bi-dashboard .table {
-        margin-bottom: 0;
-    }
-    .bi-dashboard .table th,
-    .bi-dashboard .table td {
-        white-space: nowrap;
-        vertical-align: middle;
-    }
-
-    /* ===== Mobile: < 576px ===== */
-    @media (max-width: 575.98px) {
-        .bi-dashboard .page-header h2 {
-            font-size: 1.15rem;
-        }
-        .bi-dashboard .page-header p {
-            font-size: 0.8rem;
-        }
-        .bi-dashboard .section-title {
-            font-size: 1rem;
-        }
-        .bi-dashboard .card-body {
-            padding: 0.75rem;
-        }
-        .bi-dashboard .card-body h6 {
-            font-size: 0.72rem;
-        }
-        .bi-dashboard .card-body h3 {
-            font-size: 1.05rem;
-        }
-        .bi-dashboard .card-body small {
-            font-size: 0.65rem;
-        }
-        .bi-dashboard .badge {
-            font-size: 0.55rem;
-            padding: 2px 4px;
-        }
-        .bi-dashboard .table {
-            font-size: 0.78rem;
-        }
-        .bi-dashboard .sub-title {
-            font-size: 0.95rem;
-        }
-    }
-
-    /* ===== Tablet: 576px - 767px ===== */
-    @media (min-width: 576px) and (max-width: 767.98px) {
-        .bi-dashboard .page-header h2 {
-            font-size: 1.35rem;
-        }
-        .bi-dashboard .card-body h3 {
-            font-size: 1.2rem;
-        }
-        .bi-dashboard .card-body h6 {
-            font-size: 0.78rem;
-        }
-        .bi-dashboard .table {
-            font-size: 0.85rem;
-        }
-    }
+.gs .bi-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.gs .bi-two{grid-template-columns:1fr}}
+.gs .bi-card .bi-head{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--wash);font-family:var(--disp);font-weight:700;font-size:13.5px;color:var(--ink);display:flex;align-items:center;gap:8px}
+.gs .bi-card .bi-head i{color:var(--brand)}
+.gs .bi-ins{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;margin-bottom:6px}
+.gs .bi-ins a.irow{display:flex;align-items:center;gap:13px;padding:16px 17px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);color:var(--ink);text-decoration:none;transition:.15s}
+.gs .bi-ins a.irow:hover{border-color:#cfd8e6;background:var(--wash);transform:translateY(-2px)}
+.gs .bi-ins .ic{flex:none;width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.gs .bi-ins .ic.r{background:var(--redbg);color:var(--red)} .gs .bi-ins .ic.a{background:var(--amberbg);color:var(--amber)}
+.gs .bi-ins .ic.g{background:var(--greenbg);color:var(--green)} .gs .bi-ins .ic.b{background:var(--bluebg);color:var(--brand)}
+.gs .bi-ins .tx{flex:1;font-weight:500;font-size:14px}
+.gs .bi-ins .go{color:var(--faint)}
+.gs .bi-allok{display:flex;align-items:center;gap:10px;padding:15px 16px;border:1px dashed var(--line);border-radius:12px;color:var(--green);background:var(--greenbg);font-weight:600}
+.gs .miniempty{padding:18px;text-align:center;color:var(--faint);font-size:13px}
+.gs table.gt.mini td,.gs table.gt.mini th{padding:10px 14px}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="bi-dashboard">
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Business Cockpit</div>
+            <h1 class="disp">Business Cockpit</h1>
+            <div class="sub">Your customers &amp; products at a glance — {{ period_label }}</div>
+        </div>
+        <div class="actions">
+            <div class="gbtn-group">
+                <a href="?period=month" class="gbtn {% if period == 'month' %}gbtn-primary{% endif %}">This month</a>
+                <a href="?period=year" class="gbtn {% if period == 'year' %}gbtn-primary{% endif %}">This year</a>
+                <a href="?period=all" class="gbtn {% if period == 'all' %}gbtn-primary{% endif %}">All time</a>
+            </div>
+        </div>
+    </div>
 
-<!-- Page Header -->
-<div class="row mb-3">
-    <div class="col page-header">
-        <h2><i class="fas fa-chart-line"></i> Business Intelligence Dashboard</h2>
-        <p class="text-muted mb-0">Comprehensive overview of business performance and analytics</p>
+    <!-- PULSE -->
+    <div class="statgrid">
+        <div class="stat"><span class="si g"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ total_revenue|inrs }}</div><div class="sk">Sales</div><div class="ss">{{ period_label }}</div></div></div>
+        <div class="stat"><span class="si b"><i class="fas fa-hand-holding-dollar"></i></span>
+            <div><div class="sv">&#8377; {{ collected|inrs }}</div><div class="sk">Money collected</div><div class="ss">{{ period_label }}</div></div></div>
+        <div class="stat"><span class="si r"><i class="fas fa-file-invoice-dollar"></i></span>
+            <div><div class="sv">&#8377; {{ total_outstanding|inrs }}</div><div class="sk">Money owed to you</div><div class="ss">Right now</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-receipt"></i></span>
+            <div><div class="sv">{{ orders }}</div><div class="sk">Orders</div><div class="ss">Avg &#8377; {{ avg_order_value|inrs }}</div></div></div>
     </div>
-</div>
 
-<hr>
+    <!-- NEEDS ATTENTION -->
+    <div class="rsec"><i class="fas fa-bell"></i> Needs your attention</div>
+    {% if insights %}
+    <div class="bi-ins">
+        {% for i in insights %}
+        <a class="irow" href="{% url i.url %}">
+            <span class="ic {{ i.tone }}"><i class="fas {{ i.icon }}"></i></span>
+            <span class="tx">{{ i.text }}</span>
+            <span class="go"><i class="fas fa-chevron-right"></i></span>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bi-allok"><i class="fas fa-circle-check"></i> All clear — nothing needs your attention right now.</div>
+    {% endif %}
 
-<!-- ==================== 1. FINANCIAL KPIs SECTION ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-coins"></i> Financial KPIs</h4>
+    <!-- CUSTOMERS -->
+    <div class="rsec"><i class="fas fa-users"></i> Customers</div>
+    <div class="statgrid">
+        <div class="stat"><span class="si b"><i class="fas fa-users"></i></span>
+            <div><div class="sv">{{ total_customers }}</div><div class="sk">Total customers</div></div></div>
+        <div class="stat"><span class="si g"><i class="fas fa-bolt"></i></span>
+            <div><div class="sv">{{ active_customers }}</div><div class="sk">Bought this period</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-user-plus"></i></span>
+            <div><div class="sv">{{ new_customers }}</div><div class="sk">New customers</div></div></div>
+        <div class="stat"><span class="si s"><i class="fas fa-receipt"></i></span>
+            <div><div class="sv">&#8377; {{ avg_order_value|inrs }}</div><div class="sk">Avg order value</div></div></div>
     </div>
-</div>
-<div class="row mb-4">
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-rupee-sign"></i> Total Revenue</h6>
-                <h3>₹ {{ total_revenue|default:0|inrs }}</h3>
-                <small>All-time revenue generated</small>
-            </div>
+    <div class="bi-two">
+        <div class="tablecard bi-card">
+            <div class="bi-head"><i class="fas fa-trophy"></i> Top customers by sales</div>
+            <table class="gt mini"><thead><tr><th>Customer</th><th class="r">Orders</th><th class="r">Sales</th></tr></thead>
+            <tbody>
+                {% for c in top_customers %}
+                <tr>
+                    <td><div class="prim"><span class="pi">{{ c.name|initials }}</span><span class="nm">{{ c.name }}</span></div></td>
+                    <td class="r">{{ c.orders }}</td>
+                    <td class="r"><span class="num">&#8377; {{ c.revenue|inrs }}</span></td>
+                </tr>
+                {% empty %}<tr><td colspan="3"><div class="miniempty">No sales in this period.</div></td></tr>{% endfor %}
+            </tbody></table>
+        </div>
+        <div class="tablecard bi-card">
+            <div class="bi-head"><i class="fas fa-hand-holding-dollar"></i> Who owes you most</div>
+            <table class="gt mini"><thead><tr><th>Customer</th><th class="r">Outstanding</th></tr></thead>
+            <tbody>
+                {% for c in top_owe %}
+                <tr>
+                    <td><div class="prim"><span class="pi">{{ c.name|initials }}</span><a class="nm" href="{% url 'book_logs' c.book_id %}" style="color:var(--ink)">{{ c.name }}</a></div></td>
+                    <td class="r"><span class="num" style="color:var(--red)">&#8377; {{ c.amount|inrs }}</span></td>
+                </tr>
+                {% empty %}<tr><td colspan="2"><div class="miniempty">Nobody owes you — nice!</div></td></tr>{% endfor %}
+            </tbody></table>
         </div>
     </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-danger text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-exclamation-circle"></i> Total Outstanding</h6>
-                <h3>₹ {{ total_outstanding|default:0|inrs }}</h3>
-                <small>Pending receivables</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-hand-holding-usd"></i> Cash Received
-                    <span class="badge badge-light">This Month</span>
-                </h6>
-                <h3>₹ {{ cash_received_month|default:0|inrs }}</h3>
-                <small>Monthly cash inflow</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-orange text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-clock"></i> Pending Amount</h6>
-                <h3>₹ {{ pending_amount|default:0|inrs }}</h3>
-                <small>Awaiting payment</small>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- ==================== 2. CUSTOMER KPIs SECTION ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-users"></i> Customer KPIs</h4>
+    <!-- PRODUCTS -->
+    <div class="rsec" style="margin-top:22px"><i class="fas fa-box"></i> Products</div>
+    <div class="statgrid">
+        <div class="stat"><span class="si b"><i class="fas fa-box"></i></span>
+            <div><div class="sv">{{ products_sold_count }}</div><div class="sk">Products sold</div><div class="ss">{{ period_label }}</div></div></div>
+        <div class="stat"><span class="si g"><i class="fas fa-cubes"></i></span>
+            <div><div class="sv">{{ units_sold }}</div><div class="sk">Units sold</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-triangle-exclamation"></i></span>
+            <div><div class="sv">{{ low_stock_count }}</div><div class="sk">Low / out of stock</div></div></div>
+        <div class="stat"><span class="si r"><i class="fas fa-arrow-trend-down"></i></span>
+            <div><div class="sv">{{ below_cost_count }}</div><div class="sk">Sold below cost</div></div></div>
     </div>
-</div>
-<div class="row mb-3">
-    <div class="col-6 col-sm-6 col-md-4 kpi-col">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-user-check"></i> Total Active Customers</h6>
-                <h3>{{ total_active_customers|default:0|intcomma }}</h3>
-                <small>Currently active accounts</small>
-            </div>
+    <div class="bi-two">
+        <div class="tablecard bi-card">
+            <div class="bi-head"><i class="fas fa-trophy"></i> Top products by sales</div>
+            <table class="gt mini"><thead><tr><th>Product</th><th class="r">Qty</th><th class="r">Sales</th></tr></thead>
+            <tbody>
+                {% for p in top_products_rev %}
+                <tr>
+                    <td><div class="prim"><span class="pi">{{ p.name|initials }}</span><span class="nm">{{ p.name }}</span></div></td>
+                    <td class="r">{{ p.qty }}</td>
+                    <td class="r"><span class="num">&#8377; {{ p.revenue|inrs }}</span></td>
+                </tr>
+                {% empty %}<tr><td colspan="3"><div class="miniempty">No products sold in this period.</div></td></tr>{% endfor %}
+            </tbody></table>
+        </div>
+        <div class="tablecard bi-card">
+            <div class="bi-head"><i class="fas fa-boxes-stacked"></i> Low on stock</div>
+            <table class="gt mini"><thead><tr><th>Product</th><th class="r">Stock</th><th class="r">Alert at</th></tr></thead>
+            <tbody>
+                {% for p in low_stock_list %}
+                <tr>
+                    <td><div class="prim"><span class="pi">{{ p.name|initials }}</span><a class="nm" href="{% url 'inventory_logs' p.id %}" style="color:var(--ink)">{{ p.name }}</a></div></td>
+                    <td class="r"><span class="num" style="{% if p.stock <= 0 %}color:var(--red){% else %}color:var(--amber){% endif %}">{{ p.stock }}</span></td>
+                    <td class="r mut">{{ p.alert }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="3"><div class="miniempty">Stock levels look healthy.</div></td></tr>{% endfor %}
+            </tbody></table>
         </div>
     </div>
-    <div class="col-6 col-sm-6 col-md-4 kpi-col">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-user-plus"></i> New Customers
-                    <span class="badge badge-light">This Month</span>
-                </h6>
-                <h3>{{ new_customers|default:0|intcomma }}</h3>
-                <small>Recently onboarded</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-4 kpi-col">
-        <div class="card bg-danger text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-user-shield"></i> High Risk Customers</h6>
-                <h3>{{ high_risk_customers_count|default:0|intcomma }}</h3>
-                <small>Require attention</small>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Top 10 Customers Table -->
-<div class="row mb-2">
-    <div class="col">
-        <h5 class="sub-title"><i class="fas fa-trophy"></i> Top 10 Customers</h5>
-    </div>
 </div>
-<div class="row mb-4">
-    <div class="col">
-        <div class="table-responsive">
-            <table class="table table-hover font-weight-bold">
-                <thead class="thead-dark">
-                    <tr>
-                        <th>#</th>
-                        <th>Customer Name</th>
-                        <th class="text-right">Total Revenue</th>
-                        <th class="text-right">Outstanding</th>
-                        <th class="text-right">Risk Score</th>
-                        <th class="text-right">LTV</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for customer in top_customers %}
-                    <tr>
-                        <td>{{ forloop.counter }}</td>
-                        <td>{{ customer.name }}</td>
-                        <td class="text-right">₹ {{ customer.total_revenue|default:0|inrs }}</td>
-                        <td class="text-right">₹ {{ customer.outstanding|default:0|inrs }}</td>
-                        <td class="text-right">{{ customer.risk_score|default:"-" }}</td>
-                        <td class="text-right">₹ {{ customer.ltv|default:0|inrs }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="text-center text-muted">No customer data available</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 3. CREDIT RISK SECTION ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-shield-alt"></i> Credit Risk Analysis</h4>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col">
-        <div class="table-responsive">
-            <table class="table table-hover font-weight-bold">
-                <thead class="thead-dark">
-                    <tr>
-                        <th>#</th>
-                        <th>Customer Name</th>
-                        <th class="text-right">Late Payment %</th>
-                        <th class="text-right">Avg Invoice Value</th>
-                        <th class="text-right">Return Frequency</th>
-                        <th>Risk Level</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for customer in high_risk_customers %}
-                    <tr>
-                        <td>{{ forloop.counter }}</td>
-                        <td>{{ customer.name }}</td>
-                        <td class="text-right">{{ customer.late_payment_pct|default:0|floatformat:1 }}%</td>
-                        <td class="text-right">₹ {{ customer.avg_invoice_value|default:0|inrs }}</td>
-                        <td class="text-right">{{ customer.return_frequency|default:0 }}</td>
-                        <td>
-                            {% if customer.risk_level == "High" %}
-                                <span class="badge badge-danger">High</span>
-                            {% elif customer.risk_level == "Medium" %}
-                                <span class="badge badge-warning">Medium</span>
-                            {% elif customer.risk_level == "Low" %}
-                                <span class="badge badge-success">Low</span>
-                            {% else %}
-                                <span class="badge badge-secondary">{{ customer.risk_level|default:"N/A" }}</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="text-center text-muted">No high risk customers found</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 4. LIFETIME VALUE (LTV) SECTION ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-gem"></i> Lifetime Value (LTV)</h4>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col-6 col-sm-6 col-md-4 kpi-col">
-        <div class="card bg-violet text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-calculator"></i> Average LTV</h6>
-                <h3>₹ {{ avg_ltv|default:0|inrs }}</h3>
-                <small>Across all customers</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-4 kpi-col">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-arrow-up"></i> Highest LTV Customer</h6>
-                <h3>{{ highest_ltv_customer|default:"N/A" }}</h3>
-                <small>Most valuable customer</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-4 kpi-col">
-        <div class="card bg-danger text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-arrow-down"></i> Lowest LTV Customer</h6>
-                <h3>{{ lowest_ltv_customer|default:"N/A" }}</h3>
-                <small>Least engaged customer</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 5. SALES FORECASTING SECTION ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-chart-bar"></i> Sales Forecasting</h4>
-    </div>
-</div>
-<div class="row mb-3">
-    <div class="col-6 col-sm-6 col-md-6 kpi-col">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-bullseye"></i> Next Month Revenue Forecast</h6>
-                <h3>₹ {{ forecast_revenue|default:0|inrs }}</h3>
-                <small>Projected revenue for next month</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-6 kpi-col">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-money-bill-wave"></i> Expected Cash Flow</h6>
-                <h3>₹ {{ forecast_cashflow|default:0|inrs }}</h3>
-                <small>Anticipated cash inflow next month</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Monthly Revenue Trend Table -->
-<div class="row mb-2">
-    <div class="col">
-        <h5 class="sub-title"><i class="fas fa-calendar-alt"></i> Monthly Revenue Trend</h5>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col">
-        <div class="table-responsive">
-            <table class="table table-hover font-weight-bold">
-                <thead class="thead-dark">
-                    <tr>
-                        <th>#</th>
-                        <th>Month</th>
-                        <th class="text-right">Revenue</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for month in monthly_trend %}
-                    <tr>
-                        <td>{{ forloop.counter }}</td>
-                        <td>{{ month.name }}</td>
-                        <td class="text-right">₹ {{ month.revenue|default:0|inrs }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="3" class="text-center text-muted">No monthly data available</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 6. TRANSACTION KPIs SECTION ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-file-invoice"></i> Transaction KPIs</h4>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-file-alt"></i> Total Invoices</h6>
-                <h3>{{ total_invoices|default:0|intcomma }}</h3>
-                <small>Invoices generated</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-violet text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-receipt"></i> Avg Invoice Value</h6>
-                <h3>₹ {{ avg_invoice_value|default:0|inrs }}</h3>
-                <small>Per invoice average</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-orange text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-undo"></i> Return %</h6>
-                <h3>{{ return_percentage|default:0|floatformat:1 }}%</h3>
-                <small>Product return rate</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-percent"></i> GST % Invoices</h6>
-                <h3>{{ gst_percentage|default:0|floatformat:1 }}%</h3>
-                <small>Invoices with GST</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-</div><!-- /.bi-dashboard -->
 {% endblock %}

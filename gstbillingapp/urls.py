@@ -29,6 +29,7 @@ urlpatterns = [
     # Profile URLs
     path('profile', profile.user_profile, name='user_profile'),
     path('profile/edit', profile.user_profile_edit, name='user_profile_edit'),
+    path('profile/change-password', profile.change_password, name='change_password'),
 
     # Employee (mobile field-staff) management
     path('employees', employee.employees, name='employees'),

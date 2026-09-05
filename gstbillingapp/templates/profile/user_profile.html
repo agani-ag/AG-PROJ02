@@ -51,6 +51,7 @@
             </div>
             <div class="actions">
                 <a href="{% url 'user_profile_edit' %}" class="gbtn"><i class="fas fa-pen-to-square"></i> Edit</a>
+                <button type="button" class="gbtn" onclick="changePassword()"><i class="fas fa-key"></i> Change password</button>
                 <a href="{% url 'download_sqlite' %}" class="gbtn"><i class="fas fa-download"></i> Backup</a>
                 <a href="{% url 'logout_view' %}" class="gbtn gbtn-danger"><i class="fas fa-right-from-bracket"></i> Logout</a>
             </div>
@@ -130,6 +131,47 @@
 {% endblock %}
 
 {% block includejs %}
+<script>
+// Change password — new password only (the user is already signed in). Session is
+// kept alive server-side, so no re-login is needed.
+function changePassword(){
+  Swal.fire({
+    title: 'Change password',
+    html: '<input id="np" type="password" class="swal2-input" placeholder="New password" autocomplete="new-password">'
+        + '<input id="cp" type="password" class="swal2-input" placeholder="Confirm new password" autocomplete="new-password">'
+        + '<label style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:10px;font-size:13.5px;color:#475569;cursor:pointer">'
+        + '<input type="checkbox" id="showpw" style="width:16px;height:16px;cursor:pointer"> Show password</label>',
+    focusConfirm: false, showCancelButton: true, confirmButtonText: 'Update password', confirmButtonColor: '#2563eb',
+    didOpen: function(){
+      var box = document.getElementById('showpw');
+      box.addEventListener('change', function(){
+        var t = box.checked ? 'text' : 'password';
+        document.getElementById('np').type = t;
+        document.getElementById('cp').type = t;
+      });
+    },
+    preConfirm: function(){
+      var np = document.getElementById('np').value;
+      var cp = document.getElementById('cp').value;
+      if(!np || np.length < 4){ Swal.showValidationMessage('Password must be at least 4 characters'); return false; }
+      if(np !== cp){ Swal.showValidationMessage('The two passwords do not match'); return false; }
+      return {np: np, cp: cp};
+    }
+  }).then(function(r){
+    if(!r.isConfirmed) return;
+    var csrf = (document.querySelector('meta[name=csrf-token]')||{}).content || '';
+    var body = new URLSearchParams();
+    body.set('new_password', r.value.np); body.set('confirm_password', r.value.cp);
+    fetch("{% url 'change_password' %}", {method:'POST', headers:{'X-CSRFToken': csrf, 'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString()})
+      .then(function(res){ return res.json().then(function(d){ return {ok: res.ok, d: d}; }); })
+      .then(function(o){
+        if(o.ok){ Swal.fire('Done', o.d.message || 'Password updated.', 'success'); }
+        else { Swal.fire('Could not update', o.d.error || 'Please try again.', 'error'); }
+      })
+      .catch(function(){ Swal.fire('Error', 'Could not update password. Please try again.', 'error'); });
+  });
+}
+</script>
 {% if user_profile.business_latitude and user_profile.business_longitude %}
 <script>
     var latitude = {{ user_profile.business_latitude }};

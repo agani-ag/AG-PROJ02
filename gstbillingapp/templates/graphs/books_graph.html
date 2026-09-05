@@ -1,97 +1,128 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block title %}Books Graph · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* Books graph — control panel scoped tweaks */
+.bg-panel{padding:16px 18px}
+.bg-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px 26px}
+@media(max-width:640px){.bg-grid{grid-template-columns:1fr}}
+.bg-lbl{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
+.bg-check{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink);margin:0 0 6px;cursor:pointer}
+.bg-check input{width:15px;height:15px;accent-color:var(--brand);cursor:pointer}
+.bg-check .dot{width:9px;height:9px;border-radius:3px;flex:none}
+.bg-field{margin-bottom:12px}
+.bg-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin:0 0 5px}
+.bg-input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-family:var(--sans);color:var(--ink);background:#fff}
+.bg-input:focus{border-color:var(--brand);outline:none}
+.gs .selctl.bg-input{color:var(--ink);width:100%}
+.bg-toggles{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}
+</style>
+{% endblock %}
+
 {% block content %}
-<h2 style="margin-bottom: 3px;">Books Graph</h2>
-<h5 style="margin-bottom: 5px;">Daily Sales Performance Overview</h5>
-
-<div style="display: flex; gap: 15px; margin-bottom: 5px;">
-    <!-- Left Side - Transaction Types Only -->
-    <div style="flex: 1;">
-        <div style="margin-bottom: 5px;">
-            <label style="font-size: 13px;"><strong>Transaction Types:</strong></label>
-            <label style="display: block; margin-top: 3px; font-size: 13px;">
-                <input type="checkbox" class="transaction-type-check" value="1" checked> 
-                <span style="color: #d9534f;">Purchased Items</span>
-            </label>
-            <label style="display: block; margin-top: 2px; font-size: 13px;">
-                <input type="checkbox" class="transaction-type-check" value="0"> 
-                <span style="color: #5cb85c;">Paid</span>
-            </label>
-            <label style="display: block; margin-top: 2px; font-size: 13px;">
-                <input type="checkbox" class="transaction-type-check" value="2"> 
-                <span style="color: #f0ad4e;">Returned Items</span>
-            </label>
-            <label style="display: block; margin-top: 2px; font-size: 13px;">
-                <input type="checkbox" class="transaction-type-check" value="3"> 
-                <span style="color: #5bc0de;">Other</span>
-            </label>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Graphs</div>
+            <h1 class="disp">Books Graph</h1>
+            <div class="sub">Daily Sales Performance Overview</div>
         </div>
     </div>
 
-    <!-- Right Side - Stats & Filters -->
-    <div style="flex: 1;">
-        <div style="padding: 10px; background: #f8f9fa; border-radius: 5px;">
-            <!-- Stats at top -->
-            <div style="display: flex; justify-content: space-around; align-items: center; margin-bottom: 10px;">
-                <div style="text-align: center;">
-                    <strong style="color: #667eea; font-size: 12px;">Total Amount</strong><br>
-                    <span id="totalSales" style="font-size: 20px; color: #667eea;">₹0</span>
-                </div>
-                <div style="text-align: center;">
-                    <strong style="color: #56ab2f; font-size: 11px;">Types Selected</strong><br>
-                    <span id="avgSales" style="font-size: 16px; color: #56ab2f;">0</span>
-                </div>
-                <div style="text-align: center;">
-                    <strong style="color: #2193b0; font-size: 12px;">Breakdown</strong><br>
-                    <span id="peakSales" style="font-size: 13px; color: #2193b0;">-</span>
-                </div>
+    <!-- KPIs (updated live by JS) -->
+    <div class="statgrid">
+        <div class="stat"><span class="si b"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv"><span id="totalSales">₹0</span></div><div class="sk">Total amount</div></div></div>
+        <div class="stat"><span class="si g"><i class="fas fa-layer-group"></i></span>
+            <div><div class="sv"><span id="avgSales">0</span></div><div class="sk">Types selected</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-list-ul"></i></span>
+            <div><div class="sv" style="font-size:14px"><span id="peakSales">-</span></div><div class="sk">Breakdown</div></div></div>
+    </div>
+
+    <!-- Control panel -->
+    <div class="tablecard bg-panel" style="margin-bottom:18px">
+        <div class="bg-grid">
+            <!-- Transaction types -->
+            <div>
+                <p class="bg-lbl">Transaction Types</p>
+                <label class="bg-check">
+                    <input type="checkbox" class="transaction-type-check" value="1" checked>
+                    <span class="dot" style="background:#d9534f"></span> Purchased Items
+                </label>
+                <label class="bg-check">
+                    <input type="checkbox" class="transaction-type-check" value="0">
+                    <span class="dot" style="background:#5cb85c"></span> Paid
+                </label>
+                <label class="bg-check">
+                    <input type="checkbox" class="transaction-type-check" value="2">
+                    <span class="dot" style="background:#f0ad4e"></span> Returned Items
+                </label>
+                <label class="bg-check">
+                    <input type="checkbox" class="transaction-type-check" value="3">
+                    <span class="dot" style="background:#5bc0de"></span> Other
+                </label>
             </div>
-            
-            <!-- Period and Show filters at bottom -->
-            <form method="GET" id="filterForm">
-                <div style="margin-bottom: 5px;">
-                    <label style="font-size: 13px;"><strong>Period:</strong></label>
-                    <select name="filter" id="filterSelect" class="form-control form-control-sm" style="width: 100%; margin-top: 2px; font-size: 13px;">
-                        <option value="today">Today</option>
-                        <option value="this_week">This Week</option>
-                        <option value="this_month" selected>This Month</option>
-                        <option value="this_year">This Year</option>
-                        <option value="all">All Time</option>
-                        <option value="custom">Custom Range</option>
-                    </select>
-                </div>
-                
-                <div id="customDateRange" style="display: none; margin-bottom: 5px;">
-                    <label style="font-size: 12px;"><strong>From:</strong></label>
-                    <input type="date" id="startDate" name="start_date" class="form-control form-control-sm" style="width: 100%; margin-top: 2px; margin-bottom: 4px; font-size: 12px;" />
-                    <label style="font-size: 12px;"><strong>To:</strong></label>
-                    <input type="date" id="endDate" name="end_date" class="form-control form-control-sm" style="width: 100%; margin-top: 2px; font-size: 12px;" />
-                </div>
-                
-                <div>
-                    <label style="font-size: 13px;"><strong>Show:</strong></label>
-                    <label style="display: inline-block; margin-left: 10px; font-size: 13px;">
-                        <input type="checkbox" id="showDailySales" checked> Daily
-                    </label>
-                    <label style="display: inline-block; margin-left: 10px; font-size: 13px;">
-                        <input type="checkbox" id="showCumulativeSales" checked> Cumulative
-                    </label>
-                </div>
-            </form>
+
+            <!-- Period + Show -->
+            <div>
+                <form method="GET" id="filterForm">
+                    <div class="bg-field">
+                        <label for="filterSelect">Period</label>
+                        <select name="filter" id="filterSelect" class="selctl bg-input">
+                            <option value="today">Today</option>
+                            <option value="this_week">This Week</option>
+                            <option value="this_month" selected>This Month</option>
+                            <option value="this_year">This Year</option>
+                            <option value="all">All Time</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+
+                    <div id="customDateRange" style="display: none;">
+                        <div class="bg-field">
+                            <label for="startDate">From</label>
+                            <input type="date" id="startDate" name="start_date" class="bg-input" />
+                        </div>
+                        <div class="bg-field">
+                            <label for="endDate">To</label>
+                            <input type="date" id="endDate" name="end_date" class="bg-input" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="bg-lbl">Show</p>
+                        <div class="bg-toggles">
+                            <label class="bg-check">
+                                <input type="checkbox" id="showDailySales" checked> Daily
+                            </label>
+                            <label class="bg-check">
+                                <input type="checkbox" id="showCumulativeSales" checked> Cumulative
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</div>
 
-<div id="chart_div"></div>
+    <!-- Chart -->
+    <div class="tablecard" style="padding:16px">
+        <div id="chart_div"></div>
+    </div>
 
-<div style="margin-top: 15px; padding: 10px; background: #f0f8ff; border-left: 4px solid #1b9e77; border-radius: 3px;">
-    <small style="color: #555;">
-        <strong>💡 Zoom Controls:</strong> 
-        <span style="margin-left: 10px;">Drag to zoom</span>
-        <span style="margin-left: 15px;">Right-click to reset</span>
-        <span style="margin-left: 15px;">Scroll to pan</span>
-    </small>
+    <div class="mut" style="font-size:12px;margin:12px 2px 20px">
+        <i class="fas fa-magnifying-glass-plus"></i> <strong>Zoom controls:</strong>
+        <span style="margin-left:10px">Drag to zoom</span>
+        <span style="margin-left:15px">Right-click to reset</span>
+        <span style="margin-left:15px">Scroll to pan</span>
+    </div>
 </div>
 
 {% endblock %}

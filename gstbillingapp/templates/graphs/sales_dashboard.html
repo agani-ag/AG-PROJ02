@@ -1,56 +1,69 @@
 {% extends "base.html" %}
 {% load static %}
 
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
 {% block content %}
-<h2>Sales Dashboard</h2>
-<h5>Monthly Performance Overview {{ selected_year }}</h5>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Graphs</div>
+            <h1 class="disp">Sales Dashboard</h1>
+            <div class="sub">Monthly Performance Overview {{ selected_year }}</div>
+        </div>
+        <div class="actions">
+            <form method="GET" id="yearForm">
+                <select name="year" class="selctl" onchange="document.getElementById('yearForm').submit()">
+                    {% for y in years %}
+                        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+    </div>
 
-<form method="GET" id="yearForm">
-    <label>Select Year:</label>
-    <select name="year" onchange="document.getElementById('yearForm').submit()">
-        {% for y in years %}
-            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
-        {% endfor %}
-    </select>
-</form>
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <div class="tablecard" style="padding:16px;min-height:440px">
+        <div id="chart_div"></div>
+    </div>
+    <script>
+    google.charts.load('current', {'packages':['bar']});
+    google.charts.setOnLoadCallback(drawChart);
 
-<br>
+    function drawChart() {
+        var data = google.visualization.arrayToDataTable([
+            ['Month', 'Sales', 'Received', 'Returned', 'Others'],
+            {% for row in chart_data %}
+                ['{{ row.month }}', {{ row.sales }}, {{ row.received }}, {{ row.returned }}, {{ row.others }}],
+            {% endfor %}
+        ]);
 
-<script src="https://www.gstatic.com/charts/loader.js"></script>
-<div id="chart_div"></div>
-<script>
-google.charts.load('current', {'packages':['bar']});
-google.charts.setOnLoadCallback(drawChart);
+        var formatter = new google.visualization.NumberFormat({
+            prefix: '₹ ',
+            groupingSymbol: ',',
+            fractionDigits: 0
+        });
 
-function drawChart() {
-    var data = google.visualization.arrayToDataTable([
-        ['Month', 'Sales', 'Received', 'Returned', 'Others'],
-        {% for row in chart_data %}
-            ['{{ row.month }}', {{ row.sales }}, {{ row.received }}, {{ row.returned }}, {{ row.others }}],
-        {% endfor %}
-    ]);
+        formatter.format(data, 1); // Sales
+        formatter.format(data, 2); // Received
+        formatter.format(data, 3); // Expenses
+        formatter.format(data, 4); // Profit
 
-    var formatter = new google.visualization.NumberFormat({
-        prefix: '₹ ',
-        groupingSymbol: ',',
-        fractionDigits: 0
-    });
+        var options = {
+            bars: 'vertical',
+            height: 400,
+            colors: ['#d9534f', '#1b9e77', '#d95f02', '#7570b3'], // Sales, Received, Expenses, Profit
+            vAxis: { format: '₹ #,###' }
+        };
 
-    formatter.format(data, 1); // Sales
-    formatter.format(data, 2); // Received
-    formatter.format(data, 3); // Expenses
-    formatter.format(data, 4); // Profit
-
-    var options = {
-        bars: 'vertical',
-        height: 400,
-        colors: ['#d9534f', '#1b9e77', '#d95f02', '#7570b3'], // Sales, Received, Expenses, Profit
-        vAxis: { format: '₹ #,###' }
-    };
-
-    var chart = new google.charts.Bar(document.getElementById('chart_div'));
-    chart.draw(data, google.charts.Bar.convertOptions(options));
-}
-</script>
-
+        var chart = new google.charts.Bar(document.getElementById('chart_div'));
+        chart.draw(data, google.charts.Bar.convertOptions(options));
+    }
+    </script>
+</div>
 {% endblock %}

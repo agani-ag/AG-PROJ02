@@ -1,112 +1,117 @@
 {% extends "base.html" %}
 {% load static humanize %}
+{% load money %}
+
+{% block title %}Inventory Logs · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+.gs .il-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:16px}
+.gs .il-field{display:flex;flex-direction:column;gap:4px}
+.gs .il-field label{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.gs .il-field input,.gs .il-field select{padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-family:var(--sans);background:#fff;color:var(--ink);outline:none;transition:.15s}
+.gs .il-field input:focus,.gs .il-field select:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.gs .il-chg{font-family:var(--disp);font-weight:700;font-variant-numeric:tabular-nums}
+.gs .il-chg.in{color:var(--green)} .gs .il-chg.out{color:var(--red)}
+.gs .chartcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);padding:14px 16px}
+.gs .chartcard h6{font-family:var(--disp);font-size:13px;font-weight:700;color:var(--ink);margin:0 0 6px;text-align:center}
+.gs .chartgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+@media(max-width:820px){.gs .chartgrid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="gs">
     <div class="page-head">
-        <div><h1 class="disp">Inventory Logs</h1><div class="sub">All stock movements</div></div>
+        <div>
+            <div class="eyebrow">Products › Inventory</div>
+            <h1 class="disp">Inventory Logs</h1>
+            <div class="sub">{{ total_count }} stock movement{{ total_count|pluralize }} in the selected range</div>
+        </div>
         <div class="actions">
             <a href="{% url 'inventory_logs_full_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-csv"></i> Export CSV</a>
         </div>
     </div>
 
-<!-- FILTER BAR -->
-<form method="get" id="filterForm" class="row mb-4 g-3 align-items-end">
-    <!-- Year -->
-    <div class="col-md-2">
-        <label class="form-label"><i class="bi bi-calendar-event-fill"></i> Year</label>
-        <select id="year_picker" name="year" class="form-control" title="Select Year" onchange="applyFilters('year')">
-            <option value="">--All--</option>
-            {% for y in years %}
-                <option value="{{ y }}" {% if year == y|stringformat:'s' %}selected{% endif %}>{{ y }}</option>
-            {% endfor %}
-        </select>
+    <!-- KPI BAND -->
+    <div class="statgrid">
+        <div class="stat"><span class="si b"><i class="fas fa-right-left"></i></span>
+            <div><div class="sv">{{ total_count|intcomma }}</div><div class="sk">Movements</div><div class="ss">{{ products_count }} product{{ products_count|pluralize }}</div></div></div>
+        <div class="stat"><span class="si g"><i class="fas fa-arrow-down"></i></span>
+            <div><div class="sv">+{{ total_in|intcomma }}</div><div class="sk">Stock In</div><div class="ss">Purchases, returns, production</div></div></div>
+        <div class="stat"><span class="si r"><i class="fas fa-arrow-up"></i></span>
+            <div><div class="sv">&minus;{{ total_out|intcomma }}</div><div class="sk">Stock Out</div><div class="ss">Sales &amp; issues</div></div></div>
+        <div class="stat"><span class="si {% if net_change >= 0 %}g{% else %}r{% endif %}"><i class="fas fa-scale-balanced"></i></span>
+            <div><div class="sv">{% if net_change >= 0 %}+{% endif %}{{ net_change|intcomma }}</div><div class="sk">Net change</div><div class="ss">In minus out</div></div></div>
     </div>
 
-    <!-- Month -->
-    <div class="col-md-2">
-        <label class="form-label"><i class="bi bi-calendar-month-fill"></i> Month</label>
-        <input type="month" id="month_picker" name="month" value="{{ month }}" class="form-control" title="Select Month" onchange="applyFilters('month')">
+    <!-- FILTER BAR -->
+    <form method="get" id="filterForm" class="il-toolbar">
+        <div class="il-field"><label>Year</label>
+            <select id="year_picker" name="year" onchange="applyFilters('year')">
+                <option value="">All</option>
+                {% for y in years %}<option value="{{ y }}" {% if year == y|stringformat:'s' %}selected{% endif %}>{{ y }}</option>{% endfor %}
+            </select></div>
+        <div class="il-field"><label>Month</label>
+            <input type="month" id="month_picker" name="month" value="{{ month }}" onchange="applyFilters('month')"></div>
+        <div class="il-field"><label>From</label>
+            <input type="date" id="from_date" name="from_date" value="{{ from_date }}" onchange="applyFilters('date')"></div>
+        <div class="il-field"><label>To</label>
+            <input type="date" id="to_date" name="to_date" value="{{ to_date }}" onchange="applyFilters('date')"></div>
+        <div class="il-field"><label>Top products</label>
+            <input type="number" id="top_n" name="top_n" value="{{ top_n|default:'5' }}" min="1" max="20" style="width:110px" onchange="applyFilters('topn')"></div>
+        <button type="button" class="gbtn" id="this_month" onclick="setThisMonthAndApply()"><i class="fas fa-calendar-check"></i> This month</button>
+        <a class="gbtn" href="{% url 'inventory_logs_full' %}"><i class="fas fa-rotate-left"></i> Reset</a>
+    </form>
+
+    <!-- CHARTS -->
+    <div class="chartgrid">
+        <div class="chartcard"><h6>Monthly trend (In vs Out)</h6><div id="trend_chart" style="height:320px"></div></div>
+        <div class="chartcard"><h6>Top products (stock changes)</h6><div id="product_chart" style="height:320px"></div></div>
     </div>
 
-    <!-- Top N products -->
-    <div class="col-md-2">
-        <label class="form-label"><i class="bi bi-star-fill"></i> Top Products</label>
-        <input type="number" id="top_n" name="top_n" class="form-control" value="{{ top_n|default:'5' }}" min="1" max="20" title="Top N products" onchange="applyFilters('topn')">
-    </div>
-
-    <!-- From Date -->
-    <div class="col-md-2">
-        <label class="form-label"><i class="bi bi-arrow-down-left-circle"></i> From</label>
-        <input type="date" id="from_date" name="from_date" value="{{ from_date }}" class="form-control" title="Start Date" onchange="applyFilters('date')">
-    </div>
-
-    <!-- To Date -->
-    <div class="col-md-2">
-        <label class="form-label"><i class="bi bi-arrow-up-right-circle"></i> To</label>
-        <input type="date" id="to_date" name="to_date" value="{{ to_date }}" class="form-control" title="End Date" onchange="applyFilters('date')">
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="col-md-2 d-flex justify-content-between">
-        <button type="button" class="btn btn-success btn-sm" id="this_month" title="Current Month" onclick="setThisMonthAndApply()">
-            <i class="bi bi-calendar-check-fill"></i>
-        </button>
-        <a class="btn btn-secondary btn-sm" href="{% url 'inventory_logs_full' %}" title="Reset">
-            <i class="bi bi-arrow-counterclockwise"></i>
-        </a>
-    </div>
-</form>
-
-<!-- CHARTS -->
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-body">
-                <h6 class="text-center">Monthly Trend (In vs Out)</h6>
-                <div id="trend_chart" style="height:350px;"></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-body">
-                <h6 class="text-center">Top Products (Stock In/Out)</h6>
-                <div id="product_chart" style="height:350px;"></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- TABLE -->
-<div class="tablecard" style="padding:10px 14px">
-    <table id="inventory-logs-table" class="table table-hover font-weight-bold">
-        <thead class="thead-dark">
-            <tr>
+    <!-- TABLE -->
+    <div class="rsec"><i class="fas fa-list"></i> Movement history</div>
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="inventory-logs-table">
+            <thead><tr>
                 <th>Date</th>
-                <th>Type</th>
-                <th>Change</th>
-                <th>Description</th>
                 <th>Product</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for o in page_obj %}
-            <tr>
-                <td>{{ o.date|date:"M d Y" }}</td>
-                <td>{{ o.get_change_type_display }}</td>
-                <td>{{ o.change }}</td>
-                <td>{{ o.description }}</td>
-                <td>{{ o.product }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="5" class="text-center text-muted" style="padding:24px">No stock movements for this range.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% include "gs/_pager.html" %}
-</div>
+                <th>Type</th>
+                <th class="r">Change</th>
+                <th>Description</th>
+                <th>Source</th>
+            </tr></thead>
+            <tbody>
+                {% for o in page_obj %}
+                <tr>
+                    <td>{{ o.date|date:"d M Y" }}<div class="mut" style="font-size:11.5px">{{ o.date|date:"h:i A" }}</div></td>
+                    <td><div class="prim"><span class="pi">{{ o.product|stringformat:'s'|initials }}</span><span class="nm">{{ o.product }}</span></div></td>
+                    <td>
+                        {% if o.change > 0 %}<span class="gbadge ok"><i class="fas fa-arrow-down"></i> {{ o.get_change_type_display }}</span>
+                        {% elif o.change < 0 %}<span class="gbadge out"><i class="fas fa-arrow-up"></i> {{ o.get_change_type_display }}</span>
+                        {% else %}<span class="gbadge grey">{{ o.get_change_type_display }}</span>{% endif %}
+                    </td>
+                    <td class="r"><span class="il-chg {% if o.change > 0 %}in{% elif o.change < 0 %}out{% endif %}">{% if o.change > 0 %}+{% endif %}{{ o.change|intcomma }}</span></td>
+                    <td>{% if o.description %}{{ o.description }}{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td>{% if o.associated_invoice %}<a href="{% url 'invoice_viewer' o.associated_invoice.id %}" class="gbtn gbtn-icon" title="View invoice"><i class="fas fa-file-invoice"></i></a>{% else %}<span class="mut">—</span>{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty">
+                    <div class="ei"><i class="fas fa-boxes-stacked fa-lg"></i></div>
+                    <h3>No stock movements</h3>
+                    <p>Nothing recorded for this date range. Try widening the filter or reset it.</p>
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
 </div>
 {% endblock %}
 
@@ -155,26 +160,25 @@ function drawCharts(){
         year: year
     });
 
-    // -------- Monthly Trend (Stacked Area) --------
     fetch("{% url 'inventory_trend_chart' %}?" + params.toString())
         .then(function(r){ return r.json(); })
         .then(function(res){
             var data = google.visualization.arrayToDataTable(res);
             var options = {
-                height:350, title:'Monthly Stock Trend', legend:{position:'bottom'},
-                isStacked:true, series:{ 0:{color:'green'}, 1:{color:'red'} }, pointSize:5
+                height:320, legend:{position:'bottom'}, isStacked:true,
+                series:{ 0:{color:'#16a34a'}, 1:{color:'#e11d48'} }, pointSize:4,
+                chartArea:{width:'85%',height:'72%'}, backgroundColor:'transparent'
             };
             var chart = new google.visualization.AreaChart(document.getElementById('trend_chart'));
             chart.draw(data, options);
         }).catch(function(){});
 
-    // -------- Product Pie Chart --------
     fetch("{% url 'inventory_product_chart' %}?" + params.toString())
         .then(function(r){ return r.json(); })
         .then(function(res){
             var products = res.slice(1).sort(function(a,b){ return Math.abs(b[1])-Math.abs(a[1]); }).slice(0, topN);
             var dataArray = [res[0]];
-            var palette = ['#4caf50','#f44336','#2196f3','#ff9800','#9c27b0','#00bcd4','#ffc107','#e91e63','#3f51b5','#795548'];
+            var palette = ['#2563eb','#16a34a','#e5900f','#e11d48','#7c3aed','#0891b2','#db2777','#4f46e5','#059669','#d97706'];
             var colors = [];
             products.forEach(function(item,i){
                 dataArray.push([item[0], Math.abs(item[1])]);
@@ -182,15 +186,15 @@ function drawCharts(){
             });
             var data = google.visualization.arrayToDataTable(dataArray);
             var options = {
-                height:350, is3D:true, title:'Top '+topN+' Products Stock Changes',
-                slices: colors.map(function(c){ return {color:c}; })
+                height:320, pieHole:0.4, legend:{position:'right'},
+                slices: colors.map(function(c){ return {color:c}; }),
+                chartArea:{width:'92%',height:'82%'}, backgroundColor:'transparent'
             };
             var chart = new google.visualization.PieChart(document.getElementById('product_chart'));
             chart.draw(data, options);
         }).catch(function(){});
 }
 
-// ----------------- Initial Load -----------------
 google.charts.setOnLoadCallback(function(){ drawCharts(); });
 window.addEventListener('resize', function(){ if (window.google && google.visualization) drawCharts(); });
 </script>

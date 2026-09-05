@@ -2,7 +2,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Sum, Count, Avg, F, Q, Case, When, FloatField
+from django.db.models import Sum, Count, Avg, F, Q, Case, When, FloatField, Min, Max
 from django.db.models.functions import ExtractMonth, ExtractYear
 from datetime import date, datetime, timedelta
 import json
@@ -20,196 +20,194 @@ from ..templatetags.money import format_inr_smart
 
 @login_required
 def bi_dashboard(request):
-    """Business Intelligence Dashboard view"""
+    """Business Cockpit — a simple, plain-language snapshot of Customers & Products.
+
+    KPIs + auto-insights only (no charts). Every number links to the detailed report.
+    """
     user = request.user
     user_profile = UserProfile.objects.filter(user=user).first()
     today = date.today()
-    current_month_start = today.replace(day=1)
 
-    # ---- All customers & books ----
-    customers = Customer.objects.filter(user=user)
-    books = Book.objects.filter(user=user)
-    invoices = Invoice.objects.filter(user=user)
+    # ----- Period selector (kept deliberately simple) -----
+    period = request.GET.get('period', 'month')
+    if period == 'year':
+        start = today.replace(month=1, day=1)
+        period_label = 'This year'
+    elif period == 'all':
+        start = None
+        period_label = 'All time'
+    else:
+        period = 'month'
+        start = today.replace(day=1)
+        period_label = 'This month'
 
-    # ---- Financial KPIs ----
+    # ============================ CUSTOMERS ============================
+    invoices = Invoice.objects.filter(user=user).select_related('invoice_customer')
+    period_invoices = invoices.filter(invoice_date__gte=start) if start else invoices
+
     total_revenue = 0.0
-    total_outstanding = 0.0
-    cash_received_month = 0.0
-    pending_amount = 0.0
+    orders = 0
+    cust_rev = {}            # customer_id -> {name, revenue, orders, id}
+    active_customer_ids = set()
+    for inv in period_invoices:
+        try:
+            data = json.loads(inv.invoice_json)
+            amt = abs(float(data.get('invoice_total_amt_with_gst', 0) or data.get('grand_total', 0) or 0))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            amt = 0
+        total_revenue += amt
+        orders += 1
+        cid = inv.invoice_customer_id
+        if cid:
+            active_customer_ids.add(cid)
+            e = cust_rev.setdefault(cid, {
+                'id': cid,
+                'name': inv.invoice_customer.customer_name if inv.invoice_customer else 'Unknown',
+                'revenue': 0.0, 'orders': 0,
+            })
+            e['revenue'] += amt
+            e['orders'] += 1
+    avg_order_value = round(total_revenue / orders, 2) if orders else 0
 
-    for book in books:
-        logs = BookLog.objects.filter(parent_book=book, is_active=True)
-        purchased = sum(abs(l.change) for l in logs if l.change_type == 1)
-        paid = sum(abs(l.change) for l in logs if l.change_type == 0)
-        returned = sum(abs(l.change) for l in logs if l.change_type == 2)
-        other = sum(abs(l.change) for l in logs if l.change_type == 3)
-
-        total_revenue += purchased
-        balance = purchased - (paid + returned + other)
-        if balance > 0:
-            total_outstanding += balance
-            pending_amount += balance
-
-        # Cash received this month
-        month_paid = sum(
-            abs(l.change) for l in logs
-            if l.change_type == 0 and l.date and l.date.date() >= current_month_start
-        )
-        cash_received_month += month_paid
-
-    # ---- Customer KPIs ----
-    total_active_customers = customers.count()
-    # Approximate new customers this month (customers who have their first book log this month)
+    # First & last invoice date per customer (one query each) -> new & quiet customers
+    first_dates = {r['invoice_customer']: r['first'] for r in
+                   invoices.exclude(invoice_customer__isnull=True)
+                           .values('invoice_customer').annotate(first=Min('invoice_date'))}
+    last_dates = {r['invoice_customer']: r['last'] for r in
+                  invoices.exclude(invoice_customer__isnull=True)
+                          .values('invoice_customer').annotate(last=Max('invoice_date'))}
     new_customers = 0
-    for book in books:
-        first_log = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date').first()
-        if first_log and first_log.date and first_log.date.date() >= current_month_start:
-            new_customers += 1
+    if start:
+        new_customers = sum(1 for cid in active_customer_ids
+                            if first_dates.get(cid) and first_dates[cid] >= start)
+    quiet_cutoff = today - timedelta(days=90)
+    quiet_customers = sum(1 for cid, d in last_dates.items() if d and d < quiet_cutoff)
 
-    # ---- Per-customer analytics ----
-    customer_analytics = []
+    # Outstanding now + payments in period (ledger)
+    books = Book.objects.filter(user=user).select_related('customer')
+    collected = 0.0
+    total_outstanding = 0.0
+    owe = []
     for book in books:
-        if not book.customer:
-            continue
-        logs = BookLog.objects.filter(parent_book=book, is_active=True)
+        logs = list(BookLog.objects.filter(parent_book=book, is_active=True))
         purchased = sum(abs(l.change) for l in logs if l.change_type == 1)
         paid = sum(abs(l.change) for l in logs if l.change_type == 0)
         returned = sum(abs(l.change) for l in logs if l.change_type == 2)
         other = sum(abs(l.change) for l in logs if l.change_type == 3)
         outstanding = purchased - (paid + returned + other)
+        if outstanding > 0 and book.customer:
+            total_outstanding += outstanding
+            owe.append({'name': book.customer.customer_name, 'amount': round(outstanding, 2),
+                        'id': book.customer_id, 'book_id': book.id})
+        for l in logs:
+            if l.change_type == 0 and l.date:
+                d = l.date.date() if hasattr(l.date, 'date') else l.date
+                if start is None or d >= start:
+                    collected += abs(l.change)
 
-        total_logs = logs.count()
-        purchase_logs = logs.filter(change_type=1)
-        return_logs = logs.filter(change_type=2)
-        return_count = return_logs.count()
-        purchase_count = purchase_logs.count()
+    top_customers = sorted(cust_rev.values(), key=lambda x: x['revenue'], reverse=True)[:5]
+    top_owe = sorted(owe, key=lambda x: x['amount'], reverse=True)[:5]
+    total_customers = Customer.objects.filter(user=user).count()
 
-        # Avg invoice value
-        avg_inv = purchased / purchase_count if purchase_count > 0 else 0
+    # ============================ PRODUCTS ============================
+    sales_logs = InventoryLog.objects.filter(user=user, change_type=4).select_related('product')
+    if start:
+        sales_logs = sales_logs.filter(date__date__gte=start)
 
-        # Late payment % (logs with change_type=4 Pending / total)
-        pending_logs = logs.filter(change_type=4).count()
-        late_pct = (pending_logs / total_logs * 100) if total_logs > 0 else 0
-
-        # Return frequency
-        return_freq = return_count
-
-        # Risk scoring
-        risk_score = 0
-        if outstanding > 0:
-            risk_score += min(outstanding / 1000, 30)
-        risk_score += min(late_pct, 30)
-        risk_score += min(return_freq * 5, 20)
-        if purchased == 0:
-            risk_score += 20
-
-        if risk_score >= 50:
-            risk_level = "High"
-        elif risk_score >= 25:
-            risk_level = "Medium"
-        else:
-            risk_level = "Low"
-
-        # LTV = total purchased
-        ltv = purchased
-
-        customer_analytics.append({
-            'name': book.customer.customer_name,
-            'total_revenue': round(purchased, 2),
-            'outstanding': round(max(outstanding, 0), 2),
-            'risk_score': round(risk_score, 1),
-            'risk_level': risk_level,
-            'ltv': round(ltv, 2),
-            'late_payment_pct': round(late_pct, 1),
-            'avg_invoice_value': round(avg_inv, 2),
-            'return_frequency': return_freq,
+    prod = {}
+    for log in sales_logs:
+        p = log.product
+        if not p:
+            continue
+        qty = abs(log.change)
+        discount = p.product_discount or 0
+        gst = p.product_gst_percentage or 0
+        price = p.product_rate_with_gst or 0
+        sale_price = price * (1 - discount / 100) * (1 + gst / 100)
+        cost = p.product_purchase_rate or 0
+        e = prod.setdefault(p.id, {
+            'id': p.id, 'name': p.product_name or p.model_no, 'model': p.model_no,
+            'qty': 0, 'revenue': 0.0, 'cost': 0.0,
         })
+        e['qty'] += qty
+        e['revenue'] += qty * sale_price
+        e['cost'] += qty * cost
+    for e in prod.values():
+        e['revenue'] = round(e['revenue'], 2)
+        e['profit'] = round(e['revenue'] - e['cost'], 2)
 
-    # Sort for top customers by revenue
-    top_customers = sorted(customer_analytics, key=lambda x: x['total_revenue'], reverse=True)[:10]
+    products_sold = list(prod.values())
+    top_products_rev = sorted(products_sold, key=lambda x: x['revenue'], reverse=True)[:5]
+    top_products_qty = sorted(products_sold, key=lambda x: x['qty'], reverse=True)[:5]
+    below_cost = [e for e in products_sold if e['profit'] < 0]
+    units_sold = sum(e['qty'] for e in products_sold)
 
-    # High risk customers
-    high_risk_customers = [c for c in customer_analytics if c['risk_level'] == 'High']
-    high_risk_customers_count = len(high_risk_customers)
+    # Low / out of stock (uses each product's alert level)
+    low_stock_list = []
+    for inv in Inventory.objects.filter(user=user).select_related('product'):
+        if inv.current_stock <= 0 or (inv.alert_level and inv.current_stock <= inv.alert_level):
+            low_stock_list.append({
+                'id': inv.id, 'name': (inv.product.product_name or inv.product.model_no) if inv.product else '—',
+                'stock': inv.current_stock, 'alert': inv.alert_level,
+            })
+    low_stock_list.sort(key=lambda x: x['stock'])
 
-    # ---- LTV Section ----
-    ltv_values = [c['ltv'] for c in customer_analytics if c['ltv'] > 0]
-    avg_ltv = sum(ltv_values) / len(ltv_values) if ltv_values else 0
-    highest_ltv_customer = max(customer_analytics, key=lambda x: x['ltv'])['name'] if customer_analytics else 'N/A'
-    lowest_ltv_customer = min(customer_analytics, key=lambda x: x['ltv'])['name'] if customer_analytics else 'N/A'
-
-    # ---- Monthly Revenue Trend ----
-    monthly_trend = []
-    month_data = (
-        BookLog.objects.filter(
-            parent_book__user=user, is_active=True, change_type=1
-        )
-        .annotate(month=ExtractMonth('date'), year=ExtractYear('date'))
-        .values('year', 'month')
-        .annotate(revenue=Sum('change'))
-        .order_by('year', 'month')
-    )
-    for row in month_data:
-        month_name = f"{calendar.month_abbr[row['month']]} {row['year']}"
-        monthly_trend.append({
-            'name': month_name,
-            'revenue': abs(round(row['revenue'] or 0, 2)),
-        })
-
-    # ---- Sales Forecasting (simple average of last 3 months) ----
-    last_3 = monthly_trend[-3:] if len(monthly_trend) >= 3 else monthly_trend
-    forecast_revenue = round(sum(m['revenue'] for m in last_3) / len(last_3), 2) if last_3 else 0
-    forecast_cashflow = round(forecast_revenue * 0.7, 2)  # Assume ~70% collection rate
-
-    # ---- Transaction KPIs ----
-    total_invoices = invoices.count()
-    total_invoice_amounts = []
-    gst_count = invoices.filter(is_gst=True).count()
-    for inv in invoices:
-        try:
-            inv_data = json.loads(inv.invoice_json)
-            grand_total = float(inv_data.get('grand_total', 0))
-            total_invoice_amounts.append(grand_total)
-        except (json.JSONDecodeError, ValueError, TypeError):
-            pass
-
-    avg_invoice_value = round(sum(total_invoice_amounts) / len(total_invoice_amounts), 2) if total_invoice_amounts else 0
-    gst_percentage = round(gst_count / total_invoices * 100, 1) if total_invoices > 0 else 0
-
-    # Return percentage from book logs
-    total_book_logs = BookLog.objects.filter(parent_book__user=user, is_active=True).count()
-    return_book_logs = BookLog.objects.filter(parent_book__user=user, is_active=True, change_type=2).count()
-    return_percentage = round(return_book_logs / total_book_logs * 100, 1) if total_book_logs > 0 else 0
+    # ============================ INSIGHTS ============================
+    insights = []
+    if total_outstanding > 0:
+        insights.append({'tone': 'r', 'icon': 'fa-hand-holding-dollar',
+                         'text': '₹ %s is owed to you by %d customer%s' % (
+                             format_inr_smart(total_outstanding), len(owe), '' if len(owe) == 1 else 's'),
+                         'url': 'overdue_report'})
+    if quiet_customers > 0:
+        insights.append({'tone': 'a', 'icon': 'fa-moon',
+                         'text': '%d customer%s went quiet (no order in 90+ days)' % (
+                             quiet_customers, '' if quiet_customers == 1 else 's'),
+                         'url': 'customer_analysis'})
+    if low_stock_list:
+        insights.append({'tone': 'a', 'icon': 'fa-boxes-stacked',
+                         'text': '%d product%s low on stock or out of stock' % (
+                             len(low_stock_list), '' if len(low_stock_list) == 1 else 's'),
+                         'url': 'inventory'})
+    if below_cost:
+        insights.append({'tone': 'r', 'icon': 'fa-arrow-trend-down',
+                         'text': '%d product%s sold below cost %s' % (
+                             len(below_cost), '' if len(below_cost) == 1 else 's', period_label.lower()),
+                         'url': 'inventory_margin_report'})
+    if new_customers > 0:
+        insights.append({'tone': 'g', 'icon': 'fa-user-plus',
+                         'text': '%d new customer%s %s' % (
+                             new_customers, '' if new_customers == 1 else 's', period_label.lower()),
+                         'url': 'customers'})
 
     context = {
         'user_profile': user_profile,
-        # Financial KPIs
+        'report_date': today,
+        'period': period,
+        'period_label': period_label,
+        # Pulse
         'total_revenue': round(total_revenue, 2),
+        'collected': round(collected, 2),
         'total_outstanding': round(total_outstanding, 2),
-        'cash_received_month': round(cash_received_month, 2),
-        'pending_amount': round(pending_amount, 2),
-        # Customer KPIs
-        'total_active_customers': total_active_customers,
+        'orders': orders,
+        # Customers
+        'total_customers': total_customers,
+        'active_customers': len(active_customer_ids),
         'new_customers': new_customers,
-        'high_risk_customers_count': high_risk_customers_count,
+        'avg_order_value': avg_order_value,
         'top_customers': top_customers,
-        # Credit Risk
-        'high_risk_customers': high_risk_customers,
-        # LTV
-        'avg_ltv': round(avg_ltv, 2),
-        'highest_ltv_customer': highest_ltv_customer,
-        'lowest_ltv_customer': lowest_ltv_customer,
-        # Sales Forecasting
-        'forecast_revenue': forecast_revenue,
-        'forecast_cashflow': forecast_cashflow,
-        'monthly_trend': monthly_trend,
-        # Transaction KPIs
-        'total_invoices': total_invoices,
-        'avg_invoice_value': avg_invoice_value,
-        'return_percentage': return_percentage,
-        'gst_percentage': gst_percentage,
+        'top_owe': top_owe,
+        # Products
+        'products_sold_count': len(products_sold),
+        'units_sold': units_sold,
+        'low_stock_count': len(low_stock_list),
+        'below_cost_count': len(below_cost),
+        'top_products_rev': top_products_rev,
+        'top_products_qty': top_products_qty,
+        'low_stock_list': low_stock_list[:5],
+        # Insights
+        'insights': insights,
     }
-
     return render(request, 'reports/bi_dashboard.html', context)
 
 
@@ -1191,6 +1189,7 @@ def customer_analysis(request):
 
         customer_rows.append({
             'id': customer.id,
+            'book_id': book.id if book else None,
             'name': customer.customer_name,
             'phone': customer.customer_phone or '',
             # Invoice metrics
@@ -1315,6 +1314,12 @@ def customer_analysis(request):
     total_outstanding = sum(c['outstanding'] for c in customer_rows)
     total_revenue = sum(c['total_invoice_value'] for c in customer_rows)
 
+    # Plain-language roll-ups for the simplified page
+    best_count = star_count + loyal_count            # your strongest customers
+    attention_count = at_risk_count + critical_count  # need attention
+    owe_count = sum(1 for c in customer_rows if c['outstanding'] > 0)
+    quiet_count = inactive_count                      # inactive / no recent orders
+
     # Top 10 & Bottom 10
     top_10 = customer_rows[:10]
     bottom_10 = list(reversed(customer_rows[-10:])) if len(customer_rows) >= 10 else list(reversed(customer_rows))
@@ -1356,6 +1361,11 @@ def customer_analysis(request):
         'avg_health': avg_health,
         'total_outstanding': round(total_outstanding, 2),
         'total_revenue': round(total_revenue, 2),
+        # Plain-language roll-ups
+        'best_count': best_count,
+        'attention_count': attention_count,
+        'owe_count': owe_count,
+        'quiet_count': quiet_count,
         # Top / Bottom
         'top_10': top_10,
         'bottom_10': bottom_10,

@@ -2,12 +2,18 @@
 {% load tz %}
 {% load static %}
 {% load humanize %}
+{% load money %}
 
 {% block includecss %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+.gs .il-chg{font-family:var(--disp);font-weight:700;font-variant-numeric:tabular-nums}
+.gs .il-chg.in{color:var(--green)} .gs .il-chg.out{color:var(--red)}
+.gs .il-bal{font-family:var(--disp);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -30,34 +36,63 @@
         </div>
     </div>
 
-    <div class="tablecard" style="padding:10px 14px">
-<table class="table table-hover font-weight-bold" id="inventory-logs-table">
-	<thead class="thead-dark">
+    <!-- KPI BAND -->
+    <div class="statgrid">
+        <div class="stat"><span class="si {% if inventory.current_stock > 0 %}b{% else %}r{% endif %}"><i class="fas fa-boxes-stacked"></i></span>
+            <div><div class="sv">{{ inventory.current_stock|intcomma }}</div><div class="sk">Current stock</div><div class="ss">Alert at {{ inventory.alert_level }}</div></div></div>
+        <div class="stat"><span class="si g"><i class="fas fa-arrow-down"></i></span>
+            <div><div class="sv">+{{ total_in|intcomma }}</div><div class="sk">Total in</div><div class="ss">Purchases &amp; returns</div></div></div>
+        <div class="stat"><span class="si r"><i class="fas fa-arrow-up"></i></span>
+            <div><div class="sv">&minus;{{ total_out|intcomma }}</div><div class="sk">Total out</div><div class="ss">Sales &amp; issues</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ stock_value|inrs }}</div><div class="sk">Stock value</div><div class="ss">At current sale price</div></div></div>
+    </div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+<table class="gt" id="inventory-logs-table">
+	<thead>
 		<tr>
 			<th>Date</th>
 			<th>Type</th>
-			<th>Change</th>
+			<th class="r">Change</th>
+			<th class="r" data-nosort>Balance</th>
 			<th>Description</th>
 			<th data-noexport data-nosort></th>
 		</tr>
 	</thead>
-	<tbody class="two-col-form">
+	<tbody>
 		{% for item in inventory_logs %}
-		<tr class="{% if item.change < 0 %}table-danger{% else %}table-success{%endif%}">
-			<td>{{item.date|localtime|date:"M d, Y h:i A"}}</td>
-			<td>{{item.get_change_type_display}} {% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}">[INVOICE]</a>{% endif %}</td>
-			<td>{{item.change}}</td>
-			<td>{{item.description}}</td>
+		<tr>
+			<td>{{item.date|localtime|date:"d M Y"}}<div class="mut" style="font-size:11.5px">{{item.date|localtime|date:"h:i A"}}</div></td>
 			<td>
+				{% if item.change > 0 %}<span class="gbadge ok"><i class="fas fa-arrow-down"></i> {{item.get_change_type_display}}</span>
+				{% elif item.change < 0 %}<span class="gbadge out"><i class="fas fa-arrow-up"></i> {{item.get_change_type_display}}</span>
+				{% else %}<span class="gbadge grey">{{item.get_change_type_display}}</span>{% endif %}
+				{% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="mut" style="margin-left:6px" title="View invoice"><i class="fas fa-file-invoice"></i></a>{% endif %}
+			</td>
+			<td class="r"><span class="il-chg {% if item.change > 0 %}in{% elif item.change < 0 %}out{% endif %}">{% if item.change > 0 %}+{% endif %}{{item.change|intcomma}}</span></td>
+			<td class="r"><span class="il-bal">{{item.balance_after|intcomma}}</span></td>
+			<td>{% if item.description %}{{item.description}}{% else %}<span class="mut">—</span>{% endif %}</td>
+			<td class="r">
 				{% if not item.associated_invoice %}
-					<a href="{% url 'inventory_logs_del' item.id %}" class="btn btn-danger btn-sm btn-curve">
+					<a href="{% url 'inventory_logs_del' item.id %}" class="gbtn gbtn-icon del" title="Delete entry">
 						<i class="fas fa-trash"></i>
 					</a>
 				{% endif %}
 			</td>
+		</tr>
+		{% empty %}
+		<tr><td colspan="6"><div class="empty">
+			<div class="ei"><i class="fas fa-boxes-stacked fa-lg"></i></div>
+			<h3>No stock movements yet</h3>
+			<p>Add the first entry to start tracking this product's stock.</p>
+			<a href="{% url 'inventory_logs_add' inventory.id %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add entry</a>
+		</div></td></tr>
 		{% endfor %}
 	</tbody>
 </table>
+        </div>
     </div>
 </div>
 {% endblock %}

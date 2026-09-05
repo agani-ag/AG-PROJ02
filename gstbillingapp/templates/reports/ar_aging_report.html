@@ -3,389 +3,203 @@
 {% load humanize %}
 {% load money %}
 
-{% block title %}Accounts Receivable Aging Report - GSTSync{% endblock %}
+{% block title %}Accounts Receivable Aging Report · GSTSync{% endblock %}
 
 {% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 <style>
-    /* ===== AR Aging Report Responsive Styles ===== */
-    .ar-report .card {
-        border: none;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        overflow: hidden;
-    }
-    .ar-report .card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-    }
-    .ar-report .card-body {
-        padding: 1.1rem;
-    }
-    .ar-report .card-body h3 {
-        word-break: break-word;
-        overflow-wrap: break-word;
-    }
-    .ar-report .kpi-col {
-        margin-bottom: 1rem;
-    }
-    .ar-report .section-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-    }
-    .ar-report .section-title i {
-        margin-right: 6px;
-    }
-    .ar-report .table-responsive {
-        border-radius: 8px;
-        -webkit-overflow-scrolling: touch;
-    }
-    .ar-report .table {
-        margin-bottom: 0;
-    }
-    .ar-report .table th,
-    .ar-report .table td {
-        white-space: nowrap;
-        vertical-align: middle;
-        padding: 0.5rem 0.4rem;
-    }
-    .ar-report .aging-table th {
-        font-size: 0.75rem;
-        text-align: center;
-    }
-    .ar-report .aging-table td {
-        font-size: 0.8rem;
-        text-align: right;
-    }
-    .ar-report .aging-table .sticky-col {
-        position: sticky;
-        left: 0;
-        background: #fff;
-        z-index: 2;
-        border-right: 2px solid #dee2e6;
-    }
-    .ar-report .aging-table thead .sticky-col {
-        background: #343a40;
-        color: #fff;
-        z-index: 3;
-    }
-    .ar-report .aging-table .sticky-col-2 {
-        position: sticky;
-        left: 30px;
-        background: #fff;
-        z-index: 2;
-        border-right: 2px solid #dee2e6;
-    }
-    .ar-report .aging-table thead .sticky-col-2 {
-        background: #343a40;
-        color: #fff;
-        z-index: 3;
-    }
-    .ar-report .bucket-highlight {
-        background-color: rgba(255, 193, 7, 0.08);
-    }
-    .ar-report .bucket-danger {
-        background-color: rgba(220, 53, 69, 0.08);
-    }
-    .ar-report .total-row td {
-        font-weight: 700;
-        background-color: #f8f9fa !important;
-        border-top: 2px solid #343a40;
-    }
+/* AR Aging — page-scoped tweaks (sticky first columns + bucket tints) */
+.gs .ar-note{font-size:12px;color:var(--soft);margin:-6px 2px 12px;display:flex;align-items:flex-start;gap:7px}
+.gs .ar-note i{color:var(--brand);margin-top:2px}
 
-    /* ===== Mobile: < 576px ===== */
-    @media (max-width: 575.98px) {
-        .ar-report .page-header h2 {
-            font-size: 1.1rem;
-        }
-        .ar-report .page-header p {
-            font-size: 0.78rem;
-        }
-        .ar-report .section-title {
-            font-size: 1rem;
-        }
-        .ar-report .card-body {
-            padding: 0.75rem;
-        }
-        .ar-report .card-body h6 {
-            font-size: 0.72rem;
-        }
-        .ar-report .card-body h3 {
-            font-size: 1.05rem;
-        }
-        .ar-report .card-body small {
-            font-size: 0.65rem;
-        }
-        .ar-report .badge {
-            font-size: 0.55rem;
-            padding: 2px 4px;
-        }
-        .ar-report .aging-table th {
-            font-size: 0.6rem;
-            padding: 0.35rem 0.25rem;
-        }
-        .ar-report .aging-table td {
-            font-size: 0.65rem;
-            padding: 0.35rem 0.25rem;
-        }
-        .ar-report .sub-title {
-            font-size: 0.95rem;
-        }
-    }
+.gs #arAgingTable{min-width:1600px}
+.gs #arAgingTable thead th{text-align:right}
+.gs #arAgingTable thead th.l{text-align:left}
+.gs #arAgingTable tbody td{white-space:nowrap}
 
-    /* ===== Tablet: 576px - 767px ===== */
-    @media (min-width: 576px) and (max-width: 767.98px) {
-        .ar-report .page-header h2 {
-            font-size: 1.3rem;
-        }
-        .ar-report .card-body h3 {
-            font-size: 1.15rem;
-        }
-        .ar-report .card-body h6 {
-            font-size: 0.78rem;
-        }
-        .ar-report .aging-table th {
-            font-size: 0.68rem;
-        }
-        .ar-report .aging-table td {
-            font-size: 0.72rem;
-        }
-    }
+.gs #arAgingTable .sticky-col{position:sticky;left:0;z-index:2;background:var(--card);min-width:46px;text-align:center}
+.gs #arAgingTable .sticky-col-2{position:sticky;left:46px;z-index:2;background:var(--card);min-width:180px;border-right:1px solid var(--line)}
+.gs #arAgingTable thead .sticky-col,
+.gs #arAgingTable thead .sticky-col-2{z-index:3;background:var(--wash)}
+.gs #arAgingTable tbody tr:hover .sticky-col,
+.gs #arAgingTable tbody tr:hover .sticky-col-2{background:#f9fbff}
+
+.gs #arAgingTable .bucket-highlight{background:var(--amberbg)}
+.gs #arAgingTable .bucket-danger{background:var(--redbg)}
+
+.gs #arAgingTable .total-row td{font-weight:700;background:#eef4ff;border-top:2px solid var(--line)}
+.gs #arAgingTable .total-row .sticky-col,
+.gs #arAgingTable .total-row .sticky-col-2{background:#eef4ff}
+.gs #arAgingTable .total-row .bucket-highlight{background:#f5edda}
+.gs #arAgingTable .total-row .bucket-danger{background:#f6e2e8}
+
+.gs .prim .mn2{font-size:11.5px;color:var(--faint);margin-top:1px}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="ar-report">
-
-<!-- Page Header -->
-<div class="row mb-3">
-    <div class="col page-header">
-        <h2><i class="fas fa-file-invoice-dollar"></i> Accounts Receivable (AR) Aging Report</h2>
-        <p class="text-muted mb-0">Outstanding receivables grouped by aging buckets &mdash; Report Date: {{ report_date|date:"d M Y" }}</p>
-    </div>
-</div>
-
-<hr>
-
-<!-- ==================== 1. SUMMARY KPIs ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-tachometer-alt"></i> Summary Overview</h4>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-danger text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-rupee-sign"></i> Total Outstanding</h6>
-                <h3>₹ {{ total_outstanding|default:0|inrs }}</h3>
-                <small>All pending receivables</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-orange text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-clock"></i> Total Overdue (30+ days)</h6>
-                <h3>₹ {{ total_overdue|default:0|inrs }}</h3>
-                <small>Past due date</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-primary text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-users"></i> Customers with Outstanding</h6>
-                <h3>{{ total_customers_with_outstanding|default:0|intcomma }}</h3>
-                <small>Active debtors</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-sm-6 col-md-3 kpi-col">
-        <div class="card bg-violet text-white h-100">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-exclamation-triangle"></i> Critical (90+ days)</h6>
-                <h3>₹ {{ total_critical_overdue|default:0|inrs }}</h3>
-                <small>High risk amount</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 2. RISK DISTRIBUTION ==================== -->
-<div class="row mb-2">
-    <div class="col">
-        <h4 class="section-title"><i class="fas fa-shield-alt"></i> Risk Distribution</h4>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col-4 col-sm-4 col-md-4 kpi-col">
-        <div class="card bg-danger text-white h-100">
-            <div class="card-body text-center">
-                <h6 class="card-title"><i class="fas fa-exclamation-circle"></i> High Risk</h6>
-                <h3>{{ high_risk_count|default:0 }}</h3>
-                <small>90+ days overdue</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-4 col-sm-4 col-md-4 kpi-col">
-        <div class="card bg-warning text-dark h-100">
-            <div class="card-body text-center">
-                <h6 class="card-title"><i class="fas fa-exclamation-triangle"></i> Medium Risk</h6>
-                <h3>{{ medium_risk_count|default:0 }}</h3>
-                <small>30-89 days overdue</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-4 col-sm-4 col-md-4 kpi-col">
-        <div class="card bg-success text-white h-100">
-            <div class="card-body text-center">
-                <h6 class="card-title"><i class="fas fa-check-circle"></i> Low Risk</h6>
-                <h3>{{ low_risk_count|default:0 }}</h3>
-                <small>0-29 days</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 3. AR AGING TABLE ==================== -->
-<div class="row mb-2">
-    <div class="col d-flex flex-wrap justify-content-between align-items-start">
+<div class="gs">
+    <div class="page-head">
         <div>
-            <h4 class="section-title"><i class="fas fa-table"></i> Customer-wise Aging Breakdown</h4>
-            <p class="text-muted mb-1" style="font-size: 0.85rem;">
-                <i class="fas fa-info-circle"></i> Amounts are allocated to aging buckets using FIFO (oldest outstanding first). Scroll horizontally to view all buckets.
-            </p>
+            <div class="eyebrow">Reports › Aging</div>
+            <h1 class="disp">Accounts Receivable Aging</h1>
+            <div class="sub">Outstanding receivables grouped by aging buckets — as of {{ report_date|date:"d M Y" }}</div>
         </div>
-        <button class="btn btn-sm btn-outline-dark mt-1" onclick="printTable('arAgingTable','AR Aging Breakdown')"><i class="fas fa-print mr-1"></i>Print</button>
+        <div class="actions">
+            <button type="button" class="gbtn" onclick="printTable('arAgingTable','AR Aging Breakdown')"><i class="fas fa-print"></i> Print aging</button>
+            <button type="button" class="gbtn" onclick="printTable('arCollectionTable','Collection Priority (Top 15)')"><i class="fas fa-print"></i> Print priority</button>
+        </div>
     </div>
-</div>
-<div class="row mb-4">
-    <div class="col">
-        <div class="table-responsive">
-            <table class="table table-hover table-bordered font-weight-bold aging-table" id="arAgingTable">
-                <thead class="thead-dark">
-                    <tr>
-                        <th class="sticky-col" style="min-width:30px;">#</th>
-                        <th class="sticky-col-2" style="min-width:140px;">Customer</th>
-                        <th style="min-width:110px;">Total O/S</th>
-                        {% for bucket in aging_buckets %}
-                        <th style="min-width:80px;">{{ bucket.label }}</th>
-                        {% endfor %}
-                        <th style="min-width:90px;">Overdue</th>
-                        <th style="min-width:80px;">Risk</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for customer in customer_rows %}
-                    <tr>
-                        <td class="sticky-col text-center">{{ forloop.counter }}</td>
-                        <td class="sticky-col-2 text-left" style="white-space:nowrap;">
-                            <a href="{% url 'book_logs' customer.book_id %}" style="text-decoration: none;color: black;">
-                                {{ customer.name }}</a>
-                            <br><small class="text-muted">{{ customer.phone }}</small>
-                        </td>
-                        <td class="font-weight-bold">₹ {{ customer.total_outstanding|inrs }}</td>
-                        {% for amount in customer.bucket_amounts %}
-                        <td class="{% if forloop.counter0 >= 6 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
-                            {% if amount > 0 %}₹ {{ amount|inrs }}{% else %}-{% endif %}
-                        </td>
-                        {% endfor %}
-                        <td class="text-danger font-weight-bold">
-                            {% if customer.overdue_amount > 0 %}₹ {{ customer.overdue_amount|inrs }}{% else %}-{% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if customer.risk_level == "High" %}
-                                <span class="badge badge-danger">High</span>
-                            {% elif customer.risk_level == "Medium" %}
-                                <span class="badge badge-warning">Medium</span>
-                            {% else %}
-                                <span class="badge badge-success">Low</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="{{ aging_buckets|length|add:5 }}" class="text-center text-muted">No outstanding receivables found</td>
-                    </tr>
+
+    <!-- ==================== SUMMARY KPIs ==================== -->
+    <div class="statgrid">
+        <div class="stat"><span class="si r"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ total_outstanding|default:0|inrs }}</div><div class="sk">Total Outstanding</div><div class="ss">All pending receivables</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-clock"></i></span>
+            <div><div class="sv">&#8377; {{ total_overdue|default:0|inrs }}</div><div class="sk">Total Overdue (30+ days)</div><div class="ss">Past due date</div></div></div>
+        <div class="stat"><span class="si b"><i class="fas fa-users"></i></span>
+            <div><div class="sv">{{ total_customers_with_outstanding|default:0|intcomma }}</div><div class="sk">Customers with Outstanding</div><div class="ss">Active debtors</div></div></div>
+        <div class="stat"><span class="si v"><i class="fas fa-triangle-exclamation"></i></span>
+            <div><div class="sv">&#8377; {{ total_critical_overdue|default:0|inrs }}</div><div class="sk">Critical (90+ days)</div><div class="ss">High risk amount</div></div></div>
+    </div>
+
+    <!-- ==================== AR AGING TABLE ==================== -->
+    <div class="rsec"><i class="fas fa-table"></i> Customer-wise Aging Breakdown</div>
+    <div class="ar-note"><i class="fas fa-circle-info"></i>
+        <span>Amounts are allocated to aging buckets using FIFO (oldest outstanding first). Scroll horizontally to view all buckets.</span></div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="arAgingTable">
+            <thead>
+                <tr>
+                    <th class="sticky-col l">#</th>
+                    <th class="sticky-col-2 l">Customer</th>
+                    <th class="r">Total O/S</th>
+                    {% for bucket in aging_buckets %}
+                    <th class="r">{{ bucket.label }}</th>
                     {% endfor %}
-
-                    {% if customer_rows %}
-                    <!-- Totals Row -->
-                    <tr class="total-row">
-                        <td class="sticky-col"></td>
-                        <td class="sticky-col-2 text-left font-weight-bold">TOTAL</td>
-                        <td class="font-weight-bold">₹ {{ total_outstanding|inrs }}</td>
-                        {% for total in bucket_totals %}
-                        <td class="{% if forloop.counter0 >= 6 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
-                            {% if total > 0 %}₹ {{ total|inrs }}{% else %}-{% endif %}
-                        </td>
-                        {% endfor %}
-                        <td class="text-danger font-weight-bold">₹ {{ total_overdue|inrs }}</td>
-                        <td></td>
-                    </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== 4. COLLECTION PRIORITY ==================== -->
-<div class="row mb-2">
-    <div class="col d-flex flex-wrap justify-content-between align-items-start">
-        <div>
-            <h4 class="section-title"><i class="fas fa-sort-amount-down"></i> Collection Priority (Top 15)</h4>
-            <p class="text-muted mb-1" style="font-size: 0.85rem;">Customers sorted by overdue amount for follow-up</p>
-        </div>
-        <button class="btn btn-sm btn-outline-dark mt-1" onclick="printTable('arCollectionTable','Collection Priority (Top 15)')"><i class="fas fa-print mr-1"></i>Print</button>
-    </div>
-</div>
-<div class="row mb-4">
-    <div class="col">
-        <div class="table-responsive">
-            <table class="table table-hover font-weight-bold" id="arCollectionTable">
-                <thead class="thead-dark">
-                    <tr>
-                        <th>#</th>
-                        <th>Customer</th>
-                        <th>Phone</th>
-                        <th class="text-right">Total Outstanding</th>
-                        <th class="text-right">Overdue Amount</th>
-                        <th>Risk Level</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for customer in customer_rows|slice:":15" %}
-                    <tr>
-                        <td>{{ forloop.counter }}</td>
-                        <td><a href="{% url 'book_logs' customer.book_id %}" style="text-decoration: none;color: black;">{{ customer.name }}</a></td>
-                        <td>{{ customer.phone }}</td>
-                        <td class="text-right">₹ {{ customer.total_outstanding|inrs }}</td>
-                        <td class="text-right text-danger">₹ {{ customer.overdue_amount|inrs }}</td>
-                        <td>
-                            {% if customer.risk_level == "High" %}
-                                <span class="badge badge-danger">High</span>
-                            {% elif customer.risk_level == "Medium" %}
-                                <span class="badge badge-warning">Medium</span>
-                            {% else %}
-                                <span class="badge badge-success">Low</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="6" class="text-center text-muted">No data available</td>
-                    </tr>
+                    <th class="r">Overdue</th>
+                    <th class="r">Risk</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customer_rows %}
+                <tr>
+                    <td class="sticky-col">{{ forloop.counter }}</td>
+                    <td class="sticky-col-2">
+                        <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                            <div>
+                                <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a>
+                                <div class="mn2">{{ customer.phone }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="r"><span class="num">&#8377; {{ customer.total_outstanding|inrs }}</span></td>
+                    {% for amount in customer.bucket_amounts %}
+                    <td class="r {% if forloop.counter0 >= 6 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
+                        {% if amount > 0 %}<span class="num">&#8377; {{ amount|inrs }}</span>{% else %}<span class="mut">-</span>{% endif %}
+                    </td>
                     {% endfor %}
-                </tbody>
-            </table>
+                    <td class="r">
+                        {% if customer.overdue_amount > 0 %}<span class="num" style="color:#e11d48">&#8377; {{ customer.overdue_amount|inrs }}</span>{% else %}<span class="mut">-</span>{% endif %}
+                    </td>
+                    <td class="r">
+                        {% if customer.risk_level == "High" %}
+                            <span class="gbadge out">High</span>
+                        {% elif customer.risk_level == "Medium" %}
+                            <span class="gbadge low">Medium</span>
+                        {% else %}
+                            <span class="gbadge ok">Low</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{{ aging_buckets|length|add:5 }}"><div class="empty">
+                        <div class="ei"><i class="fas fa-file-invoice-dollar fa-lg"></i></div>
+                        <h3>No outstanding receivables found</h3>
+                        <p>Once customers have pending balances, their aging breakdown appears here.</p>
+                    </div></td>
+                </tr>
+                {% endfor %}
+
+                {% if customer_rows %}
+                <!-- Totals Row -->
+                <tr class="total-row">
+                    <td class="sticky-col"></td>
+                    <td class="sticky-col-2">TOTAL</td>
+                    <td class="r"><span class="num">&#8377; {{ total_outstanding|inrs }}</span></td>
+                    {% for total in bucket_totals %}
+                    <td class="r {% if forloop.counter0 >= 6 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
+                        {% if total > 0 %}<span class="num">&#8377; {{ total|inrs }}</span>{% else %}<span class="mut">-</span>{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="r"><span class="num" style="color:#e11d48">&#8377; {{ total_overdue|inrs }}</span></td>
+                    <td class="r"></td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
         </div>
     </div>
-</div>
 
-</div><!-- /.ar-report -->
+    <!-- ==================== COLLECTION PRIORITY ==================== -->
+    <div class="rsec"><i class="fas fa-sort-amount-down"></i> Collection Priority (Top 15)</div>
+    <div class="ar-note"><i class="fas fa-circle-info"></i>
+        <span>Customers sorted by overdue amount for follow-up.</span></div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="arCollectionTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th class="r">Total Outstanding</th>
+                    <th class="r">Overdue Amount</th>
+                    <th>Risk Level</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customer_rows|slice:":15" %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                            <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a></div>
+                    </td>
+                    <td>{{ customer.phone }}</td>
+                    <td class="r"><span class="num">&#8377; {{ customer.total_outstanding|inrs }}</span></td>
+                    <td class="r"><span class="num" style="color:#e11d48">&#8377; {{ customer.overdue_amount|inrs }}</span></td>
+                    <td>
+                        {% if customer.risk_level == "High" %}
+                            <span class="gbadge out">High</span>
+                        {% elif customer.risk_level == "Medium" %}
+                            <span class="gbadge low">Medium</span>
+                        {% else %}
+                            <span class="gbadge ok">Low</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6"><div class="empty">
+                        <div class="ei"><i class="fas fa-sort-amount-down fa-lg"></i></div>
+                        <h3>No data available</h3>
+                    </div></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+</div>
 {% endblock %}
 
 {% block includejs %}
@@ -412,19 +226,21 @@ function printTable(tableId, title) {
     css += '.chunk-title{font-size:.75rem;font-weight:700;margin:6px 0 4px;color:#495057;}';
     css += 'table{width:100%;border-collapse:collapse;font-size:.7rem;}';
     css += 'th,td{border:1px solid #aaa;padding:3px 5px;text-align:right;white-space:nowrap;}';
-    css += 'th{background:#343a40;color:#fff;font-size:.65rem;text-transform:uppercase;}';
+    css += 'th{background:#0f172a;color:#fff;font-size:.65rem;text-transform:uppercase;}';
     css += 'td:nth-child(2){text-align:left;}';
     css += 'th:nth-child(2){text-align:left;}';
     css += 'tr:nth-child(even){background:#f9f9f9;}';
     css += '.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}';
-    css += '.badge{padding:1px 4px;border-radius:3px;font-size:.55rem;font-weight:600;}';
-    css += '.badge-danger{background:#dc3545;color:#fff;}';
-    css += '.badge-warning{background:#ffc107;color:#333;}';
-    css += '.badge-success{background:#28a745;color:#fff;}';
-    css += '.badge-primary{background:#007bff;color:#fff;}';
-    css += '.text-danger{color:#dc3545;}';
-    css += '.text-muted{color:#999;font-size:.55rem;}';
-    css += '.font-weight-bold{font-weight:700;}';
+    css += '.prim{display:block;}';
+    css += '.prim .pi{display:none;}';
+    css += '.prim .nm{font-weight:600;}';
+    css += '.mn2{color:#999;font-size:.55rem;}';
+    css += '.gbadge{padding:1px 6px;border-radius:999px;font-size:.55rem;font-weight:700;}';
+    css += '.gbadge.out{background:#ffe4ea;color:#e11d48;}';
+    css += '.gbadge.low{background:#fff3e0;color:#b45309;}';
+    css += '.gbadge.ok{background:#e7f8ec;color:#16a34a;}';
+    css += '.num{font-weight:600;}';
+    css += '.mut{color:#999;}';
     css += '@media print{@page{size:A4 landscape;margin:6mm;}body{margin:0;padding:4px;}}';
 
     var win = window.open('', '_blank');
@@ -460,7 +276,7 @@ function printTable(tableId, title) {
                 win.document.write('<p>Report Date: ' + reportDate + '</p>');
                 win.document.write('</div>');
             }
-            win.document.write('<p class="chunk-title">Aging Days: ' + startLabel + ' \u2013 ' + endLabel + ' &nbsp;&bull;&nbsp; Page ' + (pg + 1) + ' of ' + totalPages + '</p>');
+            win.document.write('<p class="chunk-title">Aging Days: ' + startLabel + ' – ' + endLabel + ' &nbsp;&bull;&nbsp; Page ' + (pg + 1) + ' of ' + totalPages + '</p>');
 
             /* Build chunk table */
             win.document.write('<table><thead><tr>');

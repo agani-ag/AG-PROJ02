@@ -1,226 +1,122 @@
 {% extends "base.html" %}
 {% load static %}
-{% load humanize %}
 {% load money %}
 
-{% block title %}Transaction Report - GSTSync{% endblock %}
+{% block title %}Transaction Report · GSTSync{% endblock %}
 
 {% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 <style>
-/* ===== Transaction Report Styles ===== */
-.txn-report .card {
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-    overflow: hidden;
-}
-.txn-report .section-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #343a40;
-    margin-bottom: 0;
-}
-.txn-report .kpi-card {
-    text-align: center;
-    padding: 1rem;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    transition: transform 0.2s ease;
-}
-.txn-report .kpi-card:hover {
-    transform: translateY(-2px);
-}
-.txn-report .kpi-value {
-    font-size: 1.6rem;
-    font-weight: 800;
-}
-.txn-report .kpi-label {
-    font-size: .75rem;
-    text-transform: uppercase;
-    color: #6c757d;
-    letter-spacing: .04em;
-}
-.txn-report .filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px;
-}
-.txn-report .filter-bar label {
-    font-weight: 600;
-    font-size: .85rem;
-    margin-bottom: 0;
-    white-space: nowrap;
-}
-.txn-report .filter-bar select,
-.txn-report .filter-bar input[type="date"] {
-    font-weight: 600;
-    font-size: .88rem;
-    padding: 5px 10px;
-    border-radius: 6px;
-    border: 2px solid #495057;
-    cursor: pointer;
-}
-.txn-report .filter-bar select:focus,
-.txn-report .filter-bar input:focus {
-    border-color: #007bff;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(0,123,255,.15);
-}
-.txn-report .filter-bar .btn-apply {
-    font-weight: 700;
-    border-radius: 6px;
-    padding: 5px 18px;
-}
-.txn-report .table th {
-    background: #343a40;
-    color: #fff;
-    font-size: .78rem;
-    text-transform: uppercase;
-    letter-spacing: .03em;
-    border: none;
-}
-.txn-report .table td {
-    vertical-align: middle;
-    font-size: .85rem;
-}
-.txn-report .total-row td {
-    font-weight: 700;
-    background: #f8f9fa !important;
-    border-top: 2px solid #343a40;
-}
-
-/* Type badge colors */
-.badge-type-purchased { background: #dc3545; color: #fff; }
-.badge-type-paid { background: #28a745; color: #fff; }
-.badge-type-returned { background: #ffc107; color: #333; }
-.badge-type-others { background: #6c757d; color: #fff; }
+/* Transaction Report — filter bar */
+.tr-filter{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:18px}
+.tr-filter label{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--soft)}
+.tr-filter .selctl,
+.tr-filter input[type="date"]{padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-weight:500;color:var(--ink);background:#fff;font-family:var(--sans);outline:none;transition:.15s}
+.tr-filter input[type="date"]{cursor:pointer}
+.tr-filter .selctl:focus,
+.tr-filter input[type="date"]:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.tr-totrow td{font-family:var(--disp);font-weight:700;color:var(--ink);background:var(--wash);border-top:2px solid var(--line)!important}
+.gs table.gt td.rk{font-family:var(--disp);font-weight:700;color:var(--faint);text-align:center;width:44px}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 py-3 txn-report">
-
-    <!-- Header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+<div class="gs">
+    <div class="page-head">
         <div>
-            <h4 class="font-weight-bold mb-0"><i class="fas fa-exchange-alt text-primary"></i> Transaction Report</h4>
-            <small class="text-muted">Report Date: {{ report_date|date:"d M Y" }}</small>
+            <div class="eyebrow">Reports › Transactions</div>
+            <h1 class="disp">Transaction Report</h1>
+            <div class="sub">Customer amounts by transaction type — as of {{ report_date|date:"d M Y" }}</div>
         </div>
-        <div>
-            <a href="{% url 'bi_dashboard' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left mr-1"></i>Back to BI</a>
-        </div>
-    </div>
-
-    <!-- Filter Bar -->
-    <div class="card mb-3">
-        <div class="card-body py-2">
-            <form method="get" class="filter-bar" id="filterForm">
-                <label for="typeSelect"><i class="fas fa-filter text-primary mr-1"></i>Type:</label>
-                <select id="typeSelect" name="type" onchange="document.getElementById('filterForm').submit()">
-                    <option value="purchased" {% if txn_type == 'purchased' %}selected{% endif %}>Purchases</option>
-                    <option value="paid" {% if txn_type == 'paid' %}selected{% endif %}>Payments</option>
-                    <option value="returned" {% if txn_type == 'returned' %}selected{% endif %}>Returns</option>
-                    <option value="others" {% if txn_type == 'others' %}selected{% endif %}>Others</option>
-                </select>
-
-                <label for="dateFrom"><i class="fas fa-calendar mr-1"></i>From:</label>
-                <input type="date" id="dateFrom" name="from" value="{{ date_from }}" onchange="document.getElementById('filterForm').submit()">
-
-                <label for="dateTo">To:</label>
-                <input type="date" id="dateTo" name="to" value="{{ date_to }}" onchange="document.getElementById('filterForm').submit()">
-
-                <a href="{% url 'transaction_report' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
-            </form>
+        <div class="actions">
+            <a href="{% url 'bi_dashboard' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Back to BI</a>
+            <button type="button" class="gbtn" onclick="printReport()"><i class="fas fa-print"></i> Print</button>
         </div>
     </div>
 
-    <!-- KPI Cards -->
-    <div class="row mb-3">
-        <div class="col-6 col-md-4 mb-2">
-            <div class="kpi-card">
-                <div class="kpi-value text-primary">₹ {{ grand_total|inrs }}</div>
-                <div class="kpi-label">Total Amount</div>
-            </div>
+    <!-- Filter bar -->
+    <form method="get" class="tr-filter" id="filterForm">
+        <label for="typeSelect"><i class="fas fa-filter"></i> Type</label>
+        <select id="typeSelect" name="type" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="purchased" {% if txn_type == 'purchased' %}selected{% endif %}>Purchases</option>
+            <option value="paid" {% if txn_type == 'paid' %}selected{% endif %}>Payments</option>
+            <option value="returned" {% if txn_type == 'returned' %}selected{% endif %}>Returns</option>
+            <option value="others" {% if txn_type == 'others' %}selected{% endif %}>Others</option>
+        </select>
+
+        <label for="dateFrom"><i class="fas fa-calendar"></i> From</label>
+        <input type="date" id="dateFrom" name="from" value="{{ date_from }}" onchange="document.getElementById('filterForm').submit()">
+
+        <label for="dateTo">To</label>
+        <input type="date" id="dateTo" name="to" value="{{ date_to }}" onchange="document.getElementById('filterForm').submit()">
+
+        <a href="{% url 'transaction_report' %}" class="gbtn"><i class="fas fa-rotate-left"></i> Reset</a>
+    </form>
+
+    <!-- KPI cards -->
+    <div class="statgrid">
+        <div class="stat">
+            <span class="si b"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ grand_total|inrs }}</div><div class="sk">Total amount</div></div>
         </div>
-        <div class="col-6 col-md-4 mb-2">
-            <div class="kpi-card">
-                <div class="kpi-value text-dark">{{ total_customers }}</div>
-                <div class="kpi-label">Customers</div>
-            </div>
+        <div class="stat">
+            <span class="si v"><i class="fas fa-users"></i></span>
+            <div><div class="sv">{{ total_customers }}</div><div class="sk">Customers</div></div>
         </div>
-        <div class="col-6 col-md-4 mb-2">
-            <div class="kpi-card">
-                <div class="kpi-value">
-                    <span class="badge badge-type-{{ txn_type }}" style="font-size:.95rem;padding:6px 16px;">{{ type_label }}</span>
-                </div>
-                <div class="kpi-label">Transaction Type</div>
-            </div>
+        <div class="stat">
+            <span class="si g"><i class="fas fa-exchange-alt"></i></span>
+            <div><div class="sv">{{ type_label }}</div><div class="sk">Transaction type</div></div>
         </div>
     </div>
 
-    <!-- Table Section -->
-    <div class="card">
-        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center py-2">
-            <div>
-                <h5 class="section-title mb-0"><i class="fas fa-table mr-1"></i>{{ type_label }}
-                    {% if date_from and date_to %}
-                        <small class="text-muted ml-2">({{ date_from }} to {{ date_to }})</small>
-                    {% elif date_from %}
-                        <small class="text-muted ml-2">(From {{ date_from }})</small>
-                    {% elif date_to %}
-                        <small class="text-muted ml-2">(Up to {{ date_to }})</small>
-                    {% endif %}
-                </h5>
-            </div>
-            <button class="btn btn-sm btn-outline-dark mt-1" onclick="printReport()"><i class="fas fa-print mr-1"></i>Print</button>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover table-bordered mb-0" id="txnTable">
-                    <thead>
-                        <tr>
-                            <th style="width:50px;" class="text-center">#</th>
-                            <th>Customer Name</th>
-                            <th style="width:140px;">Phone</th>
-                            <th style="width:180px;" class="text-right">Amount (₹)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for c in customer_rows %}
-                        <tr>
-                            <td class="text-center font-weight-bold">{{ forloop.counter }}</td>
-                            <td>
-                                <a href="{% url 'book_logs' c.book_id %}" style="text-decoration:none;color:#333;">
-                                    <strong>{{ c.name }}</strong>
-                                </a>
-                            </td>
-                            <td class="text-muted">{{ c.phone }}</td>
-                            <td class="text-right font-weight-bold" style="font-size:.95rem;">₹ {{ c.amount|inrs }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-4">
-                                <i class="fas fa-inbox fa-2x mb-2 d-block text-secondary"></i>
-                                No transactions found for the selected filters
-                            </td>
-                        </tr>
-                        {% endfor %}
-
-                        {% if customer_rows %}
-                        <tr class="total-row">
-                            <td></td>
-                            <td colspan="2" class="font-weight-bold">TOTAL ({{ total_customers }} customers)</td>
-                            <td class="text-right font-weight-bold" style="font-size:1rem;">₹ {{ grand_total|inrs }}</td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <div class="rsec"><i class="fas fa-table"></i> {{ type_label }}
+        {% if date_from and date_to %}<span class="mut" style="font-weight:500;font-size:12.5px">· {{ date_from }} to {{ date_to }}</span>
+        {% elif date_from %}<span class="mut" style="font-weight:500;font-size:12.5px">· From {{ date_from }}</span>
+        {% elif date_to %}<span class="mut" style="font-weight:500;font-size:12.5px">· Up to {{ date_to }}</span>{% endif %}
     </div>
 
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="txnTable">
+            <thead><tr>
+                <th class="rk">#</th>
+                <th>Customer Name</th>
+                <th>Phone</th>
+                <th class="r">Amount (&#8377;)</th>
+            </tr></thead>
+            <tbody>
+                {% for c in customer_rows %}
+                <tr>
+                    <td class="rk">{{ forloop.counter }}</td>
+                    <td>
+                        <div class="prim"><span class="pi">{{ c.name|initials }}</span>
+                            <a href="{% url 'book_logs' c.book_id %}" class="nm" style="color:var(--ink)">{{ c.name }}</a></div>
+                    </td>
+                    <td><span class="mut">{{ c.phone }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ c.amount|inrs }}</span></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4"><div class="empty">
+                    <div class="ei"><i class="fas fa-inbox fa-lg"></i></div>
+                    <h3>No transactions found</h3>
+                    <p>No transactions match the selected filters.</p>
+                </div></td></tr>
+                {% endfor %}
+
+                {% if customer_rows %}
+                <tr class="tr-totrow">
+                    <td></td>
+                    <td colspan="2">TOTAL ({{ total_customers }} customers)</td>
+                    <td class="r"><span class="num">&#8377; {{ grand_total|inrs }}</span></td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -267,8 +163,7 @@ function printReport() {
     win.document.write('td:first-child{text-align:center;width:40px;}');
     win.document.write('td:last-child,th:last-child{text-align:right;}');
     win.document.write('tr:nth-child(even){background:#f9f9f9;}');
-    win.document.write('.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
-    win.document.write('.font-weight-bold{font-weight:700;}');
+    win.document.write('.tr-totrow td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
     /* Footer */
     win.document.write('.print-footer{text-align:center;margin-top:20px;font-size:.72rem;color:#999;border-top:1px solid #ccc;padding-top:6px;}');
     win.document.write('@media print{@page{size:A4 portrait;margin:12mm;}body{margin:0;padding:8px;}}');
