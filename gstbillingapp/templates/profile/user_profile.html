@@ -1,173 +1,127 @@
 {% extends "base.html" %}
-
 {% load static %}
 
+{% block title %}Business Profile · GSTSync{% endblock %}
+
+{% block includecss %}
+<style>
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);overflow:hidden;margin-bottom:16px}
+.pcard-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--wash)}
+.pcard-head .pchip{width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+.pcard-head .pchip.b{background:var(--bluebg);color:var(--brand)} .pcard-head .pchip.g{background:var(--greenbg);color:var(--green)} .pcard-head .pchip.o{background:var(--amberbg);color:var(--amber)}
+.pcard-head h3{font-family:var(--disp);font-size:15px;font-weight:700;margin:0;color:var(--ink)}
+.pcard-head .sd{font-size:12px;color:var(--faint)}
+.pcard-body{padding:6px 18px 14px}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
+.pgrid .pf{padding:11px 0;border-bottom:1px solid var(--line2)}
+.pgrid .pf.full{grid-column:1/-1}
+.pgrid .pl{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
+.pgrid .pv{font-size:14px;color:var(--ink);font-weight:500;word-break:break-word}
+.pgrid .pv.mono{font-family:var(--disp);letter-spacing:.3px}
+.pgrid .pv .na{color:var(--faint);font-weight:400}
+@media (max-width:640px){.pgrid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid mt-4">
-    <div class="row">
-        <div class="col-12 col-xl-10 mx-auto">
-            <!-- Profile Card -->
-            <div class="card shadow-lg">
-                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">Business Profile</h4>
-					<div>
-						<a href="{% url 'user_profile_edit' %}" class="btn btn-light btn-sm"><b><i class="fas fa-pen-to-square"></i></b></a>
-                    	<a href="{% url 'download_sqlite' %}" class="btn btn-light btn-sm"><b><i class="fas fa-download"></i></b></a>
-                    	<a href="{% url 'logout_view' %}" class="btn btn-light btn-sm"><b><i class="fas fa-right-from-bracket"></i></b></a>
-					</div>
-                </div>
-                <div class="card-body">
-                    <table class="table table-bordered table-striped">
-                        <tbody>
-                            <tr>
-                                <th scope="row" class="text-right" style="min-width: 150px;">Name:</th>
-                                <td>{{ user_profile.business_title }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Address:</th>
-                                <td>{% if user_profile.business_address %}{{ user_profile.business_address }}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Email:</th>
-                                <td>{% if user_profile.business_email %}{{ user_profile.business_email }}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Phone:</th>
-                                <td>{% if user_profile.business_phone %}{{ user_profile.business_phone }}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">GST:</th>
-                                <td>{% if user_profile.business_gst %}{{ user_profile.business_gst }}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Brand:</th>
-                                <td>{% if user_profile.business_brand %}{{ user_profile.business_brand }}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Latitude:</th>
-                                <td>{% if user_profile.business_latitude %}{{ user_profile.business_latitude }}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Longitude:</th>
-                                <td>{% if user_profile.business_longitude %}{{ user_profile.business_longitude }}{% else %}<span class="text-danger">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Bank Detail:</th>
-                                <td>
-                                    {% if user_profile.bankdetails %}
-                                        {{ user_profile.bankdetails }}
-                                    {% else %}
-                                        <span class="text-danger">N/A</span>
-                                    {% endif %}
-                                    <!-- UPI QR Code -->
-                                    {% if user_profile.bankdetails.upi_id %}
-                                        <br>
-                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}"></div>
-                                        <strong>UPI ID:</strong> {{ user_profile.bankdetails.upi_id }}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% if user_profile.business_latitude and user_profile.business_longitude %}
-                            <tr>
-                                <th colspan="2">
-                                    <div id="map" style="height: 400px; border-radius: 10px;"></div>
-                                </th>
-                            </tr>
-                            {% endif %}
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+<div class="gs gs-pad">
+    <div class="formwrap">
+
+        <div class="page-head">
+            <div>
+                <div class="eyebrow">Settings › Profile</div>
+                <h1 class="disp">Business Profile</h1>
+                <div class="sub">{{ user_profile.business_brand|default:user_profile.business_title }}</div>
+            </div>
+            <div class="actions">
+                <a href="{% url 'user_profile_edit' %}" class="gbtn"><i class="fas fa-pen-to-square"></i> Edit</a>
+                <a href="{% url 'download_sqlite' %}" class="gbtn"><i class="fas fa-download"></i> Backup</a>
+                <a href="{% url 'logout_view' %}" class="gbtn gbtn-danger"><i class="fas fa-right-from-bracket"></i> Logout</a>
             </div>
         </div>
+
+        <!-- Business details -->
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip b"><i class="fas fa-building"></i></span>
+                <div><h3>Business details</h3><div class="sd">Identity, contact &amp; tax</div></div></div>
+            <div class="pcard-body"><div class="pgrid">
+                <div class="pf"><div class="pl">Name</div><div class="pv">{{ user_profile.business_title|default:"—" }}</div></div>
+                <div class="pf"><div class="pl">Brand</div><div class="pv">{% if user_profile.business_brand %}{{ user_profile.business_brand }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf full"><div class="pl">Address</div><div class="pv">{% if user_profile.business_address %}{{ user_profile.business_address }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf"><div class="pl">Email</div><div class="pv">{% if user_profile.business_email %}{{ user_profile.business_email }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf"><div class="pl">Phone</div><div class="pv">{% if user_profile.business_phone %}{{ user_profile.business_phone }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf"><div class="pl">GST Number</div><div class="pv mono">{% if user_profile.business_gst %}{{ user_profile.business_gst }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf"><div class="pl">Location</div><div class="pv mono">{% if user_profile.business_latitude and user_profile.business_longitude %}{{ user_profile.business_latitude }}, {{ user_profile.business_longitude }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+            </div></div>
+        </div>
+
+        <!-- Bank & payments -->
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip g"><i class="fas fa-landmark"></i></span>
+                <div><h3>Bank &amp; payments</h3><div class="sd">Account &amp; UPI collection</div></div></div>
+            <div class="pcard-body">
+                <div class="pgrid">
+                    <div class="pf full"><div class="pl">Bank Detail</div><div class="pv">{% if user_profile.bankdetails %}{{ user_profile.bankdetails }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                </div>
+                {% if user_profile.bankdetails.upi_id %}
+                <div style="display:flex;gap:18px;align-items:center;margin-top:14px;flex-wrap:wrap">
+                    <div id="upi_qr" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}" style="background:#fff;padding:8px;border:1px solid var(--line);border-radius:12px;line-height:0"></div>
+                    <div><div class="pl">UPI ID</div><div class="pv mono">{{ user_profile.bankdetails.upi_id }}</div><div class="mut" style="font-size:11.5px;margin-top:3px">Scan the code to pay this business</div></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Location map -->
+        {% if user_profile.business_latitude and user_profile.business_longitude %}
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip o"><i class="fas fa-location-dot"></i></span>
+                <div><h3>Location</h3><div class="sd">Registered business location</div></div></div>
+            <div id="map" style="height:380px"></div>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 {% endblock %}
+
 {% block includejs %}
+{% if user_profile.business_latitude and user_profile.business_longitude %}
 <script>
     var latitude = {{ user_profile.business_latitude }};
     var longitude = {{ user_profile.business_longitude }};
     var map = L.map('map').setView([latitude, longitude], 13);
-    let cartoLayer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        {
-            attribution: '&copy; OpenStreetMap &copy; CartoDB'
-        }
-    );
-    let darkLayer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        {
-            attribution: '&copy; OpenStreetMap &copy; CartoDB'
-        }
-    );
-    let topoLayer = L.tileLayer(
-        'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-        {
-            attribution: '&copy; OpenTopoMap'
-        }
-    );
-    let osmLayer = L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {
-            attribution: '&copy; OpenStreetMap'
-        }
-    );
-    let googleLayer = L.tileLayer(
-        'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        { 
-            attribution: '&copy; Google Maps',
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        }
-    );
-    let satelliteLayer = L.tileLayer(
-        'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-        {
-            attribution: '&copy; Google Maps',
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        }
-    );
+    let cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
+    let darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
+    let topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap' });
+    let osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
+    let googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
+    let satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
     satelliteLayer.addTo(map);
-    let baseMaps = {
-        "☀️ Light": cartoLayer,
-        "🌙 Dark": darkLayer,
-        "🗺️ Google": googleLayer,
-        "⛰️ Terrain": topoLayer,
-        "🗺️ OSM": osmLayer,
-        "🛰️ Satellite": satelliteLayer
-    };
-    L.control.layers(baseMaps).addTo(map);
-    let marker = L.marker([latitude, longitude]).addTo(map);
+    L.control.layers({ "☀️ Light": cartoLayer, "🌙 Dark": darkLayer, "🗺️ Google": googleLayer, "⛰️ Terrain": topoLayer, "🗺️ OSM": osmLayer, "🛰️ Satellite": satelliteLayer }).addTo(map);
+    L.marker([latitude, longitude]).addTo(map);
     let locateControl = L.control({ position: 'topleft' });
     locateControl.onAdd = function(map) {
         let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-        div.style.backgroundColor = 'white';
-        div.style.width = '34px';
-        div.style.height = '34px';
-        div.style.cursor = 'pointer';
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
-        div.style.justifyContent = 'center';
-        div.title = "Lead Location";
-        div.innerHTML = '📍';
-        div.onclick = function(e) {
-            e.stopPropagation(); // Prevent map click events
-            map.setView([latitude, longitude], 15, { animate: true });
-        };
+        div.style.cssText = 'background:#fff;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center';
+        div.title = "Business location"; div.innerHTML = '📍';
+        div.onclick = function(e) { e.stopPropagation(); map.setView([latitude, longitude], 15, { animate: true }); };
         return div;
     };
     locateControl.addTo(map);
+    setTimeout(function(){ map.invalidateSize(); }, 200);
 </script>
+{% endif %}
+{% if user_profile.bankdetails.upi_id %}
 <script>
-    const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
-    const qr = new QRCodeStyling({
-        width: 100,
-        height: 100,
-        data: upiQR,
-        dotsOptions: { color: "#000", type: "rounded" }
-    });
-
-    qr.append(document.getElementById("upi_qr"));
+    (function(){
+        var el = document.getElementById("upi_qr");
+        if (!el) return;
+        var qr = new QRCodeStyling({ width: 116, height: 116, data: el.getAttribute("data-upi_id"), dotsOptions: { color: "#0f172a", type: "rounded" } });
+        qr.append(el);
+    })();
 </script>
+{% endif %}
 {% endblock %}
 
 {% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}

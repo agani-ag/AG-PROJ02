@@ -29,7 +29,23 @@ def _filtered_vendors(request):
 @login_required
 def vendors_purchase(request):
     qs, q = _filtered_vendors(request)
-    paginator = Paginator(qs, 25)
+    # Attach each vendor's current balance (same formula as the vendor detail page)
+    # so the list can show — and sort by — an Amount column.
+    vendors = list(qs)
+    for v in vendors:
+        t = PurchaseLog.objects.filter(user=request.user, vendor_id=v.id).aggregate(
+            paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
+            purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
+            returned=Sum(Case(When(change_type=2, then=F('change')), output_field=FloatField())),
+            others=Sum(Case(When(change_type=3, then=F('change')), output_field=FloatField())),
+        )
+        v.balance = abs(t['purchased'] or 0) - (abs(t['paid'] or 0) + abs(t['returned'] or 0) + abs(t['others'] or 0))
+    sort = request.GET.get('sort')
+    if sort == 'amount':
+        vendors.sort(key=lambda v: v.balance)
+    elif sort == '-amount':
+        vendors.sort(key=lambda v: v.balance, reverse=True)
+    paginator = Paginator(vendors, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
     params = request.GET.copy()
     params.pop('page', None)

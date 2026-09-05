@@ -410,3 +410,8 @@ th.gstable-sortable[data-sortdir="desc"]::after{content:"\2193";opacity:.9}
 .gs table tbody tr.rt-blue  td:first-child{border-left-color:var(--brand)}
 .gs table tbody tr.rt-cyan  td:first-child{border-left-color:#0891b2}
 .gs table tbody tr.rt-grey  td:first-child{border-left-color:#cbd5e1}
+
+/* Initial-letter avatar in list "primary" cells (e.g. Customers): show the name's
+   first letter in the square chip; green when the record has a saved location. */
+.gs .prim .pi{font-family:var(--disp);font-weight:700;font-size:14px;text-transform:uppercase}
+.gs .prim .pi.has-loc{background:var(--greenbg);color:var(--green)}

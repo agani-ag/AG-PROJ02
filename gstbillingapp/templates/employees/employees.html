@@ -35,7 +35,7 @@
             <tbody>
                 {% for p in postings %}
                 <tr>
-                    <td><div class="prim"><span class="pi"><i class="fas fa-user"></i></span>
+                    <td><div class="prim"><span class="pi">{{ p.employee.name|initials }}</span>
                         <div><div class="nm">{{ p.employee.name }}</div>{% if p.employee.email %}<div class="mn">{{ p.employee.email }}</div>{% endif %}</div></div></td>
                     <td>{% if p.is_home %}<span class="gbadge blue">Own</span>{% else %}<span class="gbadge grey">Shared</span><div class="mn">from {{ p.employee.business.userprofile.business_brand|default:p.employee.business.userprofile.business_title|default:p.employee.business.username }}</div>{% endif %}</td>
                     <td class="r num">{% if p.attendance_eligible %}{% if p.salary %}₹ {{ p.salary|inrs }}{% else %}<span class="mut">—</span>{% endif %}{% else %}<span class="gbadge grey">Not on payroll</span>{% endif %}</td>

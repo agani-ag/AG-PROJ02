@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load money %}
 {% block title %}Vendors · GSTSync{% endblock %}
 
 {% block includecss %}
@@ -7,6 +8,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* Amount / GST toggle: show Amount by default, the GST button swaps them. */
+#vendor-table .gst-col{display:none}
+#vendor-table.show-gst .gst-col{display:table-cell}
+#vendor-table.show-gst .amt-col{display:none}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -14,6 +21,7 @@
     <div class="page-head">
         <div><h1 class="disp">Vendors</h1><div class="sub">{{ total_count }} vendor{{ total_count|pluralize }}</div></div>
         <div class="actions">
+            <button type="button" class="gbtn" onclick="toggleVendorCol(this)"><i class="fas fa-file-invoice"></i> <span>GST</span></button>
             <a href="{% url 'vendors_purchase_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-arrow-down"></i> Export</a>
             <a href="{% url 'vendor_purchase_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add vendor</a>
         </div>
@@ -26,17 +34,18 @@
 
     <div class="tablecard">
         <div class="tbl-scroll">
-        <table class="gt">
+        <table class="gt" id="vendor-table">
             <thead><tr>
-                <th>Vendor</th><th>Address</th><th>Phone</th><th>GST</th><th class="r">Actions</th>
+                <th>Vendor</th><th>Address</th><th>Phone</th>{% sort_th 'amount' 'Amount' 'r amt-col' %}<th class="gst-col">GST</th><th class="r">Actions</th>
             </tr></thead>
             <tbody>
                 {% for vendor in vendors %}
                 <tr>
-                    <td><div class="prim"><span class="pi"><i class="fas fa-truck"></i></span><div class="nm">{{ vendor.vendor_name }}</div></div></td>
+                    <td><div class="prim"><span class="pi">{{ vendor.vendor_name|initials }}</span><div class="nm">{{ vendor.vendor_name }}</div></div></td>
                     <td>{% if vendor.vendor_address %}{{ vendor.vendor_address }}{% else %}<span class="mut">—</span>{% endif %}</td>
                     <td>{% if vendor.vendor_phone %}{{ vendor.vendor_phone }}{% else %}<span class="mut">—</span>{% endif %}</td>
-                    <td>{% if vendor.vendor_gst %}{{ vendor.vendor_gst }}{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td class="r amt-col"><span class="num" style="{% if vendor.balance > 0 %}color:var(--red){% elif vendor.balance < 0 %}color:var(--green){% else %}color:var(--faint){% endif %}">&#8377; {{ vendor.balance|inrs }}</span></td>
+                    <td class="gst-col">{% if vendor.vendor_gst %}{{ vendor.vendor_gst }}{% else %}<span class="mut">—</span>{% endif %}</td>
                     <td class="r"><div class="rowacts">
                         <a href="{% url 'vendor_purchase_edit' vendor.id %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
                         <a href="{% url 'purchases_vendor_logs' vendor.id %}" class="gbtn gbtn-icon" title="Purchase logs"><i class="fas fa-clock-rotate-left"></i></a>
@@ -47,7 +56,7 @@
                     </div></td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5"><div class="empty">
+                <tr><td colspan="6"><div class="empty">
                     <div class="ei"><i class="fas fa-truck fa-lg"></i></div>
                     <h3>No vendors found</h3>
                     <p>{% if q %}Try a different search.{% else %}Add your first vendor.{% endif %}</p>
@@ -68,6 +77,14 @@
 
 {% block includejs %}
 <script type="text/javascript">
+// Toggle the Amount / GST column (like the Description toggle on All Book Details).
+function toggleVendorCol(btn){
+    var t = document.getElementById('vendor-table');
+    t.classList.toggle('show-gst');
+    var showingGst = t.classList.contains('show-gst');
+    var lbl = btn.querySelector('span');
+    if (lbl) lbl.textContent = showingGst ? 'Amount' : 'GST';
+}
 function deleteVendor(id, name){
     Swal.fire({
         title: 'Delete vendor?', html: 'Delete <b>' + name + '</b>? This cannot be undone.',

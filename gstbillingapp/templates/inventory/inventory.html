@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load money %}
 {% block title %}Inventory · GSTSync{% endblock %}
 
 {% block includecss %}
@@ -28,25 +29,22 @@
         <div class="tbl-scroll">
         <table class="gt">
             <thead><tr>
-                <th>Product</th><th class="r">Current Stock</th><th>Last Transaction</th><th class="r">Actions</th>
+                <th>Product</th>{% sort_th 'stock' 'Current Stock' 'r' %}<th>Last Transaction</th>
             </tr></thead>
             <tbody>
                 {% for inv in inventory_list %}
-                <tr>
-                    <td><a href="{% url 'inventory_logs' inv.id %}" style="display:block"><div class="prim"><span class="pi"><i class="fas fa-boxes-stacked"></i></span>
-                        <div><div class="nm">{{ inv.product.product_name|default:"Unnamed product" }}</div><div class="mn">{{ inv.product.model_no }}</div></div></div></a></td>
+                <tr onclick="window.location.href='{% url 'inventory_logs' inv.id %}'" style="cursor:pointer" title="View stock logs">
+                    <td><div class="prim"><span class="pi"><i class="fas fa-boxes-stacked"></i></span>
+                        <div><div class="nm">{{ inv.product.product_name|default:"Unnamed product" }}</div><div class="mn">{{ inv.product.model_no }}</div></div></div></td>
                     <td class="r">
                         {% if inv.current_stock <= 0 %}<span class="gbadge out">{{ inv.current_stock }}</span>
                         {% elif inv.current_stock < inv.alert_level %}<span class="gbadge low">{{ inv.current_stock }} · low</span>
                         {% else %}<span class="num">{{ inv.current_stock }}</span>{% endif %}
                     </td>
                     <td class="mut">{{ inv.last_log|default:"—" }}</td>
-                    <td class="r"><div class="rowacts">
-                        <a href="{% url 'inventory_logs' inv.id %}" class="gbtn gbtn-icon" title="Stock logs"><i class="fas fa-file-lines"></i></a>
-                    </div></td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="4"><div class="empty">
+                <tr><td colspan="3"><div class="empty">
                     <div class="ei"><i class="fas fa-boxes-stacked fa-lg"></i></div>
                     <h3>No inventory found</h3>
                     <p>{% if q %}Try a different search.{% else %}Tracked products will appear here.{% endif %}</p>

@@ -29,7 +29,7 @@
         <div class="tbl-scroll">
         <table class="gt">
             <thead><tr>
-                <th>Customer</th><th class="r">Current Balance</th><th>Last Transaction</th><th class="r">Actions</th>
+                <th>Customer</th>{% sort_th 'balance' 'Current Balance' 'r' %}<th>Last Transaction</th><th class="r">Actions</th>
             </tr></thead>
             <tbody>
                 {% for book in book_list %}

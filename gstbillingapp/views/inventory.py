@@ -33,6 +33,11 @@ def _filtered_inventory(request):
     q = (request.GET.get('q') or '').strip()
     if q:
         qs = qs.filter(Q(product__model_no__icontains=q) | Q(product__product_name__icontains=q))
+    sort = request.GET.get('sort')
+    if sort == 'stock':
+        qs = qs.order_by('current_stock')
+    elif sort == '-stock':
+        qs = qs.order_by('-current_stock')
     return qs, q
 
 

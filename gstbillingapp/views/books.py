@@ -35,6 +35,11 @@ def _filtered_books(request):
     q = (request.GET.get('q') or '').strip()
     if q:
         qs = qs.filter(customer__customer_name__icontains=q)
+    sort = request.GET.get('sort')
+    if sort == 'balance':
+        qs = qs.order_by('current_balance')
+    elif sort == '-balance':
+        qs = qs.order_by('-current_balance')
     return qs, q
 
 

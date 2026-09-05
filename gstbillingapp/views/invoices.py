@@ -291,7 +291,19 @@ def invoices(request):
 
     total_invoice_amount = _invoices_total_amount(qs)
 
-    paginator = Paginator(qs, 25)
+    # Sort by Invoice Amount (parsed from invoice_json) is a Python sort over the whole
+    # filtered set; the default date sort keeps the efficient DB-paginated path.
+    sort = request.GET.get('sort')
+    if sort in ('amount', '-amount'):
+        def _amt(inv):
+            try:
+                return float(json.loads(inv.invoice_json).get('invoice_total_amt_with_gst', 0))
+            except Exception:
+                return 0.0
+        ordered = sorted(qs, key=_amt, reverse=(sort == '-amount'))
+        paginator = Paginator(ordered, 25)
+    else:
+        paginator = Paginator(qs, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
     rows = [_invoice_row_dict(inv, request, fctx['invoice_type']) for inv in page_obj]
 

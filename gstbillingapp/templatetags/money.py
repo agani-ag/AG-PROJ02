@@ -66,3 +66,52 @@ def inrs(value):
     """Smart Indian money: whole rupees show no decimals, real paise are kept.
     {{ amount|inrs }} -> 29,800  or  29,857.49"""
     return format_inr_smart(value)
+
+
+@register.filter
+def initials(value, count=2):
+    """Teams-style initials: first letter of each of the first `count` words
+    (default 2), upper-cased. Single-word names fall back to their first `count`
+    letters.  "AMMAN HARDWARE" -> "AH", "A.M VIKASH TRADERS" -> "AV", "ALPHA" -> "AL"."""
+    try:
+        count = int(count)
+    except (TypeError, ValueError):
+        count = 2
+    if not value:
+        return ''
+    words = [w for w in str(value).strip().split() if w]
+    if not words:
+        return ''
+    if len(words) == 1:
+        return words[0][:count].upper()
+    return ''.join(w[0] for w in words[:count]).upper()
+
+
+from django.utils.html import escape
+from django.utils.safestring import mark_safe
+
+
+@register.simple_tag(takes_context=True)
+def sort_th(context, key, label, align=''):
+    """Render a sortable <th> that toggles ?sort=<key> / ?sort=-<key> and shows an
+    arrow, preserving all other query params (search/filters). The VIEW must read
+    ?sort and order its queryset accordingly.
+
+        {% sort_th 'amount' 'Amount' 'r' %}
+    """
+    request = context.get('request')
+    cur = (request.GET.get('sort') if request else '') or ''
+    nxt = '-' + key if cur == key else key
+    arrow = ''
+    if cur == key:
+        arrow = ' <i class="fas fa-arrow-up gico"></i>'
+    elif cur == '-' + key:
+        arrow = ' <i class="fas fa-arrow-down gico"></i>'
+    params = request.GET.copy() if request else {}
+    if params:
+        params.pop('page', None)
+        params.pop('sort', None)
+    rest = params.urlencode() if params else ''
+    href = '?sort=' + nxt + (('&' + rest) if rest else '')
+    cls = (' class="' + align + '"') if align else ''
+    return mark_safe('<th%s><a href="%s">%s%s</a></th>' % (cls, escape(href), escape(str(label)), arrow))

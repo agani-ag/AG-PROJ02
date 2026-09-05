@@ -83,7 +83,13 @@ def expense_tracker(request):
     if q:
         expenses = expenses.filter(Q(category__icontains=q) | Q(reference__icontains=q))
 
-    paginator = Paginator(expenses.order_by("-date"), 25)
+    sort = request.GET.get("sort")
+    _order = "-date"
+    if sort == "amount":
+        _order = "amount"
+    elif sort == "-amount":
+        _order = "-amount"
+    paginator = Paginator(expenses.order_by(_order), 25)
     page_obj = paginator.get_page(request.GET.get("page"))
     params = request.GET.copy()
     params.pop("page", None)

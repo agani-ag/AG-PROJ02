@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load money %}
 {% block title %}Customers · GSTSync{% endblock %}
 
 {% block includecss %}
@@ -34,7 +35,7 @@
             <tbody>
                 {% for customer in customers %}
                 <tr>
-                    <td><div class="prim"><span class="pi"><i class="fas fa-user"></i></span><div class="nm">{{ customer.customer_name }}</div></div></td>
+                    <td><div class="prim"><span class="pi{% if customer.customer_latitude and customer.customer_longitude %} has-loc{% endif %}" title="{% if customer.customer_latitude and customer.customer_longitude %}Location saved{% else %}No location{% endif %}">{{ customer.customer_name|initials }}</span><div class="nm">{{ customer.customer_name }}</div></div></td>
                     <td>{% if customer.customer_address %}{{ customer.customer_address }}{% else %}<span class="mut">—</span>{% endif %}</td>
                     <td>{% if customer.customer_phone %}{{ customer.customer_phone }}{% else %}<span class="mut">—</span>{% endif %}</td>
                     <td>{% if customer.customer_gst %}{{ customer.customer_gst }}{% else %}<span class="mut">—</span>{% endif %}</td>
@@ -47,9 +48,6 @@
                     <td class="r"><div class="rowacts">
                         <a href="{% url 'customer_edit' customer.id %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
                         <a href="{% url 'book_logs' customer.id %}" class="gbtn gbtn-icon" title="Ledger"><i class="fas fa-file-lines"></i></a>
-                        {% if customer.customer_latitude and customer.customer_longitude %}
-                        <button type="button" class="gbtn gbtn-icon" title="View on map" onclick="popup_Customer_maps('{{ customer.customer_latitude }}', '{{ customer.customer_longitude }}', '{{ customer.customer_name|escapejs }}')"><i class="fas fa-location-dot"></i></button>
-                        {% endif %}
                         <button type="button" class="gbtn gbtn-icon del" title="Delete" onclick="deleteCustomer({{ customer.id }}, '{{ customer.customer_name|escapejs }}')"><i class="fas fa-trash"></i></button>
                     </div></td>
                 </tr>
@@ -102,38 +100,5 @@ function IsMobileUser_Status(customerUserId) {
     });
 }
 
-function popup_Customer_maps(latitude, longitude, name) {
-    Swal.fire({
-        html: `<div id="map" style="height: 600px; width: 98%; border-radius: 10px;"></div>`,
-        width: '80%', showCloseButton: true, showConfirmButton: false,
-        didOpen: () => {
-            var map = L.map('map').setView([latitude, longitude], 13);
-            let cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
-            let darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
-            let topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap' });
-            let osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
-            let googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
-            let satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
-            satelliteLayer.addTo(map);
-            let baseMaps = { "☀️ Light": cartoLayer, "🌙 Dark": darkLayer, "🗺️ Google": googleLayer, "⛰️ Terrain": topoLayer, "🗺️ OSM": osmLayer, "🛰️ Satellite": satelliteLayer };
-            L.control.layers(baseMaps).addTo(map);
-            L.marker([latitude, longitude]).addTo(map);
-            let locateControl = L.control({ position: 'topleft' });
-            locateControl.onAdd = function(map) {
-                let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-                div.style.backgroundColor = 'white'; div.style.width = '34px'; div.style.height = '34px';
-                div.style.cursor = 'pointer'; div.style.display = 'flex'; div.style.alignItems = 'center';
-                div.style.justifyContent = 'center'; div.title = "Lead Location"; div.innerHTML = '📍';
-                div.onclick = function(e) { e.stopPropagation(); map.setView([latitude, longitude], 15, { animate: true }); };
-                return div;
-            };
-            locateControl.addTo(map);
-            setTimeout(() => { map.invalidateSize(); }, 200);
-        }
-    });
-}
 </script>
 {% endblock %}
-
-{% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}
-{% block body_libs %}{% include "partials/libs/leaflet_body.html" %}{% endblock %}
