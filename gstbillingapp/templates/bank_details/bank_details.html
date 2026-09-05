@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load money %}
 {% block title %}Bank Details · GSTSync{% endblock %}
 
 {% block includecss %}
@@ -32,7 +33,7 @@
             <tbody>
                 {% for b in bank_details %}
                 <tr>
-                    <td><div class="prim"><span class="pi"><i class="fas fa-building-columns"></i></span><div class="nm">{{ b.account_name }}</div></div></td>
+                    <td><div class="prim"><span class="pi">{{ b.account_name|initials }}</span><div class="nm">{{ b.account_name }}</div></div></td>
                     <td class="num">{{ b.account_number }}</td>
                     <td>{% if b.bank_name %}{{ b.bank_name }}{% else %}<span class="mut">—</span>{% endif %}</td>
                     <td>{% if b.ifsc_code %}{{ b.ifsc_code }}{% else %}<span class="mut">—</span>{% endif %}</td>

@@ -30,7 +30,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.contrib.sessions.models import Session
 
-from .models import Quotation
+from .models import Quotation, ActiveDevice
 
 
 # --------------------------------------------------------------------------- #
@@ -147,6 +147,12 @@ def db_stats():
     expired = Session.objects.filter(expire_date__lt=now).count()
     live = Session.objects.filter(expire_date__gte=now).count()
 
+    device_rows = ActiveDevice.objects.count()
+    online_cutoff = now - datetime.timedelta(seconds=_DEVICE_ONLINE_SECONDS)
+    devices_online = ActiveDevice.objects.filter(last_seen__gte=online_cutoff).count()
+    prune_cutoff = now - datetime.timedelta(days=DEVICE_RETENTION_DAYS)
+    devices_prunable = ActiveDevice.objects.filter(last_seen__lt=prune_cutoff).count()
+
     return {
         "db_bytes": db_size_bytes(),
         "db_mb": round(db_size_bytes() / 1048576.0, 2),
@@ -156,6 +162,9 @@ def db_stats():
         "reclaimable_mb": round(free_pages * page_size / 1048576.0, 2),
         "sessions_expired": expired,
         "sessions_live": live,
+        "device_rows": device_rows,
+        "devices_online": devices_online,
+        "devices_prunable": devices_prunable,
         "free_disk_mb": round(free_disk_bytes() / 1048576.0, 1),
         "backups": backup_count(),
         "latest_backup": _iso(latest_backup_time()),
@@ -333,6 +342,25 @@ def purge_quotations(days, commit=True):
 
 
 # --------------------------------------------------------------------------- #
+# Stale presence rows (active-device heartbeat)
+# --------------------------------------------------------------------------- #
+# Device rows are KEPT as history (so the profile shows each device's last-seen and a
+# returning browser is recognised), not deleted on logout. This sweep only removes rows
+# that have been idle for a long time, so the table stays bounded without losing the
+# recent device history. Nothing here affects the live online count (75s window).
+DEVICE_RETENTION_DAYS = 90
+# "Online" proxy for the health snapshot only (the real window lives in views/presence).
+_DEVICE_ONLINE_SECONDS = 120
+
+
+def purge_stale_devices(days=DEVICE_RETENTION_DAYS):
+    """Delete ActiveDevice rows not seen in `days`. Returns how many went."""
+    cutoff = timezone.now() - datetime.timedelta(days=days)
+    deleted, _ = ActiveDevice.objects.filter(last_seen__lt=cutoff).delete()
+    return deleted
+
+
+# --------------------------------------------------------------------------- #
 # Cleanup
 # --------------------------------------------------------------------------- #
 # An in-place VACUUM needs roughly 2x the file size free while it runs. It is atomic —
@@ -357,10 +385,11 @@ def reclaimable_bytes():
 
 
 def run_cleanup(vacuum=False, quotation_days=None):
-    """Delete expired sessions; optionally purge stale quotations, then compact.
+    """Delete expired sessions and stale presence rows; optionally purge stale
+    quotations, then compact.
 
-    Sessions always. Quotations ONLY when `quotation_days` is given — never by default.
-    Nothing else in this database is touched.
+    Sessions and stale ActiveDevice rows always. Quotations ONLY when `quotation_days`
+    is given — never by default. Nothing else in this database is touched.
     """
     now = timezone.now()
     before = db_size_bytes()
@@ -372,6 +401,11 @@ def run_cleanup(vacuum=False, quotation_days=None):
     deleted, _ = Session.objects.filter(expire_date__lt=now).delete()
     stats["expired_sessions"] = deleted
     stats["sessions_live"] = Session.objects.filter(expire_date__gte=now).count()
+
+    # Device rows are kept as history; only long-idle ones (DEVICE_RETENTION_DAYS) are
+    # pruned so the table stays bounded without losing the recent device list.
+    stats["pruned_devices"] = purge_stale_devices()
+    stats["device_rows"] = ActiveDevice.objects.count()
 
     # Opt-in retention. Runs before the vacuum so the freed pages are reclaimed in the
     # same pass.

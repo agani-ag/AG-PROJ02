@@ -396,47 +396,12 @@
     const circlesGroup = L.layerGroup();
     const circles5kmGroup = L.layerGroup();
 
-    // ── Base tile layers — googleLayer is the default ──
-    const cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CartoDB</a>', maxZoom: 19
-    });
-
-    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19
-    });
-
-    const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-        attribution: '&copy; OpenStreetMap contributors &copy; CartoDB', maxZoom: 19
-    });
-
-    const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
-        attribution: '&copy; OpenTopoMap contributors', maxZoom: 17
-    });
-
-    const googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
-        attribution: '&copy; Google Maps', maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3']
-    }).addTo(map);
-
-    const satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
-        attribution: '&copy; Google Maps', maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3']
-    });
-
-    // ── Layer control — single instance ──
-    const baseMaps = {
-        "🗺️ Google": googleLayer,
-        "☀️ Light": cartoLayer,
-        "🌙 Dark": darkLayer,
-        "⛰️ Terrain": topoLayer,
-        "🗺️ OSM": osmLayer,
-        "🛰️ Satellite": satelliteLayer
-    };
-
+    // ── Free/open base layers + radius overlays (shared helper) ──
     const overlays = {
         "🔵 1 km Radius": circlesGroup,
         "🟢 5 km Radius": circles5kmGroup
     };
-
-    L.control.layers(baseMaps, overlays, { collapsed: false }).addTo(map);
+    gstMapLayers(map, { collapsed: false, overlays: overlays });
     L.control.scale({ metric: true, imperial: false }).addTo(map);
 
     // DOM refs

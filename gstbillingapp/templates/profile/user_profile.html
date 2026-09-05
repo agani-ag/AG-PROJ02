@@ -20,6 +20,22 @@
 .pgrid .pv.mono{font-family:var(--disp);letter-spacing:.3px}
 .pgrid .pv .na{color:var(--faint);font-weight:400}
 @media (max-width:640px){.pgrid{grid-template-columns:1fr}}
+/* Devices & activity */
+.dev-list{display:flex;flex-direction:column}
+.dev-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line2)}
+.dev-row:last-child{border-bottom:0}
+.dev-dot{width:10px;height:10px;border-radius:50%;flex:none;background:#cbd5e1;box-shadow:0 0 0 3px #f1f5f9}
+.dev-dot.on{background:#16a34a;box-shadow:0 0 0 3px #dcfce7}
+.dev-main{min-width:0;flex:1}
+.dev-name{font-size:14px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dev-you{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--brand);background:var(--bluebg);padding:2px 7px;border-radius:999px}
+.dev-ua{font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.dev-meta{text-align:right;flex:none}
+.dev-status{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+.dev-status.on{color:var(--green)} .dev-status.off{color:var(--faint)}
+.dev-seen{font-size:12px;color:var(--ink2,#475569);margin-top:2px}
+.dev-first{font-size:11px;color:var(--faint)}
+@media (max-width:520px){.dev-ua{max-width:150px}}
 </style>
 {% endblock %}
 
@@ -65,8 +81,8 @@
                 </div>
                 {% if user_profile.bankdetails.upi_id %}
                 <div style="display:flex;gap:18px;align-items:center;margin-top:14px;flex-wrap:wrap">
-                    <div id="upi_qr" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}" style="background:#fff;padding:8px;border:1px solid var(--line);border-radius:12px;line-height:0"></div>
-                    <div><div class="pl">UPI ID</div><div class="pv mono">{{ user_profile.bankdetails.upi_id }}</div><div class="mut" style="font-size:11.5px;margin-top:3px">Scan the code to pay this business</div></div>
+                    <div id="upi_qr" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}" title="Click to enlarge" style="background:#fff;padding:8px;border:1px solid var(--line);border-radius:12px;line-height:0;cursor:zoom-in"></div>
+                    <div><div class="pl">UPI ID</div><div class="pv mono">{{ user_profile.bankdetails.upi_id }}</div><div class="mut" style="font-size:11.5px;margin-top:3px">Click the code to enlarge &amp; scan to pay this business</div></div>
                 </div>
                 {% endif %}
             </div>
@@ -81,6 +97,34 @@
         </div>
         {% endif %}
 
+        <!-- Devices & activity -->
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip b"><i class="fas fa-desktop"></i></span>
+                <div><h3>Devices &amp; activity</h3>
+                    <div class="sd"><b id="dev-online-count">{{ devices_online }}</b> online now ·
+                        <span id="dev-total-count">{{ devices|length }}</span> known device{{ devices|length|pluralize }}</div></div></div>
+            <div class="pcard-body">
+                <div id="device-list" class="dev-list">
+                    {% for d in devices %}
+                    <div class="dev-row">
+                        <span class="dev-dot {% if d.online %}on{% endif %}"></span>
+                        <div class="dev-main">
+                            <div class="dev-name">{{ d.name }}{% if d.token == this_device_token %} <span class="dev-you">This device</span>{% endif %}</div>
+                            <div class="dev-ua">{{ d.user_agent|default:"Unknown user agent" }}</div>
+                        </div>
+                        <div class="dev-meta">
+                            <span class="dev-status {% if d.online %}on{% else %}off{% endif %}">{% if d.online %}Online{% else %}Offline{% endif %}</span>
+                            <div class="dev-seen">{% if d.online %}Active now{% else %}Last seen {{ d.last_seen }}{% endif %}</div>
+                            <div class="dev-first">Since {{ d.first_seen }}</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="mut">No device activity recorded yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 {% endblock %}
@@ -91,14 +135,7 @@
     var latitude = {{ user_profile.business_latitude }};
     var longitude = {{ user_profile.business_longitude }};
     var map = L.map('map').setView([latitude, longitude], 13);
-    let cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
-    let darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
-    let topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap' });
-    let osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
-    let googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
-    let satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
-    satelliteLayer.addTo(map);
-    L.control.layers({ "☀️ Light": cartoLayer, "🌙 Dark": darkLayer, "🗺️ Google": googleLayer, "⛰️ Terrain": topoLayer, "🗺️ OSM": osmLayer, "🛰️ Satellite": satelliteLayer }).addTo(map);
+    gstMapLayers(map);
     L.marker([latitude, longitude]).addTo(map);
     let locateControl = L.control({ position: 'topleft' });
     locateControl.onAdd = function(map) {
@@ -117,11 +154,70 @@
     (function(){
         var el = document.getElementById("upi_qr");
         if (!el) return;
-        var qr = new QRCodeStyling({ width: 116, height: 116, data: el.getAttribute("data-upi_id"), dotsOptions: { color: "#0f172a", type: "rounded" } });
+        var data = el.getAttribute("data-upi_id");
+        var upiId = "{{ user_profile.bankdetails.upi_id|escapejs }}";
+        var qr = new QRCodeStyling({ width: 116, height: 116, data: data, dotsOptions: { color: "#0f172a", type: "rounded" } });
         qr.append(el);
+        el.addEventListener("click", function(){
+            Swal.fire({
+                width: 380,
+                html: '<div style="font-family:var(--disp,inherit);font-weight:700;font-size:16px;margin-bottom:12px;color:#0f172a">Scan to pay</div>'
+                    + '<div id="upi_qr_big" style="display:flex;justify-content:center;line-height:0"></div>'
+                    + '<div style="margin-top:14px;font-size:14px;color:#334155;word-break:break-all">' + upiId + '</div>'
+                    + '<div style="font-size:12px;color:#94a3b8;margin-top:4px">Open any UPI app and scan this code</div>',
+                showConfirmButton: false, showCloseButton: true,
+                didOpen: function(){
+                    var big = new QRCodeStyling({ width: 300, height: 300, data: data, dotsOptions: { color: "#0f172a", type: "rounded" } });
+                    big.append(document.getElementById("upi_qr_big"));
+                }
+            });
+        });
     })();
 </script>
 {% endif %}
+
+<script>
+// Live-refresh the Devices & activity list (online/offline + last seen).
+(function(){
+  var listEl = document.getElementById('device-list');
+  if(!listEl) return;
+  var LIST_URL = "{% url 'presence_list' %}";
+  var csrf = (document.querySelector('meta[name=csrf-token]')||{}).content || '';
+  var myTok = '';
+  try { myTok = localStorage.getItem('gs_device_id') || ''; } catch(e){}
+
+  function esc(s){ var d=document.createElement('div'); d.textContent = (s==null?'':s); return d.innerHTML; }
+
+  function rowHtml(d){
+    var you = (d.token && d.token === myTok) ? ' <span class="dev-you">This device</span>' : '';
+    var seen = d.online ? 'Active now' : ('Last seen ' + esc(d.last_seen));
+    return '<div class="dev-row">'
+      + '<span class="dev-dot '+(d.online?'on':'')+'"></span>'
+      + '<div class="dev-main"><div class="dev-name">'+esc(d.name)+you+'</div>'
+      + '<div class="dev-ua">'+esc(d.user_agent||'Unknown user agent')+'</div></div>'
+      + '<div class="dev-meta"><span class="dev-status '+(d.online?'on':'off')+'">'+(d.online?'Online':'Offline')+'</span>'
+      + '<div class="dev-seen">'+seen+'</div>'
+      + '<div class="dev-first">Since '+esc(d.first_seen)+'</div></div>'
+      + '</div>';
+  }
+
+  function refresh(){
+    fetch(LIST_URL, {method:'POST', headers:{'X-CSRFToken': csrf, 'Content-Type':'application/x-www-form-urlencoded'}, body:''})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d || !d.devices) return;
+        var oc = document.getElementById('dev-online-count'); if(oc) oc.textContent = d.count;
+        var tc = document.getElementById('dev-total-count'); if(tc) tc.textContent = d.devices.length;
+        listEl.innerHTML = d.devices.length ? d.devices.map(rowHtml).join('')
+          : '<div class="mut">No device activity recorded yet.</div>';
+      }).catch(function(){});
+  }
+
+  setTimeout(refresh, 1500);   // corrects "This device" + freshens shortly after load
+  setInterval(refresh, 20000);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') refresh(); });
+})();
+</script>
 {% endblock %}
 
 {% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}

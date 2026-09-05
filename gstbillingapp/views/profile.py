@@ -12,9 +12,13 @@ from ..forms import UserProfileForm
 # ================= User Management =============================
 @login_required
 def user_profile(request):
+    from .presence import device_info, _active_count
     context = {}
     user_profile = get_object_or_404(UserProfile, user=request.user)
     context['user_profile'] = user_profile
+    context['devices'] = device_info(request.user)
+    context['devices_online'] = _active_count(request.user)
+    context['this_device_token'] = request.session.get('device_token', '')
     return render(request, 'profile/user_profile.html', context)
 
 

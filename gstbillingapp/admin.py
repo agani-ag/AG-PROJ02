@@ -6,7 +6,7 @@ from .models import (
     Inventory, InventoryLog,
     BookLog, Book, PurchaseLog, VendorPurchase,
     ExpenseTracker, BankDetails,
-    ProductCategory, Quotation, Asset
+    ProductCategory, Quotation, Asset, ActiveDevice
 )
 
 # User Profile
@@ -26,6 +26,14 @@ admin.site.register(InventoryLog)
 admin.site.register(VendorPurchase)
 admin.site.register(ExpenseTracker)
 admin.site.register(ProductCategory)
+
+
+@admin.register(ActiveDevice)
+class ActiveDeviceAdmin(admin.ModelAdmin):
+    list_display = ('user', 'token', 'user_agent', 'last_seen', 'created_at')
+    list_filter = ('last_seen',)
+    search_fields = ('user__username', 'token')
+    readonly_fields = ('created_at', 'last_seen')
 
 # Quotation with custom admin
 @admin.register(Quotation)

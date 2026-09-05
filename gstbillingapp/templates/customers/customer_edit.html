@@ -142,15 +142,7 @@ var longitude = parseFloat(document.getElementsByName("customer_longitude")[0].v
 
 function initMap(lat = latitude, lng = longitude) {
     map = L.map('map').setView([lat, lng], 13);
-    let cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
-    let topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap' });
-    let darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CartoDB' });
-    let osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
-    let googleLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
-    let satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] });
-    satelliteLayer.addTo(map);
-    let baseMaps = { "☀️ Light": cartoLayer, "🌙 Dark": darkLayer, "🗺️ Google": googleLayer, "⛰️ Terrain": topoLayer, "🗺️ OSM": osmLayer, "🛰️ Satellite": satelliteLayer };
-    L.control.layers(baseMaps).addTo(map);
+    gstMapLayers(map);
     marker = L.marker([lat, lng], { draggable: true }).addTo(map);
     geocoder = L.Control.geocoder({ defaultMarkGeocode: false })
         .on('markgeocode', function(e) { let center = e.geocode.center; map.setView(center, 15); marker.setLatLng(center); setLatLng(center.lat, center.lng); })

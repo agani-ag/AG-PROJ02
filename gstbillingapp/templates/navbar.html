@@ -2,7 +2,10 @@
 <nav class="gnav" id="gnav">
   <div class="gnav-row">
     <a class="brand" href="{% url 'landing_page' %}">
-      <span class="mark"><i class="fas fa-bolt" style="color:#fff;font-size:14px"></i></span>
+      <span class="mark" id="brand-mark" title="Active devices">
+        <i class="fas fa-bolt" id="brand-bolt" style="color:#fff;font-size:14px"></i>
+        <span class="brand-count" id="presence-count" hidden>1</span>
+      </span>
       GSTSync
       <span class="biz">{% if user_profile.business_brand %}{{ user_profile.business_brand|upper }}{% else %}{{ user|upper }}{% endif %}</span>
     </a>
@@ -87,8 +90,6 @@
           <a href="{% url 'logout_view' %}"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </div></div>
     </div>
-    {# Profile bubble hidden — Profile / Switch User / Logout live in the Settings dropdown. #}
-    {# <div class="avatar" title="{{ user }}">{{ user_profile.business_brand|default:user|slice:":2"|upper }}</div> #}
     {% endif %}
   </div>
 </nav>
@@ -187,4 +188,52 @@ function passSwitchkey() {
         }
     });
 }
+
+// ===== Real-time active-device presence (heartbeat) =====
+// Shows the live device count inside the brand thunder mark: the bolt normally,
+// and the number in its place when the same user is signed in on 2+ devices.
+(function(){
+  var countEl = document.getElementById('presence-count');
+  var bolt = document.getElementById('brand-bolt');
+  var mark = document.getElementById('brand-mark');
+  if(!countEl) return;
+  var PING_URL = "{% url 'presence_ping' %}";
+  var LEAVE_URL = "{% url 'presence_leave' %}";
+
+  // Stable per-browser device id (shared across tabs → counts as one device).
+  var tok;
+  try {
+    tok = localStorage.getItem('gs_device_id');
+    if(!tok){ tok = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2)); localStorage.setItem('gs_device_id', tok); }
+  } catch(e){ tok = (Date.now()+'-'+Math.random().toString(36).slice(2)); }
+
+  function render(count){
+    if(count >= 2){
+      countEl.textContent = count; countEl.hidden = false;
+      if(bolt) bolt.hidden = true;
+      if(mark){ mark.classList.add('has-count'); mark.title = count + ' devices signed in'; }
+    } else {
+      countEl.hidden = true;
+      if(bolt) bolt.hidden = false;
+      if(mark){ mark.classList.remove('has-count'); mark.title = 'Active devices'; }
+    }
+  }
+
+  function ping(){
+    var body = new URLSearchParams(); body.set('token', tok);
+    fetch(PING_URL, {method:'POST', headers:{'X-CSRFToken': getCookie('csrftoken'), 'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString()})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(!d) return; render(d.count || 1); })
+      .catch(function(){});
+  }
+
+  function leave(){
+    try { var fd = new FormData(); fd.set('token', tok); navigator.sendBeacon(LEAVE_URL, fd); } catch(e){}
+  }
+
+  ping();
+  setInterval(ping, 30000);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') ping(); });
+  window.addEventListener('pagehide', leave);
+})();
 </script>

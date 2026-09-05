@@ -83,6 +83,17 @@ def signup_view(request):
     return render(request, 'auth/signup.html', context)
 
 def logout_view(request):
+    # Mark this device offline immediately (so the live count drops) but KEEP the row as
+    # device history — the same browser is recognised again on its next login.
+    token = request.session.get("device_token")
+    if request.user.is_authenticated and token:
+        from datetime import timedelta
+        from django.utils import timezone
+        from ..models import ActiveDevice
+        from .presence import PRESENCE_WINDOW
+        stamp = timezone.now() - PRESENCE_WINDOW - timedelta(seconds=1)
+        # .update() bypasses auto_now so the backdated (offline) stamp sticks.
+        ActiveDevice.objects.filter(user=request.user, token=token).update(last_seen=stamp)
     logout(request)
     return redirect('login_view')
 

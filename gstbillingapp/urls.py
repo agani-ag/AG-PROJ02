@@ -7,7 +7,7 @@ from .views import (
     expense_tracker, features, graphs, invoices,
     inventory, products, profile,
     purchases, quotation, reports, vendor_purchase,
-    views, insights, employee,
+    views, insights, employee, presence,
 )
 
 urlpatterns = [
@@ -20,6 +20,11 @@ urlpatterns = [
     path('logout', auth.logout_view, name='logout_view'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('api/passkey-auth', auth.passkey_auth, name='passkey_auth'),
+
+    # Real-time active-device presence (heartbeat)
+    path('presence/ping', presence.presence_ping, name='presence_ping'),
+    path('presence/list', presence.presence_list, name='presence_list'),
+    path('presence/leave', presence.presence_leave, name='presence_leave'),
 
     # Profile URLs
     path('profile', profile.user_profile, name='user_profile'),

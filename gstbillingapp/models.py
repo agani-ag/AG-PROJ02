@@ -745,3 +745,25 @@ class EmployeeIncentive(models.Model):
 
     def __str__(self):
         return f"{self.amount}"
+
+
+class ActiveDevice(models.Model):
+    """One live login of a user on a device/browser, for the real-time active-device count.
+
+    The browser sends a periodic heartbeat (see views/presence.py) that refreshes
+    ``last_seen``. A device is counted as "active" while its last_seen is within the
+    presence window; browser-close / logout removes or lets the row go stale so the
+    count drops. ``token`` is a client-generated id kept in the browser's localStorage,
+    so all tabs of one browser share a token and count as a single device."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="active_devices")
+    token = models.CharField(max_length=64)
+    user_agent = models.CharField(max_length=300, blank=True, default="")
+    last_seen = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "token")
+        ordering = ["-last_seen"]
+
+    def __str__(self):
+        return f"{self.user} · {self.token[:8]}"

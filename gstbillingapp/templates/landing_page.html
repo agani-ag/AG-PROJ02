@@ -176,7 +176,7 @@
         <h1>Run your whole <span class="rot"><span id="rotw" class="accent">business</span></span><br>from one screen.</h1>
         <p class="tag">Billing, collections, inventory, purchases and your field team — one calm place that replaces the notebook, the calculator, and three different apps.</p>
         {% if user.userprofile.business_brand or user.userprofile.business_title %}
-        <p class="greet"><span id="greet">Welcome back</span>, {{ user.userprofile.business_brand|default:user.userprofile.business_title }} 👋</p>
+        <p class="greet"><span id="greet">Welcome back</span>, {{ user.userprofile.business_name|default:user.userprofile.business_title }} 👋</p>
         {% endif %}
         <div class="lp-cta" style="margin-top:20px">
             <a class="lp-btn lp-btn-white" href="{% url 'invoice_create' %}"><i class="fas fa-file-invoice"></i> New Invoice</a>
