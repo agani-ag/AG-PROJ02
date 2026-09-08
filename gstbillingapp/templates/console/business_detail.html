@@ -1,0 +1,90 @@
+{% extends "console/base.html" %}
+{% block title %}{{ b.user.username }}{% endblock %}
+{% block nav_biz %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{% url 'console_businesses' %}">Businesses</a> / {{ b.user.username }}</div>
+    <h1 class="disp">{{ b.title|default:b.user.username }}</h1>
+    <div class="sub">{{ b.user.username }} · id {{ b.user.id }} · joined {{ b.joined|date:"d M Y" }}</div>
+  </div>
+  <div class="actions">
+    {% if not b.is_active %}<span class="gbadge out">Suspended</span>
+    {% elif b.is_test %}<span class="gbadge low">Likely test</span>
+    {% else %}<span class="gbadge ok">Active</span>{% endif %}
+  </div>
+</div>
+
+<div class="statgrid">
+  <div class="stat"><span class="si b"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><div class="sv">{{ b.invoices }}</div><div class="sk">Invoices</div></div></div>
+  <div class="stat"><span class="si g"><svg class="gico"><use href="#i-user"/></svg></span>
+    <div><div class="sv">{{ b.customers }}</div><div class="sk">Customers</div></div></div>
+  <div class="stat"><span class="si v"><svg class="gico"><use href="#i-plus"/></svg></span>
+    <div><div class="sv">{{ b.products }}</div><div class="sk">Products</div></div></div>
+  <div class="stat"><span class="si s"><svg class="gico"><use href="#i-ok"/></svg></span>
+    <div><div class="sv" style="font-size:16px">{{ b.last_invoice|date:"d M Y"|default:"never" }}</div>
+      <div class="sk">Last invoice</div></div></div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si g"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><h3 class="disp">Details</h3></div></div>
+  <div class="body">
+    <div class="grid">
+      <div class="field"><label>Brand</label>
+        <div class="control" style="background:var(--wash)">{{ b.brand|default:"—" }}</div></div>
+      <div class="field"><label>GSTIN</label>
+        <div class="control" style="background:var(--wash)">{{ b.gst|default:"—" }}</div></div>
+      <div class="field"><label>Phone</label>
+        <div class="control" style="background:var(--wash)">{{ b.profile.business_phone|default:"—" }}</div></div>
+      <div class="field"><label>Email</label>
+        <div class="control" style="background:var(--wash)">{{ b.profile.business_email|default:"—" }}</div></div>
+      <div class="field full"><label>Address</label>
+        <div class="control" style="background:var(--wash);min-height:auto">{{ b.profile.business_address|default:"—" }}</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si o"><svg class="gico"><use href="#i-power"/></svg></span>
+    <div><h3 class="disp">Access</h3><div class="sd">Sign-in and password</div></div></div>
+  <div class="body">
+    <form method="post" action="{% url 'console_business_toggle_active' b.user.id %}">
+      {% csrf_token %}
+      <button class="gbtn"><svg class="gico"><use href="#i-power"/></svg>
+        {% if b.is_active %}Suspend login{% else %}Reactivate login{% endif %}</button>
+    </form>
+
+    <form method="post" action="{% url 'console_business_reset_password' b.user.id %}"
+          style="margin-top:18px;max-width:360px">
+      {% csrf_token %}
+      <div class="field">
+        <label for="pw">Reset password</label>
+        <input id="pw" class="control" type="password" name="password"
+               placeholder="New password" autocomplete="new-password" required>
+      </div>
+      <button class="gbtn" style="margin-top:11px">
+        <svg class="gico"><use href="#i-key"/></svg> Set password</button>
+    </form>
+  </div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si" style="background:linear-gradient(135deg,#e11d48,#fb7185)">
+      <svg class="gico"><use href="#i-alert"/></svg></span>
+    <div><h3 class="disp">Danger zone</h3><div class="sd">Cannot be undone</div></div></div>
+  <div class="body">
+    <p class="mut" style="font-size:13px;margin:0 0 13px">
+      Suspending blocks sign-in and keeps every record. Deleting removes the business and
+      everything it owns — the next screen lists exactly what would go.
+    </p>
+    <a class="gbtn gbtn-danger" href="{% url 'console_business_purge' b.user.id %}">
+      <svg class="gico"><use href="#i-trash"/></svg> Delete permanently…</a>
+  </div>
+</div>
+
+<p><a href="{% url 'console_businesses' %}" class="gbtn">
+  <svg class="gico"><use href="#i-back"/></svg> All businesses</a></p>
+{% endblock %}

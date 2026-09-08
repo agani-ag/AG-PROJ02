@@ -114,9 +114,6 @@ body{background:#e9edf6}
 .auth-alt:hover{border-color:var(--brand);color:var(--brand);text-decoration:none;transform:translateY(-1px)}
 .auth-alt i{color:var(--brand)}
 
-.auth-signup{text-align:center;margin-top:16px;font-size:13px;color:var(--soft)}
-.auth-signup a{color:var(--brand);font-weight:700;text-decoration:none;cursor:pointer}
-.auth-signup a:hover{text-decoration:underline}
 .auth-foot{text-align:center;margin-top:22px;font-size:12px;color:var(--faint)}
 .auth-foot b{color:var(--soft)}
 
@@ -197,10 +194,6 @@ body{background:#e9edf6}
 
             <div class="auth-or">or</div>
             <a href="#" class="auth-alt" onclick="passkey();return false;"><i class="fas fa-key"></i> Sign in with passkey</a>
-
-            {% if admin %}
-            <p class="auth-signup">New here? <a onclick="signUp()">Create an account</a></p>
-            {% endif %}
 
             <p class="auth-foot">Desktop <b>GSTSync</b> · Mobile <b>SyncUp</b></p>
         </div>
@@ -294,20 +287,5 @@ function passkey() {
         }
     });
 };
-
-{% if admin %}
-function signUp() {
-    Swal.fire({
-        title: 'Redirecting to Sign Up page',
-        text: 'You will be redirected to the Sign Up page.',
-        icon: 'info',
-        confirmButtonText: 'OK'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            window.location.href = "{% url 'signup_view' %}";
-        }
-    });
-};
-{% endif %}
 </script>
 {% endblock %}

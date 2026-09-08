@@ -1,6 +1,7 @@
 # Django imports
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.auth.hashers import check_password, make_password
 
 # Python imports
 import uuid
@@ -767,3 +768,66 @@ class ActiveDevice(models.Model):
 
     def __str__(self):
         return f"{self.user} · {self.token[:8]}"
+
+
+# ======================= Platform (GSTSync operators) =====================
+class PlatformAdmin(models.Model):
+    """An operator of GSTSync itself — NOT a business on it.
+
+    Completely standalone: its own username and password columns, with NO link to
+    auth.User. A platform admin therefore has no row in auth_user at all — it cannot be
+    given a UserProfile by accident, cannot appear in the business list, and cannot sign
+    in at the business login even in principle. The two populations are disjoint by
+    construction rather than by a filter someone might forget.
+
+    `password` stores a Django password HASH, never the password itself. Use
+    set_password() / check_password(), which delegate to django.contrib.auth.hashers
+    (PBKDF2 by default), so the storage format is Django's and upgrades with Django —
+    only the table is ours. Contrast Customer.customer_password, which stores plaintext.
+
+    Because the usernames live in a different table from business logins, a platform
+    admin and a business may share a username without colliding; they are resolved on
+    different login screens.
+    """
+    username = models.CharField(max_length=150, unique=True)
+    password = models.CharField(max_length=128)      # HASH — never the raw password
+    full_name = models.CharField(max_length=100, blank=True, null=True)
+    # Cleared to revoke access without deleting the row (keeps the audit trail of who
+    # created which business).
+    is_active = models.BooleanField(default=True)
+    # Who created this admin. Null for the first one, which is bootstrapped from the
+    # command line by someone with server access.
+    created_by = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='created_admins')
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_login_at = models.DateTimeField(null=True, blank=True)
+    last_login_ip = models.CharField(max_length=45, blank=True, null=True)   # 45 = IPv6
+
+    class Meta:
+        ordering = ["full_name", "username"]
+
+    def set_password(self, raw_password):
+        """Hash and store. The caller keeps the raw password only long enough to show it."""
+        self.password = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
+
+    @property
+    def initials(self):
+        """Always TWO letters for the console avatar.
+
+        "Ganesh S" -> GS (first letter of the first and last words); a single word like
+        "ag" -> AG (its first two characters). A one-character name is doubled rather
+        than left as a lonely letter, so the avatar is never visually half-empty.
+        """
+        parts = (self.full_name or self.username or "").split()
+        if len(parts) >= 2:
+            return (parts[0][0] + parts[-1][0]).upper()
+        if parts:
+            word = parts[0]
+            return (word[:2] if len(word) >= 2 else word * 2).upper()
+        return "??"
+
+    def __str__(self):
+        return self.full_name or self.username

@@ -348,7 +348,7 @@ def purge_quotations(days, commit=True):
 # returning browser is recognised), not deleted on logout. This sweep only removes rows
 # that have been idle for a long time, so the table stays bounded without losing the
 # recent device history. Nothing here affects the live online count (75s window).
-DEVICE_RETENTION_DAYS = 90
+DEVICE_RETENTION_DAYS = 15
 # "Online" proxy for the health snapshot only (the real window lives in views/presence).
 _DEVICE_ONLINE_SECONDS = 120
 

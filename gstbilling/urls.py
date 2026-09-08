@@ -14,12 +14,20 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.templatetags.static import static as static_url
 from django.urls import include
 from django.urls import path
+from django.views.generic.base import RedirectView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('gstbillingapp.urls')),
     path('m/', include('gstbillingapp.m_urls')),
     path('cron/', include('gstbillingapp.cron_urls')),   # external cron service (shared-secret)
+    path('console/', include('gstbillingapp.console_urls')),  # operator console (own session auth)
+
+    # Browsers (and link unfurlers) request /favicon.ico from the site root regardless of
+    # the <link> tags, and static/ is not the web root — so point it at the real file.
+    path('favicon.ico', RedirectView.as_view(
+        url=static_url('gstbillingapp/images/favicon.ico'), permanent=True)),
 ]

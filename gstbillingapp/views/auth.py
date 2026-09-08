@@ -1,14 +1,8 @@
 # Django imports
 from django.contrib.auth import login, logout
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm
 from django.utils.http import url_has_allowed_host_and_scheme
-
-# Project imports
-from gstbilling import settings
-
-# Forms
-from ..forms import UserProfileForm
 
 
 def _safe_next(request):
@@ -26,9 +20,6 @@ def login_view(request):
     if request.user.is_authenticated:
         return redirect(_safe_next(request) or "landing_page")
     context = {}
-    if request.GET.get("admin"):
-        context["admin"] = True
-    context["admin_password"] = settings.PRODUCT
     context["next"] = request.GET.get("next") or request.POST.get("next") or ""
     auth_form = AuthenticationForm(request)
     if request.method == "POST":
@@ -52,35 +43,12 @@ def login_view(request):
     return render(request, 'auth/login.html', context)
 
 
-def signup_view(request):
-    if request.user.is_authenticated:
-        return redirect("landing_page")
-    context = {}
-    signup_form = UserCreationForm()
-    profile_edit_form = UserProfileForm()
-    context["signup_form"] = signup_form
-    context["profile_edit_form"] = profile_edit_form
+# Self-service signup was removed entirely. A business is created by an operator at
+# /console/business/new, which builds the User and its UserProfile in one transaction.
+# The public route let anyone who found the URL mint a tenant (16 test tenants
+# accumulated that way), and it could half-succeed — leaving a login with no business
+# profile, which breaks every business screen.
 
-    
-    if request.method == "POST":
-        signup_form = UserCreationForm(request.POST)
-        profile_edit_form = UserProfileForm(request.POST)
-        context["signup_form"] = signup_form
-        context["profile_edit_form"] = profile_edit_form
-
-        if signup_form.is_valid():
-            user = signup_form.save()
-        else:
-            context["error_message"] = signup_form.errors
-            return render(request, 'auth/signup.html', context)
-        if profile_edit_form.is_valid():
-            userprofile = profile_edit_form.save(commit=False)
-            userprofile.user = user
-            userprofile.save()
-            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-            return redirect("landing_page")
-
-    return render(request, 'auth/signup.html', context)
 
 def logout_view(request):
     # Mark this device offline immediately (so the live count drops) but KEEP the row as
@@ -129,6 +97,9 @@ def passkey_auth(request):
 
             # Look up the user profile using the user_id
             user_profile = get_object_or_404(UserProfile, user__id=user_id)
+
+            if not user_profile.user.is_active:
+                return JsonResponse({"error": "User account is inactive"}, status=403)
 
             # Log the user in
             login(request, user_profile.user, backend='django.contrib.auth.backends.ModelBackend')

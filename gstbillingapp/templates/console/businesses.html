@@ -1,0 +1,86 @@
+{% extends "console/base.html" %}
+{% block title %}Businesses{% endblock %}
+{% block nav_biz %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1 class="disp">Businesses</h1>
+    <div class="sub">{{ total }} business{{ total|pluralize:"es" }}{% if test_count %} · {{ test_count }} look like test data{% endif %}</div>
+  </div>
+  <div class="actions">
+    <a href="{% url 'console_business_new' %}" class="gbtn gbtn-primary">
+      <svg class="gico"><use href="#i-plus"/></svg> New business</a>
+  </div>
+</div>
+
+<div class="gstats">
+  <a class="gstat blue {% if show == 'all' %}on{% endif %}" href="?show=all{% if q %}&q={{ q }}{% endif %}">
+    <div class="gk"><span class="dot"></span> All</div><div class="gv">{{ count_all }}</div></a>
+  <a class="gstat green {% if show == 'real' %}on{% endif %}" href="?show=real{% if q %}&q={{ q }}{% endif %}">
+    <div class="gk"><span class="dot"></span> Real</div><div class="gv">{{ count_real }}</div></a>
+  <a class="gstat amber {% if show == 'test' %}on{% endif %}" href="?show=test{% if q %}&q={{ q }}{% endif %}">
+    <div class="gk"><span class="dot"></span> Likely test</div><div class="gv">{{ count_test }}</div></a>
+  <a class="gstat red {% if show == 'suspended' %}on{% endif %}" href="?show=suspended{% if q %}&q={{ q }}{% endif %}">
+    <div class="gk"><span class="dot"></span> Suspended</div><div class="gv">{{ count_suspended }}</div></a>
+</div>
+
+<form method="get" class="toolbar">
+  <input type="hidden" name="show" value="{{ show }}">
+  <div class="search">
+    <svg class="gico"><use href="#i-search"/></svg>
+    <input type="text" name="q" value="{{ q }}" placeholder="Search login or business name…" autocomplete="off">
+  </div>
+  {% if q %}<a href="?show={{ show }}" class="gbtn">Clear</a>{% endif %}
+</form>
+
+<div class="tablecard ctable">
+  <div class="tbl-scroll">
+  <table class="gt ct">
+    <thead><tr>
+      <th>Business</th><th>Brand</th><th>GSTIN</th>
+      <th class="r">Invoices</th><th class="r">Customers</th><th class="r">Products</th>
+      <th>Last invoice</th><th>Status</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="hd">
+          <a href="{% url 'console_business_detail' r.user.id %}">
+            <div class="prim">
+              <span class="pi"><svg class="gico"><use href="#i-shop"/></svg></span>
+              <div>
+                <div class="nm">{{ r.title|default:r.user.username }}</div>
+                <div class="mn">{{ r.user.username|upper }} · ID {{ r.user.id }}</div>
+              </div>
+            </div>
+          </a>
+        </td>
+        <td data-l="Brand">{% if r.brand %}<span class="tag2">{{ r.brand }}</span>{% else %}<span class="mut">—</span>{% endif %}</td>
+        <td data-l="GSTIN">{% if r.gst %}<span class="mut" style="font-size:12.5px">{{ r.gst }}</span>{% else %}<span class="mut">—</span>{% endif %}</td>
+        <td class="r num" data-l="Invoices">{{ r.invoices }}</td>
+        <td class="r num" data-l="Customers">{{ r.customers }}</td>
+        <td class="r num" data-l="Products">{{ r.products }}</td>
+        <td class="mut" data-l="Last invoice">{{ r.last_invoice|date:"d M Y"|default:"—" }}</td>
+        <td data-l="Status">
+          {% if not r.is_active %}<span class="gbadge out">Suspended</span>
+          {% elif r.is_test %}<span class="gbadge low">Likely test</span>
+          {% else %}<span class="gbadge ok">Active</span>{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" class="emptycell"><div class="empty">
+        <div class="ei"><svg class="gico"><use href="#i-shop"/></svg></div>
+        <h3>No businesses found</h3>
+        <p>{% if q %}Nothing matches “{{ q }}”.{% else %}Create the first one to get started.{% endif %}</p>
+        {% if q %}<a href="?show={{ show }}" class="gbtn">Clear search</a>
+        {% else %}<a href="{% url 'console_business_new' %}" class="gbtn gbtn-primary">
+          <svg class="gico"><use href="#i-plus"/></svg> New business</a>{% endif %}
+      </div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if rows %}<div class="tfoot"><div class="cnt">{{ total }} shown</div></div>{% endif %}
+</div>
+{% endblock %}

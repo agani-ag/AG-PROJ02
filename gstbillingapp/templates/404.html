@@ -1,146 +1,120 @@
-{% load static %}
-<!doctype html>
+{% load static %}{% comment %}
+404 page, shown by Custom404Middleware for any missing page.
+
+Built on the GSTSync design system rather than its own look, and self-contained: the old
+version pulled Bootstrap and Bootstrap-Icons from two CDNs to render an error page, which
+is exactly the moment the network is least likely to cooperate. Only gstsync.css and the
+web font load here, and the page degrades to plain-but-readable without either.
+
+The actions are context-aware: a 404 inside /console/ offers the console, a 404 inside
+/m/ offers the mobile app, and a signed-in user is offered their dashboard rather than a
+sign-in screen they do not need.
+{% endcomment %}<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>404 - Page Not Found | GSTSync</title>
-    
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="{% static 'gstbillingapp/main.css' %}" id="main-css">
-    
-    <style>
-        .error-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px;
-        }
-        
-        .error-content {
-            background: white;
-            border-radius: 15px;
-            padding: 50px 40px;
-            text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 600px;
-            width: 100%;
-        }
-        
-        .error-code {
-            font-size: 120px;
-            font-weight: bold;
-            color: #667eea;
-            line-height: 1;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .error-icon {
-            font-size: 80px;
-            color: #667eea;
-            margin-bottom: 20px;
-        }
-        
-        .error-title {
-            font-size: 32px;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 15px;
-        }
-        
-        .error-message {
-            font-size: 18px;
-            color: #666;
-            margin-bottom: 30px;
-            line-height: 1.6;
-        }
-        
-        .btn-home {
-            padding: 12px 40px;
-            font-size: 16px;
-            font-weight: 500;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            border-radius: 25px;
-            color: white;
-            text-decoration: none;
-            display: inline-block;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .btn-home:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
-            color: white;
-            text-decoration: none;
-        }
-        
-        .btn-back {
-            margin-left: 10px;
-            padding: 12px 40px;
-            font-size: 16px;
-            font-weight: 500;
-            background: white;
-            border: 2px solid #667eea;
-            border-radius: 25px;
-            color: #667eea;
-            text-decoration: none;
-            display: inline-block;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-back:hover {
-            background: #667eea;
-            color: white;
-            text-decoration: none;
-        }
-        
-        @media (max-width: 576px) {
-            .error-code {
-                font-size: 80px;
-            }
-            
-            .error-title {
-                font-size: 24px;
-            }
-            
-            .error-message {
-                font-size: 16px;
-            }
-            
-            .btn-home, .btn-back {
-                display: block;
-                margin: 10px auto;
-            }
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Page not found · GSTSync</title>
+<link rel="icon" type="image/svg+xml" href="{% static 'gstbillingapp/images/favicon.svg' %}?v={{ ASSET_VER }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{% static 'gstbillingapp/images/favicon-32.png' %}?v={{ ASSET_VER }}">
+<link rel="icon" type="image/x-icon" href="{% static 'gstbillingapp/images/favicon.ico' %}?v={{ ASSET_VER }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+  body{background:#eef2f7}
+  .e-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px 18px}
+  .e-card{width:100%;max-width:520px;background:#fff;border:1px solid #e7ebf2;border-radius:20px;
+    box-shadow:0 1px 2px rgba(15,23,42,.04),0 24px 60px -28px rgba(15,23,42,.35);
+    padding:40px 36px;text-align:center}
+  .e-mark{width:52px;height:52px;border-radius:16px;margin:0 auto 22px;color:#fff;
+    background:linear-gradient(135deg,#2563eb,#4f46e5);display:flex;align-items:center;justify-content:center;
+    box-shadow:0 12px 26px -12px rgba(37,99,235,.85)}
+  .e-mark svg{width:26px;height:26px;stroke:currentColor;stroke-width:1.9;fill:none;
+    stroke-linecap:round;stroke-linejoin:round}
+  .e-code{font-family:"Space Grotesk",system-ui,sans-serif;font-size:66px;font-weight:700;
+    line-height:1;letter-spacing:-2px;margin:0;
+    background:linear-gradient(135deg,#2563eb,#4f46e5);-webkit-background-clip:text;
+    background-clip:text;color:transparent}
+  .e-title{font-family:"Space Grotesk",system-ui,sans-serif;font-size:21px;font-weight:700;
+    color:#0f172a;margin:14px 0 8px}
+  .e-msg{font-size:14px;color:#5b6472;line-height:1.6;margin:0 auto;max-width:400px}
+  .e-path{display:inline-block;max-width:100%;margin-top:16px;padding:7px 13px;border-radius:9px;
+    background:#f6f8fc;border:1px solid #e7ebf2;color:#5b6472;font-size:12.5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    overflow-wrap:anywhere;text-align:left}
+  .e-acts{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:26px}
+  .e-foot{margin-top:22px;padding-top:18px;border-top:1px solid #eef2f7;
+    font-size:12.5px;color:#97a1b0}
+  .e-foot a{color:#2563eb;font-weight:600;text-decoration:none}
+  .e-foot a:hover{text-decoration:underline}
+  @media(max-width:520px){
+    .e-card{padding:32px 22px;border-radius:16px}
+    .e-code{font-size:54px}
+    .e-title{font-size:19px}
+    .e-acts .gbtn{width:100%;justify-content:center}
+  }
+</style>
 </head>
 <body>
-    <div class="error-container">
-        <div class="error-content">
-            <div class="error-icon">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-            </div>
-            <div class="error-code">404</div>
-            <h1 class="error-title">Page Not Found</h1>
-            <p class="error-message">
-                Oops! The page you are looking for doesn't exist or has been moved. 
-                Please check the URL or return to the homepage.
-            </p>
-            <div class="error-actions">
-                <a href="/" class="btn-home">
-                    <i class="bi bi-house-fill"></i> Go to Homepage
-                </a>
-                <a href="javascript:history.back()" class="btn-back">
-                    <i class="bi bi-arrow-left"></i> Go Back
-                </a>
-            </div>
+<div class="gs">
+  <div class="e-wrap">
+    <div class="e-card">
+
+      <div class="e-mark">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/><path d="M11 8v3M11 14h.01"/>
+        </svg>
+      </div>
+
+      <p class="e-code">404</p>
+      <h1 class="e-title">We couldn’t find that page</h1>
+
+      {% if "/console/" in request.path %}
+        <p class="e-msg">That console page doesn’t exist. It may have been renamed, or the
+          link you followed is out of date.</p>
+      {% elif "/m/" in request.path %}
+        <p class="e-msg">That screen doesn’t exist. If you opened this from an old link,
+          go back to the app and try again.</p>
+      {% else %}
+        <p class="e-msg">The page may have been moved or removed, or the address might have
+          a typo in it.</p>
+      {% endif %}
+
+      {% if request.path %}<span class="e-path">{{ request.path }}</span>{% endif %}
+
+      <div class="e-acts">
+        {% if "/console/" in request.path %}
+          <a href="/console/" class="gbtn gbtn-primary">Back to console</a>
+        {% elif "/m/" in request.path %}
+          {% comment %}No /m/ root exists: the mobile home differs by role (customer vs
+          employee) and the role is not resolvable on a 404, so going back is the honest
+          action rather than a link that would 404 again.{% endcomment %}
+          <a href="javascript:history.back()" class="gbtn gbtn-primary">Go back</a>
+        {% elif user.is_authenticated %}
+          <a href="/" class="gbtn gbtn-primary">Go to dashboard</a>
+        {% else %}
+          <a href="/login" class="gbtn gbtn-primary">Sign in</a>
+        {% endif %}
+        {% if not "/m/" in request.path %}
+          <a href="javascript:history.back()" class="gbtn">Go back</a>
+        {% endif %}
+      </div>
+
+      {% if not "/console/" in request.path and not "/m/" in request.path %}
+        <div class="e-foot">
+          {% if user.is_authenticated %}
+            Try <a href="/invoices">Invoices</a>, <a href="/customers">Customers</a>
+            or <a href="/products">Products</a>.
+          {% else %}
+            <b>GSTSync</b> — billing, collections and field force in one place.
+          {% endif %}
         </div>
+      {% endif %}
+
     </div>
+  </div>
+</div>
 </body>
 </html>

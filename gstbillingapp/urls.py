@@ -16,7 +16,6 @@ urlpatterns = [
 
     # Authentication URLs
     path('login', auth.login_view, name='login_view'),
-    path('signup', auth.signup_view, name='signup_view'),
     path('logout', auth.logout_view, name='logout_view'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('api/passkey-auth', auth.passkey_auth, name='passkey_auth'),

@@ -1,0 +1,157 @@
+{% load static %}{% comment %}
+Operator console shell.
+
+Uses the GSTSync design system (static/gstbillingapp/gstsync.css, scoped under .gs) so
+the console looks like the rest of the product instead of a bolted-on admin tool. It does
+NOT extend the business base.html — the console has no business navigation, no tenant
+context, and must not move when base.html changes.
+
+Icons are inline SVG symbols styled by the design system's .gico rather than Font Awesome,
+so the console pulls in no icon CDN of its own.
+
+Console-only CSS lives inline here (the header, and the mobile table→card transform).
+ASSET_VER only busts the three shared asset files, so a separate console.css would cache
+badly; templates are never cached, so inline is both simpler and always fresh.
+{% endcomment %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Console{% endblock %} · GSTSync</title>
+    {% comment %}Brand icon, identical across the desktop app, the mobile app and the
+    console so every tab is recognisably GSTSync. Uses {% comment %} rather than {# #},
+    which is single-line only and would render into the page.{% endcomment %}
+    <link rel="icon" type="image/svg+xml" href="{% static 'gstbillingapp/images/favicon.svg' %}?v={{ ASSET_VER }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'gstbillingapp/images/favicon-32.png' %}?v={{ ASSET_VER }}">
+    <link rel="icon" type="image/x-icon" href="{% static 'gstbillingapp/images/favicon.ico' %}?v={{ ASSET_VER }}">
+    <link rel="apple-touch-icon" href="{% static 'gstbillingapp/images/apple-touch-icon.png' %}?v={{ ASSET_VER }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* ---- console header (a lean cousin of .gnav — 3 links, no dropdowns) ---- */
+.cnav{background:#fff;border-bottom:1px solid #e7ebf2;position:sticky;top:0;z-index:1020}
+.cnav .in{max-width:1180px;margin:0 auto;padding:0 20px;height:56px;display:flex;align-items:center;gap:18px}
+.cnav .brand{display:flex;align-items:center;gap:9px;font-family:"Space Grotesk",sans-serif;
+  font-weight:700;font-size:15.5px;color:#0f172a;letter-spacing:-.2px}
+.cnav .brand .mark{width:29px;height:29px;border-radius:9px;flex:none;color:#fff;
+  background:linear-gradient(135deg,#2563eb,#4f46e5);display:flex;align-items:center;justify-content:center}
+.cnav .brand .mark .gico{width:16px;height:16px}
+.cnav .brand .tagx{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:#4f46e5;background:#eef0ff;border-radius:6px;padding:2px 7px;margin-left:2px}
+.cnav .items{display:flex;align-items:center;gap:4px;margin-left:10px}
+.cnav .items a{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:9px;
+  font-size:13.5px;font-weight:600;color:#5b6472}
+.cnav .items a:hover{background:#f6f8fc;color:#0f172a}
+.cnav .items a.on{background:#e8f1ff;color:#2563eb}
+.cnav .end{margin-left:auto;display:flex;align-items:center;gap:10px}
+.cnav .who{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#5b6472;font-weight:600}
+.cnav .who .av{width:29px;height:29px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#4f46e5);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
+.cnav .burger{display:none;margin-left:auto;background:none;border:0;padding:8px;cursor:pointer;color:#0f172a}
+@media(max-width:820px){
+  .cnav .in{flex-wrap:wrap;height:auto;padding:10px 16px;gap:10px}
+  .cnav .burger{display:block}
+  .cnav .items,.cnav .end{display:none;width:100%;flex-direction:column;align-items:stretch;gap:2px;margin:0}
+  .cnav.open .items,.cnav.open .end{display:flex}
+  .cnav .end{border-top:1px solid #eef2f7;padding-top:10px;margin-top:4px}
+  .cnav .who{padding:4px 12px}
+}
+.cwrap{max-width:1180px;margin:0 auto;padding:22px 20px 70px}
+@media(max-width:640px){.cwrap{padding:16px 14px 60px}}
+
+/* ---- flash messages ---- */
+.cmsg{display:flex;align-items:flex-start;gap:10px;border-radius:12px;padding:11px 14px;
+  font-size:13.5px;margin-bottom:14px;border:1px solid}
+.cmsg.ok{background:#e7f8ec;border-color:#bfe8cd;color:#166534}
+.cmsg.bad{background:#ffe4ea;border-color:#f9c2ce;color:#9f1239}
+.cmsg .gico{flex:none;margin-top:1px}
+
+/* ---- mobile: turn a .ctable into stacked cards instead of a sideways scroll.
+   Each <td> carries data-l="Label"; below 720px the header row is replaced by
+   that label sitting beside its value. ---- */
+@media(max-width:720px){
+  .gs .ctable .tbl-scroll{overflow:visible}
+  .gs table.gt.ct{min-width:0}
+  .gs table.gt.ct thead{display:none}
+  .gs table.gt.ct tbody tr{display:block;padding:13px 15px;border-bottom:1px solid #e7ebf2}
+  .gs table.gt.ct tbody tr:last-child{border-bottom:0}
+  .gs table.gt.ct tbody td{display:flex;align-items:center;justify-content:space-between;
+    gap:14px;padding:4px 0;border:0;text-align:left}
+  .gs table.gt.ct tbody td.r{text-align:left}
+  .gs table.gt.ct tbody td::before{content:attr(data-l);font-size:11px;font-weight:700;
+    letter-spacing:.04em;text-transform:uppercase;color:#97a1b0;flex:none}
+  /* the first cell is the row's title — full width, no label */
+  .gs table.gt.ct tbody td.hd{display:block;padding:0 0 8px}
+  .gs table.gt.ct tbody td.hd::before{content:none}
+  .gs table.gt.ct tbody td .empty{text-align:center}
+  .gs table.gt.ct tbody td.emptycell{display:block}
+  .gs table.gt.ct tbody td.emptycell::before{content:none}
+}
+</style>
+{% block extracss %}{% endblock %}
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-bolt" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+  <symbol id="i-shop" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M17 6l2 2M15 8l2 2"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.5 6.5a8 8 0 1 0 11 0"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></symbol>
+</svg>
+
+{% if request.platform_admin %}
+<header class="cnav gs" id="cnav">
+  <div class="in">
+    <a href="{% url 'console_businesses' %}" class="brand">
+      <span class="mark"><svg class="gico"><use href="#i-bolt"/></svg></span>
+      GSTSync <span class="tagx">Console</span>
+    </a>
+    <button class="burger" type="button" aria-label="Menu"
+            onclick="document.getElementById('cnav').classList.toggle('open')">
+      <svg class="gico"><use href="#i-menu"/></svg>
+    </button>
+    <nav class="items">
+      <a href="{% url 'console_businesses' %}" class="{% block nav_biz %}{% endblock %}">
+        <svg class="gico sm"><use href="#i-shop"/></svg> Businesses</a>
+      <a href="{% url 'console_admins' %}" class="{% block nav_adm %}{% endblock %}">
+        <svg class="gico sm"><use href="#i-shield"/></svg> Admins</a>
+      <a href="{% url 'console_change_password' %}" class="{% block nav_pw %}{% endblock %}">
+        <svg class="gico sm"><use href="#i-key"/></svg> Password</a>
+    </nav>
+    <div class="end">
+      <span class="who"><span class="av">{{ request.platform_admin.initials }}</span>
+        {% if request.platform_admin_upper != request.platform_admin.initials %}{{ request.platform_admin | upper }}</span>{% endif %}
+      <a href="{% url 'console_logout' %}" class="gbtn"><svg class="gico"><use href="#i-out"/></svg> Sign out</a>
+    </div>
+  </div>
+</header>
+{% endif %}
+
+<div class="gs">
+  <div class="cwrap">
+    {% if messages %}
+      {% for m in messages %}
+        <div class="cmsg {% if m.tags == 'error' %}bad{% else %}ok{% endif %}">
+          <svg class="gico"><use href="#{% if m.tags == 'error' %}i-alert{% else %}i-ok{% endif %}"/></svg>
+          <div>{{ m }}</div>
+        </div>
+      {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+</body>
+</html>

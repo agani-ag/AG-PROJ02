@@ -1933,3 +1933,631 @@ class ConversionWorkflowTests(TestCase):
         purge_quotations(15)
         self.assertFalse(Quotation.objects.filter(pk=q.pk).exists())   # ...then ages out
         self.assertTrue(Invoice.objects.filter(pk=invoice_id).exists())  # invoice remains
+
+
+class ConsoleAuthTests(TestCase):
+    """The operator console's login is separate from the business login, in BOTH
+    directions. That separation is the whole security model of this feature."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin, UserProfile
+        cls.admin = PlatformAdmin(username="op_admin", full_name="Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.biz = User.objects.create_user("biz_owner", password="Bizzz!pass99")
+        UserProfile.objects.create(user=cls.biz, business_title="Shop")
+
+    def _login(self, username="op_admin", password="Cons0le!pass9"):
+        return self.client.post(reverse("console_login"),
+                                {"username": username, "password": password})
+
+    def test_console_requires_login(self):
+        r = self.client.get(reverse("console_businesses"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/console/login", r["Location"])
+
+    def test_admin_can_sign_in(self):
+        r = self._login()
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(self.client.get(reverse("console_businesses")).status_code, 200)
+
+    def test_business_owner_cannot_sign_into_console(self):
+        # Correct credentials for a BUSINESS login must not open the console.
+        r = self._login("biz_owner", "Bizzz!pass99")
+        self.assertEqual(r.status_code, 401)
+        self.assertEqual(self.client.get(reverse("console_businesses")).status_code, 302)
+
+    def test_business_session_grants_no_console_access(self):
+        """force_login sets request.user; the console must ignore it entirely."""
+        self.client.force_login(self.biz)
+        r = self.client.get(reverse("console_businesses"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/console/login", r["Location"])
+
+    def test_console_session_grants_no_business_access(self):
+        self._login()
+        # The console login must not have authenticated request.user anywhere.
+        r = self.client.get(reverse("invoices"))
+        self.assertEqual(r.status_code, 302)          # bounced to the business login
+        self.assertNotIn("/console/", r["Location"])
+
+    def test_wrong_password_is_rejected(self):
+        self.assertEqual(self._login("op_admin", "wrong").status_code, 401)
+
+    def test_unknown_user_is_rejected(self):
+        self.assertEqual(self._login("nobody", "whatever").status_code, 401)
+
+    def test_revoked_admin_loses_access_mid_session(self):
+        from .models import PlatformAdmin
+        self._login()
+        self.assertEqual(self.client.get(reverse("console_businesses")).status_code, 200)
+        PlatformAdmin.objects.filter(pk=self.admin.pk).update(is_active=False)
+        # Re-read on every request, so revocation is immediate — not at next login.
+        self.assertEqual(self.client.get(reverse("console_businesses")).status_code, 302)
+
+    def test_admin_is_not_an_auth_user_at_all(self):
+        """The two populations are disjoint by construction, not by a filter."""
+        self.assertFalse(User.objects.filter(username="op_admin").exists())
+
+    def test_password_is_stored_hashed_not_plaintext(self):
+        from .models import PlatformAdmin
+        a = PlatformAdmin.objects.get(username="op_admin")
+        self.assertNotEqual(a.password, "Cons0le!pass9")
+        self.assertTrue(a.password.startswith("pbkdf2_"))
+        self.assertTrue(a.check_password("Cons0le!pass9"))
+        self.assertFalse(a.check_password("wrong"))
+
+    def test_an_admin_and_a_business_may_share_a_username(self):
+        """Different tables, different login screens — no collision."""
+        from .models import PlatformAdmin, UserProfile
+        u = User.objects.create_user("samename", password="Bizzz!pass99")
+        UserProfile.objects.create(user=u, business_title="Same")
+        a = PlatformAdmin(username="samename")
+        a.set_password("Cons0le!pass9")
+        a.save()          # must not raise
+        self.assertEqual(self._login("samename", "Cons0le!pass9").status_code, 302)
+
+    def test_logout_clears_the_session(self):
+        self._login()
+        self.client.get(reverse("console_logout"))
+        self.assertEqual(self.client.get(reverse("console_businesses")).status_code, 302)
+
+    def test_next_only_follows_console_paths(self):
+        """An open redirect out of the console would be a phishing vector."""
+        r = self.client.post(reverse("console_login") + "?next=https://evil.example/x",
+                             {"username": "op_admin", "password": "Cons0le!pass9"})
+        self.assertNotIn("evil.example", r["Location"])
+
+
+class ConsoleBusinessTests(TestCase):
+    """Creating, suspending and deleting businesses from the console."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin, UserProfile
+        cls.admin = PlatformAdmin(username="op2", full_name="Op2")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.biz = User.objects.create_user("shop_a", password="Bizzz!pass99")
+        UserProfile.objects.create(user=cls.biz, business_title="SHOP A",
+                                   business_gst="33AAAAA0000A1Z5")
+
+    def setUp(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "op2", "password": "Cons0le!pass9"})
+
+    def test_list_shows_businesses_only(self):
+        r = self.client.get(reverse("console_businesses"))
+        self.assertContains(r, "shop_a")
+        # Admins aren't auth.Users, so they cannot appear here even by accident.
+        self.assertNotContains(r, "op2</b>")
+
+    def test_create_business_makes_user_and_profile_together(self):
+        from .models import UserProfile
+        r = self.client.post(reverse("console_business_new"), {
+            "username": "newshop", "password": "Fresh!pass2026",
+            "business_title": "New Shop", "business_gst": "33BBBBB0000B1Z5",
+        })
+        self.assertEqual(r.status_code, 302)
+        u = User.objects.get(username="newshop")
+        self.assertTrue(UserProfile.objects.filter(user=u).exists())   # never half-created
+        self.assertEqual(UserProfile.objects.get(user=u).business_title, "NEW SHOP")
+
+    def test_create_rejects_duplicate_username(self):
+        r = self.client.post(reverse("console_business_new"), {
+            "username": "shop_a", "password": "Fresh!pass2026", "business_title": "X"})
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(User.objects.filter(username="shop_a").count(), 1)
+
+    def test_create_rejects_weak_password(self):
+        r = self.client.post(reverse("console_business_new"), {
+            "username": "weakshop", "password": "123", "business_title": "X"})
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(User.objects.filter(username="weakshop").exists())
+
+    def test_suspend_blocks_business_login(self):
+        self.client.post(reverse("console_business_toggle_active", args=[self.biz.id]))
+        self.biz.refresh_from_db()
+        self.assertFalse(self.biz.is_active)
+        # Django's auth backend refuses an inactive user, so nothing else is needed.
+        c2 = self.client_class()
+        self.assertFalse(c2.login(username="shop_a", password="Bizzz!pass99"))
+
+    def test_reset_password_changes_it(self):
+        self.client.post(reverse("console_business_reset_password", args=[self.biz.id]),
+                         {"password": "Rotated!pass77"})
+        self.biz.refresh_from_db()
+        self.assertTrue(self.biz.check_password("Rotated!pass77"))
+
+    def test_purge_requires_typing_the_username(self):
+        r = self.client.post(reverse("console_business_purge", args=[self.biz.id]),
+                             {"confirm_username": "wrong"})
+        self.assertEqual(r.status_code, 400)
+        self.assertTrue(User.objects.filter(pk=self.biz.pk).exists())
+
+    def test_purge_removes_the_business_and_leaves_no_orphans(self):
+        """The point of purge: SET_NULL means deleting the User alone would leave the
+        rows behind with no owner."""
+        from .models import UserProfile
+        cust = Customer.objects.create(user=self.biz, customer_name="ACME")
+        inv = Invoice.objects.create(user=self.biz, invoice_number=1,
+                                     invoice_date=date(2026, 1, 1),
+                                     invoice_customer=cust, invoice_json="{}")
+        book = Book.objects.create(user=self.biz, customer=cust, current_balance=0)
+        BookLog.objects.create(parent_book=book, change=10, change_type=0, date=timezone.now())
+
+        self.client.post(reverse("console_business_purge", args=[self.biz.id]),
+                         {"confirm_username": "shop_a"})
+
+        self.assertFalse(User.objects.filter(pk=self.biz.pk).exists())
+        self.assertFalse(UserProfile.objects.filter(user_id=self.biz.pk).exists())
+        self.assertFalse(Invoice.objects.filter(pk=inv.pk).exists())      # gone, not orphaned
+        self.assertFalse(Customer.objects.filter(pk=cust.pk).exists())
+        self.assertFalse(Book.objects.filter(pk=book.pk).exists())
+        self.assertEqual(BookLog.objects.count(), 0)
+        self.assertEqual(Invoice.objects.filter(user__isnull=True).count(), 0)
+
+    def test_purge_does_not_touch_another_business(self):
+        from .models import UserProfile
+        other = User.objects.create_user("shop_b", password="Other!pass99")
+        UserProfile.objects.create(user=other, business_title="SHOP B")
+        keep = Customer.objects.create(user=other, customer_name="KEEP")
+        Customer.objects.create(user=self.biz, customer_name="GOES")
+
+        self.client.post(reverse("console_business_purge", args=[self.biz.id]),
+                         {"confirm_username": "shop_a"})
+
+        self.assertTrue(User.objects.filter(pk=other.pk).exists())
+        self.assertTrue(Customer.objects.filter(pk=keep.pk).exists())
+
+    def test_purging_a_business_never_touches_an_admin(self):
+        from .models import PlatformAdmin
+        self.client.post(reverse("console_business_purge", args=[self.biz.id]),
+                         {"confirm_username": "shop_a"})
+        self.assertTrue(PlatformAdmin.objects.filter(username="op2").exists())
+
+
+class PublicSignupRemovedTests(TestCase):
+    """Self-service signup is gone, not merely disabled. Businesses are created by an
+    operator in the console."""
+
+    def test_no_signup_route_exists(self):
+        from django.urls import NoReverseMatch
+        with self.assertRaises(NoReverseMatch):
+            reverse("signup_view")
+
+    def test_signup_url_404s(self):
+        # Whatever the old path was, nothing answers there now.
+        for path in ("/signup", "/signup/"):
+            self.assertEqual(self.client.get(path).status_code, 404, path)
+            self.assertEqual(self.client.post(path, {"username": "sneaky"}).status_code,
+                             404, path)
+        self.assertFalse(User.objects.filter(username="sneaky").exists())
+
+    def test_signup_view_is_gone_from_the_module(self):
+        from .views import auth
+        self.assertFalse(hasattr(auth, "signup_view"))
+
+    def test_login_page_offers_no_signup_link(self):
+        html = self.client.get(reverse("login_view")).content.decode()
+        self.assertNotIn("signUp(", html)
+        self.assertNotIn("Create an account", html)
+
+    def test_login_page_renders_with_admin_querystring(self):
+        """The removed link lived behind ?admin — that branch must not have left a
+        dangling {% url %} that raises at render time."""
+        self.assertEqual(self.client.get(reverse("login_view") + "?admin=1").status_code, 200)
+
+
+class CreatePlatformAdminCommandTests(TestCase):
+    """The first admin has to come from the server, not from the console."""
+
+    def _run(self, *args):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("create_platform_admin", *args, stdout=out)
+        return out.getvalue()
+
+    def test_generates_and_prints_a_password(self):
+        from .models import PlatformAdmin
+        out = self._run("firstop", "--name", "First Op")
+        a = PlatformAdmin.objects.get(username="firstop")
+        self.assertEqual(a.full_name, "First Op")
+        # The generated password is printed once and must actually work.
+        shown = [l.split("Password")[1].strip() for l in out.splitlines() if "Password " in l]
+        self.assertEqual(len(shown), 1, out)
+        self.assertTrue(a.check_password(shown[0]))
+        self.assertNotEqual(a.password, shown[0])       # stored hashed
+
+    def test_generated_passwords_are_unique_and_strong(self):
+        from .management.commands.create_platform_admin import generate_password
+        pws = {generate_password() for _ in range(50)}
+        self.assertEqual(len(pws), 50)
+        for pw in pws:
+            self.assertGreaterEqual(len(pw), 18)
+            self.assertTrue(any(c.isupper() for c in pw))
+            self.assertTrue(any(c.islower() for c in pw))
+            self.assertTrue(any(c.isdigit() for c in pw))
+            # No look-alike characters — this gets typed off a terminal.
+            self.assertFalse(set(pw) & set("0O1lI"))
+
+    def test_creating_twice_is_refused(self):
+        from django.core.management.base import CommandError
+        self._run("dupop")
+        with self.assertRaises(CommandError):
+            self._run("dupop")
+
+    def test_reset_password_issues_a_new_one(self):
+        from .models import PlatformAdmin
+        first = self._run("resetop")
+        old_hash = PlatformAdmin.objects.get(username="resetop").password
+        second = self._run("resetop", "--reset-password")
+        new = PlatformAdmin.objects.get(username="resetop")
+        self.assertNotEqual(new.password, old_hash)
+        shown = [l.split("Password")[1].strip() for l in second.splitlines() if "Password " in l]
+        self.assertTrue(new.check_password(shown[0]))
+
+    def test_revoke_blocks_console_login(self):
+        from .console_auth import authenticate_admin
+        out = self._run("revokeop")
+        pw = [l.split("Password")[1].strip() for l in out.splitlines() if "Password " in l][0]
+        self.assertIsNotNone(authenticate_admin("revokeop", pw))
+        self._run("revokeop", "--revoke")
+        self.assertIsNone(authenticate_admin("revokeop", pw))
+        self._run("revokeop", "--restore")
+        self.assertIsNotNone(authenticate_admin("revokeop", pw))
+
+
+class ConsoleChangePasswordTests(TestCase):
+    """An admin changes their own console password from the UI."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
+        cls.admin = PlatformAdmin(username="pwop", full_name="Pw Op")
+        cls.admin.set_password("Origin4l!pass")
+        cls.admin.save()
+
+    def setUp(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "pwop", "password": "Origin4l!pass"})
+
+    def test_changes_the_password(self):
+        from .models import PlatformAdmin
+        r = self.client.post(reverse("console_change_password"), {
+            "current_password": "Origin4l!pass",
+            "new_password": "Rotated!pass77", "confirm_password": "Rotated!pass77"})
+        self.assertEqual(r.status_code, 302)
+        a = PlatformAdmin.objects.get(pk=self.admin.pk)
+        self.assertTrue(a.check_password("Rotated!pass77"))
+        self.assertFalse(a.check_password("Origin4l!pass"))
+
+    def test_wrong_current_password_is_rejected(self):
+        from .models import PlatformAdmin
+        r = self.client.post(reverse("console_change_password"), {
+            "current_password": "nope",
+            "new_password": "Rotated!pass77", "confirm_password": "Rotated!pass77"})
+        self.assertEqual(r.status_code, 400)
+        self.assertTrue(PlatformAdmin.objects.get(pk=self.admin.pk)
+                        .check_password("Origin4l!pass"))
+
+    def test_mismatched_confirmation_is_rejected(self):
+        r = self.client.post(reverse("console_change_password"), {
+            "current_password": "Origin4l!pass",
+            "new_password": "Rotated!pass77", "confirm_password": "Different!pass88"})
+        self.assertEqual(r.status_code, 400)
+
+    def test_weak_password_is_rejected(self):
+        r = self.client.post(reverse("console_change_password"), {
+            "current_password": "Origin4l!pass",
+            "new_password": "12345678", "confirm_password": "12345678"})
+        self.assertEqual(r.status_code, 400)
+
+    def test_requires_console_login(self):
+        self.client.get(reverse("console_logout"))
+        r = self.client.get(reverse("console_change_password"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/console/login", r["Location"])
+
+
+class ConsolePurgeCoverageTests(TestCase):
+    """Guards the DERIVED ownership map in console_ops.
+
+    The set of tables a business owns is worked out from the model graph, not listed by
+    hand — so these tests are what makes adding a model safe. If a new model belongs to a
+    business but is not reachable by the rule, one of these fails loudly instead of purge
+    silently leaving its rows behind forever."""
+
+    # Models that belong to the PLATFORM, not to any business. Anything else must be
+    # reachable from a business, or the coverage test below fails.
+    PLATFORM_MODELS = {"PlatformAdmin"}
+
+    def _app_models(self):
+        from django.apps import apps
+        return set(apps.get_app_config("gstbillingapp").get_models())
+
+    def test_every_fk_to_user_is_classified(self):
+        """A new FK to auth.User is either the tenancy column or a plain reference. It
+        must be declared as one of them — guessing would either miss rows or delete
+        another business's."""
+        from .console_ops import _NOT_OWNERSHIP, _OWNERSHIP_FIELD_NAMES, user_fk_fields
+        unclassified = [
+            "%s.%s" % (m.__name__, f.name)
+            for m, f in user_fk_fields()
+            if f.name not in _OWNERSHIP_FIELD_NAMES
+            and (m.__name__, f.name) not in _NOT_OWNERSHIP
+        ]
+        self.assertEqual(unclassified, [], (
+            "These FKs to auth.User are unclassified: %s. Add the field name to "
+            "_OWNERSHIP_FIELD_NAMES if it means 'belongs to this business', or to "
+            "_NOT_OWNERSHIP if it is only a reference." % unclassified))
+
+    def test_every_model_is_owned_or_platform_level(self):
+        from .console_ops import owned_lookups
+        owned = set(owned_lookups())
+        stray = sorted(m.__name__ for m in self._app_models() - owned
+                       if m.__name__ not in self.PLATFORM_MODELS)
+        self.assertEqual(stray, [], (
+            "These models belong to neither a business nor the platform: %s. If a "
+            "business owns it, give it a `user`/`business` FK or a CASCADE FK to "
+            "something owned. If the platform owns it, add it to PLATFORM_MODELS." % stray))
+
+    def test_ownership_lookups_actually_resolve(self):
+        """A derived lookup that does not resolve would raise only at purge time — on
+        live data, mid-delete. Execute every one of them here instead."""
+        from .console_ops import owned_querysets
+        u = User.objects.create_user("lookupcheck", password="Xx!998877aa")
+        for label, qs in owned_querysets(u):
+            self.assertEqual(qs.count(), 0, label)      # must not raise
+
+    def test_purge_empties_every_owned_table(self):
+        from .models import UserProfile
+        from .console_ops import owned_querysets, purge_business
+        u = User.objects.create_user("fullpurge", password="Xx!998877aa")
+        UserProfile.objects.create(user=u, business_title="Full")
+        cust = Customer.objects.create(user=u, customer_name="ACME")
+        Invoice.objects.create(user=u, invoice_number=1, invoice_date=date(2026, 1, 1),
+                               invoice_customer=cust, invoice_json="{}")
+        book = Book.objects.create(user=u, customer=cust, current_balance=0)
+        BookLog.objects.create(parent_book=book, change=5, change_type=0, date=timezone.now())
+
+        pk = u.pk
+        purge_business(u)
+
+        # Re-derive and query by the raw pk — the User row is gone, so nothing can be
+        # left pointing at it anywhere.
+        from .console_ops import owned_lookups
+        for model, lookup in owned_lookups().items():
+            self.assertEqual(model.objects.filter(**{lookup: pk}).count(), 0,
+                             "%s still has rows after purge" % model.__name__)
+
+    def test_purge_total_counts_rows_only(self):
+        """Two things at once:
+
+        * bool is a subclass of int, so a naive sum() over the result dict counted
+          `committed: True` as a deleted row and over-reported by one;
+        * the total covers UserProfile too — the old hand-written table list omitted it,
+          so the preview under-reported by one in the other direction.
+        """
+        from .models import UserProfile
+        from .console_ops import purge_business
+        u = User.objects.create_user("counted", password="Xx!998877aa")
+        UserProfile.objects.create(user=u, business_title="C")
+        Customer.objects.create(user=u, customer_name="ONE")
+        Customer.objects.create(user=u, customer_name="TWO")
+        preview = purge_business(u, commit=False)
+        self.assertEqual(preview["total"], 3)            # 2 customers + 1 profile
+        self.assertEqual(preview["userprofile"], 1)
+        self.assertEqual(purge_business(u)["total"], 3)  # same number when committed
+
+    def test_converted_by_is_not_treated_as_ownership(self):
+        """Quotation.converted_by points at a User but is a reference. If it were treated
+        as ownership, purging business A would delete business B's quotations."""
+        from .models import Quotation, UserProfile
+        from .console_ops import purge_business
+        a = User.objects.create_user("op_a", password="Xx!998877aa")
+        b = User.objects.create_user("op_b", password="Xx!998877aa")
+        UserProfile.objects.create(user=a, business_title="A")
+        UserProfile.objects.create(user=b, business_title="B")
+        # B owns the quotation; A merely converted it.
+        q = Quotation.objects.create(user=b, quotation_number=1, quotation_date=date(2026, 1, 1),
+                                     quotation_json="{}", converted_by=a)
+        purge_business(a)
+        self.assertTrue(Quotation.objects.filter(pk=q.pk).exists())
+
+
+class PlatformAdminInitialsTests(TestCase):
+    """The console avatar is always two letters — never one, never blank."""
+
+    def _initials(self, full_name=None, username="someone"):
+        from .models import PlatformAdmin
+        return PlatformAdmin(username=username, full_name=full_name).initials
+
+    def test_two_words_use_first_and_last(self):
+        self.assertEqual(self._initials("Ganesh S"), "GS")
+        self.assertEqual(self._initials("Ganesh Saravanan"), "GS")
+
+    def test_three_words_use_first_and_last(self):
+        self.assertEqual(self._initials("Anna Maria Rossi"), "AR")
+
+    def test_single_word_uses_its_first_two_characters(self):
+        self.assertEqual(self._initials("ag"), "AG")
+        self.assertEqual(self._initials("ganesh"), "GA")
+
+    def test_single_character_name_is_doubled(self):
+        # Better a filled "XX" than a lonely half-empty letter.
+        self.assertEqual(self._initials("x"), "XX")
+
+    def test_falls_back_to_the_username(self):
+        self.assertEqual(self._initials(None, username="goldmedal"), "GO")
+        self.assertEqual(self._initials("", username="op two"), "OT")
+
+    def test_never_returns_fewer_than_two_characters(self):
+        for name in ["Ganesh S", "ag", "x", "  ", None, "", "A B C D"]:
+            self.assertEqual(len(self._initials(name)), 2, repr(name))
+
+    def test_always_upper_case(self):
+        self.assertEqual(self._initials("ganesh saravanan"), "GS")
+
+
+class FaviconTests(TestCase):
+    """Every shell carries the brand icon, and /favicon.ico resolves at the root."""
+
+    def test_favicon_files_exist(self):
+        import os
+        from django.conf import settings
+        base = os.path.join(settings.BASE_DIR, "gstbillingapp", "static",
+                            "gstbillingapp", "images")
+        for name in ("favicon.svg", "favicon-32.png", "favicon.ico", "apple-touch-icon.png"):
+            path = os.path.join(base, name)
+            self.assertTrue(os.path.exists(path), name)
+            self.assertGreater(os.path.getsize(path), 200, name)
+
+    def test_root_favicon_ico_redirects_to_the_file(self):
+        r = self.client.get("/favicon.ico")
+        self.assertEqual(r.status_code, 301)
+        self.assertIn("favicon.ico", r["Location"])
+
+    def test_console_pages_link_the_icon(self):
+        from .models import PlatformAdmin
+        a = PlatformAdmin(username="favop", full_name="Fav Op")
+        a.set_password("Cons0le!pass9")
+        a.save()
+        self.client.post(reverse("console_login"),
+                         {"username": "favop", "password": "Cons0le!pass9"})
+        html = self.client.get(reverse("console_businesses")).content.decode()
+        self.assertIn('rel="icon"', html)
+        self.assertIn("favicon.svg", html)
+        self.assertIn("apple-touch-icon", html)
+
+    def test_console_login_links_the_icon_too(self):
+        html = self.client.get(reverse("console_login")).content.decode()
+        self.assertIn("favicon.svg", html)
+
+    def test_business_login_links_the_icon(self):
+        html = self.client.get(reverse("login_view")).content.decode()
+        self.assertIn("favicon.svg", html)
+
+
+class TemplateCommentLeakTests(TestCase):
+    """`{# ... #}` is SINGLE-LINE in Django. Spread it over two lines and it stops being
+    a comment — the text renders into the page. That shipped once, visible at the top of
+    every screen, so it is worth a test rather than a code review."""
+
+    def test_no_multiline_hash_comments_in_any_template(self):
+        import os
+        from django.conf import settings
+        root = os.path.join(settings.BASE_DIR, "gstbillingapp", "templates")
+        offenders = []
+        for dirpath, _, files in os.walk(root):
+            for name in files:
+                if not name.endswith(".html"):
+                    continue
+                path = os.path.join(dirpath, name)
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    for lineno, line in enumerate(fh, 1):
+                        if "{#" in line and "#}" not in line:
+                            offenders.append("%s:%d" % (
+                                os.path.relpath(path, settings.BASE_DIR), lineno))
+        self.assertEqual(offenders, [], (
+            "Unterminated {# #} comment(s) at %s — these render as visible text. "
+            "Use {%% comment %%}...{%% endcomment %%} for anything multi-line."
+            % offenders))
+
+    def test_rendered_shells_contain_no_raw_template_syntax(self):
+        from .models import PlatformAdmin
+        a = PlatformAdmin(username="leakop", full_name="Leak Op")
+        a.set_password("Cons0le!pass9")
+        a.save()
+        self.client.post(reverse("console_login"),
+                         {"username": "leakop", "password": "Cons0le!pass9"})
+        for url in (reverse("login_view"), reverse("console_login"),
+                    reverse("console_businesses"), reverse("console_admins")):
+            html = self.client.get(url).content.decode()
+            self.assertNotIn("{#", html, url)
+            self.assertNotIn("{%", html, url)
+
+
+class NotFoundPageTests(TestCase):
+    """The branded 404 — shown for pages, never for machine-facing paths."""
+
+    def test_missing_page_renders_the_branded_404(self):
+        r = self.client.get("/definitely-not-a-page")
+        self.assertEqual(r.status_code, 404)
+        html = r.content.decode()
+        self.assertIn("We couldn", html)                 # the headline
+        self.assertIn("/definitely-not-a-page", html)    # shows what was missing
+        self.assertIn("favicon.svg", html)
+
+    def test_it_pulls_no_cdn_stylesheets(self):
+        """The old page fetched Bootstrap + Bootstrap-Icons from two CDNs — exactly when
+        the network is least likely to be working."""
+        html = self.client.get("/nope").content.decode()
+        self.assertNotIn("bootstrapcdn", html)
+        self.assertNotIn("jsdelivr", html)
+
+    def test_signed_out_visitor_is_offered_sign_in(self):
+        html = self.client.get("/nope").content.decode()
+        self.assertIn("Sign in", html)
+        self.assertNotIn("Go to dashboard", html)
+
+    def test_signed_in_user_is_offered_the_dashboard(self):
+        from .models import UserProfile
+        u = User.objects.create_user("e404", password="Xx!998877aa")
+        UserProfile.objects.create(user=u, business_title="Shop")
+        self.client.force_login(u)
+        html = self.client.get("/nope").content.decode()
+        self.assertIn("Go to dashboard", html)
+        self.assertNotIn(">Sign in<", html)
+
+    def test_console_404_offers_the_console_not_the_business_app(self):
+        html = self.client.get("/console/no-such-screen").content.decode()
+        self.assertIn("Back to console", html)
+        self.assertNotIn("Go to dashboard", html)
+
+    def test_mobile_404_offers_no_dead_link(self):
+        """There is no /m/ root, so the mobile branch must not link to one."""
+        html = self.client.get("/m/no-such-screen").content.decode()
+        self.assertNotIn('href="/m/"', html)
+        self.assertIn("Go back", html)
+
+    # ---------------- machine-facing paths stay bare ----------------
+    def test_cron_404_stays_bare(self):
+        """The cron endpoints 404 to look like nothing is there — a branded page would
+        announce the app and ship KBs to a cron service on every bad poll."""
+        r = self.client.get("/cron/health")                  # no key configured
+        self.assertEqual(r.status_code, 404)
+        self.assertNotIn(b"<!doctype html>", r.content.lower())
+        self.assertEqual(r.content, b"")
+
+    def test_api_404_stays_bare(self):
+        r = self.client.get("/books/api/does-not-exist")
+        self.assertEqual(r.status_code, 404)
+        self.assertNotIn(b"<!doctype html>", r.content.lower())
+
+    def test_static_404_stays_bare(self):
+        r = self.client.get("/static/gstbillingapp/nope.css")
+        self.assertEqual(r.status_code, 404)
+        self.assertNotIn(b"<!doctype html>", r.content.lower())

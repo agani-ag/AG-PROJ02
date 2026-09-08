@@ -1,0 +1,71 @@
+{% extends "console/base.html" %}
+{% block title %}Delete {{ b.user.username }}{% endblock %}
+{% block nav_biz %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow">
+      <a href="{% url 'console_businesses' %}">Businesses</a> /
+      <a href="{% url 'console_business_detail' b.user.id %}">{{ b.user.username }}</a> / Delete
+    </div>
+    <h1 class="disp">Delete “{{ b.user.username }}” permanently</h1>
+    <div class="sub">This cannot be undone</div>
+  </div>
+</div>
+
+<div class="formwrap" style="max-width:640px">
+  {% if error %}
+    <div class="cmsg bad"><svg class="gico"><use href="#i-alert"/></svg><div>{{ error }}</div></div>
+  {% endif %}
+
+  <div class="cmsg bad">
+    <svg class="gico"><use href="#i-alert"/></svg>
+    <div><b>{{ total }} row{{ total|pluralize }}</b> belonging to
+      <b>{{ b.title|default:b.user.username }}</b> will be deleted, along with the login itself.</div>
+  </div>
+
+  <div class="section open">
+    <div class="sh"><span class="si" style="background:linear-gradient(135deg,#e11d48,#fb7185)">
+        <svg class="gico"><use href="#i-trash"/></svg></span>
+      <div><h3 class="disp">What goes</h3><div class="sd">Every table this business owns</div></div></div>
+    <div class="body" style="padding:0">
+      <div class="tbl-scroll">
+        <table class="gt" style="min-width:0">
+          <tbody>
+          {% for k,v in footprint.items %}
+            {% if v %}
+              <tr><td style="font-weight:600;color:#5b6472;text-transform:capitalize">{{ k }}</td>
+                  <td class="r num" style="width:120px">{{ v }}</td></tr>
+            {% endif %}
+          {% empty %}
+            <tr><td class="mut">Nothing — this business has no records.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">
+    <svg class="gico"><use href="#i-alert"/></svg>
+    <div>Rows are removed explicitly rather than by deleting the login, because the owning
+      columns are <code>SET_NULL</code> — deleting the user alone would leave this data
+      behind with no owner. To only stop them signing in,
+      <a href="{% url 'console_business_detail' b.user.id %}">suspend instead</a>.</div>
+  </div>
+
+  <form method="post" style="margin-top:18px">
+    {% csrf_token %}
+    <div class="field">
+      <label for="cu">Type <b style="color:var(--ink)">{{ b.user.username }}</b> to confirm</label>
+      <input id="cu" class="control" type="text" name="confirm_username"
+             autocomplete="off" autocapitalize="none" spellcheck="false" required>
+    </div>
+    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="gbtn gbtn-danger"><svg class="gico"><use href="#i-trash"/></svg> Delete permanently</button>
+      <a class="gbtn" href="{% url 'console_business_detail' b.user.id %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

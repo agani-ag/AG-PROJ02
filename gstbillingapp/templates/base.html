@@ -12,6 +12,14 @@
         {% endblock %}
     </title>
 
+    {% comment %}Brand icon, identical across the desktop app, the mobile app and the
+    console so every tab is recognisably GSTSync. Uses {% comment %} rather than {# #},
+    which is single-line only and would render into the page.{% endcomment %}
+    <link rel="icon" type="image/svg+xml" href="{% static 'gstbillingapp/images/favicon.svg' %}?v={{ ASSET_VER }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'gstbillingapp/images/favicon-32.png' %}?v={{ ASSET_VER }}">
+    <link rel="icon" type="image/x-icon" href="{% static 'gstbillingapp/images/favicon.ico' %}?v={{ ASSET_VER }}">
+    <link rel="apple-touch-icon" href="{% static 'gstbillingapp/images/apple-touch-icon.png' %}?v={{ ASSET_VER }}">
+
     {% block metatags %}
     {% endblock %}
 
