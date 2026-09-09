@@ -2049,9 +2049,12 @@ class ConsoleBusinessTests(TestCase):
 
     def test_list_shows_businesses_only(self):
         r = self.client.get(reverse("console_businesses"))
-        self.assertContains(r, "shop_a")
-        # Admins aren't auth.Users, so they cannot appear here even by accident.
-        self.assertNotContains(r, "op2</b>")
+        # Assert on the row's link, not the label — the template upper-cases the username
+        # for display and that styling choice should not be able to break this test.
+        self.assertContains(r, reverse("console_business_detail", args=[self.biz.id]))
+        self.assertContains(r, "SHOP A")                      # the business title
+        # Admins aren't auth.Users, so they cannot appear as a row even by accident.
+        self.assertNotContains(r, reverse("console_business_detail", args=[9999]))
 
     def test_create_business_makes_user_and_profile_together(self):
         from .models import UserProfile
@@ -2561,3 +2564,181 @@ class NotFoundPageTests(TestCase):
         r = self.client.get("/static/gstbillingapp/nope.css")
         self.assertEqual(r.status_code, 404)
         self.assertNotIn(b"<!doctype html>", r.content.lower())
+
+
+class ConsoleCustomerGroupingTests(TestCase):
+    """Grouping the per-business Customer rows back into real people.
+
+    Each business keeps its own row for the same buyer, so the console has to decide
+    which rows are one person. Merging too eagerly is the dangerous direction — it would
+    show one business's ledger under another business's customer."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile
+        cls.a = User.objects.create_user("biz_a", password="Xx!998877aa")
+        cls.b = User.objects.create_user("biz_b", password="Xx!998877aa")
+        cls.c = User.objects.create_user("biz_c", password="Xx!998877aa")
+        for u, brand in ((cls.a, "ALPHA"), (cls.b, "BETA"), (cls.c, "GAMMA")):
+            UserProfile.objects.create(user=u, business_title=brand + " CO",
+                                       business_brand=brand)
+
+    def _cust(self, user, name, phone=None, gst=None, balance=None):
+        c = Customer.objects.create(user=user, customer_name=name,
+                                    customer_phone=phone, customer_gst=gst)
+        if balance is not None:
+            Book.objects.create(user=user, customer=c, current_balance=balance)
+        return c
+
+    def _by_name(self, people, name):
+        return next(p for p in people if p["name"] == name.upper())
+
+    # ---------------- identity rule ----------------
+    def test_same_gstin_is_one_customer_across_businesses(self):
+        from .console_ops import customer_people
+        self._cust(self.a, "KMR", "9000000001", "33AAAAA0000A1Z5")
+        self._cust(self.b, "KMR ELECTRICALS", "9000000002", "33AAAAA0000A1Z5")
+        p = self._by_name(customer_people(), "KMR")
+        self.assertEqual(p["business_count"], 2)
+        self.assertEqual(p["kind"], "gst")
+        self.assertTrue(p["shared"])
+
+    def test_phone_groups_customers_that_have_no_gstin(self):
+        from .console_ops import customer_people
+        self._cust(self.a, "RETAIL BUYER", "9876543210")
+        self._cust(self.b, "RETAIL BUYER", "9876543210")
+        p = self._by_name(customer_people(), "RETAIL BUYER")
+        self.assertEqual(p["business_count"], 2)
+        self.assertEqual(p["kind"], "phone")
+
+    def test_phone_matching_ignores_country_code_and_spacing(self):
+        """+91 98765 43210 and 9876543210 are one person, not two."""
+        from .console_ops import customer_people
+        self._cust(self.a, "SAME PERSON", "+91 98765 43210")
+        self._cust(self.b, "SAME PERSON", "9876543210")
+        self.assertEqual(self._by_name(customer_people(), "SAME PERSON")["business_count"], 2)
+
+    def test_gstin_wins_over_phone(self):
+        """A shared office phone must not merge two different firms that have GSTINs."""
+        from .console_ops import customer_people
+        self._cust(self.a, "FIRM ONE", "9000000000", "33AAAAA0000A1Z5")
+        self._cust(self.b, "FIRM TWO", "9000000000", "33BBBBB0000B1Z5")
+        people = customer_people()
+        self.assertEqual(self._by_name(people, "FIRM ONE")["business_count"], 1)
+        self.assertEqual(self._by_name(people, "FIRM TWO")["business_count"], 1)
+
+    def test_same_name_alone_does_not_merge_different_people(self):
+        """Namesakes with different phones are different customers."""
+        from .console_ops import customer_people
+        self._cust(self.a, "SELVAM", "9111111111")
+        self._cust(self.b, "SELVAM", "9222222222")
+        matches = [p for p in customer_people() if p["name"] == "SELVAM"]
+        self.assertEqual(len(matches), 2)
+        self.assertFalse(any(m["shared"] for m in matches))
+
+    def test_two_rows_in_the_same_business_are_not_counted_as_shared(self):
+        from .console_ops import customer_people
+        self._cust(self.a, "DUPLICATED", "9333333333", "33CCCCC0000C1Z5")
+        self._cust(self.a, "DUPLICATED", "9333333333", "33CCCCC0000C1Z5")
+        p = self._by_name(customer_people(), "DUPLICATED")
+        self.assertEqual(p["record_count"], 2)      # two rows...
+        self.assertEqual(p["business_count"], 1)    # ...but one business
+        self.assertFalse(p["shared"])
+
+    # ---------------- totals ----------------
+    def test_owed_is_summed_across_businesses(self):
+        from .console_ops import customer_people
+        self._cust(self.a, "BIG DEBTOR", "9444444444", "33DDDDD0000D1Z5", balance=-1000)
+        self._cust(self.b, "BIG DEBTOR", "9444444444", "33DDDDD0000D1Z5", balance=-2500)
+        self._cust(self.c, "BIG DEBTOR", "9444444444", "33DDDDD0000D1Z5", balance=400)
+        p = self._by_name(customer_people(), "BIG DEBTOR")
+        self.assertEqual(p["business_count"], 3)
+        self.assertEqual(p["owed"], 3500.0)      # negative balances only
+        self.assertEqual(p["advance"], 400.0)    # a credit is not netted off the dues
+
+    def test_shared_customers_sort_to_the_top(self):
+        from .console_ops import customer_people
+        self._cust(self.a, "AAA SOLO", "9555555555")
+        self._cust(self.a, "ZZZ SHARED", "9666666666", "33EEEEE0000E1Z5")
+        self._cust(self.b, "ZZZ SHARED", "9666666666", "33EEEEE0000E1Z5")
+        self.assertEqual(customer_people()[0]["name"], "ZZZ SHARED")
+
+    def test_search_matches_name_phone_and_gstin(self):
+        from .console_ops import customer_people
+        self._cust(self.a, "FINDABLE TRADERS", "9777777777", "33FFFFF0000F1Z5")
+        for term in ("FINDABLE", "9777777777", "33FFFFF"):
+            self.assertEqual(len(customer_people(term)), 1, term)
+        self.assertEqual(len(customer_people("nothingmatches")), 0)
+
+
+class ConsoleCustomerScreenTests(TestCase):
+    """The console customer screens."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin, UserProfile
+        cls.admin = PlatformAdmin(username="custop", full_name="Cust Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.a = User.objects.create_user("cbiz_a", password="Xx!998877aa")
+        cls.b = User.objects.create_user("cbiz_b", password="Xx!998877aa")
+        UserProfile.objects.create(user=cls.a, business_title="A CO", business_brand="ALPHA")
+        UserProfile.objects.create(user=cls.b, business_title="B CO", business_brand="BETA")
+        cls.ca = Customer.objects.create(user=cls.a, customer_name="SHARED BUYER",
+                                         customer_phone="9000000001",
+                                         customer_gst="33AAAAA0000A1Z5")
+        Customer.objects.create(user=cls.b, customer_name="SHARED BUYER",
+                                customer_phone="9000000001",
+                                customer_gst="33AAAAA0000A1Z5")
+        cls.solo = Customer.objects.create(user=cls.a, customer_name="SOLO BUYER",
+                                           customer_phone="9000000002")
+
+    def setUp(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "custop", "password": "Cons0le!pass9"})
+
+    def test_requires_console_login(self):
+        self.client.get(reverse("console_logout"))
+        r = self.client.get(reverse("console_customers"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/console/login", r["Location"])
+
+    def test_list_shows_customers_from_every_business(self):
+        r = self.client.get(reverse("console_customers"))
+        self.assertContains(r, "SHARED BUYER")
+        self.assertContains(r, "SOLO BUYER")
+        self.assertContains(r, "ALPHA")
+        self.assertContains(r, "BETA")
+
+    def test_shared_customer_is_flagged(self):
+        r = self.client.get(reverse("console_customers"))
+        self.assertContains(r, "2 businesses")
+
+    def test_filters_narrow_the_list(self):
+        shared = self.client.get(reverse("console_customers") + "?show=shared")
+        self.assertContains(shared, "SHARED BUYER")
+        self.assertNotContains(shared, "SOLO BUYER")
+        single = self.client.get(reverse("console_customers") + "?show=single")
+        self.assertContains(single, "SOLO BUYER")
+        self.assertNotContains(single, "SHARED BUYER")
+
+    def test_search_filters(self):
+        r = self.client.get(reverse("console_customers") + "?q=SOLO")
+        self.assertContains(r, "SOLO BUYER")
+        self.assertNotContains(r, "SHARED BUYER")
+
+    def test_detail_shows_the_record_from_each_business(self):
+        r = self.client.get(reverse("console_customer_detail", args=[self.ca.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "ALPHA")
+        self.assertContains(r, "BETA")
+        self.assertContains(r, "In 2 businesses")
+
+    def test_detail_for_a_single_business_customer(self):
+        r = self.client.get(reverse("console_customer_detail", args=[self.solo.id]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "One business")
+
+    def test_detail_404s_for_an_unknown_customer(self):
+        self.assertEqual(
+            self.client.get(reverse("console_customer_detail", args=[999999])).status_code, 404)

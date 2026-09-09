@@ -1,0 +1,103 @@
+{% extends "console/base.html" %}
+{% load humanize %}
+{% block title %}Customers{% endblock %}
+{% block nav_cust %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1 class="disp">Customers</h1>
+    <div class="sub">
+      {{ total }} customer{{ total|pluralize }} across all businesses
+      {% if rows_total != total %}· {{ rows_total }} records{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="gstats">
+  <a class="gstat blue {% if show == 'all' %}on{% endif %}" href="?show=all{% if q %}&q={{ q }}{% endif %}">
+    <div class="gk"><span class="dot"></span> All customers</div><div class="gv">{{ count_all }}</div></a>
+  <a class="gstat amber {% if show == 'shared' %}on{% endif %}" href="?show=shared{% if q %}&q={{ q }}{% endif %}">
+    <div class="gk"><span class="dot"></span> In several businesses</div><div class="gv">{{ count_shared }}</div></a>
+  <a class="gstat green {% if show == 'single' %}on{% endif %}" href="?show=single{% if q %}&q={{ q }}{% endif %}">
+    <div class="gk"><span class="dot"></span> One business only</div><div class="gv">{{ count_single }}</div></a>
+  <div class="gstat red">
+    <div class="gk"><span class="dot"></span> Owed overall</div>
+    <div class="gv">₹{{ total_owed|floatformat:0|intcomma }}</div></div>
+</div>
+
+<form method="get" class="toolbar">
+  <input type="hidden" name="show" value="{{ show }}">
+  <div class="search">
+    <svg class="gico"><use href="#i-search"/></svg>
+    <input type="text" name="q" value="{{ q }}" placeholder="Search name, phone or GSTIN…" autocomplete="off">
+  </div>
+  {% if q %}<a href="?show={{ show }}" class="gbtn">Clear</a>{% endif %}
+</form>
+
+<div class="tablecard ctable">
+  <div class="tbl-scroll">
+  <table class="gt ct">
+    <thead><tr>
+      <th>Customer</th><th>Businesses</th><th class="r">Records</th>
+      <th class="r">Invoices</th><th class="r">Owed</th><th>Matched by</th>
+    </tr></thead>
+    <tbody>
+    {% for p in people %}
+      <tr>
+        <td class="hd">
+          <a href="{% url 'console_customer_detail' p.records.0.customer.id %}">
+            <div class="prim">
+              <span class="pi"><svg class="gico"><use href="#i-user"/></svg></span>
+              <div>
+                <div class="nm">{{ p.name|default:"—" }}
+                  {% if p.shared %}<span class="gbadge low" style="margin-left:6px">{{ p.business_count }} businesses</span>{% endif %}
+                </div>
+                <div class="mn">
+                  {% if p.phone %}{{ p.phone }}{% endif %}
+                  {% if p.gst %}{% if p.phone %} · {% endif %}{{ p.gst }}{% endif %}
+                </div>
+              </div>
+            </div>
+          </a>
+        </td>
+        <td data-l="Businesses">
+          {% for r in p.records %}
+            <span class="tag2" style="margin:2px 3px 2px 0">{{ r.brand|default:r.business.username }}</span>
+          {% endfor %}
+        </td>
+        <td class="r num" data-l="Records">{{ p.record_count }}</td>
+        <td class="r num" data-l="Invoices">{{ p.invoices }}</td>
+        <td class="r num" data-l="Owed">
+          {% if p.owed %}<b style="color:var(--red)">₹{{ p.owed|floatformat:0|intcomma }}</b>
+          {% elif p.advance %}<span class="mut">₹{{ p.advance|floatformat:0|intcomma }} adv</span>
+          {% else %}<span class="mut">—</span>{% endif %}
+        </td>
+        <td data-l="Matched by">
+          {% if p.kind == "gst" %}<span class="gbadge blue">GSTIN</span>
+          {% elif p.kind == "phone" %}<span class="gbadge grey">Phone</span>
+          {% else %}<span class="gbadge grey">Name</span>{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="emptycell"><div class="empty">
+        <div class="ei"><svg class="gico"><use href="#i-user"/></svg></div>
+        <h3>No customers found</h3>
+        <p>{% if q %}Nothing matches “{{ q }}”.{% else %}No business has any customers yet.{% endif %}</p>
+        {% if q %}<a href="?show={{ show }}" class="gbtn">Clear search</a>{% endif %}
+      </div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if people %}<div class="tfoot"><div class="cnt">{{ total }} shown</div></div>{% endif %}
+</div>
+
+<div class="hint">
+  <svg class="gico"><use href="#i-alert"/></svg>
+  <div>Each business keeps its own customer records, so one buyer who deals with three of
+    them exists three times. Rows are grouped back into one customer by <b>GSTIN</b> where
+    there is one, otherwise by <b>phone</b> — the same rule the mobile app uses to show a
+    customer every ledger they have with you.</div>
+</div>
+{% endblock %}

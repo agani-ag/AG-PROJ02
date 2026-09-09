@@ -21,6 +21,10 @@ urlpatterns = [
          name="console_business_reset_password"),
     path("business/<int:user_id>/purge", console.business_purge, name="console_business_purge"),
 
+    path("customers", console.customers, name="console_customers"),
+    path("customer/<int:customer_id>", console.customer_detail,
+         name="console_customer_detail"),
+
     path("admins", console.admins, name="console_admins"),
     path("password", console.change_password, name="console_change_password"),
 ]

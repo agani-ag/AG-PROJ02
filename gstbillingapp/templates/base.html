@@ -127,6 +127,8 @@
     </script>
     <!-- Vanilla table enhancer (.gstable) — replaces jQuery DataTables on list pages -->
     <script src="{% static 'gstbillingapp/gstable.js' %}?v={{ ASSET_VER }}"></script>
+    <!-- Live search: auto-submits any GET toolbar with a name="q" box as you type -->
+    <script src="{% static 'gstbillingapp/js/gsearch.js' %}?v={{ ASSET_VER }}"></script>
     <!-- SweetAlert2 (used across the app) -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- AG GRID full-screen support: a toggle is auto-added to every grid on the page (no-op when a page has no grid) -->

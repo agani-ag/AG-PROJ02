@@ -16,9 +16,9 @@ adding a model needs no change here — see owned_lookups().
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.db import models, transaction
-from django.db.models import Max
+from django.db.models import Count, Max, Q
 
-from .models import ActiveDevice, Customer, Invoice, Product, UserProfile
+from .models import ActiveDevice, Book, Customer, Invoice, Product, UserProfile
 
 
 # --------------------------------------------------------------------------- #
@@ -135,12 +135,6 @@ def business_summary(user):
     }
 
 
-def looks_like_test_data(summary):
-    """A heuristic for the console to flag likely junk tenants — never an action on its
-    own. A business with no GSTIN and almost nothing in it was probably a test signup."""
-    return (not summary["gst"]) and summary["invoices"] <= 2 and summary["customers"] <= 2
-
-
 @transaction.atomic
 def create_business(*, username, password, title, brand="", gst="", phone="", email="",
                     address="", created_by=None):
@@ -201,3 +195,118 @@ def purge_business(user, commit=True):
         # UserProfile is itself a derived root (user, CASCADE), so it went with the loop.
         user.delete()
     return dict(counts, username=user.username, committed=bool(commit), total=total)
+
+
+# --------------------------------------------------------------------------- #
+# Cross-business customer identity
+# --------------------------------------------------------------------------- #
+# The same real customer is a SEPARATE Customer row in each business that sells to them —
+# there is no shared customer table — so the console has to work out which rows are the
+# same person. In this data 218 rows are 158 real people: 41 of them buy from more than
+# one of the businesses.
+#
+# The key reuses what the app already believes rather than inventing a third rule:
+#
+#   1. GSTIN — mobile_auth._accessible() already treats a matching customer_gst as the
+#      same customer across businesses; that is what lets one person see all their
+#      ledgers in the app. 80% of rows carry one.
+#   2. phone — for the 20% with no GSTIN (retail buyers). Every row in this database has
+#      a phone, so between the two nothing falls through. Compared on the last 10 digits
+#      so +91/0 prefixes and spacing do not split a person in two.
+#   3. name — last resort, matching find_matching_customer()'s within-business rule.
+#
+# Deliberately NOT fuzzy: a wrong merge silently shows one business's ledger under
+# another's customer, which is worse than showing two rows.
+def customer_identity(customer):
+    """(kind, value) identifying the real person behind a Customer row."""
+    gst = (customer.customer_gst or "").strip().upper()
+    if gst:
+        return ("gst", gst)
+    digits = "".join(ch for ch in (customer.customer_phone or "") if ch.isdigit())
+    if digits:
+        return ("phone", digits[-10:])
+    return ("name", (customer.customer_name or "").strip().upper())
+
+
+def customer_people(q=""):
+    """Every customer across every business, grouped into real people.
+
+    Returns a list of dicts, one per person, each carrying the individual per-business
+    records. Sorted by how many businesses they appear in, so the shared ones — the point
+    of the screen — are at the top.
+    """
+    from collections import OrderedDict
+
+    rows = (Customer.objects
+            .select_related("user", "user__userprofile")
+            .order_by("customer_name", "id"))
+    if q:
+        rows = rows.filter(
+            Q(customer_name__icontains=q) | Q(customer_phone__icontains=q)
+            | Q(customer_gst__icontains=q))
+    rows = list(rows)
+
+    # One query for every ledger, then matched in memory — a per-row lookup would be
+    # hundreds of queries on this screen.
+    balances = {}
+    for book in Book.objects.filter(customer__in=rows).only("customer_id", "current_balance"):
+        balances[book.customer_id] = float(book.current_balance or 0)
+
+    invoice_counts = dict(
+        Invoice.objects.filter(invoice_customer__in=rows)
+        .values_list("invoice_customer")
+        .annotate(n=Count("id"))
+        .values_list("invoice_customer", "n"))
+
+    people = OrderedDict()
+    for c in rows:
+        key = customer_identity(c)
+        person = people.setdefault(key, {
+            "key": key, "kind": key[0], "value": key[1],
+            "name": c.customer_name or "",
+            "phone": c.customer_phone or "",
+            "gst": c.customer_gst or "",
+            "records": [], "business_ids": set(),
+            "invoices": 0, "owed": 0.0, "advance": 0.0,
+        })
+        balance = balances.get(c.id, 0.0)
+        invoices = invoice_counts.get(c.id, 0)
+        profile = getattr(c.user, "userprofile", None)
+        person["records"].append({
+            "customer": c,
+            "business": c.user,
+            "brand": (profile.business_brand if profile else "") or "",
+            "title": (profile.business_title if profile else "") or "",
+            "balance": balance,
+            "owed": -balance if balance < 0 else 0.0,
+            "invoices": invoices,
+        })
+        if c.user_id:
+            person["business_ids"].add(c.user_id)
+        person["invoices"] += invoices
+        if balance < 0:
+            person["owed"] += -balance
+        else:
+            person["advance"] += balance
+        # Keep the fullest identity on the person, not whichever row happened to be first.
+        if not person["gst"] and c.customer_gst:
+            person["gst"] = c.customer_gst
+        if not person["phone"] and c.customer_phone:
+            person["phone"] = c.customer_phone
+
+    out = list(people.values())
+    for p in out:
+        p["business_count"] = len(p["business_ids"])
+        p["shared"] = p["business_count"] > 1
+        p["record_count"] = len(p["records"])
+    out.sort(key=lambda p: (-p["business_count"], -p["owed"], p["name"]))
+    return out
+
+
+def customer_person_for(customer):
+    """The one person group a given Customer row belongs to — used by the detail screen."""
+    key = customer_identity(customer)
+    for person in customer_people():
+        if person["key"] == key:
+            return person
+    return None

@@ -18,6 +18,7 @@ _ASSET_FILES = (
     'gstbillingapp/static/gstbillingapp/gstsync.css',
     'gstbillingapp/static/gstbillingapp/js/main.js',
     'gstbillingapp/static/gstbillingapp/gstable.js',
+    'gstbillingapp/static/gstbillingapp/js/gsearch.js',
 )
 
 # Small cache so we don't stat the files on every single request. In DEBUG we

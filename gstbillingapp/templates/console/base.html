@@ -125,6 +125,8 @@ badly; templates are never cached, so inline is both simpler and always fresh.
     <nav class="items">
       <a href="{% url 'console_businesses' %}" class="{% block nav_biz %}{% endblock %}">
         <svg class="gico sm"><use href="#i-shop"/></svg> Businesses</a>
+      <a href="{% url 'console_customers' %}" class="{% block nav_cust %}{% endblock %}">
+        <svg class="gico sm"><use href="#i-user"/></svg> Customers</a>
       <a href="{% url 'console_admins' %}" class="{% block nav_adm %}{% endblock %}">
         <svg class="gico sm"><use href="#i-shield"/></svg> Admins</a>
       <a href="{% url 'console_change_password' %}" class="{% block nav_pw %}{% endblock %}">
@@ -153,5 +155,7 @@ badly; templates are never cached, so inline is both simpler and always fresh.
   </div>
 </div>
 
+<!-- Live search: auto-submits any GET toolbar with a name="q" box as you type -->
+<script src="{% static 'gstbillingapp/js/gsearch.js' %}?v={{ ASSET_VER }}"></script>
 </body>
 </html>

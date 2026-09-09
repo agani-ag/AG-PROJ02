@@ -7,12 +7,11 @@
   <div>
     <div class="eyebrow"><a href="{% url 'console_businesses' %}">Businesses</a> / {{ b.user.username }}</div>
     <h1 class="disp">{{ b.title|default:b.user.username }}</h1>
-    <div class="sub">{{ b.user.username }} · id {{ b.user.id }} · joined {{ b.joined|date:"d M Y" }}</div>
+    <div class="sub">{{ b.user.username|upper }} · ID {{ b.user.id }} · joined {{ b.joined|date:"d M Y" }}</div>
   </div>
   <div class="actions">
-    {% if not b.is_active %}<span class="gbadge out">Suspended</span>
-    {% elif b.is_test %}<span class="gbadge low">Likely test</span>
-    {% else %}<span class="gbadge ok">Active</span>{% endif %}
+    {% if b.is_active %}<span class="gbadge ok">Active</span>
+    {% else %}<span class="gbadge out">Suspended</span>{% endif %}
   </div>
 </div>
 

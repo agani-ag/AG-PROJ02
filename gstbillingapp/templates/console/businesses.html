@@ -6,7 +6,7 @@
 <div class="page-head">
   <div>
     <h1 class="disp">Businesses</h1>
-    <div class="sub">{{ total }} business{{ total|pluralize:"es" }}{% if test_count %} · {{ test_count }} look like test data{% endif %}</div>
+    <div class="sub">{{ total }} business{{ total|pluralize:"es" }}</div>
   </div>
   <div class="actions">
     <a href="{% url 'console_business_new' %}" class="gbtn gbtn-primary">
@@ -17,10 +17,8 @@
 <div class="gstats">
   <a class="gstat blue {% if show == 'all' %}on{% endif %}" href="?show=all{% if q %}&q={{ q }}{% endif %}">
     <div class="gk"><span class="dot"></span> All</div><div class="gv">{{ count_all }}</div></a>
-  <a class="gstat green {% if show == 'real' %}on{% endif %}" href="?show=real{% if q %}&q={{ q }}{% endif %}">
-    <div class="gk"><span class="dot"></span> Real</div><div class="gv">{{ count_real }}</div></a>
-  <a class="gstat amber {% if show == 'test' %}on{% endif %}" href="?show=test{% if q %}&q={{ q }}{% endif %}">
-    <div class="gk"><span class="dot"></span> Likely test</div><div class="gv">{{ count_test }}</div></a>
+  <a class="gstat green {% if show == 'active' %}on{% endif %}" href="?show=active{% if q %}&q={{ q }}{% endif %}">
+    <div class="gk"><span class="dot"></span> Active</div><div class="gv">{{ count_active }}</div></a>
   <a class="gstat red {% if show == 'suspended' %}on{% endif %}" href="?show=suspended{% if q %}&q={{ q }}{% endif %}">
     <div class="gk"><span class="dot"></span> Suspended</div><div class="gv">{{ count_suspended }}</div></a>
 </div>
@@ -63,9 +61,8 @@
         <td class="r num" data-l="Products">{{ r.products }}</td>
         <td class="mut" data-l="Last invoice">{{ r.last_invoice|date:"d M Y"|default:"—" }}</td>
         <td data-l="Status">
-          {% if not r.is_active %}<span class="gbadge out">Suspended</span>
-          {% elif r.is_test %}<span class="gbadge low">Likely test</span>
-          {% else %}<span class="gbadge ok">Active</span>{% endif %}
+          {% if r.is_active %}<span class="gbadge ok">Active</span>
+          {% else %}<span class="gbadge out">Suspended</span>{% endif %}
         </td>
       </tr>
     {% empty %}

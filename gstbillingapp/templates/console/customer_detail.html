@@ -1,0 +1,90 @@
+{% extends "console/base.html" %}
+{% load humanize %}
+{% block title %}{{ p.name }}{% endblock %}
+{% block nav_cust %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{% url 'console_customers' %}">Customers</a> / {{ p.name }}</div>
+    <h1 class="disp">{{ p.name|default:"—" }}</h1>
+    <div class="sub">
+      {% if p.phone %}{{ p.phone }}{% endif %}
+      {% if p.gst %}{% if p.phone %} · {% endif %}{{ p.gst }}{% endif %}
+    </div>
+  </div>
+  <div class="actions">
+    {% if p.shared %}
+      <span class="gbadge low">In {{ p.business_count }} businesses</span>
+    {% else %}
+      <span class="gbadge grey">One business</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="statgrid">
+  <div class="stat"><span class="si b"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><div class="sv">{{ p.business_count }}</div><div class="sk">Businesses</div></div></div>
+  <div class="stat"><span class="si v"><svg class="gico"><use href="#i-user"/></svg></span>
+    <div><div class="sv">{{ p.record_count }}</div><div class="sk">Customer records</div></div></div>
+  <div class="stat"><span class="si g"><svg class="gico"><use href="#i-ok"/></svg></span>
+    <div><div class="sv">{{ p.invoices }}</div><div class="sk">Invoices</div></div></div>
+  <div class="stat"><span class="si r"><svg class="gico"><use href="#i-alert"/></svg></span>
+    <div><div class="sv">₹{{ p.owed|floatformat:0|intcomma }}</div><div class="sk">Owed overall</div></div></div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><h3 class="disp">Record in each business</h3>
+      <div class="sd">Every business keeps its own row for this customer</div></div></div>
+  <div class="body" style="padding:0">
+    <div class="tbl-scroll">
+    <table class="gt ct">
+      <thead><tr>
+        <th>Business</th><th>Name on their books</th><th>Phone</th><th>GSTIN</th>
+        <th class="r">Invoices</th><th class="r">Balance</th>
+      </tr></thead>
+      <tbody>
+      {% for r in p.records %}
+        <tr>
+          <td class="hd">
+            <a href="{% url 'console_business_detail' r.business.id %}">
+              <div class="prim">
+                <span class="pi"><svg class="gico"><use href="#i-shop"/></svg></span>
+                <div>
+                  <div class="nm">{{ r.brand|default:r.business.username }}</div>
+                  <div class="mn">{{ r.title }}</div>
+                </div>
+              </div>
+            </a>
+          </td>
+          <td data-l="Name">{{ r.customer.customer_name }}</td>
+          <td data-l="Phone" class="mut">{{ r.customer.customer_phone|default:"—" }}</td>
+          <td data-l="GSTIN" class="mut" style="font-size:12.5px">{{ r.customer.customer_gst|default:"—" }}</td>
+          <td class="r num" data-l="Invoices">{{ r.invoices }}</td>
+          <td class="r num" data-l="Balance">
+            {% if r.owed %}<b style="color:var(--red)">₹{{ r.owed|floatformat:0|intcomma }} due</b>
+            {% elif r.balance %}<span class="mut">₹{{ r.balance|floatformat:0|intcomma }} adv</span>
+            {% else %}<span class="mut">settled</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+{% if p.shared %}
+  <div class="hint">
+    <svg class="gico"><use href="#i-alert"/></svg>
+    <div>These rows were matched as one customer by
+      {% if p.kind == "gst" %}<b>GSTIN {{ p.value }}</b>{% elif p.kind == "phone" %}<b>phone ending {{ p.value }}</b>{% else %}<b>name</b>{% endif %}.
+      They stay separate records — each business bills and collects independently — this
+      screen only shows them together.</div>
+  </div>
+{% endif %}
+
+<p><a href="{% url 'console_customers' %}" class="gbtn">
+  <svg class="gico"><use href="#i-back"/></svg> All customers</a></p>
+{% endblock %}
