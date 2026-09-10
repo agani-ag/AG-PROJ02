@@ -160,9 +160,13 @@ def customer_detail(request, customer_id):
     party = parties.party_for(customer)
     if party is not None:
         return _back(party)
+    pq = (request.GET.get("q") or "").strip()          # "q": the console's live search
+    found = list(Party.objects.filter(name__icontains=pq)[:20]) if pq else []
+    if request.GET.get("partial") == "find":
+        return render(request, "console/_customer_find_results.html",
+                      {"customer": customer, "pq": pq, "found": found})
     related = parties.rows_sharing_evidence([customer])
     near = sorted({parties.party_for(c) for c in related} - {None}, key=lambda p: p.id)
-    pq = (request.GET.get("pq") or "").strip()
     return render(request, "console/customer_detail.html", {
         "customer": customer,
         "row": parties.describe_rows([customer])[0],
@@ -170,7 +174,7 @@ def customer_detail(request, customer_id):
         "near": near,
         "group": next((g for g in parties.suggestion_groups() if customer in g["rows"]), None),
         "pq": pq,
-        "found": list(Party.objects.filter(name__icontains=pq)[:20]) if pq else [],
+        "found": found,
     })
 
 
@@ -194,9 +198,14 @@ def party_new(request):
 @console_required
 def party_detail(request, party_id):
     party = get_object_or_404(Party, id=party_id)
+    aq = (request.GET.get("q") or "").strip()          # "q": the console's live search
+    found = parties.describe_rows(parties.search_rows(aq, exclude_party=party)) if aq else []
+    if request.GET.get("partial") == "add":
+        # Only the results: the page swaps them in as you type, without a reload.
+        return render(request, "console/_party_add_results.html",
+                      {"party": party, "aq": aq, "found": found})
     rows = parties.members(party)
     described = parties.describe_rows(rows)
-    aq = (request.GET.get("aq") or "").strip()
     return render(request, "console/party_detail.html", {
         "party": party,
         "rows": described,
@@ -205,7 +214,7 @@ def party_detail(request, party_id):
         "visible_count": sum(1 for r in described if r["visible"]),
         "maybe": parties.describe_rows(parties.rows_sharing_evidence(rows)),
         "aq": aq,
-        "found": parties.describe_rows(parties.search_rows(aq, exclude_party=party)) if aq else [],
+        "found": found,
         "others": Party.objects.exclude(id=party.id).order_by("name", "id"),
         "blockers": parties.login_blockers(party),
         "syncup_ready": bool(SyncUpSettings.load().is_configured and link_base()),

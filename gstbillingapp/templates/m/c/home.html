@@ -82,10 +82,10 @@
 <div class="sec"><h2 class="t">By shop</h2><p class="s">Your balance at each</p></div>
 <div class="list">
     {% for p in per %}
-    <a href="{% url 'm_customer_books' %}?biz={{ p.id }}" class="row">
+    <a href="{% url 'm_customer_books' %}?acct={{ p.acct }}" class="row">
         <span class="lbl" style="display:flex;align-items:center;gap:10px">
             <span class="ico ic-blue" style="width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center"><svg class="i" style="width:16px;height:16px"><use href="#ic-building"/></svg></span>
-            <span><span class="b">{{ p.brand|default:p.title }}</span></span>
+            <span><span class="b">{{ p.brand }}</span>{% if p.detail %}<div class="sub">{{ p.detail }}</div>{% endif %}</span>
         </span>
         {% if p.due %}<span class="badge b-red">&#8377; {{ p.due|inr }}</span>{% else %}<span class="badge b-green" title="Cleared" style="padding:3px 8px"><svg class="i" style="width:13px;height:13px;stroke:var(--green);vertical-align:middle"><use href="#ic-check"/></svg></span>{% endif %}
     </a>

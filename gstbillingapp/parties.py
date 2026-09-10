@@ -167,6 +167,17 @@ def map_warnings(customers):
         elif profile and not profile.customer_app_enabled:
             warnings.append("%s doesn't have the customer app switched on, so its ledger won't "
                             "show in the app." % label)
+    per_business = defaultdict(list)
+    for c in customers:
+        per_business[c.user_id].append(c)
+    for same in per_business.values():
+        if len(same) > 1:
+            profile = _profile(same[0])
+            label = ((profile.business_brand or profile.business_title) if profile
+                     else None) or "one business"
+            warnings.append("%d rows are at %s. If it's the same shop entered twice, %s should "
+                            "combine them into one; if they're separate shops, both show in the "
+                            "app as separate accounts." % (len(same), label, label))
     gstins = {normalise_gstin(c.customer_gst) for c in customers if is_valid_gstin(c.customer_gst)}
     if len(gstins) > 1:
         warnings.append("These rows carry %d different GSTINs. That's fine for one owner with "

@@ -41,23 +41,20 @@ def _inv_total(js):
 @mobile_login_required("customer")
 def home(request):
     actor = request.mobile_actor
-    siblings = actor["siblings"]           # {business_id: Customer}
     today = datetime.date.today()
 
-    # ---- Group hero + per-shop breakdown (all businesses) ----
+    # ---- One line per ACCOUNT, and the total across all of them. Usually one account
+    #      per business; a business holding two of their rows (two shops) shows both, so
+    #      no ledger is hidden and the total is complete. ----
+    accounts = actor["accounts"]
+    balances = dict(Book.objects.filter(customer_id__in=[a["row"].id for a in accounts])
+                    .values_list("customer_id", "current_balance"))
     per, group_total = [], 0.0
-    for b in actor["businesses"]:
-        cust = siblings.get(b.id)
-        book = Book.objects.filter(user=b, customer=cust).first() if cust else None
-        bal = float(book.current_balance) if book else 0.0
+    for a in accounts:
+        bal = float(balances.get(a["row"].id) or 0)
         due = round(-bal, 2) if bal < 0 else 0.0
         group_total += due
-        prof = getattr(b, "userprofile", None)
-        per.append({
-            "id": b.id, "due": due,
-            "title": (prof.business_title if prof else None) or b.username,
-            "brand": prof.business_brand if prof else None,
-        })
+        per.append({"acct": a["row"].id, "due": due, "brand": a["brand"], "detail": a["detail"]})
 
     # ---- Financial detail for the ACTIVE business (like the ledger/invoice screens) ----
     c = actor["customer"]

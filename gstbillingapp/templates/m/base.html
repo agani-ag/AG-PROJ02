@@ -211,8 +211,11 @@
     {% block bizsel %}
     {% if request.mobile_actor.multi %}
     <div class="bizsel" id="bizsel">
-        {% for b in request.mobile_actor.businesses %}
-        <a href="?biz={{ b.id }}" class="{% if b.id == request.mobile_actor.active_business.id %}on{% endif %}">{{ b.userprofile.business_brand|default:b.userprofile.business_title|default:b.username }}</a>
+        {% comment %}Customers switch between their accounts (?acct=, one per customer row -
+        a business can hold two of their shops); employees switch businesses (?biz=).
+        mobile_auth builds the list for both.{% endcomment %}
+        {% for s in request.mobile_actor.switch %}
+        <a href="?{{ s.param }}" class="{% if s.on %}on{% endif %}">{{ s.label }}</a>
         {% endfor %}
     </div>
     {% endif %}

@@ -15,6 +15,7 @@ from ...models import (Customer, Book, BookLog, Invoice, Quotation, ExpenseTrack
 from ...utils import recalculate_book_current_balance, round_to_rupee, calculate_employee_salary
 from ...templatetags.money import format_inr
 from ._paged import PAGE, invoice_page, ledger_page
+from ...mobile_auth import label_accounts
 from ...parties import members, party_for
 
 
@@ -39,34 +40,23 @@ def _emp(request):
 
 
 def _brand_nav(request, c):
-    """The SAME customer across the employee's covered businesses, for a customer-scoped
-    screen's brand switcher. Each entry carries that brand's own customer id, so switching
-    brand opens the right record instead of reusing this brand's id (which 404s).
+    """This customer's rows the employee can reach, for a customer-scoped screen's
+    switcher. Each entry carries that row's own id, so switching opens the right record
+    instead of reusing this row's id (which would 404 at another brand).
 
-    "Same" means mapped to one Party by a platform admin. Nothing is guessed from phone,
-    GSTIN or name any more: a shared office phone used to open the wrong customer. A brand
-    where this customer has no mapped row is omitted, so the switcher only offers brands
-    that actually have them, and hides entirely when only one does."""
-    businesses = request.mobile_actor.get("businesses", [])
-    if len(businesses) < 2:
-        return []
-    active_id = request.mobile_actor["active_business"].id
+    "Same customer" means mapped to one Party by a platform admin - nothing is guessed from
+    phone, GSTIN or name (a shared office phone used to open the wrong customer). Usually
+    that's one row per brand; a brand holding two of their rows (two shops) gets a chip for
+    each, labelled exactly as the customer's own app labels them. The template shows the
+    switcher only when there's more than one entry."""
+    order = {b.id: i for i, b in enumerate(request.mobile_actor.get("businesses", []))}
     party = party_for(c)
-    by_business = {}
-    if party is not None:
-        for row in members(party):
-            by_business.setdefault(row.user_id, row)
-    nav = []
-    for b in businesses:
-        match = c if b.id == active_id else by_business.get(b.id)
-        if not match:
-            continue
-        p = getattr(b, "userprofile", None)
-        nav.append({
-            "id": b.id, "cust_id": match.id, "active": b.id == active_id,
-            "name": (p.business_brand or p.business_title if p else None) or b.username,
-        })
-    return nav
+    rows = [r for r in members(party) if r.user_id in order] if party is not None else []
+    if not any(r.id == c.id for r in rows):
+        rows.append(c)
+    rows.sort(key=lambda r: (order.get(r.user_id, len(order)), r.id))
+    return [{"id": a["row"].user_id, "cust_id": a["row"].id, "active": a["row"].id == c.id,
+             "name": a["chip"]} for a in label_accounts(rows)]
 
 
 def _inv_total(js):

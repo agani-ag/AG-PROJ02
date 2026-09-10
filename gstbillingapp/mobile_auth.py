@@ -1,5 +1,5 @@
 """
-Signed-token auth + multi-business resolution for the mobile web pages (/m/).
+Signed-token auth + account resolution for the mobile web pages (/m/).
 
 gstbilling mints an unforgeable Django-signed token identifying a Party (one real shop
 owner), a single Customer row, or an Employee:
@@ -13,10 +13,15 @@ owner), a single Customer row, or an Employee:
     nothing; only the admin's mapping links businesses.
   * Employee — the businesses they're posted to (falls back to the home business).
 
-A `?biz=<id>` switch (validated against the accessible set) picks the active business;
-screens scope to it. The `v` version stamp is enforced so bumping the record's version
-revokes one link and its live session.
+A customer's screens are scoped to one ACCOUNT: one of their visible customer rows.
+Usually that's one row per business, but a business can hold two rows for the same owner
+(two shops, two firms), and each is its own ledger — so the customer switches between
+rows, not businesses. `?acct=<row id>` picks one (validated against the person's own
+rows); the older `?biz=<id>` still works and picks that business's account. Employees
+switch businesses with `?biz=`. The `v` version stamp is enforced so bumping the record's
+version revokes one link and its live session.
 """
+from collections import defaultdict
 from functools import wraps
 
 from django.core import signing
@@ -58,7 +63,46 @@ def verify_mobile_token(token, max_age=None):
         return None
 
 
-# ---------------- business group ----------------
+# ---------------- account labels ----------------
+def _brand(user):
+    p = getattr(user, "userprofile", None)
+    return ((p.business_brand or p.business_title) if p else None) or user.username
+
+
+def label_accounts(rows):
+    """One entry per customer row, in the order given: {row, chip, brand, detail}.
+
+    A business holding one row for this person is labelled by its brand alone — exactly
+    as before. Only when a business holds two or more of their rows does the chip add
+    what tells them apart: the place, else the name on that business's books, else the
+    row number. `detail` ("KMR TRADERS, ERODE") is the longer line for list screens.
+    Used by the customer's own app and by the staff app's switcher, so both read alike."""
+    rows = list(rows)
+    at_business = defaultdict(list)
+    for r in rows:
+        at_business[r.user_id].append(r)
+    out = []
+    for r in rows:
+        brand = _brand(r.user)
+        same = at_business[r.user_id]
+        if len(same) == 1:
+            out.append({"row": r, "chip": brand, "brand": brand, "detail": ""})
+            continue
+        place = (r.customer_place or "").strip()
+        name = (r.customer_name or "").strip()
+        places = [(s.customer_place or "").strip().upper() for s in same]
+        names = [(s.customer_name or "").strip().upper() for s in same]
+        if place and places.count(place.upper()) == 1:
+            tell = place
+        elif name and names.count(name.upper()) == 1:
+            tell = name
+        else:
+            tell = "#%d" % r.id
+        out.append({"row": r, "chip": "%s · %s" % (brand, tell), "brand": brand,
+                    "detail": ", ".join(x for x in (name, place) if x)})
+    return out
+
+
 # ---------------- identity + accessibility ----------------
 def _load_identity(payload):
     if not payload:
@@ -80,23 +124,40 @@ def _load_identity(payload):
 
 
 def _accessible(identity):
-    """Return (business Users, {business_id: that business's Customer row} for customers)."""
+    """Return (business Users, visible customer rows). Rows are empty for employees."""
     if identity["role"] == "employee":
-        return list(identity["employee"].covered_businesses()), {}
+        return list(identity["employee"].covered_businesses()), []
     if identity.get("party") is not None:
-        rows = visible_rows(identity["party"])
+        rows = visible_rows(identity["party"])          # ordered by business, then row
     else:
         # An older single-row link: that row only, and only while its business shows it.
         primary = identity["primary"]
         rows = [primary] if row_is_visible(primary) else []
-    by_business = {}
-    for row in rows:
-        by_business.setdefault(row.user_id, row)
     # No business left means every one has switched this customer off - the caller shows
     # the "deactivated" screen rather than "expired".
-    businesses = list(User.objects.filter(id__in=list(by_business))
+    businesses = list(User.objects.filter(id__in={r.user_id for r in rows})
                       .select_related("userprofile").order_by("id"))
-    return businesses, by_business
+    return businesses, rows
+
+
+def _pick_account(request, rows, req_biz):
+    """The customer row to show: ?acct → an older ?biz link → the remembered account →
+    the remembered business → the first."""
+    by_id = {r.id: r for r in rows}
+    req = request.GET.get("acct")
+    if req and req.isdigit() and int(req) in by_id:
+        return by_id[int(req)]
+    current = by_id.get(request.session.get("m_acct"))
+    if req_biz is not None:
+        # ?biz= links predate accounts: stay on the current account if it's at that
+        # business, otherwise open that business's first.
+        if current is not None and current.user_id == req_biz:
+            return current
+        return next(r for r in rows if r.user_id == req_biz)
+    if current is not None:
+        return current
+    at_biz = [r for r in rows if r.user_id == request.session.get("m_biz")]
+    return at_biz[0] if at_biz else rows[0]
 
 
 def resolve_mobile_actor(request):
@@ -119,48 +180,65 @@ def resolve_mobile_actor(request):
         request._mobile_denied = "expired"
         return None
 
-    businesses, by_business = _accessible(identity)
+    businesses, rows = _accessible(identity)
     if not businesses:
         # The person is known, but every business has turned their mobile access off.
         # That's a deactivation, not an expiry — tell them to contact the business.
         request._mobile_denied = "deactivated"
         return None
 
-    # Resolve the active business (?biz → session → first).
-    biz_ids = [b.id for b in businesses]
+    by_biz = {b.id: b for b in businesses}
     req_biz = request.GET.get("biz")
-    if req_biz and req_biz.isdigit() and int(req_biz) in biz_ids:
-        active_id = int(req_biz)
-    elif request.session.get("m_biz") in biz_ids:
-        active_id = request.session["m_biz"]
-    else:
-        active_id = biz_ids[0]
-    request.session["m_biz"] = active_id
-    active_business = next(b for b in businesses if b.id == active_id)
+    req_biz = int(req_biz) if req_biz and req_biz.isdigit() and int(req_biz) in by_biz else None
 
-    actor = {
-        "role": identity["role"],
-        "businesses": businesses,
-        "active_business": active_business,
-        "multi": len(businesses) > 1,
-        "user": active_business,
-    }
     if identity["role"] == "employee":
+        # Resolve the active business (?biz → session → first).
+        if req_biz is not None:
+            active_id = req_biz
+        elif request.session.get("m_biz") in by_biz:
+            active_id = request.session["m_biz"]
+        else:
+            active_id = businesses[0].id
+        request.session["m_biz"] = active_id
+        active_business = by_biz[active_id]
         emp = identity["employee"]
-        actor["employee"] = emp
         # is_admin (and salary/attendance) are per-business: read the ACTIVE posting.
         posting = emp.postings.filter(business_id=active_id).first()
-        actor["posting"] = posting
-        actor["is_admin"] = bool(posting and posting.is_admin)
-    else:
-        # A Party login has no single "primary" row, so its first visible row stands in;
-        # screens mostly work from the ACTIVE business's row anyway.
-        primary = identity.get("primary") or by_business[businesses[0].id]
-        actor["primary"] = primary
-        actor["party"] = identity.get("party")
-        actor["siblings"] = by_business
-        actor["customer"] = by_business.get(active_id) or primary
-    return actor
+        return {
+            "role": "employee",
+            "businesses": businesses,
+            "active_business": active_business,
+            "multi": len(businesses) > 1,
+            "user": active_business,
+            # The chip row at the top of every screen (m/base.html).
+            "switch": [{"param": "biz=%d" % b.id, "label": _brand(b), "on": b.id == active_id}
+                       for b in businesses],
+            "employee": emp,
+            "posting": posting,
+            "is_admin": bool(posting and posting.is_admin),
+        }
+
+    # Customer: every visible row is an account; screens scope to the active one.
+    accounts = label_accounts(rows)
+    active = _pick_account(request, rows, req_biz)
+    request.session["m_acct"] = active.id
+    request.session["m_biz"] = active.user_id
+    active_business = by_biz[active.user_id]
+    return {
+        "role": "customer",
+        "businesses": businesses,
+        "active_business": active_business,
+        "user": active_business,
+        "accounts": accounts,
+        "multi": len(accounts) > 1,
+        "switch": [{"param": "acct=%d" % a["row"].id, "label": a["chip"],
+                    "on": a["row"].id == active.id} for a in accounts],
+        "customer": active,
+        # A Party login has no single "primary" row, so its first visible row stands in
+        # for the greeting; everything else works from the ACTIVE account.
+        "primary": identity.get("primary") or rows[0],
+        "party": identity.get("party"),
+    }
 
 
 def mobile_login_required(role=None):

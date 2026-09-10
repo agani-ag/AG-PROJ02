@@ -154,23 +154,15 @@
       </form>
     {% endif %}
 
-    <form method="get" class="toolbar" style="margin:{% if maybe %}18px{% else %}0{% endif %} 0 0">
+    {% comment %}Live search (base.html): typing fetches only the results (?partial=add)
+    into #add-results, so the page and the caret never move. Without JavaScript, Enter
+    still submits the whole page.{% endcomment %}
+    <form method="get" action="{{ request.path }}" class="toolbar" data-no-autosearch
+          data-live="add" data-live-target="add-results" style="margin:{% if maybe %}18px{% else %}0{% endif %} 0 0">
       <div class="search"><svg class="gico"><use href="#i-search"/></svg>
-        <input type="text" name="aq" value="{{ aq }}" placeholder="Search any business's customers by name, phone or GSTIN…" autocomplete="off"></div>
+        <input type="text" name="q" value="{{ aq }}" placeholder="Search any business's customers by name, phone or GSTIN…" autocomplete="off"></div>
     </form>
-    {% if aq %}
-      <form method="post" action="{% url 'console_party_add' party.id %}" style="margin-top:10px">
-        {% csrf_token %}
-        {% for r in found %}
-          <div><label class="gtoggle" style="margin-top:6px"><input type="checkbox" name="customer_ids" value="{{ r.customer.id }}">
-            <b>{{ r.brand }}</b> · {{ r.customer.customer_name }} · {{ r.customer.customer_phone|default:"no phone" }}{% if r.customer.customer_gst %} · {{ r.customer.customer_gst }}{% endif %}
-            {% if r.party %}<span class="gbadge blue">In {{ r.party.name }} — moves here</span>{% endif %}</label></div>
-        {% empty %}
-          <span class="mut" style="font-size:13px">No other customer row matches “{{ aq }}”.</span>
-        {% endfor %}
-        {% if found %}<button class="gbtn" style="margin-top:12px">Add ticked rows</button>{% endif %}
-      </form>
-    {% endif %}
+    <div id="add-results">{% include "console/_party_add_results.html" %}</div>
   </div>
 </div>
 
@@ -215,23 +207,34 @@
 <div class="section open">
   <div class="sh"><span class="si" style="background:linear-gradient(135deg,#e11d48,#fb7185)">
       <svg class="gico"><use href="#i-alert"/></svg></span>
-    <div><h3 class="disp">Merge or ungroup</h3><div class="sd">Nothing is deleted from any business</div></div></div>
+    <div><h3 class="disp">Merge or ungroup</h3><div class="sd">Fix a mapping mistake · no business loses any data</div></div></div>
   <div class="body">
+    <div style="font-weight:700;font-size:14px;margin:0 0 4px">Merge — the same owner was mapped twice</div>
+    <p class="mut" style="font-size:13px;margin:0 0 12px">For example “KMR ELECTRICALS” and “K.M.R.” turn out to be one shop owner.
+      Merging moves the other customer's rows into <b>{{ party.name }}</b>, which keeps its name and app login.
+      The other customer is removed and its app login is switched off.</p>
     {% if others %}
     <form method="post" action="{% url 'console_party_merge' party.id %}"
-          onsubmit="return confirm('Merge the chosen customer into {{ party.name|escapejs }}? Its login is switched off.')">
+          onsubmit="return confirm('Move every row of the chosen customer into {{ party.name|escapejs }}? The other customer is removed and its app login switched off.')">
       {% csrf_token %}
       <div class="row2">
-        <div class="field"><label for="other">Merge another customer into this one</label>
+        <div class="field"><label for="other">Customer to merge in</label>
           <select id="other" class="control" name="other_id">
             {% for o in others %}<option value="{{ o.id }}">{{ o.name }} (#{{ o.id }})</option>{% endfor %}
           </select></div>
         <button class="gbtn">Merge into {{ party.name }}</button>
       </div>
-      <p class="mut" style="font-size:12.5px;margin:8px 0 0">{{ party.name }} keeps its login; the other customer's login is switched off.</p>
     </form>
+    {% else %}
+      <p class="mut" style="font-size:13px;margin:0;font-style:italic">There's no other mapped customer to merge with yet.</p>
     {% endif %}
-    <form method="post" action="{% url 'console_party_delete' party.id %}" style="margin-top:18px"
+
+    <div style="border-top:1px solid var(--line);margin:18px 0 14px"></div>
+
+    <div style="font-weight:700;font-size:14px;margin:0 0 4px">Ungroup — these rows aren't one owner</div>
+    <p class="mut" style="font-size:13px;margin:0 0 12px">Removes <b>{{ party.name }}</b> and switches off its app login. Every row stays
+      with its business exactly as it is, just unmapped again — ready to map correctly from Suggestions or Unmapped rows.</p>
+    <form method="post" action="{% url 'console_party_delete' party.id %}"
           onsubmit="return confirm('Ungroup {{ party.name|escapejs }}? Its rows become unmapped and its login is switched off.')">
       {% csrf_token %}
       <button class="gbtn gbtn-danger"><svg class="gico"><use href="#i-trash"/></svg> Ungroup this customer</button>

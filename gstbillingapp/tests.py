@@ -3207,11 +3207,30 @@ class ConsolePartyScreenTests(TestCase):
         self.assertRedirects(self.client.get(reverse("console_customer_detail", args=[self.ca.id])),
                              reverse("console_party", args=[party.id]))
 
+    def test_searches_swap_in_results_without_a_reload(self):
+        """?partial= returns only the results, so typing never reloads or moves the page."""
+        party = self._party()
+        page = self.client.get(reverse("console_party", args=[party.id]))
+        self.assertContains(page, 'data-live="add"')
+        part = self.client.get(reverse("console_party", args=[party.id]),
+                               {"q": "SOLO", "partial": "add"})
+        self.assertContains(part, "SOLO BUYER")
+        self.assertContains(part, "Add ticked rows")
+        self.assertNotContains(part, "<html")
+        found = self.client.get(reverse("console_customer_detail", args=[self.solo.id]),
+                                {"q": "SHARED", "partial": "find"})
+        self.assertContains(found, "Add to SHARED BUYER")
+        self.assertNotContains(found, "<html")
+
     def test_party_page_add_and_remove(self):
         from .parties import members
         party = self._party()
-        page = self.client.get(reverse("console_party", args=[party.id]) + "?aq=SOLO")
+        # name="q" is what the console's live search (gsearch.js) watches.
+        self.assertContains(self.client.get(reverse("console_party", args=[party.id])),
+                            'name="q"')
+        page = self.client.get(reverse("console_party", args=[party.id]) + "?q=SOLO")
         self.assertContains(page, "SOLO BUYER")
+        self.assertContains(page, "Add ticked rows")
         self.client.post(reverse("console_party_add", args=[party.id]), {"customer_ids": [self.solo.id]})
         self.assertIn(self.solo, members(party))
         self.client.post(reverse("console_party_remove", args=[party.id]), {"customer_id": self.solo.id})
@@ -3445,3 +3464,98 @@ class SyncUpSettingsTests(TestCase):
                         return_value=(False, "SyncUp rejected the partner key.")):
             r = self.client.post(reverse("console_syncup_test"), follow=True)
         self.assertContains(r, "SyncUp rejected the partner key.")
+
+
+class AccountPerRowTests(TestCase):
+    """One owner can hold two rows at the SAME business (two shops, two firms). Each is its
+    own account in the app: nothing is hidden, the total is complete, and every screen -
+    ledger, invoices, orders - follows the account picked."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Party, PartyMapping
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+        cls.a1 = cls._row(cls.a, "KMR ELECTRICALS", "TIRUPUR", -12000)
+        cls.a2 = cls._row(cls.a, "KMR TRADERS", "ERODE", -5000)
+        cls.b1 = cls._row(cls.b, "KMR ELECTRICALS", "TIRUPUR", -3000)
+        cls.party = Party.objects.create(name="KMR", login_status=Party.LOGIN_ACTIVE)
+        for r in (cls.a1, cls.a2, cls.b1):
+            PartyMapping.objects.create(party=cls.party, customer=r)
+
+    @staticmethod
+    def _row(user, name, place, balance):
+        c = Customer.objects.create(user=user, customer_name=name, customer_place=place,
+                                    is_mobile_user=True)
+        Book.objects.create(user=user, customer=c, current_balance=balance)
+        return c
+
+    def _open(self, path="/m/customer/", **params):
+        from .mobile_auth import mint_party_token
+        self.client.get("/m/customer/", {"t": mint_party_token(self.party)})
+        return self.client.get(path, params)
+
+    def test_every_row_is_its_own_account(self):
+        r = self._open()
+        self.assertEqual([a["row"].id for a in r.wsgi_request.mobile_actor["accounts"]],
+                         [self.a1.id, self.a2.id, self.b1.id])
+        self.assertContains(r, "20,000")                      # 12,000 + 5,000 + 3,000
+        self.assertContains(r, "ALPHA · TIRUPUR")
+        self.assertContains(r, "ALPHA · ERODE")
+        self.assertContains(r, "KMR TRADERS, ERODE")
+        self.assertContains(r, "?acct=%d" % self.a2.id)
+
+    def test_switching_account_scopes_every_screen(self):
+        r = self._open(acct=self.a2.id)
+        self.assertEqual(r.wsgi_request.mobile_actor["customer"], self.a2)
+        books = self.client.get("/m/customer/books")          # remembered, no param
+        actor = books.wsgi_request.mobile_actor
+        self.assertEqual(actor["customer"], self.a2)          # ledger, invoices, orders
+        self.assertEqual(actor["user"], self.a)               # ...at ALPHA
+        self.assertContains(books, "5,000")
+
+    def test_older_biz_links_still_work(self):
+        r = self._open(biz=self.b.id)
+        self.assertEqual(r.wsgi_request.mobile_actor["customer"], self.b1)
+        self.client.get("/m/customer/", {"acct": self.a2.id})
+        r = self.client.get("/m/customer/", {"biz": self.a.id})   # stays on ERODE
+        self.assertEqual(r.wsgi_request.mobile_actor["customer"], self.a2)
+
+    def test_someone_elses_row_id_is_ignored(self):
+        other = Customer.objects.create(user=self.a, customer_name="OTHER", is_mobile_user=True)
+        r = self._open(acct=other.id)
+        self.assertNotEqual(r.wsgi_request.mobile_actor["customer"].id, other.id)
+
+    def test_a_hidden_row_is_not_an_account(self):
+        Customer.objects.filter(pk=self.a2.pk).update(is_mobile_user=False)
+        r = self._open(acct=self.a2.id)
+        self.assertEqual([a["row"].id for a in r.wsgi_request.mobile_actor["accounts"]],
+                         [self.a1.id, self.b1.id])
+        self.assertNotContains(r, "ALPHA · ")    # one row per business again: plain brands
+
+    def test_labels(self):
+        from .mobile_auth import label_accounts
+        # One row per business: the brand alone, exactly as before.
+        self.assertEqual([a["chip"] for a in label_accounts([self.a1, self.b1])], ["ALPHA", "BETA"])
+        # Same place: the name tells them apart; same name too: the row number.
+        agencies = Customer.objects.create(user=self.a, customer_name="KMR AGENCIES",
+                                           customer_place="TIRUPUR")
+        self.assertEqual([a["chip"] for a in label_accounts([self.a1, agencies])],
+                         ["ALPHA · KMR ELECTRICALS", "ALPHA · KMR AGENCIES"])
+        twin = Customer.objects.create(user=self.a, customer_name="KMR TRADERS",
+                                       customer_place="ERODE")
+        self.assertEqual([a["chip"] for a in label_accounts([self.a2, twin])],
+                         ["ALPHA · #%d" % self.a2.id, "ALPHA · #%d" % twin.id])
+
+    def test_staff_switcher_shows_both_rows_at_one_business(self):
+        from types import SimpleNamespace
+        from .views.m.employee import _brand_nav
+        req = SimpleNamespace(mobile_actor={"businesses": [self.a, self.b],
+                                            "active_business": self.a})
+        self.assertEqual([(n["cust_id"], n["name"], n["active"]) for n in _brand_nav(req, self.a2)],
+                         [(self.a1.id, "ALPHA · TIRUPUR", False), (self.a2.id, "ALPHA · ERODE", True),
+                          (self.b1.id, "BETA", False)])
+
+    def test_console_warns_about_two_rows_at_one_business(self):
+        from .parties import map_warnings
+        fresh = [Customer.objects.get(pk=r.pk) for r in (self.a1, self.a2)]
+        self.assertTrue(any("2 rows are at ALPHA" in w for w in map_warnings(fresh)))

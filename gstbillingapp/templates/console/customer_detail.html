@@ -58,21 +58,14 @@
       </div>
     {% endif %}
 
-    <form method="get" class="toolbar" style="margin:18px 0 0">
+    {% comment %}Live search (base.html): only the results (?partial=find) are fetched, so
+    the page never reloads or moves.{% endcomment %}
+    <form method="get" action="{{ request.path }}" class="toolbar" data-no-autosearch
+          data-live="find" data-live-target="find-results" style="margin:18px 0 0">
       <div class="search"><svg class="gico"><use href="#i-search"/></svg>
-        <input type="text" name="pq" value="{{ pq }}" placeholder="Find a mapped customer by name…" autocomplete="off"></div>
+        <input type="text" name="q" value="{{ pq }}" placeholder="Find a mapped customer by name…" autocomplete="off"></div>
     </form>
-    {% if pq %}
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
-      {% for p in found %}
-        <form method="post" action="{% url 'console_party_add' p.id %}">{% csrf_token %}
-          <input type="hidden" name="customer_ids" value="{{ customer.id }}">
-          <button class="gbtn">Add to {{ p.name }}</button></form>
-      {% empty %}
-        <span class="mut" style="font-size:13px">No mapped customer matches “{{ pq }}”.</span>
-      {% endfor %}
-      </div>
-    {% endif %}
+    <div id="find-results">{% include "console/_customer_find_results.html" %}</div>
   </div>
 </div>
 
