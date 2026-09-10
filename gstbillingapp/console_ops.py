@@ -16,9 +16,10 @@ adding a model needs no change here — see owned_lookups().
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.db import models, transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Max
 
-from .models import ActiveDevice, Book, Customer, Invoice, Product, UserProfile
+from .models import ActiveDevice, Customer, Invoice, Party, Product, UserProfile
+from .parties import refresh_for_business, refresh_parties
 
 
 # --------------------------------------------------------------------------- #
@@ -132,6 +133,9 @@ def business_summary(user):
         "last_invoice": invoices.aggregate(d=Max("invoice_date"))["d"],
         "is_active": user.is_active,
         "joined": user.date_joined,
+        # A business with no profile takes the field's default (on).
+        "customer_app_enabled": profile.customer_app_enabled if profile else True,
+        "mobile_customers": Customer.objects.filter(user=user, is_mobile_user=True).count(),
     }
 
 
@@ -147,6 +151,8 @@ def create_business(*, username, password, title, brand="", gst="", phone="", em
     user = User.objects.create_user(username=username, password=password)
     profile = UserProfile.objects.create(
         user=user,
+        # A new business starts without the customer app; an admin turns it on.
+        customer_app_enabled=False,
         business_title=title or None,
         business_brand=brand or None,
         business_gst=gst or None,
@@ -190,123 +196,29 @@ def purge_business(user, commit=True):
     # of int, so a naive sum() over the finished dict counts `committed: True` as a row.
     total = sum(counts.values())
     if commit:
+        # Parties with a row here may lose their only visible ledger. They're re-checked
+        # once the delete commits, so SyncUp never hears about a purge that rolled back.
+        party_ids = list(Party.objects.filter(mappings__customer__user=user)
+                         .values_list("id", flat=True).distinct())
         for _, qs in owned_querysets(user):
             qs.delete()
         # UserProfile is itself a derived root (user, CASCADE), so it went with the loop.
         user.delete()
+        if party_ids:
+            transaction.on_commit(lambda: refresh_parties(party_ids))
     return dict(counts, username=user.username, committed=bool(commit), total=total)
 
 
 # --------------------------------------------------------------------------- #
-# Cross-business customer identity
+# Customer app (per business)
 # --------------------------------------------------------------------------- #
-# The same real customer is a SEPARATE Customer row in each business that sells to them —
-# there is no shared customer table — so the console has to work out which rows are the
-# same person. In this data 218 rows are 158 real people: 41 of them buy from more than
-# one of the businesses.
-#
-# The key reuses what the app already believes rather than inventing a third rule:
-#
-#   1. GSTIN — mobile_auth._accessible() already treats a matching customer_gst as the
-#      same customer across businesses; that is what lets one person see all their
-#      ledgers in the app. 80% of rows carry one.
-#   2. phone — for the 20% with no GSTIN (retail buyers). Every row in this database has
-#      a phone, so between the two nothing falls through. Compared on the last 10 digits
-#      so +91/0 prefixes and spacing do not split a person in two.
-#   3. name — last resort, matching find_matching_customer()'s within-business rule.
-#
-# Deliberately NOT fuzzy: a wrong merge silently shows one business's ledger under
-# another's customer, which is worse than showing two rows.
-def customer_identity(customer):
-    """(kind, value) identifying the real person behind a Customer row."""
-    gst = (customer.customer_gst or "").strip().upper()
-    if gst:
-        return ("gst", gst)
-    digits = "".join(ch for ch in (customer.customer_phone or "") if ch.isdigit())
-    if digits:
-        return ("phone", digits[-10:])
-    return ("name", (customer.customer_name or "").strip().upper())
+def set_customer_app(user, enabled):
+    """Let this business's customer ledgers show in the customer app, or take them out.
 
-
-def customer_people(q=""):
-    """Every customer across every business, grouped into real people.
-
-    Returns a list of dicts, one per person, each carrying the individual per-business
-    records. Sorted by how many businesses they appear in, so the shared ones — the point
-    of the screen — are at the top.
-    """
-    from collections import OrderedDict
-
-    rows = (Customer.objects
-            .select_related("user", "user__userprofile")
-            .order_by("customer_name", "id"))
-    if q:
-        rows = rows.filter(
-            Q(customer_name__icontains=q) | Q(customer_phone__icontains=q)
-            | Q(customer_gst__icontains=q))
-    rows = list(rows)
-
-    # One query for every ledger, then matched in memory — a per-row lookup would be
-    # hundreds of queries on this screen.
-    balances = {}
-    for book in Book.objects.filter(customer__in=rows).only("customer_id", "current_balance"):
-        balances[book.customer_id] = float(book.current_balance or 0)
-
-    invoice_counts = dict(
-        Invoice.objects.filter(invoice_customer__in=rows)
-        .values_list("invoice_customer")
-        .annotate(n=Count("id"))
-        .values_list("invoice_customer", "n"))
-
-    people = OrderedDict()
-    for c in rows:
-        key = customer_identity(c)
-        person = people.setdefault(key, {
-            "key": key, "kind": key[0], "value": key[1],
-            "name": c.customer_name or "",
-            "phone": c.customer_phone or "",
-            "gst": c.customer_gst or "",
-            "records": [], "business_ids": set(),
-            "invoices": 0, "owed": 0.0, "advance": 0.0,
-        })
-        balance = balances.get(c.id, 0.0)
-        invoices = invoice_counts.get(c.id, 0)
-        profile = getattr(c.user, "userprofile", None)
-        person["records"].append({
-            "customer": c,
-            "business": c.user,
-            "brand": (profile.business_brand if profile else "") or "",
-            "title": (profile.business_title if profile else "") or "",
-            "balance": balance,
-            "owed": -balance if balance < 0 else 0.0,
-            "invoices": invoices,
-        })
-        if c.user_id:
-            person["business_ids"].add(c.user_id)
-        person["invoices"] += invoices
-        if balance < 0:
-            person["owed"] += -balance
-        else:
-            person["advance"] += balance
-        # Keep the fullest identity on the person, not whichever row happened to be first.
-        if not person["gst"] and c.customer_gst:
-            person["gst"] = c.customer_gst
-        if not person["phone"] and c.customer_phone:
-            person["phone"] = c.customer_phone
-
-    out = list(people.values())
-    for p in out:
-        p["business_count"] = len(p["business_ids"])
-        p["shared"] = p["business_count"] > 1
-        p["record_count"] = len(p["records"])
-    out.sort(key=lambda p: (-p["business_count"], -p["owed"], p["name"]))
-    return out
-
-
-def customer_person_for(customer):
-    """The one person group a given Customer row belongs to — used by the detail screen."""
-    key = customer_identity(customer)
-    for person in customer_people():
-        if person["key"] == key:
-            return person
-    return None
+    Employees are unaffected. Every customer login with a ledger here is re-checked in
+    SyncUp — a login whose only visible ledger was here stops working. Returns False when
+    the business has no profile to switch."""
+    updated = UserProfile.objects.filter(user=user).update(customer_app_enabled=bool(enabled))
+    if updated:
+        refresh_for_business(user)
+    return bool(updated)

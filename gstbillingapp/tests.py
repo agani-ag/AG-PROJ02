@@ -1,7 +1,8 @@
 import json
 from datetime import date, timedelta
+from unittest import mock
 
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase, override_settings, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -291,7 +292,7 @@ class MobileScreensTests(TestCase):
         cls.emp = Employee.objects.create(business=cls.owner, name="Field Staff", email="fs1@syncup.local")
         cls.cust = Customer.objects.create(
             user=cls.owner, customer_name="Cust One", customer_phone="9876543210",
-            customer_userid="gs1c1", collection_day=1, is_mobile_user=True,
+            collection_day=1, is_mobile_user=True,
         )
         cls.book = Book.objects.create(user=cls.owner, customer=cls.cust, current_balance=-500)
         BookLog.objects.create(parent_book=cls.book, change_type=1, change=500)
@@ -324,7 +325,7 @@ class MobileScreensTests(TestCase):
 
     def test_customer_cannot_open_foreign_invoice(self):
         from .mobile_auth import mint_customer_token
-        other = Customer.objects.create(user=self.owner, customer_name="Other", customer_userid="gs1c2", is_mobile_user=True)
+        other = Customer.objects.create(user=self.owner, customer_name="Other", is_mobile_user=True)
         self.client.get("/m/customer/", {"t": mint_customer_token(other)})
         self.assertEqual(self.client.get(reverse("m_customer_invoice", args=[self.inv.id])).status_code, 404)
 
@@ -751,9 +752,10 @@ class EmployeeManagementTests(TestCase):
         emp = Employee.objects.create(business=self.owner, name="Ravi")
         d = self.client.get(reverse("employee_mobile_link", args=[emp.id])).json()
         self.assertTrue(d["ok"]); self.assertIn("/m/employee/?t=", d["url"])
-        cust = Customer.objects.create(user=self.owner, customer_name="C")
-        d2 = self.client.get(reverse("customer_mobile_link", args=[cust.id])).json()
-        self.assertIn("/m/customer/?t=", d2["url"])
+        # Businesses no longer mint customer links - customer logins come from the console.
+        from django.urls import NoReverseMatch
+        with self.assertRaises(NoReverseMatch):
+            reverse("customer_mobile_link", args=[1])
 
     def test_employee_share_and_add(self):
         from .models import Employee, EmployeePosting, UserProfile
@@ -799,26 +801,31 @@ class MultiBusinessTests(TestCase):
         UserProfile.objects.create(user=cls.a, business_title="Shop A", business_gst=gst)
         cls.b = User.objects.create_user("bizB", password="x")
         UserProfile.objects.create(user=cls.b, business_title="Shop B", business_gst=gst)
-        # Same real customer across two shops — linked by matching GSTIN.
+        # Same real customer across two shops — linked by an admin's mapping. A matching
+        # GSTIN alone links nothing.
         cls.ca = Customer.objects.create(user=cls.a, customer_name="Ram", customer_gst="29ABCDE1234F1Z5", is_mobile_user=True)
         cls.cb = Customer.objects.create(user=cls.b, customer_name="Ram", customer_gst="29ABCDE1234F1Z5", is_mobile_user=True)
         Book.objects.create(user=cls.a, customer=cls.ca, current_balance=-100)
         Book.objects.create(user=cls.b, customer=cls.cb, current_balance=-250)
+        from .models import Party, PartyMapping
+        cls.party = Party.objects.create(name="RAM", login_status=Party.LOGIN_ACTIVE)
+        PartyMapping.objects.create(party=cls.party, customer=cls.ca)
+        PartyMapping.objects.create(party=cls.party, customer=cls.cb)
         from .models import EmployeePosting
         cls.emp = Employee.objects.create(business=cls.a, name="Rep")   # home posting @ A
         EmployeePosting.objects.create(employee=cls.emp, business=cls.b, is_active=True)  # shared @ B
 
     def test_customer_consolidated_total(self):
-        from .mobile_auth import mint_customer_token
-        self.client.get("/m/customer/", {"t": mint_customer_token(self.ca)})
+        from .mobile_auth import mint_party_token
+        self.client.get("/m/customer/", {"t": mint_party_token(self.party)})
         r = self.client.get("/m/customer/")
         self.assertContains(r, "350")            # 100 + 250 across the group
         self.assertContains(r, "SHOP A")         # business titles upper-cased on save
         self.assertContains(r, "SHOP B")
 
     def test_customer_switch_scopes_ledger(self):
-        from .mobile_auth import mint_customer_token
-        self.client.get("/m/customer/", {"t": mint_customer_token(self.ca)})
+        from .mobile_auth import mint_party_token
+        self.client.get("/m/customer/", {"t": mint_party_token(self.party)})
         r = self.client.get("/m/customer/books", {"biz": self.b.id})   # switch to Shop B
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "250")            # B's due
@@ -911,12 +918,14 @@ class MobileToggleTests(TestCase):
         from .mobile_auth import _accessible
         b = User.objects.create_user("tog_b", password="x")
         UserProfile.objects.create(user=b, business_title="Tog B")
-        # Same person across two shops (matched by GST): active here, inactive at B.
-        ca = Customer.objects.create(user=self.owner, customer_name="Ram",
-                                     customer_gst="27AAAAA0000A1Z5", is_mobile_user=True)
-        Customer.objects.create(user=b, customer_name="Ram",
-                                customer_gst="27AAAAA0000A1Z5", is_mobile_user=False)
-        businesses, _ = _accessible({"role": "customer", "primary": ca})
+        from .models import Party, PartyMapping
+        # Same person across two shops (mapped by an admin): active here, inactive at B.
+        ca = Customer.objects.create(user=self.owner, customer_name="Ram", is_mobile_user=True)
+        cb = Customer.objects.create(user=b, customer_name="Ram", is_mobile_user=False)
+        party = Party.objects.create(name="RAM", login_status=Party.LOGIN_ACTIVE)
+        PartyMapping.objects.create(party=party, customer=ca)
+        PartyMapping.objects.create(party=party, customer=cb)
+        businesses, _ = _accessible({"role": "customer", "party": party, "primary": None})
         ids = [x.id for x in businesses]
         self.assertIn(self.owner.id, ids)        # active business is accessible
         self.assertNotIn(b.id, ids)              # business with the toggle off is dropped
@@ -2295,7 +2304,7 @@ class ConsolePurgeCoverageTests(TestCase):
 
     # Models that belong to the PLATFORM, not to any business. Anything else must be
     # reachable from a business, or the coverage test below fails.
-    PLATFORM_MODELS = {"PlatformAdmin"}
+    PLATFORM_MODELS = {"PlatformAdmin", "Party", "SyncUpSettings"}
 
     def _app_models(self):
         from django.apps import apps
@@ -2566,130 +2575,575 @@ class NotFoundPageTests(TestCase):
         self.assertNotIn(b"<!doctype html>", r.content.lower())
 
 
-class ConsoleCustomerGroupingTests(TestCase):
-    """Grouping the per-business Customer rows back into real people.
+class SecurityLockdownTests(TestCase):
+    """Endpoints that used to accept anonymous or cross-business requests.
 
-    Each business keeps its own row for the same buyer, so the console has to decide
-    which rows are one person. Merging too eagerly is the dangerous direction — it would
-    show one business's ledger under another business's customer."""
+    Each case pins one hole shut: an anonymous caller is sent to the login page, and a
+    logged-in business cannot reach another business's records."""
 
     @classmethod
     def setUpTestData(cls):
+        from .models import UserProfile, ChequeLeaf, Product, Inventory, InventoryLog
+        cls.a = User.objects.create_user("sec_a", password="x")
+        cls.b = User.objects.create_user("sec_b", password="x")
+        UserProfile.objects.create(user=cls.a, business_title="Shop A")
+        UserProfile.objects.create(user=cls.b, business_title="Shop B")
+        cls.cust_a = Customer.objects.create(user=cls.a, customer_name="A CUST", collection_day=1)
+        cls.cust_b = Customer.objects.create(user=cls.b, customer_name="B CUST", collection_day=1,
+                                             customer_place="OLD PLACE")
+        cls.book_b = Book.objects.create(user=cls.b, customer=cls.cust_b, current_balance=-5)
+        cls.log_b = BookLog.objects.create(parent_book=cls.book_b, change=-5, change_type=1,
+                                           is_active=False)
+        cls.leaf_b = ChequeLeaf.objects.create(user=cls.b, cheque_number="SEC-CHQ-B")
+        cls.prod_b = Product.objects.create(user=cls.b, model_no="SEC-M", product_name="Thing")
+        cls.inv_b = Inventory.objects.create(user=cls.b, product=cls.prod_b, current_stock=3)
+        cls.ilog_b = InventoryLog.objects.create(user=cls.b, product=cls.prod_b, change=3)
+
+    # -- anonymous callers are turned away -------------------------------------------
+    def test_book_apis_require_login(self):
+        for name, data in (("book_logs_api_active", {"booklog": self.log_b.id}),
+                           ("book_logs_api_roundoff", {"book_id": self.book_b.id}),
+                           ("book_logs_api_recalculate", {"book_id": self.book_b.id}),
+                           ("book_logs_api_recalculate_all", {})):
+            r = self.client.post(reverse(name), data)
+            self.assertEqual(r.status_code, 302, name)
+            self.assertIn("/login", r["Location"], name)
+        self.log_b.refresh_from_db()
+        self.assertFalse(self.log_b.is_active)
+
+    def test_book_logs_pending_requires_login(self):
+        r = self.client.post(reverse("book_logs_pending"), {
+            "booklog_id": self.log_b.id, "booklog_change": "1",
+            "booklog_options": "1", "booklog_description": "x"})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(BookLog.objects.filter(parent_book=self.book_b).count(), 1)
+
+    def test_collection_day_update_requires_login(self):
+        r = self.client.post(reverse("customer_collection_day_update"),
+                             {"customer_id": self.cust_b.id, "collection_day": 4,
+                              "customer_place": "HACKED"})
+        self.assertEqual(r.status_code, 302)
+        self.cust_b.refresh_from_db()
+        self.assertEqual(self.cust_b.customer_place, "OLD PLACE")
+
+    # -- a business cannot reach another business's records ----------------------------
+    def test_book_api_cannot_touch_another_business(self):
+        self.client.force_login(self.a)
+        self.assertEqual(self.client.post(reverse("book_logs_api_active"),
+                                          {"booklog": self.log_b.id}).status_code, 404)
+        self.assertEqual(self.client.post(reverse("book_logs_api_roundoff"),
+                                          {"book_id": self.book_b.id}).status_code, 404)
+        self.assertEqual(self.client.post(reverse("book_logs_api_recalculate"),
+                                          {"book_id": self.book_b.id}).status_code, 404)
+        self.log_b.refresh_from_db()
+        self.assertFalse(self.log_b.is_active)
+
+    def test_state_changing_book_api_rejects_get(self):
+        self.client.force_login(self.b)
+        r = self.client.get(reverse("book_logs_api_active"), {"booklog": self.log_b.id})
+        self.assertEqual(r.status_code, 405)
+        self.log_b.refresh_from_db()
+        self.assertFalse(self.log_b.is_active)
+
+    def test_owner_can_still_use_book_api(self):
+        self.client.force_login(self.b)
+        r = self.client.post(reverse("book_logs_api_active"), {"booklog": self.log_b.id})
+        self.assertEqual(r.status_code, 200)
+        self.log_b.refresh_from_db()
+        self.assertTrue(self.log_b.is_active)
+
+    def test_collection_day_update_is_scoped(self):
+        self.client.force_login(self.a)
+        r = self.client.post(reverse("customer_collection_day_update"),
+                             {"customer_id": self.cust_b.id, "collection_day": 4,
+                              "customer_place": "HACKED"})
+        self.assertEqual(r.json()["status"], "error")
+        self.cust_b.refresh_from_db()
+        self.assertEqual(self.cust_b.customer_place, "OLD PLACE")
+        r = self.client.post(reverse("customer_collection_day_update"),
+                             {"customer_id": self.cust_a.id, "collection_day": 3,
+                              "customer_place": "Route 3"})
+        self.assertEqual(r.json()["status"], "success")
+
+    def test_cheque_leaf_is_scoped(self):
+        from .models import ChequeLeaf
+        self.client.force_login(self.a)
+        self.assertEqual(self.client.get(
+            reverse("cheque_leaf_edit", args=[self.leaf_b.id])).status_code, 404)
+        self.assertEqual(self.client.get(
+            reverse("cheque_leaf_delete", args=[self.leaf_b.id])).status_code, 404)
+        self.assertTrue(ChequeLeaf.objects.filter(pk=self.leaf_b.pk).exists())
+
+    def test_inventory_log_delete_is_scoped(self):
+        from .models import InventoryLog
+        self.client.force_login(self.a)
+        r = self.client.get(reverse("inventory_logs_del", args=[self.ilog_b.id]))
+        self.assertEqual(r.status_code, 404)
+        self.assertTrue(InventoryLog.objects.filter(pk=self.ilog_b.pk).exists())
+
+    def test_inventory_log_delete_recomputes_the_right_row(self):
+        self.client.force_login(self.b)
+        r = self.client.get(reverse("inventory_logs_del", args=[self.ilog_b.id]))
+        self.assertEqual(r.status_code, 302)
+        self.inv_b.refresh_from_db()
+        self.assertEqual(self.inv_b.current_stock, 0)
+
+    # -- removed endpoints are gone ------------------------------------------------------
+    def test_removed_endpoints_no_longer_exist(self):
+        self.client.force_login(self.a)
+        for path in ("/customers/api/location-mapper", "/customers/api/default_password",
+                     "/customers/api/all_userid_set",
+                     "/customers/%d/mobile-link" % self.cust_a.id):
+            self.assertEqual(self.client.post(path).status_code, 404, path)
+
+    # -- the mobile-access toggle --------------------------------------------------------
+    def test_mobile_toggle_is_keyed_by_id_and_scoped(self):
+        self.client.force_login(self.a)
+        r = self.client.post(reverse("customer_is_mobile_user"), {"customer_id": self.cust_b.id})
+        self.assertEqual(r.json()["status"], "error")
+        self.cust_b.refresh_from_db()
+        self.assertFalse(self.cust_b.is_mobile_user)
+        r = self.client.post(reverse("customer_is_mobile_user"), {"customer_id": self.cust_a.id})
+        self.assertEqual(r.json()["status"], "success")
+        self.cust_a.refresh_from_db()
+        self.assertTrue(self.cust_a.is_mobile_user)
+
+    def test_mobile_toggle_rejects_get(self):
+        self.client.force_login(self.a)
+        self.assertEqual(self.client.get(reverse("customer_is_mobile_user")).status_code, 405)
+
+
+class PartyMobileAccessTests(TestCase):
+    """The customer app works out who someone is from the admin's mapping — never from a
+    shared GSTIN, phone number or name."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile, Party, PartyMapping
+        cls.a = User.objects.create_user("pm_a", password="x")
+        cls.b = User.objects.create_user("pm_b", password="x")
+        cls.x = User.objects.create_user("pm_x", password="x")      # an unrelated business
+        UserProfile.objects.create(user=cls.a, business_title="Alpha", business_brand="ALPHA")
+        UserProfile.objects.create(user=cls.b, business_title="Beta", business_brand="BETA")
+        UserProfile.objects.create(user=cls.x, business_title="Xeno", business_brand="XENO")
+        gst = "33AHCPV6675M1ZN"
+        cls.ca = Customer.objects.create(user=cls.a, customer_name="KMR", customer_gst=gst,
+                                         customer_phone="9000000001", is_mobile_user=True)
+        cls.cb = Customer.objects.create(user=cls.b, customer_name="KMR", customer_gst=gst,
+                                         customer_phone="9000000001", is_mobile_user=True)
+        Book.objects.create(user=cls.a, customer=cls.ca, current_balance=-100)
+        Book.objects.create(user=cls.b, customer=cls.cb, current_balance=-250)
+        cls.party = Party.objects.create(name="KMR", login_status=Party.LOGIN_ACTIVE)
+        PartyMapping.objects.create(party=cls.party, customer=cls.ca)
+        PartyMapping.objects.create(party=cls.party, customer=cls.cb)
+
+    def _businesses(self, identity):
+        from .mobile_auth import _accessible
+        return {b.id for b in _accessible(identity)[0]}
+
+    def _party_identity(self):
+        return {"role": "customer", "party": self.party, "primary": None}
+
+    def test_party_sees_every_visible_business(self):
+        self.assertEqual(self._businesses(self._party_identity()), {self.a.id, self.b.id})
+
+    def test_business_switch_off_hides_that_ledger(self):
         from .models import UserProfile
-        cls.a = User.objects.create_user("biz_a", password="Xx!998877aa")
-        cls.b = User.objects.create_user("biz_b", password="Xx!998877aa")
-        cls.c = User.objects.create_user("biz_c", password="Xx!998877aa")
-        for u, brand in ((cls.a, "ALPHA"), (cls.b, "BETA"), (cls.c, "GAMMA")):
-            UserProfile.objects.create(user=u, business_title=brand + " CO",
-                                       business_brand=brand)
+        UserProfile.objects.filter(user=self.b).update(customer_app_enabled=False)
+        self.assertEqual(self._businesses(self._party_identity()), {self.a.id})
 
-    def _cust(self, user, name, phone=None, gst=None, balance=None):
-        c = Customer.objects.create(user=user, customer_name=name,
-                                    customer_phone=phone, customer_gst=gst)
-        if balance is not None:
-            Book.objects.create(user=user, customer=c, current_balance=balance)
-        return c
+    def test_mobile_toggle_off_hides_that_ledger(self):
+        Customer.objects.filter(pk=self.cb.pk).update(is_mobile_user=False)
+        self.assertEqual(self._businesses(self._party_identity()), {self.a.id})
 
-    def _by_name(self, people, name):
-        return next(p for p in people if p["name"] == name.upper())
+    def test_party_link_opens_the_consolidated_app(self):
+        from .mobile_auth import mint_party_token
+        self.assertEqual(self.client.get("/m/customer/", {"t": mint_party_token(self.party)})
+                         .status_code, 302)
+        r = self.client.get("/m/customer/")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "350")                              # 100 + 250
 
-    # ---------------- identity rule ----------------
-    def test_same_gstin_is_one_customer_across_businesses(self):
-        from .console_ops import customer_people
-        self._cust(self.a, "KMR", "9000000001", "33AAAAA0000A1Z5")
-        self._cust(self.b, "KMR ELECTRICALS", "9000000002", "33AAAAA0000A1Z5")
-        p = self._by_name(customer_people(), "KMR")
-        self.assertEqual(p["business_count"], 2)
-        self.assertEqual(p["kind"], "gst")
-        self.assertTrue(p["shared"])
+    def test_deactivated_login_is_refused(self):
+        from .models import Party
+        from .mobile_auth import mint_party_token
+        token = mint_party_token(self.party)
+        Party.objects.filter(pk=self.party.pk).update(login_status=Party.LOGIN_INACTIVE)
+        self.assertEqual(self.client.get("/m/customer/", {"t": token}).status_code, 403)
 
-    def test_phone_groups_customers_that_have_no_gstin(self):
-        from .console_ops import customer_people
-        self._cust(self.a, "RETAIL BUYER", "9876543210")
-        self._cust(self.b, "RETAIL BUYER", "9876543210")
-        p = self._by_name(customer_people(), "RETAIL BUYER")
-        self.assertEqual(p["business_count"], 2)
-        self.assertEqual(p["kind"], "phone")
+    def test_bumped_token_version_kills_old_links(self):
+        from .models import Party
+        from .mobile_auth import mint_party_token
+        token = mint_party_token(self.party)
+        Party.objects.filter(pk=self.party.pk).update(token_version=self.party.token_version + 1)
+        self.assertEqual(self.client.get("/m/customer/", {"t": token}).status_code, 403)
 
-    def test_phone_matching_ignores_country_code_and_spacing(self):
-        """+91 98765 43210 and 9876543210 are one person, not two."""
-        from .console_ops import customer_people
-        self._cust(self.a, "SAME PERSON", "+91 98765 43210")
-        self._cust(self.b, "SAME PERSON", "9876543210")
-        self.assertEqual(self._by_name(customer_people(), "SAME PERSON")["business_count"], 2)
+    def test_older_row_link_stays_in_its_own_business(self):
+        """Even for a mapped row, a single-row link never expands."""
+        self.assertEqual(self._businesses({"role": "customer", "primary": self.ca}), {self.a.id})
 
-    def test_gstin_wins_over_phone(self):
-        """A shared office phone must not merge two different firms that have GSTINs."""
-        from .console_ops import customer_people
-        self._cust(self.a, "FIRM ONE", "9000000000", "33AAAAA0000A1Z5")
-        self._cust(self.b, "FIRM TWO", "9000000000", "33BBBBB0000B1Z5")
-        people = customer_people()
-        self.assertEqual(self._by_name(people, "FIRM ONE")["business_count"], 1)
-        self.assertEqual(self._by_name(people, "FIRM TWO")["business_count"], 1)
+    def test_typing_a_public_gstin_gives_no_access(self):
+        """The leak this closes: an unrelated business puts KMR's GSTIN on a row of its own,
+        turns mobile on and opens that row's link. It must see only itself."""
+        from .mobile_auth import mint_customer_token
+        planted = Customer.objects.create(user=self.x, customer_name="ANYONE",
+                                          customer_gst=self.ca.customer_gst, is_mobile_user=True)
+        self.assertEqual(self._businesses({"role": "customer", "primary": planted}), {self.x.id})
+        self.client.get("/m/customer/", {"t": mint_customer_token(planted)})
+        r = self.client.get("/m/customer/", {"biz": self.a.id})
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, "ALPHA")
 
-    def test_same_name_alone_does_not_merge_different_people(self):
-        """Namesakes with different phones are different customers."""
-        from .console_ops import customer_people
+    def test_employee_brand_switcher_follows_the_mapping(self):
+        from types import SimpleNamespace
+        from .views.m.employee import _brand_nav
+        req = SimpleNamespace(mobile_actor={"businesses": [self.a, self.b],
+                                            "active_business": self.a})
+        self.assertEqual({n["cust_id"] for n in _brand_nav(req, self.ca)},
+                         {self.ca.id, self.cb.id})
+
+    def test_employee_brand_switcher_ignores_a_shared_phone(self):
+        """Unmapped rows sharing a phone are NOT offered as the same customer."""
+        from types import SimpleNamespace
+        from .views.m.employee import _brand_nav
+        lone = Customer.objects.create(user=self.a, customer_name="LONE",
+                                       customer_phone="9111111111")
+        Customer.objects.create(user=self.b, customer_name="LONE", customer_phone="9111111111")
+        req = SimpleNamespace(mobile_actor={"businesses": [self.a, self.b],
+                                            "active_business": self.a})
+        self.assertEqual([n["cust_id"] for n in _brand_nav(req, lone)], [lone.id])
+
+
+def _syncup_on(**fields):
+    """Save SyncUp settings (as an admin would on Console -> Settings) for a test."""
+    from .models import SyncUpSettings
+    cfg = SyncUpSettings.load()
+    values = {"api_base": "https://syncup.test", "partner_key": "key",
+              "link_base": "https://gstsync.test"}
+    values.update(fields)
+    for name, value in values.items():
+        setattr(cfg, name, value)
+    cfg.save()
+    return cfg
+
+
+def _gstin(first14):
+    """A GSTIN with a correct check character, so it counts as evidence."""
+    from .gstin import gstin_check_char
+    return first14 + gstin_check_char(first14)
+
+
+def _businesses(*names):
+    from .models import UserProfile
+    out = []
+    for n in names:
+        u = User.objects.create_user("pt_" + n.lower(), password="Xx!998877aa")
+        UserProfile.objects.create(user=u, business_title=n + " CO", business_brand=n)
+        out.append(u)
+    return out
+
+
+class PartySuggestionTests(TestCase):
+    """Rows that share a phone or a VALID GSTIN are offered to the admin — and only offered."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.a, cls.b, cls.c = _businesses("ALPHA", "BETA", "GAMMA")
+        cls.g1 = _gstin("33AAAAA0000A1Z")
+        cls.g2 = _gstin("33BBBBB1111B1Z")
+
+    def _cust(self, user, name, phone=None, gst=None):
+        return Customer.objects.create(user=user, customer_name=name, customer_phone=phone,
+                                       customer_gst=gst)
+
+    def _groups(self):
+        from .parties import suggestion_groups
+        return suggestion_groups()
+
+    def test_shared_phone_and_gstin_is_suggested(self):
+        self._cust(self.a, "KMR", "9000000001", self.g1)
+        self._cust(self.b, "KMR ELECTRICALS", "9000000001", self.g1)
+        (g,) = self._groups()
+        self.assertEqual(g["evidence"], "phone_gstin")
+        self.assertEqual(len(g["rows"]), 2)
+
+    def test_invalid_gstin_is_not_evidence(self):
+        bad = self.g1[:-1] + ("0" if self.g1[-1] != "0" else "1")
+        self._cust(self.a, "TYPO", "9000000002", bad)
+        self._cust(self.b, "TYPO", "9000000003", bad)
+        self.assertEqual(self._groups(), [])
+
+    def test_phone_matching_ignores_prefix_and_spacing(self):
+        self._cust(self.a, "SAME", "+91 98765 43210")
+        self._cust(self.b, "SAME", "9876543210")
+        (g,) = self._groups()
+        self.assertEqual(g["evidence"], "phone")
+
+    def test_name_alone_is_never_evidence(self):
         self._cust(self.a, "SELVAM", "9111111111")
         self._cust(self.b, "SELVAM", "9222222222")
-        matches = [p for p in customer_people() if p["name"] == "SELVAM"]
-        self.assertEqual(len(matches), 2)
-        self.assertFalse(any(m["shared"] for m in matches))
+        self.assertEqual(self._groups(), [])
 
-    def test_two_rows_in_the_same_business_are_not_counted_as_shared(self):
-        from .console_ops import customer_people
-        self._cust(self.a, "DUPLICATED", "9333333333", "33CCCCC0000C1Z5")
-        self._cust(self.a, "DUPLICATED", "9333333333", "33CCCCC0000C1Z5")
-        p = self._by_name(customer_people(), "DUPLICATED")
-        self.assertEqual(p["record_count"], 2)      # two rows...
-        self.assertEqual(p["business_count"], 1)    # ...but one business
-        self.assertFalse(p["shared"])
+    def test_rows_in_one_business_are_not_a_suggestion(self):
+        self._cust(self.a, "DUP", "9333333333", self.g2)
+        self._cust(self.a, "DUP", "9333333333", self.g2)
+        self.assertEqual(self._groups(), [])
 
-    # ---------------- totals ----------------
-    def test_owed_is_summed_across_businesses(self):
-        from .console_ops import customer_people
-        self._cust(self.a, "BIG DEBTOR", "9444444444", "33DDDDD0000D1Z5", balance=-1000)
-        self._cust(self.b, "BIG DEBTOR", "9444444444", "33DDDDD0000D1Z5", balance=-2500)
-        self._cust(self.c, "BIG DEBTOR", "9444444444", "33DDDDD0000D1Z5", balance=400)
-        p = self._by_name(customer_people(), "BIG DEBTOR")
-        self.assertEqual(p["business_count"], 3)
-        self.assertEqual(p["owed"], 3500.0)      # negative balances only
-        self.assertEqual(p["advance"], 400.0)    # a credit is not netted off the dues
+    def test_evidence_chains_into_one_group(self):
+        """A–B share a phone, B–C share a GSTIN: one owner, one suggestion."""
+        self._cust(self.a, "CHAIN", "9444444444")
+        self._cust(self.b, "CHAIN", "9444444444", self.g2)
+        self._cust(self.c, "CHAIN", "9555555555", self.g2)
+        (g,) = self._groups()
+        self.assertEqual(len(g["rows"]), 3)
 
-    def test_shared_customers_sort_to_the_top(self):
-        from .console_ops import customer_people
-        self._cust(self.a, "AAA SOLO", "9555555555")
-        self._cust(self.a, "ZZZ SHARED", "9666666666", "33EEEEE0000E1Z5")
-        self._cust(self.b, "ZZZ SHARED", "9666666666", "33EEEEE0000E1Z5")
-        self.assertEqual(customer_people()[0]["name"], "ZZZ SHARED")
+    def test_settled_group_disappears(self):
+        from .parties import create_party
+        rows = [self._cust(self.a, "KMR", "9000000001", self.g1),
+                self._cust(self.b, "KMR", "9000000001", self.g1)]
+        create_party(name="KMR", customers=rows)
+        self.assertEqual(self._groups(), [])
 
-    def test_search_matches_name_phone_and_gstin(self):
-        from .console_ops import customer_people
-        self._cust(self.a, "FINDABLE TRADERS", "9777777777", "33FFFFF0000F1Z5")
-        for term in ("FINDABLE", "9777777777", "33FFFFF"):
-            self.assertEqual(len(customer_people(term)), 1, term)
-        self.assertEqual(len(customer_people("nothingmatches")), 0)
+    def test_a_new_matching_row_resurfaces_against_the_party(self):
+        from .parties import create_party
+        rows = [self._cust(self.a, "KMR", "9000000001", self.g1),
+                self._cust(self.b, "KMR", "9000000001", self.g1)]
+        party = create_party(name="KMR", customers=rows)
+        self._cust(self.c, "K.M.R.", "9000000001")
+        (g,) = self._groups()
+        self.assertEqual(g["parties"], [party])
+        self.assertEqual(g["unmapped"], 1)
+
+    def test_nothing_is_ever_mapped_automatically(self):
+        from .models import PartyMapping
+        self._cust(self.a, "KMR", "9000000001", self.g1)
+        self._cust(self.b, "KMR", "9000000001", self.g1)
+        self._groups()
+        self.assertEqual(PartyMapping.objects.count(), 0)
 
 
-class ConsoleCustomerScreenTests(TestCase):
-    """The console customer screens."""
-
+class PartyOpsTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        from .models import PlatformAdmin, UserProfile
+        from .models import PlatformAdmin
+        cls.a, cls.b, cls.c = _businesses("ALPHA", "BETA", "GAMMA")
+        cls.admin = PlatformAdmin.objects.create(username="ops", full_name="Ops")
+        g = _gstin("33AAAAA0000A1Z")
+        cls.ra = Customer.objects.create(user=cls.a, customer_name="KMR", customer_phone="9000000001",
+                                         customer_gst=g, is_mobile_user=True,
+                                         customer_latitude=11.1, customer_longitude=77.1,
+                                         customer_place="TIRUPUR", collection_day=3)
+        cls.rb = Customer.objects.create(user=cls.b, customer_name="KMR", customer_phone="9000000001",
+                                         customer_gst=g, is_mobile_user=True)
+        cls.rc = Customer.objects.create(user=cls.c, customer_name="OTHER", customer_phone="9999999999")
+
+    def test_create_records_evidence_and_who(self):
+        from .parties import create_party
+        party = create_party(name="KMR", customers=[self.ra, self.rb], admin=self.admin, note="called")
+        m = self.ra.party_mapping
+        self.assertEqual((m.party, m.evidence, m.mapped_by, m.note), (party, "phone_gstin", self.admin, "called"))
+        self.assertEqual(party.created_by, self.admin)
+
+    def test_unrelated_rows_are_recorded_as_manual(self):
+        from .parties import create_party
+        create_party(name="X", customers=[self.ra, self.rc])
+        self.assertEqual(self.rc.party_mapping.evidence, "manual")
+
+    def test_a_row_belongs_to_one_party(self):
+        from .models import PartyMapping
+        from .parties import add_rows, create_party
+        p1 = create_party(name="ONE", customers=[self.ra])
+        p2 = create_party(name="TWO", customers=[self.rb])
+        add_rows(p2, [self.ra])
+        self.assertEqual(PartyMapping.objects.get(customer=self.ra).party, p2)
+        self.assertEqual(PartyMapping.objects.filter(party=p1).count(), 0)
+
+    def test_remove_row(self):
+        from .parties import create_party, members, remove_row
+        party = create_party(name="KMR", customers=[self.ra, self.rb])
+        remove_row(self.rb)
+        self.assertEqual(members(party), [self.ra])
+
+    def test_merge_moves_rows_and_removes_the_other(self):
+        from .models import Party
+        from .parties import create_party, members, merge_parties
+        keep = create_party(name="KEEP", customers=[self.ra])
+        gone = create_party(name="GONE", customers=[self.rb])
+        merge_parties(keep, gone)
+        self.assertFalse(Party.objects.filter(pk=gone.pk).exists())
+        self.assertEqual(set(members(keep)), {self.ra, self.rb})
+
+    def test_merge_changes_nothing_if_syncup_cant_switch_the_login_off(self):
+        from .models import Party
+        from .parties import create_party, merge_parties
+        from .syncup_client import SyncUpError
+        keep = create_party(name="KEEP", customers=[self.ra])
+        gone = create_party(name="GONE", customers=[self.rb])
+        Party.objects.filter(pk=gone.pk).update(login_status=Party.LOGIN_ACTIVE)
+        gone.refresh_from_db()
+        with mock.patch("gstbillingapp.syncup_client.set_account_active",
+                        side_effect=SyncUpError("down")):
+            with self.assertRaises(SyncUpError):
+                merge_parties(keep, gone)
+        self.assertEqual(self.rb.party_mapping.party_id, gone.id)
+
+    def test_copy_location_to_the_other_rows(self):
+        from .parties import copy_location, create_party
+        party = create_party(name="KMR", customers=[self.ra, self.rb])
+        self.assertEqual(copy_location(party, self.ra, include_day=True), 1)
+        self.rb.refresh_from_db()
+        self.assertEqual((float(self.rb.customer_latitude), self.rb.customer_place, self.rb.collection_day),
+                         (11.1, "TIRUPUR", 3))
+
+    def test_copy_location_never_touches_rows_outside_the_party(self):
+        from .parties import copy_location, create_party
+        party = create_party(name="KMR", customers=[self.ra, self.rb])
+        copy_location(party, self.ra)
+        self.rc.refresh_from_db()
+        self.assertIsNone(self.rc.customer_place)
+
+    def test_warnings(self):
+        from .models import UserProfile
+        from .parties import map_warnings
+
+        def fresh(*rows):          # re-read, so a profile cached by an earlier call can't go stale
+            return [Customer.objects.get(pk=r.pk) for r in rows]
+
+        self.assertEqual(map_warnings(fresh(self.ra, self.rb)), [])
+        self.assertTrue(any("share no phone" in w for w in map_warnings(fresh(self.ra, self.rc))))
+        UserProfile.objects.filter(user=self.b).update(customer_app_enabled=False)
+        self.assertTrue(any("switched on" in w for w in map_warnings(fresh(self.ra, self.rb))))
+        UserProfile.objects.filter(user=self.a).update(business_gst=self.rb.customer_gst)
+        self.assertTrue(any("own businesses" in w for w in map_warnings(fresh(self.rb))))
+
+    def test_purging_a_business_rechecks_the_login(self):
+        """Its rows go, so a login whose only shown ledger was there must stop working."""
+        from .console_ops import purge_business
+        from .models import Party
+        from .parties import create_party
+        party = create_party(name="KMR", customers=[self.ra])
+        Party.objects.filter(pk=party.pk).update(login_status=Party.LOGIN_ACTIVE, syncup_active=True)
+        with mock.patch("gstbillingapp.syncup_client.set_account_active") as push:
+            with self.captureOnCommitCallbacks(execute=True):
+                purge_business(self.a)
+        push.assert_called_once_with(party.external_id, False)
+
+
+class PartyLoginTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+        cls.ra = Customer.objects.create(user=cls.a, customer_name="KMR", is_mobile_user=True)
+        cls.rb = Customer.objects.create(user=cls.b, customer_name="KMR", is_mobile_user=True)
+
+    def setUp(self):
+        from .parties import create_party
+        _syncup_on()
+        self.party = create_party(name="KMR", customers=[self.ra, self.rb])
+        self.upsert = mock.patch("gstbillingapp.syncup_client.upsert_account").start()
+        self.link = mock.patch("gstbillingapp.syncup_client.replace_link").start()
+        self.push = mock.patch("gstbillingapp.syncup_client.set_account_active").start()
+        self.addCleanup(mock.patch.stopall)
+
+    def test_issue_creates_the_account_and_link_and_returns_the_password(self):
+        from django.forms.models import model_to_dict
+        from .parties import issue_login
+        version = self.party.token_version
+        password = issue_login(self.party)
+        self.assertEqual(len(password), 10)
+        kwargs = self.upsert.call_args.kwargs
+        self.assertEqual(self.upsert.call_args.args, (self.party.external_id,))
+        self.assertEqual(kwargs["email"], "gsp%d@gstsync.app" % self.party.id)
+        self.assertEqual(kwargs["password"], password)
+        self.assertTrue(self.link.call_args.kwargs["url"].startswith("https://gstsync.test/m/customer/?t="))
+        self.party.refresh_from_db()
+        self.assertEqual(self.party.login_status, "active")
+        self.assertEqual(self.party.token_version, version + 1)
+        self.assertNotIn(password, repr(model_to_dict(self.party)))       # never stored here
+
+    def test_the_issued_link_opens_every_shown_ledger(self):
+        from .parties import issue_login
+        issue_login(self.party)
+        url = self.link.call_args.kwargs["url"]
+        token = url.split("?t=", 1)[1]
+        self.assertEqual(self.client.get("/m/customer/", {"t": token}).status_code, 302)
+        self.assertEqual(self.client.get("/m/customer/").status_code, 200)
+
+    def test_issue_is_blocked_without_a_shown_ledger(self):
+        from .parties import LoginBlocked, issue_login
+        Customer.objects.filter(pk__in=[self.ra.pk, self.rb.pk]).update(is_mobile_user=False)
+        with self.assertRaises(LoginBlocked):
+            issue_login(self.party)
+        self.upsert.assert_not_called()
+
+    def test_issue_is_blocked_for_one_of_our_own_businesses(self):
+        from .models import UserProfile
+        from .parties import LoginBlocked, issue_login
+        g = _gstin("33CCCCC2222C1Z")
+        UserProfile.objects.filter(user=self.a).update(business_gst=g)
+        Customer.objects.filter(pk=self.rb.pk).update(customer_gst=g)
+        with self.assertRaises(LoginBlocked):
+            issue_login(self.party)
+
+    def test_issue_is_blocked_until_syncup_is_configured(self):
+        from .parties import LoginBlocked, issue_login
+        _syncup_on(api_base="")
+        with self.assertRaises(LoginBlocked):
+            issue_login(self.party)
+        _syncup_on(partner_key="")
+        with self.assertRaises(LoginBlocked):
+            issue_login(self.party)
+        _syncup_on(link_base="http://not-https.test")
+        with self.assertRaises(LoginBlocked):
+            issue_login(self.party)
+
+    def test_deactivate_kills_the_link_even_when_syncup_is_down(self):
+        from .mobile_auth import mint_party_token
+        from .parties import deactivate_login, issue_login
+        from .syncup_client import SyncUpError
+        issue_login(self.party)
+        token = mint_party_token(self.party)
+        self.push.side_effect = SyncUpError("down")
+        self.assertFalse(deactivate_login(self.party))
+        self.party.refresh_from_db()
+        self.assertEqual(self.party.login_status, "inactive")
+        self.assertIn("down", self.party.syncup_error)
+        self.assertEqual(self.client.get("/m/customer/", {"t": token}).status_code, 403)
+
+    def test_visibility_changes_push_is_active_only_when_it_changes(self):
+        from .parties import issue_login, refresh_login
+        issue_login(self.party)
+        Customer.objects.filter(pk=self.ra.pk).update(is_mobile_user=False)
+        refresh_login(self.party)
+        self.push.assert_not_called()                   # BETA still shows them
+        Customer.objects.filter(pk=self.rb.pk).update(is_mobile_user=False)
+        refresh_login(self.party)
+        self.push.assert_called_once_with(self.party.external_id, False)
+        refresh_login(self.party)
+        self.assertEqual(self.push.call_count, 1)       # nothing changed, no call
+
+    def test_reset_sends_a_new_password(self):
+        from .parties import issue_login, reset_password
+        first = issue_login(self.party)
+        second = reset_password(self.party)
+        self.assertNotEqual(first, second)
+        self.assertEqual(self.upsert.call_args.kwargs["password"], second)
+
+
+class ConsolePartyScreenTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
         cls.admin = PlatformAdmin(username="custop", full_name="Cust Op")
         cls.admin.set_password("Cons0le!pass9")
         cls.admin.save()
-        cls.a = User.objects.create_user("cbiz_a", password="Xx!998877aa")
-        cls.b = User.objects.create_user("cbiz_b", password="Xx!998877aa")
-        UserProfile.objects.create(user=cls.a, business_title="A CO", business_brand="ALPHA")
-        UserProfile.objects.create(user=cls.b, business_title="B CO", business_brand="BETA")
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+        g = _gstin("33AAAAA0000A1Z")
         cls.ca = Customer.objects.create(user=cls.a, customer_name="SHARED BUYER",
-                                         customer_phone="9000000001",
-                                         customer_gst="33AAAAA0000A1Z5")
-        Customer.objects.create(user=cls.b, customer_name="SHARED BUYER",
-                                customer_phone="9000000001",
-                                customer_gst="33AAAAA0000A1Z5")
+                                         customer_phone="9000000001", customer_gst=g,
+                                         is_mobile_user=True)
+        cls.cb = Customer.objects.create(user=cls.b, customer_name="SHARED BUYER",
+                                         customer_phone="9000000001", customer_gst=g)
         cls.solo = Customer.objects.create(user=cls.a, customer_name="SOLO BUYER",
                                            customer_phone="9000000002")
 
@@ -2697,48 +3151,297 @@ class ConsoleCustomerScreenTests(TestCase):
         self.client.post(reverse("console_login"),
                          {"username": "custop", "password": "Cons0le!pass9"})
 
+    def _key(self):
+        from .parties import suggestion_groups
+        return suggestion_groups()[0]["key"]
+
+    def _party(self):
+        from .parties import create_party
+        return create_party(name="SHARED BUYER", customers=[self.ca, self.cb], admin=self.admin)
+
     def test_requires_console_login(self):
         self.client.get(reverse("console_logout"))
-        r = self.client.get(reverse("console_customers"))
+        for url in (reverse("console_customers"), reverse("console_party", args=[1]),
+                    reverse("console_suggestion", args=[1])):
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 302, url)
+            self.assertIn("/console/login", r["Location"])
+
+    def test_the_three_lists(self):
+        url = reverse("console_customers")
+        self.assertContains(self.client.get(url + "?show=mapped"), "No customers mapped yet")
+        self.assertContains(self.client.get(url + "?show=suggestions"), "SHARED BUYER")
+        unmapped = self.client.get(url + "?show=unmapped")
+        self.assertContains(unmapped, "SOLO BUYER")
+        self.assertContains(unmapped, "BETA")
+
+    def test_reviewing_a_suggestion_maps_the_ticked_rows(self):
+        from .models import PartyMapping
+        key = self._key()
+        page = self.client.get(reverse("console_suggestion", args=[key]))
+        self.assertContains(page, "ALPHA")
+        self.assertContains(page, "BETA")
+        r = self.client.post(reverse("console_suggestion", args=[key]),
+                             {"customer_ids": [self.ca.id, self.cb.id, self.solo.id],
+                              "name": "SHARED BUYER"})
+        party = PartyMapping.objects.get(customer=self.ca).party
+        self.assertRedirects(r, reverse("console_party", args=[party.id]))
+        self.assertEqual(PartyMapping.objects.filter(party=party).count(), 2)   # solo wasn't in it
+        self.assertEqual(PartyMapping.objects.get(customer=self.cb).mapped_by, self.admin)
+
+    def test_a_settled_suggestion_sends_you_back(self):
+        key = self._key()
+        self._party()
+        r = self.client.get(reverse("console_suggestion", args=[key]))
         self.assertEqual(r.status_code, 302)
-        self.assertIn("/console/login", r["Location"])
 
-    def test_list_shows_customers_from_every_business(self):
-        r = self.client.get(reverse("console_customers"))
-        self.assertContains(r, "SHARED BUYER")
-        self.assertContains(r, "SOLO BUYER")
-        self.assertContains(r, "ALPHA")
-        self.assertContains(r, "BETA")
+    def test_unmapped_row_page_creates_a_customer(self):
+        from .models import PartyMapping
+        self.assertContains(self.client.get(reverse("console_customer_detail", args=[self.solo.id])),
+                            "Create customer from this row")
+        self.client.post(reverse("console_party_new"), {"customer_ids": [self.solo.id], "name": "SOLO"})
+        self.assertEqual(PartyMapping.objects.get(customer=self.solo).party.name, "SOLO")
 
-    def test_shared_customer_is_flagged(self):
-        r = self.client.get(reverse("console_customers"))
-        self.assertContains(r, "2 businesses")
+    def test_a_mapped_row_opens_its_party(self):
+        party = self._party()
+        self.assertRedirects(self.client.get(reverse("console_customer_detail", args=[self.ca.id])),
+                             reverse("console_party", args=[party.id]))
 
-    def test_filters_narrow_the_list(self):
-        shared = self.client.get(reverse("console_customers") + "?show=shared")
-        self.assertContains(shared, "SHARED BUYER")
-        self.assertNotContains(shared, "SOLO BUYER")
-        single = self.client.get(reverse("console_customers") + "?show=single")
-        self.assertContains(single, "SOLO BUYER")
-        self.assertNotContains(single, "SHARED BUYER")
+    def test_party_page_add_and_remove(self):
+        from .parties import members
+        party = self._party()
+        page = self.client.get(reverse("console_party", args=[party.id]) + "?aq=SOLO")
+        self.assertContains(page, "SOLO BUYER")
+        self.client.post(reverse("console_party_add", args=[party.id]), {"customer_ids": [self.solo.id]})
+        self.assertIn(self.solo, members(party))
+        self.client.post(reverse("console_party_remove", args=[party.id]), {"customer_id": self.solo.id})
+        self.assertNotIn(self.solo, members(party))
 
-    def test_search_filters(self):
-        r = self.client.get(reverse("console_customers") + "?q=SOLO")
-        self.assertContains(r, "SOLO BUYER")
-        self.assertNotContains(r, "SHARED BUYER")
+    def test_merge_from_the_party_page(self):
+        from .models import Party
+        from .parties import create_party, members
+        keep = create_party(name="KEEP", customers=[self.ca])
+        gone = create_party(name="GONE", customers=[self.cb])
+        self.client.post(reverse("console_party_merge", args=[keep.id]), {"other_id": gone.id})
+        self.assertFalse(Party.objects.filter(pk=gone.pk).exists())
+        self.assertEqual(set(members(keep)), {self.ca, self.cb})
 
-    def test_detail_shows_the_record_from_each_business(self):
-        r = self.client.get(reverse("console_customer_detail", args=[self.ca.id]))
-        self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "ALPHA")
-        self.assertContains(r, "BETA")
-        self.assertContains(r, "In 2 businesses")
+    def test_issued_password_is_shown_once_and_not_cached(self):
+        _syncup_on()
+        party = self._party()
+        with mock.patch("gstbillingapp.syncup_client.upsert_account"), \
+             mock.patch("gstbillingapp.syncup_client.replace_link"), \
+             mock.patch("gstbillingapp.parties.generate_customer_password", return_value="Zq7Wm4Kp2X"):
+            r = self.client.post(reverse("console_party_login_issue", args=[party.id]))
+        self.assertContains(r, "Zq7Wm4Kp2X")
+        self.assertContains(r, "gsp%d@gstsync.app" % party.id)
+        self.assertIn("no-store", r["Cache-Control"])
+        self.assertNotContains(self.client.get(reverse("console_party", args=[party.id])), "Zq7Wm4Kp2X")
 
-    def test_detail_for_a_single_business_customer(self):
-        r = self.client.get(reverse("console_customer_detail", args=[self.solo.id]))
-        self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "One business")
+    def test_issue_blocked_is_explained(self):
+        party = self._party()
+        r = self.client.post(reverse("console_party_login_issue", args=[party.id]), follow=True)
+        self.assertContains(r, "SyncUp isn")
 
-    def test_detail_404s_for_an_unknown_customer(self):
-        self.assertEqual(
-            self.client.get(reverse("console_customer_detail", args=[999999])).status_code, 404)
+    def test_business_customer_app_switch(self):
+        from .models import UserProfile
+        r = self.client.post(reverse("console_business_customer_app", args=[self.b.id]), follow=True)
+        self.assertFalse(UserProfile.objects.get(user=self.b).customer_app_enabled)
+        self.assertContains(r, "Turn customer app on")
+
+    def test_unknown_ids_404(self):
+        self.assertEqual(self.client.get(reverse("console_customer_detail", args=[999999])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("console_party", args=[999999])).status_code, 404)
+
+
+class CustomerAppSwitchTests(TestCase):
+    """The business side honours the console's customer-app switch, and every visibility
+    change reaches SyncUp without ever blocking the business."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Party, PartyMapping
+        cls.owner, cls.other = _businesses("ALPHA", "BETA")
+        cls.c = Customer.objects.create(user=cls.owner, customer_name="KMR",
+                                        customer_phone="9000000001", is_mobile_user=True)
+        cls.c2 = Customer.objects.create(user=cls.other, customer_name="KMR",
+                                         customer_phone="9000000001", is_mobile_user=True)
+        cls.party = Party.objects.create(name="KMR", login_status=Party.LOGIN_ACTIVE,
+                                         syncup_active=True)
+        PartyMapping.objects.create(party=cls.party, customer=cls.c)
+        PartyMapping.objects.create(party=cls.party, customer=cls.c2)
+
+    def setUp(self):
+        self.client.force_login(self.owner)
+
+    def _switch(self, on):
+        from .models import UserProfile
+        UserProfile.objects.filter(user=self.owner).update(customer_app_enabled=on)
+
+    def _toggle(self, customer=None):
+        return self.client.post(reverse("customer_is_mobile_user"),
+                                {"customer_id": (customer or self.c).id}).json()
+
+    def test_toggle_is_refused_while_the_app_is_off(self):
+        self._switch(False)
+        self.assertEqual(self._toggle()["status"], "error")
+        self.c.refresh_from_db()
+        self.assertTrue(self.c.is_mobile_user)
+
+    def test_list_hides_the_toggle_while_the_app_is_off(self):
+        marker = "IsMobileUser_Status(%d" % self.c.id
+        self.assertContains(self.client.get(reverse("customers")), marker)
+        self._switch(False)
+        self.assertNotContains(self.client.get(reverse("customers")), marker)
+
+    def test_edit_form_keeps_the_flag_while_the_app_is_off(self):
+        """The toggle isn't on the form, so a save mustn't read it as switched off."""
+        self._switch(False)
+        url = reverse("customer_edit", args=[self.c.id])
+        self.assertNotContains(self.client.get(url), 'name="is_mobile_user"')
+        r = self.client.post(url, {"customer_name": "KMR", "customer_phone": "9000000001",
+                                   "collection_day": 0})
+        self.assertEqual(r.status_code, 302)
+        self.c.refresh_from_db()
+        self.assertTrue(self.c.is_mobile_user)
+
+    def test_toggle_pushes_to_syncup_when_the_last_ledger_goes(self):
+        with mock.patch("gstbillingapp.syncup_client.set_account_active") as push:
+            self._toggle()                                   # BETA still shows them
+            push.assert_not_called()
+            self.client.force_login(self.other)
+            self._toggle(self.c2)
+        push.assert_called_once_with(self.party.external_id, False)
+
+    def test_a_syncup_outage_never_blocks_the_business(self):
+        from .syncup_client import SyncUpError
+        Customer.objects.filter(pk=self.c2.pk).update(is_mobile_user=False)
+        with mock.patch("gstbillingapp.syncup_client.set_account_active",
+                        side_effect=SyncUpError("down")):
+            self.assertEqual(self._toggle()["status"], "success")
+        self.party.refresh_from_db()
+        self.assertIn("down", self.party.syncup_error)
+
+    def test_deleting_the_last_shown_row_pushes_to_syncup(self):
+        Customer.objects.filter(pk=self.c2.pk).update(is_mobile_user=False)
+        with mock.patch("gstbillingapp.syncup_client.set_account_active") as push:
+            self.client.post(reverse("customer_delete"), {"customer_id": self.c.id})
+        push.assert_called_once_with(self.party.external_id, False)
+
+
+class SyncUpSettingsTests(TestCase):
+    """SyncUp's address, key, public address and login domain live in the database and are
+    edited on the console - never in settings.py."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
+        cls.admin = PlatformAdmin(username="setop", full_name="Set Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+
+    def setUp(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "setop", "password": "Cons0le!pass9"})
+
+    def _save(self, **fields):
+        data = {"api_base": "https://syncup.test", "partner_key": "",
+                "link_base": "https://gstsync.test", "timeout": "5", "login_domain": "gstsync.app"}
+        data.update(fields)
+        return self.client.post(reverse("console_syncup"), data)
+
+    def _cfg(self):
+        from .models import SyncUpSettings
+        return SyncUpSettings.load()
+
+    def test_requires_console_login(self):
+        self.client.get(reverse("console_logout"))
+        for r in (self.client.get(reverse("console_syncup")),
+                  self.client.post(reverse("console_syncup_test"))):
+            self.assertEqual(r.status_code, 302)
+            self.assertIn("/console/login", r["Location"])
+
+    def test_defaults_before_anything_is_saved(self):
+        from .syncup_client import is_configured
+        r = self.client.get(reverse("console_syncup"))
+        self.assertContains(r, "Not set up")
+        self.assertContains(r, "gstsync.app")
+        self.assertFalse(is_configured())
+
+    def test_settings_is_in_the_console_nav(self):
+        self.assertContains(self.client.get(reverse("console_businesses")),
+                            'href="%s"' % reverse("console_syncup"))
+
+    def test_saving_stores_and_normalises(self):
+        r = self._save(api_base="https://syncup.test/partner/v1/", partner_key="sk_live_ABCD1234")
+        self.assertRedirects(r, reverse("console_syncup"))
+        cfg = self._cfg()
+        self.assertEqual((cfg.api_base, cfg.partner_key, cfg.link_base, cfg.updated_by),
+                         ("https://syncup.test", "sk_live_ABCD1234", "https://gstsync.test",
+                          self.admin))
+
+    def test_the_partner_key_is_write_only(self):
+        self._save(partner_key="sk_live_ABCD1234")
+        page = self.client.get(reverse("console_syncup"))
+        self.assertNotContains(page, "sk_live_ABCD1234")
+        self.assertContains(page, "1234")                        # only a hint
+        self._save()                                              # blank keeps it
+        self.assertEqual(self._cfg().partner_key, "sk_live_ABCD1234")
+        self._save(clear_key="1")
+        self.assertEqual(self._cfg().partner_key, "")
+
+    def test_bad_values_are_refused_and_nothing_is_saved(self):
+        from .models import SyncUpSettings
+        for fields in ({"link_base": "http://gstsync.test"},      # SyncUp needs https links
+                       {"api_base": "http://syncup.example.com"},  # key in the clear
+                       {"api_base": "syncup.test"},
+                       {"timeout": "0"},
+                       {"login_domain": "not a domain"}):
+            self.assertEqual(self._save(**fields).status_code, 400, fields)
+        self.assertFalse(SyncUpSettings.objects.exists())
+
+    def test_plain_http_is_allowed_for_a_local_syncup(self):
+        self._save(api_base="http://127.0.0.1:8001")
+        self.assertEqual(self._cfg().api_base, "http://127.0.0.1:8001")
+
+    def test_login_domain_drives_the_email_and_locks_once_used(self):
+        from .models import Party
+        self._save(login_domain="Login.Example.com")
+        party = Party.objects.create(name="KMR")
+        self.assertEqual(party.login_email, "gsp%d@login.example.com" % party.id)
+        Party.objects.filter(pk=party.pk).update(login_status=Party.LOGIN_ACTIVE)
+        self.assertEqual(self._save(login_domain="other.example.com").status_code, 400)
+        self.assertEqual(self._cfg().login_domain, "login.example.com")
+        self.assertContains(self.client.get(reverse("console_syncup")), "Locked")
+
+    def test_the_client_uses_the_saved_settings(self):
+        import io
+        from .syncup_client import list_links
+        _syncup_on(timeout=7)
+        seen = {}
+
+        def fake_urlopen(req, timeout):
+            seen.update(url=req.full_url, auth=req.get_header("Authorization"), timeout=timeout)
+            return io.BytesIO(b'{"links": []}')
+
+        with mock.patch("urllib.request.urlopen", fake_urlopen):
+            self.assertEqual(list_links("party-1"), [])
+        self.assertEqual(seen, {"url": "https://syncup.test/partner/v1/users/external/party-1/links",
+                                "auth": "Bearer key", "timeout": 7})
+
+    def test_check_connection_reads_syncups_answer(self):
+        from .syncup_client import SyncUpError, check_connection
+        _syncup_on()
+        for exc, ok in ((SyncUpError("x", 404, {"success": False}), True),    # key accepted
+                        (SyncUpError("x", 401, {"success": False}), False),   # key rejected
+                        (SyncUpError("x", 404, None), False),     # something else answered
+                        (SyncUpError("unreachable"), False)):
+            with mock.patch("gstbillingapp.syncup_client._request", side_effect=exc):
+                self.assertEqual(check_connection()[0], ok, exc.status)
+
+    def test_the_test_button_reports_the_result(self):
+        _syncup_on()
+        with mock.patch("gstbillingapp.views.console_settings.check_connection",
+                        return_value=(False, "SyncUp rejected the partner key.")):
+            r = self.client.post(reverse("console_syncup_test"), follow=True)
+        self.assertContains(r, "SyncUp rejected the partner key.")

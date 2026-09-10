@@ -206,8 +206,14 @@ def inventory_logs_add(request, inventory_id):
 
 @login_required
 def inventory_logs_del(request, inventorylog_id):
-    invlg = get_object_or_404(InventoryLog, id=inventorylog_id)
-    inv_obj = get_object_or_404(Inventory, id=invlg.product.id, user=request.user)
+    # Scoped to this business. The Inventory row is found by its PRODUCT: the old code used
+    # the product's id as an Inventory id, so it guarded - and recomputed - the wrong row.
+    invlg = get_object_or_404(InventoryLog, id=inventorylog_id, user=request.user)
+    if invlg.product_id is None:
+        raise Http404("This stock entry has no product.")
+    inv_obj = Inventory.objects.filter(product_id=invlg.product_id, user=request.user).first()
+    if inv_obj is None:
+        raise Http404("Inventory not found.")
     invlg.delete()
     new_total = InventoryLog.objects.filter(product=inv_obj.product).aggregate(Sum('change'))['change__sum']
     new_last_log = InventoryLog.objects.filter(product=inv_obj.product).last()
@@ -230,7 +236,7 @@ def invertory_stock_alert_update(request):
         return JsonResponse({'status': 'success', 'message': f'Product Alert Stock {alert_level} set successfully.'})
     return JsonResponse({'status': 'error', 'message': 'Use POST method to add products alert stock.'})
 
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth

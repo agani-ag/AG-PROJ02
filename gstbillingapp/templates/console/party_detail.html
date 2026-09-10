@@ -1,0 +1,244 @@
+{% extends "console/base.html" %}
+{% load humanize %}
+{% block title %}{{ party.name }}{% endblock %}
+{% block nav_cust %}on{% endblock %}
+{% block extracss %}
+<style>
+.gs .row2{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.gs .row2 .field{flex:1 1 220px;min-width:0}
+.gs .kv{display:grid;grid-template-columns:140px 1fr;gap:8px 14px;font-size:13.5px;margin:0 0 14px}
+.gs .kv dt{color:var(--soft);font-weight:600}
+.gs .kv dd{margin:0;word-break:break-all}
+@media(max-width:560px){.gs .kv{grid-template-columns:1fr}.gs .kv dd{margin-bottom:6px}}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{% url 'console_customers' %}">Customers</a> / {{ party.name }}</div>
+    <h1 class="disp">{{ party.name }}</h1>
+    <div class="sub">{{ business_count }} business{{ business_count|pluralize:"es" }} · {{ rows|length }} row{{ rows|length|pluralize }} · mapped {{ party.created_at|date:"d M Y" }}{% if party.created_by %} by {{ party.created_by.full_name }}{% endif %}</div>
+  </div>
+  <div class="actions">
+    {% if party.login_status == "active" %}<span class="gbadge ok">Login active</span>
+    {% elif party.login_status == "inactive" %}<span class="gbadge out">Login deactivated</span>
+    {% else %}<span class="gbadge grey">No login</span>{% endif %}
+  </div>
+</div>
+
+{% for w in warnings %}
+  <div class="warnbox"><svg class="gico"><use href="#i-alert"/></svg><div>{{ w }}</div></div>
+{% endfor %}
+
+<div class="statgrid">
+  <div class="stat"><span class="si b"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><div class="sv">{{ business_count }}</div><div class="sk">Businesses</div></div></div>
+  <div class="stat"><span class="si v"><svg class="gico"><use href="#i-user"/></svg></span>
+    <div><div class="sv">{{ rows|length }}</div><div class="sk">Customer rows</div></div></div>
+  <div class="stat"><span class="si g"><svg class="gico"><use href="#i-ok"/></svg></span>
+    <div><div class="sv">{{ visible_count }}</div><div class="sk">Ledgers in the app</div></div></div>
+  <div class="stat"><span class="si r"><svg class="gico"><use href="#i-alert"/></svg></span>
+    <div><div class="sv">₹{{ owed|floatformat:0|intcomma }}</div><div class="sk">Owed overall</div></div></div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><h3 class="disp">Row in each business</h3><div class="sd">Each business still bills and collects on its own row</div></div></div>
+  <div class="body" style="padding:0">
+    <div class="tbl-scroll">
+    <table class="gt ct">
+      <thead><tr><th>Business</th><th>Name on their books</th><th>Phone</th><th>GSTIN</th>
+        <th class="r">Balance</th><th>In app</th><th class="r"></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="hd"><a href="{% url 'console_business_detail' r.business.id %}"><b>{{ r.brand }}</b></a></td>
+          <td data-l="Name">{{ r.customer.customer_name }}</td>
+          <td data-l="Phone">{{ r.customer.customer_phone|default:"—" }}</td>
+          <td data-l="GSTIN" style="font-size:12.5px">
+            {% if r.customer.customer_gst %}{{ r.customer.customer_gst }}{% if not r.gstin_valid %} <span class="gbadge low">Invalid</span>{% endif %}
+            {% else %}<span class="mut">—</span>{% endif %}
+          </td>
+          <td class="r num" data-l="Balance">
+            {% if r.owed %}<b style="color:var(--red)">₹{{ r.owed|floatformat:0|intcomma }} due</b>
+            {% elif r.advance %}<span class="mut">₹{{ r.advance|floatformat:0|intcomma }} adv</span>
+            {% else %}<span class="mut">settled</span>{% endif %}
+          </td>
+          <td data-l="In app">
+            {% if r.inter_company %}<span class="gbadge low">Own business</span>
+            {% elif r.visible %}<span class="gbadge ok">Shown</span>
+            {% elif not r.app_enabled %}<span class="gbadge grey" title="The business has the customer app off">App off</span>
+            {% else %}<span class="gbadge grey" title="The business has this customer's Mobile toggle off">Toggle off</span>{% endif %}
+          </td>
+          <td class="r" data-l="">
+            <form method="post" action="{% url 'console_party_remove' party.id %}"
+                  onsubmit="return confirm('Remove {{ r.brand|escapejs }}\'s row from {{ party.name|escapejs }}? It stops showing in their app.')">
+              {% csrf_token %}<input type="hidden" name="customer_id" value="{{ r.customer.id }}">
+              <button class="gbtn gbtn-icon del" title="Remove from this customer"><svg class="gico"><use href="#i-trash"/></svg></button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="emptycell"><div class="empty"><h3>No rows</h3><p>Add this customer's row from each business below.</p></div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si v"><svg class="gico"><use href="#i-key"/></svg></span>
+    <div><h3 class="disp">Customer app login</h3><div class="sd">One SyncUp login for every ledger shown above</div></div></div>
+  <div class="body">
+    <dl class="kv">
+      <dt>Login email</dt><dd>{{ party.login_email }}</dd>
+      <dt>Status</dt><dd>{{ party.get_login_status_display }}{% if party.login_issued_at %} · issued {{ party.login_issued_at|date:"d M Y, H:i" }}{% endif %}</dd>
+      {% if party.has_login %}
+      <dt>SyncUp</dt><dd>
+        {% if party.syncup_error %}<span class="gbadge low">Out of sync</span> <span class="mut">{{ party.syncup_error }}</span>
+        {% elif party.syncup_active %}<span class="gbadge ok">Can sign in</span>
+        {% else %}<span class="gbadge grey">Can't sign in</span>{% if party.login_status == "active" %} <span class="mut">— no ledger is shown right now</span>{% endif %}{% endif %}
+        {% if party.syncup_synced_at %}<span class="mut"> · checked {{ party.syncup_synced_at|naturaltime }}</span>{% endif %}
+      </dd>
+      {% endif %}
+    </dl>
+
+    {% if not syncup_ready %}
+      <p style="margin:0 0 12px"><a class="gbtn" href="{% url 'console_syncup' %}">
+        <svg class="gico"><use href="#i-gear"/></svg> SyncUp settings</a></p>
+    {% endif %}
+    {% if party.login_status != "active" %}
+      {% for b in blockers %}
+        <div class="warnbox"><svg class="gico"><use href="#i-alert"/></svg><div>{{ b }}</div></div>
+      {% endfor %}
+    {% endif %}
+
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      {% if party.login_status == "active" %}
+        <form method="post" action="{% url 'console_party_login_reset' party.id %}"
+              onsubmit="return confirm('Make a new password? The old one stops working.')">{% csrf_token %}
+          <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-key"/></svg> Reset password</button></form>
+        <form method="post" action="{% url 'console_party_login_deactivate' party.id %}"
+              onsubmit="return confirm('Deactivate this login? They can no longer open the app.')">{% csrf_token %}
+          <button class="gbtn gbtn-danger"><svg class="gico"><use href="#i-power"/></svg> Deactivate</button></form>
+      {% else %}
+        <form method="post" action="{% url 'console_party_login_issue' party.id %}">{% csrf_token %}
+          <button class="gbtn gbtn-primary" {% if blockers %}disabled{% endif %}>
+            <svg class="gico"><use href="#i-key"/></svg> {% if party.login_status == "inactive" %}Reactivate with a new password{% else %}Issue login{% endif %}</button></form>
+      {% endif %}
+      {% if party.syncup_error %}
+        <form method="post" action="{% url 'console_party_login_sync' party.id %}">{% csrf_token %}
+          <button class="gbtn">Retry sync</button></form>
+      {% endif %}
+    </div>
+    <p class="mut" style="font-size:12.5px;margin:12px 0 0">The password is shown once, on the next screen, and is stored only as a hash in SyncUp. The email is for signing in only — nothing is ever sent to it.</p>
+  </div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si g"><svg class="gico"><use href="#i-plus"/></svg></span>
+    <div><h3 class="disp">Add rows</h3><div class="sd">This customer's row in another business</div></div></div>
+  <div class="body">
+    {% if maybe %}
+      <form method="post" action="{% url 'console_party_add' party.id %}">
+        {% csrf_token %}
+        <div class="mut" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">May belong here — shares a phone or GSTIN</div>
+        {% for r in maybe %}
+          <div><label class="gtoggle" style="margin-top:6px"><input type="checkbox" name="customer_ids" value="{{ r.customer.id }}">
+            <b>{{ r.brand }}</b> · {{ r.customer.customer_name }} · {{ r.customer.customer_phone|default:"no phone" }}{% if r.customer.customer_gst %} · {{ r.customer.customer_gst }}{% endif %}
+            {% if r.party %}<span class="gbadge blue">In {{ r.party.name }}</span>{% endif %}</label></div>
+        {% endfor %}
+        <button class="gbtn" style="margin-top:12px">Add ticked rows</button>
+      </form>
+    {% endif %}
+
+    <form method="get" class="toolbar" style="margin:{% if maybe %}18px{% else %}0{% endif %} 0 0">
+      <div class="search"><svg class="gico"><use href="#i-search"/></svg>
+        <input type="text" name="aq" value="{{ aq }}" placeholder="Search any business's customers by name, phone or GSTIN…" autocomplete="off"></div>
+    </form>
+    {% if aq %}
+      <form method="post" action="{% url 'console_party_add' party.id %}" style="margin-top:10px">
+        {% csrf_token %}
+        {% for r in found %}
+          <div><label class="gtoggle" style="margin-top:6px"><input type="checkbox" name="customer_ids" value="{{ r.customer.id }}">
+            <b>{{ r.brand }}</b> · {{ r.customer.customer_name }} · {{ r.customer.customer_phone|default:"no phone" }}{% if r.customer.customer_gst %} · {{ r.customer.customer_gst }}{% endif %}
+            {% if r.party %}<span class="gbadge blue">In {{ r.party.name }} — moves here</span>{% endif %}</label></div>
+        {% empty %}
+          <span class="mut" style="font-size:13px">No other customer row matches “{{ aq }}”.</span>
+        {% endfor %}
+        {% if found %}<button class="gbtn" style="margin-top:12px">Add ticked rows</button>{% endif %}
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si o"><svg class="gico"><use href="#i-user"/></svg></span>
+    <div><h3 class="disp">Details</h3><div class="sd">Name and notes — the name shows in their app</div></div></div>
+  <div class="body">
+    <form method="post" action="{% url 'console_party_update' party.id %}">
+      {% csrf_token %}
+      <div class="row2">
+        <div class="field"><label for="pname">Name</label>
+          <input id="pname" class="control" name="name" value="{{ party.name }}" maxlength="200" required></div>
+        <div class="field"><label for="pnotes">Notes</label>
+          <input id="pnotes" class="control" name="notes" value="{{ party.notes|default:'' }}"></div>
+      </div>
+      <button class="gbtn" style="margin-top:12px">Save</button>
+    </form>
+  </div>
+</div>
+
+{% if rows|length > 1 %}
+<div class="section open">
+  <div class="sh"><span class="si g"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><h3 class="disp">Copy location</h3><div class="sd">From one row to this customer's other rows</div></div></div>
+  <div class="body">
+    <form method="post" action="{% url 'console_party_copy_location' party.id %}"
+          onsubmit="return confirm('Overwrite the location on the other rows?')">
+      {% csrf_token %}
+      <div class="row2">
+        <div class="field"><label for="src">Copy from</label>
+          <select id="src" class="control" name="source_id">
+            {% for r in rows %}<option value="{{ r.customer.id }}">{{ r.brand }} — {{ r.customer.customer_place|default:"no place" }}{% if r.customer.customer_latitude %} · pinned{% endif %}</option>{% endfor %}
+          </select></div>
+      </div>
+      <label class="gtoggle"><input type="checkbox" name="include_day" value="1"> Also copy the collection day</label>
+      <div><button class="gbtn" style="margin-top:12px">Copy map pin and place</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="section open">
+  <div class="sh"><span class="si" style="background:linear-gradient(135deg,#e11d48,#fb7185)">
+      <svg class="gico"><use href="#i-alert"/></svg></span>
+    <div><h3 class="disp">Merge or ungroup</h3><div class="sd">Nothing is deleted from any business</div></div></div>
+  <div class="body">
+    {% if others %}
+    <form method="post" action="{% url 'console_party_merge' party.id %}"
+          onsubmit="return confirm('Merge the chosen customer into {{ party.name|escapejs }}? Its login is switched off.')">
+      {% csrf_token %}
+      <div class="row2">
+        <div class="field"><label for="other">Merge another customer into this one</label>
+          <select id="other" class="control" name="other_id">
+            {% for o in others %}<option value="{{ o.id }}">{{ o.name }} (#{{ o.id }})</option>{% endfor %}
+          </select></div>
+        <button class="gbtn">Merge into {{ party.name }}</button>
+      </div>
+      <p class="mut" style="font-size:12.5px;margin:8px 0 0">{{ party.name }} keeps its login; the other customer's login is switched off.</p>
+    </form>
+    {% endif %}
+    <form method="post" action="{% url 'console_party_delete' party.id %}" style="margin-top:18px"
+          onsubmit="return confirm('Ungroup {{ party.name|escapejs }}? Its rows become unmapped and its login is switched off.')">
+      {% csrf_token %}
+      <button class="gbtn gbtn-danger"><svg class="gico"><use href="#i-trash"/></svg> Ungroup this customer</button>
+    </form>
+  </div>
+</div>
+
+<p><a href="{% url 'console_customers' %}" class="gbtn">
+  <svg class="gico"><use href="#i-back"/></svg> All customers</a></p>
+{% endblock %}

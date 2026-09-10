@@ -2,7 +2,7 @@
 import csv
 from django.core.paginator import Paginator
 from django.http import JsonResponse, HttpResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Sum, Case, When, FloatField, F, Q
@@ -456,11 +456,13 @@ def book_logs_full_add(request):
     return render(request, 'books/book_logs_full_add.html', context)
 
 # ================= Books API Views ===========================
-@csrf_exempt
+@login_required
+@require_POST
 def book_logs_api_active(request):
-    booklog_id = request.GET.get('booklog', None)
-    change = request.GET.get('change', None)
-    booklog = get_object_or_404(BookLog, id=booklog_id)
+    booklog_id = request.POST.get('booklog', None)
+    change = request.POST.get('change', None)
+    # Scoped to this business - a business can only touch its OWN ledger.
+    booklog = get_object_or_404(BookLog, id=booklog_id, parent_book__user=request.user)
     booklog.is_active = True
     booklog.save()
     recalculate_book_current_balance(booklog.parent_book)
@@ -485,60 +487,61 @@ def customerBookFilter(request):
 
     return JsonResponse(data, safe=False)
 
-@csrf_exempt
+@login_required
+@require_POST
 def book_logs_pending(request):
-    if request.method == "POST":
-        booklog_id = request.POST["booklog_id"]
-        booklog_change = request.POST["booklog_change"]
-        booklog_options = request.POST["booklog_options"]
-        booklog_description = request.POST["booklog_description"]
-        booklog = get_object_or_404(BookLog, id=booklog_id)
-        if int(booklog_options) == 0:
-            booklog.change_type = 0
-            booklog.save()
-        else:
-            book_logs_new = BookLog(
-                parent_book = booklog.parent_book,
-                change_type = 3,
-                change = round_to_rupee(booklog_change),   # whole-rupee ledger entries
-                description = booklog_description
-            )
-            book_logs_new.save()
-        recalculate_book_current_balance(booklog.parent_book)
-        return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog_id} processed successfully.'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to add products alert stock.'})
-
-@csrf_exempt
-def book_logs_api_roundoff(request):
-    if request.method == "POST":
-        book_id = request.POST["book_id"]
-        book = get_object_or_404(Book, id=book_id)
-        current_balance = book.current_balance
-        if current_balance >= -10 and current_balance <= 10:
-            roundoff_change = - current_balance
-        else:
-            return JsonResponse({'status': 'error', 'message': 'Round-off can only be applied for balances between -10 and 10.'})
-        booklog = BookLog(
-            parent_book = book,
-            change_type = 3,
-            change = roundoff_change,
-            description = "Round-off adjustment"
-        )
+    booklog_id = request.POST["booklog_id"]
+    booklog_change = request.POST["booklog_change"]
+    booklog_options = request.POST["booklog_options"]
+    booklog_description = request.POST["booklog_description"]
+    # Scoped to this business - a business can only touch its OWN ledger.
+    booklog = get_object_or_404(BookLog, id=booklog_id, parent_book__user=request.user)
+    if int(booklog_options) == 0:
+        booklog.change_type = 0
         booklog.save()
-        recalculate_book_current_balance(book)
-        return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog.id} Round-off added successfully.'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to add products alert stock.'})
+    else:
+        book_logs_new = BookLog(
+            parent_book = booklog.parent_book,
+            change_type = 3,
+            change = round_to_rupee(booklog_change),   # whole-rupee ledger entries
+            description = booklog_description
+        )
+        book_logs_new.save()
+    recalculate_book_current_balance(booklog.parent_book)
+    return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog_id} processed successfully.'})
 
-@csrf_exempt
+@login_required
+@require_POST
+def book_logs_api_roundoff(request):
+    book_id = request.POST["book_id"]
+    # Scoped to this business - a business can only round off its OWN book.
+    book = get_object_or_404(Book, id=book_id, user=request.user)
+    current_balance = book.current_balance
+    if current_balance >= -10 and current_balance <= 10:
+        roundoff_change = - current_balance
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Round-off can only be applied for balances between -10 and 10.'})
+    booklog = BookLog(
+        parent_book = book,
+        change_type = 3,
+        change = roundoff_change,
+        description = "Round-off adjustment"
+    )
+    booklog.save()
+    recalculate_book_current_balance(book)
+    return JsonResponse({'status': 'success', 'message': f'Book log ID {booklog.id} Round-off added successfully.'})
+
+@login_required
+@require_POST
 def book_logs_recalculate(request):
-    if request.method == "POST":
-        book_id = request.POST["book_id"]
-        book = get_object_or_404(Book, id=book_id)
-        recalculate_book_current_balance(book)
-        return JsonResponse({'status': 'success', 'message': f'Book ID {book_id} balance recalculated successfully.'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to recalculate book balance.'})
+    book_id = request.POST["book_id"]
+    # Scoped to this business - a business can only recalculate its OWN book.
+    book = get_object_or_404(Book, id=book_id, user=request.user)
+    recalculate_book_current_balance(book)
+    return JsonResponse({'status': 'success', 'message': f'Book ID {book_id} balance recalculated successfully.'})
 
-@csrf_exempt
+@login_required
+@require_POST
 def book_logs_recalculate_all(request):
     books = Book.objects.filter(user=request.user)
     for book in books:

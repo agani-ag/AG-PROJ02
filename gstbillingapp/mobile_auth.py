@@ -1,11 +1,17 @@
 """
 Signed-token auth + multi-business resolution for the mobile web pages (/m/).
 
-gstbilling mints an unforgeable Django-signed token identifying a Customer or an
-Employee. Both can span several businesses in the same GST group:
+gstbilling mints an unforgeable Django-signed token identifying a Party (one real shop
+owner), a single Customer row, or an Employee:
 
-  * Employee — the explicitly chosen `businesses` set (falls back to the home business).
-  * Customer — their records across the group, matched by phone.
+  * Party — the customer rows a platform admin mapped together (see parties.py). Only
+    rows whose business has the customer app on AND whose own mobile toggle is on are
+    visible. This is the token the SyncUp app's link carries.
+  * Customer row (older links) — that one row, in its own business only. It never
+    expands to other businesses: GSTINs are printed on every invoice, so any business could
+    put another business's customer's GSTIN on a row of its own. A shared GSTIN proves
+    nothing; only the admin's mapping links businesses.
+  * Employee — the businesses they're posted to (falls back to the home business).
 
 A `?biz=<id>` switch (validated against the accessible set) picks the active business;
 screens scope to it. The `v` version stamp is enforced so bumping the record's version
@@ -17,7 +23,8 @@ from django.core import signing
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
 
-from .models import Customer, Employee, UserProfile
+from .models import Customer, Employee, Party, UserProfile
+from .parties import row_is_visible, visible_rows
 
 _SALT = "gstbillingapp.mobile.v2"
 
@@ -38,6 +45,10 @@ def mint_employee_token(employee):
     return signing.dumps({"r": "emp", "id": employee.id, "v": employee.token_version}, salt=_SALT)
 
 
+def mint_party_token(party):
+    return signing.dumps({"r": "p", "id": party.id, "v": party.token_version}, salt=_SALT)
+
+
 def verify_mobile_token(token, max_age=None):
     if not token:
         return None
@@ -53,7 +64,11 @@ def _load_identity(payload):
     if not payload:
         return None
     role, rid, ver = payload.get("r"), payload.get("id"), payload.get("v")
-    if role == "c":
+    if role == "p":
+        party = Party.objects.filter(id=rid).first()
+        if party and party.login_status == Party.LOGIN_ACTIVE and party.token_version == ver:
+            return {"role": "customer", "party": party, "primary": None}
+    elif role == "c":
         c = Customer.objects.select_related("user").filter(id=rid).first()
         if c and c.user and c.mobile_token_version == ver:
             return {"role": "customer", "primary": c}
@@ -65,26 +80,23 @@ def _load_identity(payload):
 
 
 def _accessible(identity):
-    """Return (list of business Users, {business_id: sibling Customer} for customers)."""
+    """Return (business Users, {business_id: that business's Customer row} for customers)."""
     if identity["role"] == "employee":
         return list(identity["employee"].covered_businesses()), {}
-    # A customer's records are the same real customer wherever their GSTIN matches —
-    # matched by customer_gst across ALL businesses (not limited to a GST group).
-    primary = identity["primary"]
-    gst = (primary.customer_gst or "").strip()
-    if gst:
-        siblings = list(Customer.objects.select_related("user").filter(customer_gst=gst))
+    if identity.get("party") is not None:
+        rows = visible_rows(identity["party"])
     else:
-        siblings = [primary]
-    if primary.id not in [s.id for s in siblings]:
-        siblings.append(primary)
-    # Per-business mobile access: a business that has the customer's "Mobile User" toggle
-    # OFF is inactive on the app, so that business is dropped from the accessible set.
-    # If every business has it off (the primary included), no business remains and the
-    # caller denies the login.
-    siblings = [s for s in siblings if s.is_mobile_user]
-    by_business = {s.user_id: s for s in siblings if s.user_id}
-    return list(User.objects.filter(id__in=list(by_business.keys()))), by_business
+        # An older single-row link: that row only, and only while its business shows it.
+        primary = identity["primary"]
+        rows = [primary] if row_is_visible(primary) else []
+    by_business = {}
+    for row in rows:
+        by_business.setdefault(row.user_id, row)
+    # No business left means every one has switched this customer off - the caller shows
+    # the "deactivated" screen rather than "expired".
+    businesses = list(User.objects.filter(id__in=list(by_business))
+                      .select_related("userprofile").order_by("id"))
+    return businesses, by_business
 
 
 def resolve_mobile_actor(request):
@@ -141,9 +153,13 @@ def resolve_mobile_actor(request):
         actor["posting"] = posting
         actor["is_admin"] = bool(posting and posting.is_admin)
     else:
-        actor["primary"] = identity["primary"]
+        # A Party login has no single "primary" row, so its first visible row stands in;
+        # screens mostly work from the ACTIVE business's row anyway.
+        primary = identity.get("primary") or by_business[businesses[0].id]
+        actor["primary"] = primary
+        actor["party"] = identity.get("party")
         actor["siblings"] = by_business
-        actor["customer"] = by_business.get(active_id) or identity["primary"]
+        actor["customer"] = by_business.get(active_id) or primary
     return actor
 
 

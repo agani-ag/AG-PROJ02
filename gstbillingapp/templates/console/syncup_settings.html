@@ -1,0 +1,87 @@
+{% extends "console/base.html" %}
+{% block title %}Settings{% endblock %}
+{% block nav_set %}on{% endblock %}
+{% block extracss %}
+<style>
+.gs .row2{display:flex;flex-wrap:wrap;gap:12px}
+.gs .row2 .field{flex:1 1 260px;min-width:0}
+.gs .field .h{font-size:12px;color:var(--soft);margin-top:5px}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1 class="disp">Settings</h1>
+    <div class="sub">How GSTSync reaches SyncUp to issue customer app logins</div>
+  </div>
+  <div class="actions">
+    {% if cfg.is_configured %}<span class="gbadge ok">SyncUp set up</span>
+    {% else %}<span class="gbadge grey">Not set up</span>{% endif %}
+  </div>
+</div>
+
+{% for e in errors %}
+  <div class="cmsg bad"><svg class="gico"><use href="#i-alert"/></svg><div>{{ e }}</div></div>
+{% endfor %}
+
+<form method="post" autocomplete="off">
+  {% csrf_token %}
+  <div class="section open">
+    <div class="sh"><span class="si b"><svg class="gico"><use href="#i-bolt"/></svg></span>
+      <div><h3 class="disp">SyncUp Partner API</h3><div class="sd">Where SyncUp is, and GSTSync's key for it</div></div></div>
+    <div class="body">
+      <div class="row2">
+        <div class="field"><label for="api_base">SyncUp address</label>
+          <input id="api_base" class="control" name="api_base" value="{{ form.api_base }}" placeholder="https://syncup.example.com">
+          <div class="h">The SyncUp site. <code>/partner/v1</code> is added automatically.</div></div>
+        <div class="field"><label for="partner_key">Partner key</label>
+          <input id="partner_key" class="control" type="password" name="partner_key" value=""
+                 placeholder="{% if cfg.partner_key %}Saved — {{ cfg.key_hint }}. Leave blank to keep it{% else %}Paste the key SyncUp issued{% endif %}"
+                 autocomplete="new-password">
+          <div class="h">Never shown again after saving.{% if cfg.partner_key %}
+            <label class="gtoggle" style="margin:6px 0 0"><input type="checkbox" name="clear_key" value="1"> Remove the saved key</label>{% endif %}</div></div>
+      </div>
+      <div class="row2" style="margin-top:12px">
+        <div class="field"><label for="link_base">This site's public address</label>
+          <input id="link_base" class="control" name="link_base" value="{{ form.link_base }}" placeholder="https://gstsync.example.com">
+          <div class="h">The customer's app link opens here. Must be https:// — SyncUp refuses anything else.</div></div>
+        <div class="field" style="flex:0 1 160px"><label for="timeout">Timeout (seconds)</label>
+          <input id="timeout" class="control" type="number" min="1" max="30" name="timeout" value="{{ form.timeout }}">
+          <div class="h">Per call. A business never waits on SyncUp.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section open">
+    <div class="sh"><span class="si v"><svg class="gico"><use href="#i-key"/></svg></span>
+      <div><h3 class="disp">Customer logins</h3><div class="sd">The sign-in email each customer gets</div></div></div>
+    <div class="body">
+      <div class="row2">
+        <div class="field"><label for="login_domain">Login domain</label>
+          <input id="login_domain" class="control" name="login_domain" value="{{ form.login_domain }}"
+                 {% if locked %}readonly style="background:var(--wash)"{% endif %}>
+          <div class="h">Logins look like <b>gsp12@{{ form.login_domain|default:"gstsync.app" }}</b> — for signing in only; nothing is ever mailed to them.
+            {% if locked %}Locked: logins have already been issued with it.{% endif %}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+    <button class="gbtn gbtn-primary" type="submit"><svg class="gico"><use href="#i-ok"/></svg> Save settings</button>
+    {% if cfg.updated_at %}<span class="mut" style="font-size:12.5px">Last saved {{ cfg.updated_at|date:"d M Y, H:i" }}{% if cfg.updated_by %} by {{ cfg.updated_by.full_name|default:cfg.updated_by.username }}{% endif %}</span>{% endif %}
+  </div>
+</form>
+
+<div class="section open" style="margin-top:18px">
+  <div class="sh"><span class="si g"><svg class="gico"><use href="#i-power"/></svg></span>
+    <div><h3 class="disp">Test the connection</h3><div class="sd">Uses the saved settings — save first</div></div></div>
+  <div class="body">
+    <form method="post" action="{% url 'console_syncup_test' %}">
+      {% csrf_token %}
+      <button class="gbtn" {% if not cfg.is_configured %}disabled{% endif %}>Test connection</button>
+    </form>
+    <p class="mut" style="font-size:12.5px;margin:10px 0 0">Asks SyncUp about an account that doesn't exist. It proves the address and key work, and changes nothing on either side.</p>
+  </div>
+</div>
+{% endblock %}

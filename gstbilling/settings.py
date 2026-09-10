@@ -151,6 +151,9 @@ DB_BACKUP_KEEP = 7
 DB_VACUUM_MIN_RECLAIM_MB = 0.5
 
 
+# SyncUp (customer app logins) is configured in the database under Console -> Settings
+# (gstbillingapp.models.SyncUpSettings), not here.
+
 # ================= Local / per-server overrides =======================
 # gstbilling/local_settings.py is gitignored, so it never leaves the machine it is on.
 # Put anything server-specific there — CRON_KEY, a real SECRET_KEY, DEBUG = False,

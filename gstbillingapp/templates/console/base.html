@@ -68,6 +68,11 @@ badly; templates are never cached, so inline is both simpler and always fresh.
 .cmsg.bad{background:#ffe4ea;border-color:#f9c2ce;color:#9f1239}
 .cmsg .gico{flex:none;margin-top:1px}
 
+/* ---- a warning that doesn't block (mapping checks, login blockers) ---- */
+.gs .warnbox{display:flex;align-items:flex-start;gap:9px;margin:0 0 10px;font-size:13px;color:#92400e;
+  background:#fff7e6;border:1px solid #fde2b0;border-radius:10px;padding:9px 13px}
+.gs .warnbox .gico{flex:none;width:16px;height:16px;margin-top:1px}
+
 /* ---- mobile: turn a .ctable into stacked cards instead of a sideways scroll.
    Each <td> carries data-l="Label"; below 720px the header row is replaced by
    that label sitting beside its value. ---- */
@@ -108,6 +113,7 @@ badly; templates are never cached, so inline is both simpler and always fresh.
   <symbol id="i-ok" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></symbol>
 </svg>
 
@@ -129,6 +135,8 @@ badly; templates are never cached, so inline is both simpler and always fresh.
         <svg class="gico sm"><use href="#i-user"/></svg> Customers</a>
       <a href="{% url 'console_admins' %}" class="{% block nav_adm %}{% endblock %}">
         <svg class="gico sm"><use href="#i-shield"/></svg> Admins</a>
+      <a href="{% url 'console_syncup' %}" class="{% block nav_set %}{% endblock %}">
+        <svg class="gico sm"><use href="#i-gear"/></svg> Settings</a>
       <a href="{% url 'console_change_password' %}" class="{% block nav_pw %}{% endblock %}">
         <svg class="gico sm"><use href="#i-key"/></svg> Password</a>
     </nav>

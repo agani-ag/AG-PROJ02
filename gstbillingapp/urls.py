@@ -50,7 +50,6 @@ urlpatterns = [
     path('incentives/<int:pk>/toggle-paid', employee.incentive_toggle_paid, name='incentive_toggle_paid'),
     path('incentives/<int:pk>/delete', employee.incentive_delete, name='incentive_delete'),
     path('employees/<int:posting_id>/revoke', employee.employee_revoke, name='employee_revoke'),
-    path('customers/<int:customer_id>/mobile-link', employee.customer_mobile_link, name='customer_mobile_link'),
 
     # Invoice URLs
     path('invoices', invoices.invoices, name='invoices'),
@@ -90,10 +89,7 @@ urlpatterns = [
     path('customersjson', customers.customersjson, name='customersjson'),
     path('customers/collection-calendar', customers.customers_collection_calendar, name='customers_collection_calendar'),
     # API Endpoints
-    path('customers/api/all_userid_set', customers.customerall_userid_set, name='customerall_userid_set'),
     path('customers/api/is_mobile_user', customers.customer_is_mobile_user, name='customer_is_mobile_user'),
-    path('customers/api/default_password', customers.customer_default_password, name='customer_default_password'),
-    path('customers/api/location-mapper', customers.customers_location_mapper_api, name='customers_location_mapper_api'),
     path('customers/api/collection-day/show', customers.show_customer_collection_api, name='customer_collection_day_show'),
     path('customers/api/collection-day/update', customers.customer_collection_day_update, name='customer_collection_day_update'),
 

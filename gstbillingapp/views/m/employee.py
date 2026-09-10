@@ -15,6 +15,7 @@ from ...models import (Customer, Book, BookLog, Invoice, Quotation, ExpenseTrack
 from ...utils import recalculate_book_current_balance, round_to_rupee, calculate_employee_salary
 from ...templatetags.money import format_inr
 from ._paged import PAGE, invoice_page, ledger_page
+from ...parties import members, party_for
 
 
 def _user(request):
@@ -42,30 +43,24 @@ def _brand_nav(request, c):
     screen's brand switcher. Each entry carries that brand's own customer id, so switching
     brand opens the right record instead of reusing this brand's id (which 404s).
 
-    A brand where this customer doesn't exist is simply omitted — so the switcher only
-    offers brands that actually have them, and hides entirely when only one does. Matching
-    is by phone, else GST, else exact name (all strong keys for these SMB customers)."""
+    "Same" means mapped to one Party by a platform admin. Nothing is guessed from phone,
+    GSTIN or name any more: a shared office phone used to open the wrong customer. A brand
+    where this customer has no mapped row is omitted, so the switcher only offers brands
+    that actually have them, and hides entirely when only one does."""
     businesses = request.mobile_actor.get("businesses", [])
     if len(businesses) < 2:
         return []
     active_id = request.mobile_actor["active_business"].id
-    phone = (c.customer_phone or "").strip()
-    gst = (c.customer_gst or "").strip()
-    name = (c.customer_name or "").strip()
+    party = party_for(c)
+    by_business = {}
+    if party is not None:
+        for row in members(party):
+            by_business.setdefault(row.user_id, row)
     nav = []
     for b in businesses:
-        if b.id == active_id:
-            match = c
-        else:
-            qs = Customer.objects.filter(user=b)
-            if phone:
-                match = qs.filter(customer_phone=phone).first()
-            elif gst:
-                match = qs.filter(customer_gst=gst).first()
-            else:
-                match = qs.filter(customer_name__iexact=name).first()
-            if not match:
-                continue
+        match = c if b.id == active_id else by_business.get(b.id)
+        if not match:
+            continue
         p = getattr(b, "userprofile", None)
         nav.append({
             "id": b.id, "cust_id": match.id, "active": b.id == active_id,

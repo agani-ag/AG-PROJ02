@@ -18,27 +18,12 @@ Examples:
     python manage.py create_platform_admin ganesh --revoke
     python manage.py create_platform_admin ganesh --password-stdin < secret.txt
 """
-import secrets
-import string
 import sys
 
 from django.core.management.base import BaseCommand, CommandError
 
 from gstbillingapp.models import PlatformAdmin
-
-# No look-alikes (0/O, 1/l/I) — this gets read off a terminal and typed into a browser.
-_ALPHABET = ("ABCDEFGHJKLMNPQRSTUVWXYZ" "abcdefghijkmnopqrstuvwxyz" "23456789" "!@#$%&*?")
-_LENGTH = 18
-
-
-def generate_password(length=_LENGTH):
-    """A strong password that survives being read aloud or copied by hand."""
-    while True:
-        pw = "".join(secrets.choice(_ALPHABET) for _ in range(length))
-        # Guarantee the character classes Django's validators (and habit) expect.
-        if (any(c.islower() for c in pw) and any(c.isupper() for c in pw)
-                and any(c.isdigit() for c in pw)):
-            return pw
+from gstbillingapp.passwords import generate_password  # noqa: F401 (tests import it here)
 
 
 class Command(BaseCommand):

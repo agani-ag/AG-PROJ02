@@ -23,6 +23,11 @@ class UserProfile(models.Model):
     business_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     business_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     bankdetails = models.ForeignKey('BankDetails', blank=True, null=True, on_delete=models.SET_NULL)
+    # May this business's customer ledgers appear in the customer app (SyncUp)? Set by a
+    # platform admin on the console; it doesn't touch the employee app. Existing businesses
+    # default ON (only those with mobile-enabled customers are affected at all), while a
+    # business created from the console starts OFF (see console_ops.create_business).
+    customer_app_enabled = models.BooleanField(default=True)
 
     def save(self, *args, **kwargs):
         if self.business_title:
@@ -54,8 +59,6 @@ class Customer(models.Model):
     customer_phone = models.CharField(max_length=14, blank=True, null=True)
     customer_gst = models.CharField(max_length=15, blank=True, null=True)
     customer_email = models.EmailField(blank=True, null=True)
-    customer_password = models.CharField(max_length=15, null=True, blank=True)
-    customer_userid = models.CharField(max_length=15, null=True, blank=True)
     is_mobile_user = models.BooleanField(default=False)
     customer_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     customer_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
@@ -783,7 +786,8 @@ class PlatformAdmin(models.Model):
     `password` stores a Django password HASH, never the password itself. Use
     set_password() / check_password(), which delegate to django.contrib.auth.hashers
     (PBKDF2 by default), so the storage format is Django's and upgrades with Django —
-    only the table is ours. Contrast Customer.customer_password, which stores plaintext.
+    only the table is ours. (Customer logins are not stored here at all: SyncUp holds
+    their password hashes — see Party.)
 
     Because the usernames live in a different table from business logins, a platform
     admin and a business may share a username without colliding; they are resolved on
@@ -831,3 +835,151 @@ class PlatformAdmin(models.Model):
 
     def __str__(self):
         return self.full_name or self.username
+
+
+# ======================= Shared customers (one real shop owner) ============================
+class Party(models.Model):
+    """One real shop owner, as decided by a platform admin on the console.
+
+    Every business keeps its own Customer row, so a shop owner who buys from three of our
+    businesses exists as three rows. A Party is the admin's statement that those rows are
+    one person. It is never created or extended automatically: shared phone numbers and
+    GSTINs are only offered to the admin as suggestions (see parties.py).
+
+    A Party may span any number of businesses and GSTINs - one owner can run several firms,
+    and a customer can register a GSTIN later without their identity changing.
+
+    The Party also holds the owner's single customer-app login. SyncUp (AG-PROJ01) stores
+    the password hash and performs the login; here we keep only its state.
+    """
+    LOGIN_NONE, LOGIN_ACTIVE, LOGIN_INACTIVE = "none", "active", "inactive"
+    LOGIN_STATUS = [
+        (LOGIN_NONE, "No login"),
+        (LOGIN_ACTIVE, "Active"),
+        (LOGIN_INACTIVE, "Deactivated"),
+    ]
+
+    name = models.CharField(max_length=200)
+    notes = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="parties_created")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # ---- customer-app login ----
+    # The admin's decision. Whether the login actually works also needs at least one
+    # visible ledger - see parties.visible_rows().
+    login_status = models.CharField(max_length=10, choices=LOGIN_STATUS, default=LOGIN_NONE)
+    login_issued_at = models.DateTimeField(null=True, blank=True)
+    # Baked into the /m/ link. Bumped on re-issue and on deactivation, so an old or copied
+    # link stops working.
+    token_version = models.IntegerField(default=1)
+    # What SyncUp was last told about is_active (None = never told). Lets a change that
+    # doesn't alter it skip the network call entirely.
+    syncup_active = models.BooleanField(null=True, blank=True)
+    syncup_synced_at = models.DateTimeField(null=True, blank=True)
+    # The last failed push, shown on the console with a retry. Empty when in sync.
+    syncup_error = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        ordering = ["name", "id"]
+
+    @property
+    def external_id(self):
+        """How GSTSync addresses this login in SyncUp's Partner API."""
+        return "party-%d" % self.id
+
+    @property
+    def login_email(self):
+        """The login-only email, gsp{id}@<login domain> (SyncUp lower-cases it; never
+        mailed). The domain is set under Console -> Settings and locks once any login
+        exists."""
+        return self.login_email_at(SyncUpSettings.load().login_domain)
+
+    def login_email_at(self, domain):
+        """login_email for a domain already loaded - lists use it to avoid a query per row."""
+        return "gsp%d@%s" % (self.id, domain)
+
+    @property
+    def has_login(self):
+        return self.login_status != self.LOGIN_NONE
+
+    def __str__(self):
+        return self.name
+
+
+class PartyMapping(models.Model):
+    """A platform admin's decision that one customer row belongs to a Party.
+
+    Kept in its own table rather than as a column on Customer: business-owned tables stay
+    untouched, the row records who decided and on what evidence, and the one-to-one link
+    makes it impossible for a customer row to belong to two people.
+    """
+    EVIDENCE = [
+        ("phone_gstin", "Phone and GSTIN"),
+        ("phone", "Phone"),
+        ("gstin", "GSTIN"),
+        ("manual", "Manual"),
+    ]
+
+    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="mappings")
+    customer = models.OneToOneField("Customer", on_delete=models.CASCADE,
+                                    related_name="party_mapping")
+    evidence = models.CharField(max_length=12, choices=EVIDENCE, default="manual")
+    note = models.CharField(max_length=200, blank=True, default="")
+    mapped_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
+                                  on_delete=models.SET_NULL, related_name="+")
+    mapped_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["party_id", "customer__user_id"]
+
+    def __str__(self):
+        return "%s -> %s" % (self.customer_id, self.party_id)
+
+
+class SyncUpSettings(models.Model):
+    """How GSTSync reaches SyncUp (AG-PROJ01) - one row, edited under Console -> Settings.
+
+    In the database rather than settings.py so a platform admin can set SyncUp up, rotate
+    the key or move hosts without server access or a restart. load() returns unsaved
+    defaults until the screen is first saved, so no data migration is needed (migrations
+    are gitignored and generated on each server).
+
+    The partner key has to be sent verbatim as the Bearer token, so unlike a password it
+    can't be hashed. It's stored as entered and treated as write-only: the console never
+    renders it back, only its last four characters.
+    """
+    # SyncUp's site, without /partner/v1 (the client adds it).
+    api_base = models.CharField(max_length=200, blank=True, default="")
+    partner_key = models.CharField(max_length=200, blank=True, default="")
+    # This site's public https:// address; the customer's app link is built from it.
+    link_base = models.CharField(max_length=200, blank=True, default="")
+    timeout = models.PositiveSmallIntegerField(default=5)          # seconds per call
+    # Customer logins are gsp{party id}@<this>. Login only - never mailed.
+    login_domain = models.CharField(max_length=100, default="gstsync.app")
+    updated_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "SyncUp settings"
+        verbose_name_plural = "SyncUp settings"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1                                 # always the one row
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        return cls.objects.filter(pk=1).first() or cls(pk=1)
+
+    @property
+    def is_configured(self):
+        return bool(self.api_base and self.partner_key)
+
+    @property
+    def key_hint(self):
+        return ("\u2022\u2022\u2022\u2022" + self.partner_key[-4:]) if self.partner_key else ""
+
+    def __str__(self):
+        return "SyncUp settings"

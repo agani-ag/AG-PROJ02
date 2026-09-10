@@ -140,7 +140,8 @@ def cheque_leaf_add(request):
 
 @login_required
 def cheque_leaf_edit(request, pk):
-    cheque_leaf = get_object_or_404(ChequeLeaf, pk=pk)
+    # Scoped to this business - a business can only reach its OWN cheque leaves.
+    cheque_leaf = get_object_or_404(ChequeLeaf, pk=pk, user=request.user)
     context = {}
     context['banks'] = ChequeLeaf.objects.filter(user=request.user).values_list('bank', flat=True).distinct()
     context['branches'] = ChequeLeaf.objects.filter(user=request.user).values_list('branch', flat=True).distinct()
@@ -155,7 +156,8 @@ def cheque_leaf_edit(request, pk):
 
 @login_required
 def cheque_leaf_delete(request, pk):
-    cheque_leaf = get_object_or_404(ChequeLeaf, pk=pk)
+    # Scoped to this business - a business can only reach its OWN cheque leaves.
+    cheque_leaf = get_object_or_404(ChequeLeaf, pk=pk, user=request.user)
     cheque_leaf.delete()
     messages.success(request, "Cheque leaf entry deleted successfully.")
     return redirect('cheque_leafs')

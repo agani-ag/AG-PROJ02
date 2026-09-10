@@ -116,7 +116,11 @@ function markAsActive(booklogId, change) {
     }).then((result) => {
         if (result.isConfirmed) {
             // Make AJAX call to mark as active
-            fetch('/books/api/active?booklog=' + encodeURIComponent(booklogId) + '&change=' + encodeURIComponent(change))
+            fetch('/books/api/active', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: new URLSearchParams({ booklog: booklogId, change: change })
+            })
                 .then(response => response.json())
                 .then(response => {
                     Swal.fire('Marked!', response.message, 'success').then(() => { location.reload(); });

@@ -546,30 +546,9 @@ def recalculate_book_current_balance(book_obj):
     book_obj.save()
 
 # ================ Customer Methods ===========================
-def add_customer_userid(customer):
-    # check if customer not already exists
-    if not Customer.objects.filter(user=customer.user, id=customer.id).exists():
-        return
-    customer = get_object_or_404(Customer, user=customer.user, id=customer.id)
-    c_userid = f"{settings.PRODUCT_PREFIX}{customer.user.id}C{customer.id}"
-    customer.customer_userid = c_userid.lower()
-    customer.save()
 
 
 # ================ Utility Methods ===========================
-def parse_code_GS(input_code):
-    if not input_code:
-        return None
-    # Regex to match the pattern
-    pattern = r'([A-Za-z]+)(\d+)'
-    # Find all matches
-    matches = re.findall(pattern, input_code)
-    # If no valid pattern found, return None
-    if not matches:
-        return None
-    # Create a dictionary from the matches
-    result = {key.upper(): int(value) for key, value in matches}
-    return result
 
 # ================ Quotation Cart =====================
 

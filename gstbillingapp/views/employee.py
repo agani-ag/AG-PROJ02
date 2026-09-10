@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from ..models import (Employee, Customer, Invoice, EmployeePosting,
                       AttendanceLog, SalaryRecord, EmployeeIncentive)
 from ..forms import EmployeeForm
-from ..mobile_auth import mint_employee_token, mint_customer_token
+from ..mobile_auth import mint_employee_token
 from ..utils import calculate_employee_salary
 
 import csv
@@ -289,13 +289,6 @@ def employee_revoke(request, posting_id):
     emp.save()
     return JsonResponse({"ok": True})
 
-
-@login_required
-def customer_mobile_link(request, customer_id):
-    """Signed /m/customer/ URL to paste into this customer's SyncUp link list."""
-    c = get_object_or_404(Customer, id=customer_id, user=request.user)
-    url = request.build_absolute_uri("/m/customer/") + "?t=" + mint_customer_token(c)
-    return JsonResponse({"ok": True, "url": url})
 
 
 # ============ Attendance & Salary / Incentive (desktop, per posting) =============

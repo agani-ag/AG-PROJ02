@@ -1,0 +1,91 @@
+{% extends "console/base.html" %}
+{% load humanize %}
+{% block title %}Review · {{ group.name }}{% endblock %}
+{% block nav_cust %}on{% endblock %}
+{% block extracss %}
+<style>
+.gs .pick{margin:0}
+.gs .savebar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.gs .savebar .field{flex:1 1 220px;min-width:0}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{% url 'console_customers' %}?show=suggestions">Suggestions</a> / {{ group.name }}</div>
+    <h1 class="disp">Looks like {{ group.name|default:"one customer" }}</h1>
+    <div class="sub">{{ group.rows|length }} rows ·
+      linked by {% if group.evidence == "phone_gstin" %}phone and GSTIN{% elif group.evidence == "gstin" %}GSTIN{% else %}phone only{% endif %}</div>
+  </div>
+</div>
+
+{% for w in warnings %}
+  <div class="warnbox"><svg class="gico"><use href="#i-alert"/></svg><div>{{ w }}</div></div>
+{% endfor %}
+
+<form method="post">
+  {% csrf_token %}
+  <div class="tablecard ctable">
+    <div class="tbl-scroll">
+    <table class="gt ct">
+      <thead><tr>
+        <th>Map</th><th>Business</th><th>Name on their books</th><th>Phone</th><th>GSTIN</th>
+        <th class="r">Balance</th><th>Now</th>
+      </tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="hd">
+            <label class="gtoggle pick"><input type="checkbox" name="customer_ids" value="{{ r.customer.id }}"
+              {% if not r.party %}checked{% endif %}> <b>{{ r.brand }}</b></label>
+          </td>
+          <td data-l="Business" class="mut">{{ r.business.username|upper }}</td>
+          <td data-l="Name">{{ r.customer.customer_name }}</td>
+          <td data-l="Phone">{{ r.customer.customer_phone|default:"—" }}</td>
+          <td data-l="GSTIN" style="font-size:12.5px">
+            {% if r.customer.customer_gst %}{{ r.customer.customer_gst }}{% if not r.gstin_valid %} <span class="gbadge low">Invalid</span>{% endif %}
+            {% else %}<span class="mut">—</span>{% endif %}
+          </td>
+          <td class="r num" data-l="Balance">
+            {% if r.owed %}<b style="color:var(--red)">₹{{ r.owed|floatformat:0|intcomma }} due</b>
+            {% elif r.advance %}<span class="mut">₹{{ r.advance|floatformat:0|intcomma }} adv</span>
+            {% else %}<span class="mut">settled</span>{% endif %}
+          </td>
+          <td data-l="Now">
+            {% if r.party %}<span class="gbadge blue">In {{ r.party.name }}</span>
+            {% elif r.inter_company %}<span class="gbadge low">Own business</span>
+            {% else %}<span class="mut">Unmapped</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="section open" style="margin-top:16px">
+    <div class="sh"><span class="si g"><svg class="gico"><use href="#i-ok"/></svg></span>
+      <div><h3 class="disp">Save the ticked rows</h3>
+        <div class="sd">Only tick rows you're sure are the same shop owner</div></div></div>
+    <div class="body">
+      <div class="savebar">
+        <div class="field"><label for="name">Customer name</label>
+          <input id="name" class="control" name="name" value="{{ group.name }}" maxlength="200"></div>
+        <div class="field"><label for="note">Note <span class="mut">(optional)</span></label>
+          <input id="note" class="control" name="note" maxlength="200" placeholder="How you checked, e.g. called the owner"></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px">
+        <button class="gbtn gbtn-primary" type="submit"><svg class="gico"><use href="#i-plus"/></svg> Save as a new customer</button>
+        {% for p in group.parties %}
+          <button class="gbtn" type="submit" name="party_id" value="{{ p.id }}">Add to {{ p.name }}</button>
+        {% endfor %}
+      </div>
+      <p class="mut" style="font-size:12.5px;margin:12px 0 0">A ticked row that's already in another customer moves across. Leave a row unticked and it stays as it is.</p>
+    </div>
+  </div>
+</form>
+
+<p><a href="{% url 'console_customers' %}?show=suggestions" class="gbtn">
+  <svg class="gico"><use href="#i-back"/></svg> All suggestions</a></p>
+{% endblock %}

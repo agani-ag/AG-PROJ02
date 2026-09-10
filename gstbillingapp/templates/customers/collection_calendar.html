@@ -25,7 +25,6 @@
                     <option value="0" {% if filter_day == '0' %}selected{% endif %}>Sunday</option>
                 </select>
             </form>
-            <a href="#" class="gbtn" title="Update Locations" onclick="updateLocations();return false;"><i class="fas fa-map-marker-alt"></i> Update locations</a>
             {% if filter_day_display %}<a href="#" class="gbtn" title="Route Map" onclick="showRouteMap();return false;"><i class="fas fa-route"></i> Route map</a>{% endif %}
             <a href="{% url 'customers' %}" class="gbtn"><i class="fas fa-users"></i> Customers</a>
         </div>
@@ -474,65 +473,6 @@ function showRouteMap() {
     });
 }
 
-function updateLocations() {
-    Swal.fire({
-        title: 'Update Locations',
-        html: `
-            <p style="font-size:14px; color:#666; margin-bottom:16px;">
-                Copy location data from your customers to other users' customers with matching GST numbers.
-            </p>
-            <div style="text-align:left;">
-                <label style="font-weight:600;">Update Mode</label>
-                <select id="swal-mode" class="swal2-input">
-                    <option value="locations">Locations + Places</option>
-                    <option value="locations_days">Locations + Places + Collection Days</option>
-                </select>
-            </div>
-        `,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: '<i class="fas fa-sync-alt"></i> Update',
-        focusConfirm: false,
-        preConfirm: () => {
-            return document.getElementById('swal-mode').value;
-        }
-    }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                title: 'Updating Locations...',
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
-            let postData = {
-                user_id: '{{ request.user.id }}',
-                csrfmiddlewaretoken: '{{ csrf_token }}'
-            };
-            if (result.value === 'locations_days') {
-                postData.update_days = '1';
-            }
-            fetch("{% url 'customers_location_mapper_api' %}", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: new URLSearchParams(postData)
-            })
-            .then(res => res.json())
-            .then(response => {
-                if (response.status === 'success') {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Done!',
-                        text: response.message,
-                        timer: 2000,
-                        showConfirmButton: false
-                    }).then(() => { location.reload(); });
-                } else {
-                    Swal.fire('Error', response.message, 'error');
-                }
-            })
-            .catch(() => { Swal.fire('Error', 'Server error. Try again.', 'error'); });
-        }
-    });
-}
 </script>
 {% endblock %}
 

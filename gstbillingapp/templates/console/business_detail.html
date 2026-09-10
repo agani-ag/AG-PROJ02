@@ -47,6 +47,28 @@
 </div>
 
 <div class="section open">
+  <div class="sh"><span class="si v"><svg class="gico"><use href="#i-user"/></svg></span>
+    <div><h3 class="disp">Customer app</h3><div class="sd">Customer ledgers in the SyncUp app · employees are unaffected</div></div></div>
+  <div class="body">
+    <p style="font-size:13.5px;margin:0 0 13px">
+      {% if b.customer_app_enabled %}<span class="gbadge ok">On</span>
+        Customers this business has marked as mobile users see its ledger in their app
+        ({{ b.mobile_customers }} today).
+      {% else %}<span class="gbadge grey">Off</span>
+        No customer sees this business's ledger in the app, and the Mobile toggle is hidden
+        on the business's customer screens.
+      {% endif %}
+    </p>
+    <form method="post" action="{% url 'console_business_customer_app' b.user.id %}"
+          {% if b.customer_app_enabled %}onsubmit="return confirm('Turn the customer app off? Every customer stops seeing this ledger, and a login with no other ledger stops working.')"{% endif %}>
+      {% csrf_token %}
+      <button class="gbtn"><svg class="gico"><use href="#i-power"/></svg>
+        {% if b.customer_app_enabled %}Turn customer app off{% else %}Turn customer app on{% endif %}</button>
+    </form>
+  </div>
+</div>
+
+<div class="section open">
   <div class="sh"><span class="si o"><svg class="gico"><use href="#i-power"/></svg></span>
     <div><h3 class="disp">Access</h3><div class="sd">Sign-in and password</div></div></div>
   <div class="body">

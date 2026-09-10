@@ -30,7 +30,7 @@
         <div class="tbl-scroll">
         <table class="gt">
             <thead><tr>
-                <th>Customer</th><th>Address</th><th>Phone</th><th>GST No</th><th>Mobile ID</th><th class="r">Actions</th>
+                <th>Customer</th><th>Address</th><th>Phone</th><th>GST No</th>{% if customer_app_enabled %}<th>Mobile</th>{% endif %}<th class="r">Actions</th>
             </tr></thead>
             <tbody>
                 {% for customer in customers %}
@@ -39,12 +39,10 @@
                     <td>{% if customer.customer_address %}{{ customer.customer_address }}{% else %}<span class="mut">—</span>{% endif %}</td>
                     <td>{% if customer.customer_phone %}{{ customer.customer_phone }}{% else %}<span class="mut">—</span>{% endif %}</td>
                     <td>{% if customer.customer_gst %}{{ customer.customer_gst }}{% else %}<span class="mut">—</span>{% endif %}</td>
-                    <td>
-                        {% if customer.customer_userid %}
-                        <button type="button" class="gbadge {% if customer.is_mobile_user %}ok{% else %}out{% endif %}" style="border:0;cursor:pointer"
-                            onclick="IsMobileUser_Status('{{ customer.customer_userid }}')" title="Enable / disable mobile access">{{ customer.customer_userid|upper }}</button>
-                        {% else %}<span class="mut">—</span>{% endif %}
-                    </td>
+                    {% if customer_app_enabled %}<td>
+                        <button type="button" class="gbadge {% if customer.is_mobile_user %}ok{% else %}grey{% endif %}" style="border:0;cursor:pointer"
+                            onclick="IsMobileUser_Status({{ customer.id }}, {{ customer.is_mobile_user|yesno:'true,false' }})" title="Turn mobile access on or off">{% if customer.is_mobile_user %}On{% else %}Off{% endif %}</button>
+                    </td>{% endif %}
                     <td class="r"><div class="rowacts">
                         <a href="{% url 'customer_edit' customer.id %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
                         <a href="{% url 'book_logs' customer.id %}" class="gbtn gbtn-icon" title="Ledger"><i class="fas fa-file-lines"></i></a>
@@ -52,7 +50,7 @@
                     </div></td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6"><div class="empty">
+                <tr><td colspan="{% if customer_app_enabled %}6{% else %}5{% endif %}"><div class="empty">
                     <div class="ei"><i class="fas fa-users fa-lg"></i></div>
                     <h3>No customers found</h3>
                     <p>{% if q %}Try a different search.{% else %}Add your first customer.{% endif %}</p>
@@ -80,22 +78,26 @@ function deleteCustomer(id, name){
     }).then(function(r){ if(r.isConfirmed){ document.getElementById('del-id').value = id; document.getElementById('del-form').submit(); } });
 }
 
-function IsMobileUser_Status(customerUserId) {
+function IsMobileUser_Status(customerId, isOn) {
     Swal.fire({
-        title: 'Customer Mobile User Status',
-        text: "This will update the Mobile Login of the customer!",
-        icon: 'warning', showCancelButton: true,
-        confirmButtonColor: '#3085d6', cancelButtonColor: '#d33', confirmButtonText: 'Yes, Update status!'
+        title: isOn ? 'Turn mobile access off?' : 'Turn mobile access on?',
+        text: isOn ? "Your ledger will stop showing in this customer's app."
+                   : "Your ledger will show in this customer's app once GSTSync issues their login.",
+        icon: 'question', showCancelButton: true,
+        confirmButtonColor: '#3085d6', cancelButtonColor: '#d33', confirmButtonText: isOn ? 'Turn off' : 'Turn on'
     }).then((result) => {
         if (result.isConfirmed) {
-            fetch("/customers/api/is_mobile_user", {
+            fetch("{% url 'customer_is_mobile_user' %}", {
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: new URLSearchParams({ customer_userid: customerUserId })
+                body: new URLSearchParams({ customer_id: customerId, csrfmiddlewaretoken: '{{ csrf_token }}' })
             })
             .then(res => res.json())
-            .then(response => { Swal.fire('Success!', response.message, 'success').then(() => { location.reload(); }); })
-            .catch(() => { Swal.fire('Error!', 'An error occurred while updating Mobile User status.', 'error'); });
+            .then(response => {
+                if (response.status !== 'success') { Swal.fire('Error', response.message, 'error'); return; }
+                Swal.fire('Done', response.message, 'success').then(() => { location.reload(); });
+            })
+            .catch(() => { Swal.fire('Error!', 'An error occurred while updating mobile access.', 'error'); });
         }
     });
 }

@@ -14,17 +14,16 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db.models import Max
-from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from ..console_auth import authenticate_admin, console_required, end_session, start_session
 from ..console_ops import (
-    business_footprint, business_summary, create_business, customer_people,
-    customer_person_for, purge_business, reset_business_password, set_business_active,
+    business_footprint, business_summary, create_business, purge_business,
+    reset_business_password, set_business_active, set_customer_app,
 )
-from ..models import Customer, Invoice, PlatformAdmin, UserProfile
+from ..models import Invoice, PlatformAdmin, UserProfile
 
 
 # --------------------------------------------------------------------------- #
@@ -165,6 +164,22 @@ def business_reset_password(request, user_id):
 
 
 @console_required
+@require_POST
+def business_customer_app(request, user_id):
+    """Switch the customer app on or off for one business. Employees are unaffected."""
+    user = get_object_or_404(User.objects.select_related("userprofile"), id=user_id)
+    profile = getattr(user, "userprofile", None)
+    if profile is None:
+        messages.error(request, "This business has no profile yet.")
+        return redirect("console_business_detail", user_id=user.id)
+    on = not profile.customer_app_enabled
+    set_customer_app(user, on)
+    messages.success(request, "Customer app is now %s for '%s'." % (
+        "on" if on else "off", user.username))
+    return redirect("console_business_detail", user_id=user.id)
+
+
+@console_required
 def business_purge(request, user_id):
     """Delete a business and everything it owns. Irreversible, so it is a two-step flow:
     a preview of every row that would go, then a confirmation that requires typing the
@@ -233,52 +248,3 @@ def change_password(request):
         return redirect("console_admins")
 
     return render(request, "console/change_password.html", {})
-
-
-# --------------------------------------------------------------------------- #
-# Customers (across all businesses)
-# --------------------------------------------------------------------------- #
-@console_required
-def customers(request):
-    """Every customer on the platform, grouped into real people.
-
-    The businesses each keep their own Customer rows, so one buyer who deals with three
-    of them exists three times. This screen groups those back together — see
-    console_ops.customer_identity() for the rule — because the interesting questions
-    ("who owes us the most overall", "who is a shared account") cannot be answered from
-    any single business's list.
-    """
-    q = (request.GET.get("q") or "").strip()
-    show = request.GET.get("show") or "all"
-
-    people = customer_people(q)
-    counts = {
-        "count_all": len(people),
-        "count_shared": sum(1 for p in people if p["shared"]),
-        "count_single": sum(1 for p in people if not p["shared"]),
-        "total_owed": sum(p["owed"] for p in people),
-    }
-
-    if show == "shared":
-        people = [p for p in people if p["shared"]]
-    elif show == "single":
-        people = [p for p in people if not p["shared"]]
-
-    return render(request, "console/customers.html", dict(counts, **{
-        "people": people,
-        "q": q,
-        "show": show,
-        "total": len(people),
-        "rows_total": sum(p["record_count"] for p in people),
-    }))
-
-
-@console_required
-def customer_detail(request, customer_id):
-    """One real customer, with the record each business holds for them side by side."""
-    customer = get_object_or_404(Customer.objects.select_related("user"), id=customer_id)
-    person = customer_person_for(customer)
-    if person is None:
-        raise Http404("Customer not found.")
-    return render(request, "console/customer_detail.html",
-                  {"p": person, "customer": customer})

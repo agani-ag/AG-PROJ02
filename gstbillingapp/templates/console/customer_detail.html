@@ -1,72 +1,97 @@
 {% extends "console/base.html" %}
 {% load humanize %}
-{% block title %}{{ p.name }}{% endblock %}
+{% block title %}{{ customer.customer_name }}{% endblock %}
 {% block nav_cust %}on{% endblock %}
 {% block content %}
 
 <div class="page-head">
   <div>
-    <div class="eyebrow"><a href="{% url 'console_customers' %}">Customers</a> / {{ p.name }}</div>
-    <h1 class="disp">{{ p.name|default:"—" }}</h1>
-    <div class="sub">
-      {% if p.phone %}{{ p.phone }}{% endif %}
-      {% if p.gst %}{% if p.phone %} · {% endif %}{{ p.gst }}{% endif %}
-    </div>
+    <div class="eyebrow"><a href="{% url 'console_customers' %}?show=unmapped">Unmapped rows</a> / {{ customer.customer_name }}</div>
+    <h1 class="disp">{{ customer.customer_name|default:"—" }}</h1>
+    <div class="sub">{{ row.brand }} · {{ customer.customer_phone|default:"no phone" }}{% if customer.customer_gst %} · {{ customer.customer_gst }}{% endif %}</div>
   </div>
-  <div class="actions">
-    {% if p.shared %}
-      <span class="gbadge low">In {{ p.business_count }} businesses</span>
-    {% else %}
-      <span class="gbadge grey">One business</span>
-    {% endif %}
-  </div>
+  <div class="actions"><span class="gbadge grey">Unmapped</span></div>
 </div>
 
 <div class="statgrid">
   <div class="stat"><span class="si b"><svg class="gico"><use href="#i-shop"/></svg></span>
-    <div><div class="sv">{{ p.business_count }}</div><div class="sk">Businesses</div></div></div>
-  <div class="stat"><span class="si v"><svg class="gico"><use href="#i-user"/></svg></span>
-    <div><div class="sv">{{ p.record_count }}</div><div class="sk">Customer records</div></div></div>
-  <div class="stat"><span class="si g"><svg class="gico"><use href="#i-ok"/></svg></span>
-    <div><div class="sv">{{ p.invoices }}</div><div class="sk">Invoices</div></div></div>
+    <div><div class="sv" style="font-size:16px">{{ row.brand }}</div><div class="sk">Business</div></div></div>
   <div class="stat"><span class="si r"><svg class="gico"><use href="#i-alert"/></svg></span>
-    <div><div class="sv">₹{{ p.owed|floatformat:0|intcomma }}</div><div class="sk">Owed overall</div></div></div>
+    <div><div class="sv">₹{{ row.owed|floatformat:0|intcomma }}</div><div class="sk">Owed</div></div></div>
+  <div class="stat"><span class="si g"><svg class="gico"><use href="#i-ok"/></svg></span>
+    <div><div class="sv" style="font-size:16px">{% if row.visible %}On{% else %}Off{% endif %}</div><div class="sk">Mobile toggle</div></div></div>
+  <div class="stat"><span class="si v"><svg class="gico"><use href="#i-key"/></svg></span>
+    <div><div class="sv" style="font-size:16px">{% if not customer.customer_gst %}None{% elif row.gstin_valid %}Valid{% else %}Invalid{% endif %}</div><div class="sk">GSTIN</div></div></div>
 </div>
 
+{% if group %}
+  <div class="hint" style="margin:0 0 14px">
+    <svg class="gico"><use href="#i-alert"/></svg>
+    <div>This row is part of a suggestion with {{ group.rows|length|add:"-1" }} other row{{ group.rows|length|add:"-1"|pluralize }}.
+      <a href="{% url 'console_suggestion' group.key %}"><b>Review the suggestion</b></a> to map them together.</div>
+  </div>
+{% endif %}
+
 <div class="section open">
-  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-shop"/></svg></span>
-    <div><h3 class="disp">Record in each business</h3>
-      <div class="sd">Every business keeps its own row for this customer</div></div></div>
+  <div class="sh"><span class="si g"><svg class="gico"><use href="#i-plus"/></svg></span>
+    <div><h3 class="disp">Map this row</h3><div class="sd">Start a new customer, or add it to one you've already mapped</div></div></div>
+  <div class="body">
+    {% if row.inter_company %}
+      <p class="mut" style="font-size:13px;margin:0 0 12px">This row is one of your own businesses. It can be mapped, but it never gets an app login.</p>
+    {% endif %}
+    <form method="post" action="{% url 'console_party_new' %}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+      {% csrf_token %}
+      <input type="hidden" name="customer_ids" value="{{ customer.id }}">
+      <div class="field" style="flex:1 1 240px;min-width:0"><label for="name">Customer name</label>
+        <input id="name" class="control" name="name" value="{{ customer.customer_name }}" maxlength="200"></div>
+      <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-plus"/></svg> Create customer from this row</button>
+    </form>
+
+    {% if near %}
+      <div style="margin-top:18px"><label class="mut" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">Shares a phone or GSTIN with</label></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+      {% for p in near %}
+        <form method="post" action="{% url 'console_party_add' p.id %}">{% csrf_token %}
+          <input type="hidden" name="customer_ids" value="{{ customer.id }}">
+          <button class="gbtn">Add to {{ p.name }}</button></form>
+      {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="get" class="toolbar" style="margin:18px 0 0">
+      <div class="search"><svg class="gico"><use href="#i-search"/></svg>
+        <input type="text" name="pq" value="{{ pq }}" placeholder="Find a mapped customer by name…" autocomplete="off"></div>
+    </form>
+    {% if pq %}
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+      {% for p in found %}
+        <form method="post" action="{% url 'console_party_add' p.id %}">{% csrf_token %}
+          <input type="hidden" name="customer_ids" value="{{ customer.id }}">
+          <button class="gbtn">Add to {{ p.name }}</button></form>
+      {% empty %}
+        <span class="mut" style="font-size:13px">No mapped customer matches “{{ pq }}”.</span>
+      {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if related %}
+<div class="section open">
+  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-user"/></svg></span>
+    <div><h3 class="disp">Rows sharing its phone or GSTIN</h3><div class="sd">Hints only — check before mapping</div></div></div>
   <div class="body" style="padding:0">
     <div class="tbl-scroll">
     <table class="gt ct">
-      <thead><tr>
-        <th>Business</th><th>Name on their books</th><th>Phone</th><th>GSTIN</th>
-        <th class="r">Invoices</th><th class="r">Balance</th>
-      </tr></thead>
+      <thead><tr><th>Business</th><th>Name on their books</th><th>Phone</th><th>GSTIN</th><th>Mapped to</th></tr></thead>
       <tbody>
-      {% for r in p.records %}
+      {% for r in related %}
         <tr>
-          <td class="hd">
-            <a href="{% url 'console_business_detail' r.business.id %}">
-              <div class="prim">
-                <span class="pi"><svg class="gico"><use href="#i-shop"/></svg></span>
-                <div>
-                  <div class="nm">{{ r.brand|default:r.business.username }}</div>
-                  <div class="mn">{{ r.title }}</div>
-                </div>
-              </div>
-            </a>
-          </td>
+          <td class="hd"><b>{{ r.brand }}</b></td>
           <td data-l="Name">{{ r.customer.customer_name }}</td>
-          <td data-l="Phone" class="mut">{{ r.customer.customer_phone|default:"—" }}</td>
-          <td data-l="GSTIN" class="mut" style="font-size:12.5px">{{ r.customer.customer_gst|default:"—" }}</td>
-          <td class="r num" data-l="Invoices">{{ r.invoices }}</td>
-          <td class="r num" data-l="Balance">
-            {% if r.owed %}<b style="color:var(--red)">₹{{ r.owed|floatformat:0|intcomma }} due</b>
-            {% elif r.balance %}<span class="mut">₹{{ r.balance|floatformat:0|intcomma }} adv</span>
-            {% else %}<span class="mut">settled</span>{% endif %}
-          </td>
+          <td data-l="Phone">{{ r.customer.customer_phone|default:"—" }}</td>
+          <td data-l="GSTIN" style="font-size:12.5px">{{ r.customer.customer_gst|default:"—" }}</td>
+          <td data-l="Mapped to">{% if r.party %}<a href="{% url 'console_party' r.party.id %}">{{ r.party.name }}</a>{% else %}<span class="mut">—</span>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -74,17 +99,8 @@
     </div>
   </div>
 </div>
-
-{% if p.shared %}
-  <div class="hint">
-    <svg class="gico"><use href="#i-alert"/></svg>
-    <div>These rows were matched as one customer by
-      {% if p.kind == "gst" %}<b>GSTIN {{ p.value }}</b>{% elif p.kind == "phone" %}<b>phone ending {{ p.value }}</b>{% else %}<b>name</b>{% endif %}.
-      They stay separate records — each business bills and collects independently — this
-      screen only shows them together.</div>
-  </div>
 {% endif %}
 
-<p><a href="{% url 'console_customers' %}" class="gbtn">
-  <svg class="gico"><use href="#i-back"/></svg> All customers</a></p>
+<p><a href="{% url 'console_customers' %}?show=unmapped" class="gbtn">
+  <svg class="gico"><use href="#i-back"/></svg> Unmapped rows</a></p>
 {% endblock %}

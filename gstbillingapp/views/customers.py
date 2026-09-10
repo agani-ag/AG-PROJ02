@@ -5,16 +5,15 @@ from django.utils import timezone
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse, HttpResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 # Models
 from ..models import Book, Customer, UserProfile
 
 # Utility functions
-from ..utils import (
-    add_customer_book, add_customer_userid
-)
+from ..utils import add_customer_book
+from ..parties import app_enabled, party_for, refresh_for_customer, refresh_login
 
 # Forms
 from ..forms import CustomerForm
@@ -23,8 +22,6 @@ from ..forms import CustomerForm
 import json
 from ..utils import _escape_md
 
-# Variables
-CPASSWORD = 'pass123'
 
 # ================= Customer Views ===========================
 def _filtered_customers(request):
@@ -45,6 +42,7 @@ def customers(request):
     return render(request, 'customers/customers.html', {
         'customers': page_obj, 'page_obj': page_obj, 'total_count': paginator.count,
         'q': q, 'querystring': params.urlencode(),
+        'customer_app_enabled': app_enabled(request.user),
     })
 
 
@@ -62,24 +60,24 @@ def customers_export(request):
 
 @login_required
 def customer_add(request):
-    context = {}
+    app_on = app_enabled(request.user)
+    context = {'customer_app_enabled': app_on}
     if request.method == "POST":
         customer_form = CustomerForm(request.POST, user=request.user)
         if request.POST.get('customer_phone') == "":
             context["error_message"] = "Customer phone is required."
         elif Customer.objects.filter(user=request.user, customer_phone=request.POST.get('customer_phone')).exists():
             context["error_message"] = "Customer with this phone number already exists."
-        else:
+        elif customer_form.is_valid():
             new_customer = customer_form.save(commit=False)
             new_customer.user = request.user
-            new_customer.customer_password = CPASSWORD
-            new_customer.is_mobile_user = request.POST.get('is_mobile_user') == 'on'
+            # Only a business with the customer app switched on can show a customer in it.
+            new_customer.is_mobile_user = app_on and request.POST.get('is_mobile_user') == 'on'
             new_customer.save()
-            # create customer book & userid
             add_customer_book(new_customer)
-            add_customer_userid(new_customer)
             return redirect('customers')
         context['customer_form'] = customer_form
+        context['is_mobile_user'] = app_on and request.POST.get('is_mobile_user') == 'on'
         return render(request, 'customers/customer_edit.html', context)
     context['customer_form'] = CustomerForm(user=request.user)
     context['is_mobile_user'] = False
@@ -89,12 +87,14 @@ def customer_add(request):
 @login_required
 def customer_edit(request, customer_id):
     customer_obj = get_object_or_404(Customer, user=request.user, id=customer_id)
-    if not customer_obj.customer_password:
-        customer_obj.customer_password = CPASSWORD
-        customer_obj.save()
+    app_on = app_enabled(request.user)
+    was_visible = customer_obj.is_mobile_user
+    context = {'customer_app_enabled': app_on, 'customer_id': customer_id, 'id': customer_obj.id}
     if request.method == "POST":
-        context = {}
         customer_form = CustomerForm(request.POST, instance=customer_obj, user=request.user)
+        # With the customer app off the toggle isn't on the form, so keep the stored value
+        # rather than reading a missing checkbox as "off".
+        wants_visible = (request.POST.get('is_mobile_user') == 'on') if app_on else was_visible
         if request.POST.get('customer_phone') == "":
             context["error_message"] = "Customer phone is required."
         elif Customer.objects.filter(user=request.user,
@@ -102,22 +102,16 @@ def customer_edit(request, customer_id):
             context["error_message"] = "Customer with this phone number already exists."
         elif customer_form.is_valid():
             new_customer = customer_form.save(commit=False)
-            new_customer.is_mobile_user = request.POST.get('is_mobile_user') == 'on'
+            new_customer.is_mobile_user = wants_visible
             new_customer.save()
+            if wants_visible != was_visible:
+                refresh_for_customer(new_customer)
             return redirect('customers')
         context['customer_form'] = customer_form
+        context['is_mobile_user'] = wants_visible
         return render(request, 'customers/customer_edit.html', context)
-    context = {}
-    context['customer_id'] = customer_id
     context['customer_form'] = CustomerForm(instance=customer_obj, user=request.user)
     context['is_mobile_user'] = customer_obj.is_mobile_user
-    context['customer_userid'] = customer_obj.customer_userid
-    context['customer_password'] = customer_obj.customer_password
-    print("customer_password:", customer_obj.customer_password)
-    context['default_password'] = CPASSWORD
-    print("default_password:", CPASSWORD)
-    print(context['customer_password'] == context['default_password'])
-    context['id'] = customer_obj.id
     return render(request, 'customers/customer_edit.html', context)
 
 
@@ -126,7 +120,10 @@ def customer_delete(request):
     if request.method == "POST":
         customer_id = request.POST["customer_id"]
         customer_obj = get_object_or_404(Customer, user=request.user, id=customer_id)
+        party = party_for(customer_obj)
         customer_obj.delete()
+        if party is not None:
+            refresh_login(party)          # it may have been their last visible ledger
     return redirect('customers')
 
 
@@ -157,117 +154,48 @@ def customersjson(request):
     return JsonResponse(customers, safe=False)
 
 
-@csrf_exempt
-def customer_default_password(request):
-    if request.method == "POST":
-        customer_userid = request.POST["customer_userid"]
-        customer_obj = get_object_or_404(Customer, customer_userid=customer_userid)
-        customer_obj.customer_password = CPASSWORD
-        customer_obj.save()
-        return JsonResponse({'status': 'success', 'message': f"{customer_userid.upper()} customer's password reset to default."})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to reset customer password.'})
-
-
-@csrf_exempt
-def customerall_userid_set(request):
-    if request.method == "POST":
-        customer_user = request.POST["customer_userid"]
-        customer_count = list(Customer.objects.filter(user_id=customer_user))
-        customer_obj = Customer.objects.filter(user_id=customer_user)
-        for customer in customer_obj:
-            if not customer.customer_password:
-                customer.customer_password = CPASSWORD
-            customer.is_mobile_user = True
-            customer.save()
-            add_customer_userid(customer)
-        return JsonResponse({'status': 'success', 'message': f'{len(customer_count)} Customer User IDs set successfully.'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to set customer user IDs.'})
-
 
 @login_required
-@csrf_exempt
+@require_POST
 def customer_is_mobile_user(request):
-    if request.method == "POST":
-        customer_userid = request.POST.get("customer_userid", None)
-        if not customer_userid:
-            return JsonResponse({'status': 'error', 'message': 'Customer UserID is required.'})
-        try:
-            # Scoped to this business — a business can only toggle its OWN customer.
-            customer_obj = Customer.objects.get(customer_userid=customer_userid, user=request.user)
-            if customer_obj.is_mobile_user:
-                is_mobile_user = False
-                message = f'Customer {customer_userid.upper()} mobile login is turned off.'
-            else:
-                is_mobile_user = True
-                message = f'Customer {customer_userid.upper()} mobile login is turned on.'
-            customer_obj.is_mobile_user = is_mobile_user
-            customer_obj.save()
-            return JsonResponse({'status': 'success', 'message': message})
-        except Customer.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'Customer not found.'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to check mobile user status.'})
+    """Turn this business's ledger on or off in the customer's app.
 
-@csrf_exempt
+    Keyed by the customer's id - the old per-customer login ID is gone. A business can
+    only toggle its OWN customer, and only once GSTSync has switched the customer app on
+    for it; the customer's login itself is issued by GSTSync."""
+    customer_id = (request.POST.get("customer_id") or "").strip()
+    if not customer_id.isdigit():
+        return JsonResponse({'status': 'error', 'message': 'Customer is required.'})
+    customer_obj = Customer.objects.filter(id=int(customer_id), user=request.user).first()
+    if customer_obj is None:
+        return JsonResponse({'status': 'error', 'message': 'Customer not found.'})
+    if not app_enabled(request.user):
+        return JsonResponse({'status': 'error',
+                             'message': "The customer app isn't switched on for your business."})
+    customer_obj.is_mobile_user = not customer_obj.is_mobile_user
+    customer_obj.save(update_fields=["is_mobile_user"])
+    refresh_for_customer(customer_obj)
+    state = "on" if customer_obj.is_mobile_user else "off"
+    return JsonResponse({'status': 'success',
+                         'message': f'Mobile access for {customer_obj.customer_name} is now {state}.'})
+
+@login_required
+@require_POST
 def customer_collection_day_update(request):
-    if request.method == "POST":
-        customer_id = request.POST.get("customer_id", None)
-        place = request.POST.get("customer_place", None)
-        day = request.POST.get("collection_day", 0)
-        if not customer_id:
-            return JsonResponse({'status': 'error', 'message': 'Customer ID is required.'})
-        try:
-            customer_obj = Customer.objects.get(id=customer_id)
-            if customer_obj:
-                customer_obj.collection_day = day
-                customer_obj.customer_place = place
-                customer_obj.save()
-                message = f'Customer collection day & place updated.'
-            return JsonResponse({'status': 'success', 'message': message})
-        except Customer.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'Customer not found.'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to update customer collection day.'})
+    customer_id = (request.POST.get("customer_id") or "").strip()
+    place = request.POST.get("customer_place", None)
+    day = request.POST.get("collection_day", 0)
+    if not customer_id.isdigit():
+        return JsonResponse({'status': 'error', 'message': 'Customer ID is required.'})
+    # Scoped to this business - a business can only update its OWN customer.
+    customer_obj = Customer.objects.filter(id=int(customer_id), user=request.user).first()
+    if customer_obj is None:
+        return JsonResponse({'status': 'error', 'message': 'Customer not found.'})
+    customer_obj.collection_day = day
+    customer_obj.customer_place = place
+    customer_obj.save()
+    return JsonResponse({'status': 'success', 'message': 'Customer collection day & place updated.'})
 
-@csrf_exempt
-def customers_location_mapper_api(request):
-    if request.method == "POST":
-        user_id = request.POST.get("user_id", None)
-        update_days = request.POST.get("update_days", None)
-        if not user_id:
-            return JsonResponse({'status': 'error', 'message': 'User ID is required.'})
-        # Source: customers with valid location AND non-empty GST
-        source_customers = Customer.objects.filter(user_id=user_id)\
-            .exclude(customer_gst__isnull=True).exclude(customer_gst='')\
-            .exclude(customer_latitude__isnull=True)\
-            .exclude(customer_longitude__isnull=True)
-        location_mapping = {}
-        for customer in source_customers:
-            location_mapping[customer.customer_gst] = {
-                'customer_place': customer.customer_place,
-                'latitude': customer.customer_latitude,
-                'longitude': customer.customer_longitude,
-                'collection_day': customer.collection_day,
-            }
-        if not location_mapping:
-            return JsonResponse({'status': 'error', 'message': 'No customers with valid GST and location found.'})
-        # Target: other users' customers with matching GST (exclude source user)
-        target_customers = Customer.objects.exclude(user_id=user_id)\
-            .filter(customer_gst__in=location_mapping.keys())
-        updated = []
-        update_fields = ['customer_latitude', 'customer_longitude', 'customer_place']
-        if update_days:
-            update_fields.append('collection_day')
-        for customer in target_customers:
-            loc = location_mapping[customer.customer_gst]
-            customer.customer_latitude = loc['latitude']
-            customer.customer_longitude = loc['longitude']
-            customer.customer_place = loc['customer_place']
-            if update_days:
-                customer.collection_day = loc['collection_day']
-            updated.append(customer)
-        if updated:
-            Customer.objects.bulk_update(updated, update_fields)
-        return JsonResponse({'status': 'success', 'message': f'Customer locations updated successfully. {len(updated)} customers updated.'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to update customer locations.'})
 
 def show_customer_collection_api(request):
     markdown = request.GET.get('markdown', 'false').lower() == 'true'
