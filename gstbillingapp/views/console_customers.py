@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.cache import never_cache
@@ -62,6 +62,7 @@ def _party_rows(party_list):
                    if float(balances.get(c.id) or 0) < 0)
         out.append({"party": p, "rows": len(rows), "brands": brands, "owed": owed,
                     "email": p.login_email_at(domain),
+                    "ready": parties.ready_to_issue(p),
                     "visible": sum(1 for c in rows if parties.row_is_visible(c))})
     return out
 
@@ -103,8 +104,13 @@ def customers(request):
     }
     if show == "mapped":
         ctx["party_rows"] = _party_rows(list(party_qs.order_by("name", "id")))
+        ctx["ready_count"] = sum(1 for r in ctx["party_rows"] if r["ready"])
     elif show == "suggestions":
+        own = parties.own_business_gstins()
+        for g in groups:
+            g["skip"] = parties.bulk_skip_reason(g, own)     # "" = bulk can map it
         ctx["groups"] = groups
+        ctx["needs_look"] = sum(1 for g in groups if g["skip"])
     else:
         page_obj = Paginator(unmapped_qs, 50).get_page(request.GET.get("page"))
         ctx.update(page_obj=page_obj, total_count=page_obj.paginator.count,
@@ -329,8 +335,10 @@ def _password_page(request, party, password, issued):
     """The one and only time this password is shown. It's rendered straight into this
     response — never stored, never put in the session or a redirect — and never_cache on
     the views keeps the page out of the browser cache."""
-    return render(request, "console/party_password.html",
-                  {"party": party, "password": password, "issued": issued})
+    return render(request, "console/login_password.html", {
+        "name": party.name, "email": party.login_email, "password": password, "issued": issued,
+        "back_url": reverse("console_party", args=[party.id]), "app": "the SyncUp app",
+    })
 
 
 @never_cache
@@ -399,3 +407,53 @@ def party_login_sync(request, party_id):
     else:
         messages.success(request, "SyncUp is up to date.")
     return _back(party)
+
+
+# --------------------------------------------------------------------------- #
+# Bulk
+# --------------------------------------------------------------------------- #
+@console_required
+@require_POST
+def suggestions_bulk(request):
+    """Map every ticked suggestion at once (rules in parties.bulk_map)."""
+    keys = [int(k) for k in request.POST.getlist("keys") if k.strip().isdigit()]
+    if not keys:
+        messages.error(request, "Tick at least one suggestion.")
+        return redirect(reverse("console_customers") + "?show=suggestions")
+    result = parties.bulk_map(keys, admin=request.platform_admin)
+    done = result["created"] + result["added"]
+    if done:
+        parts = []
+        if result["created"]:
+            parts.append("created %s" % _plural(result["created"], "customer"))
+        if result["added"]:
+            parts.append("added rows to %s" % _plural(result["added"], "existing customer"))
+        messages.success(request, "Mapped %s: %s." % (_plural(done, "suggestion"),
+                                                       ", ".join(parts)))
+    if result["skipped"]:
+        messages.error(request, "Skipped %s that need a closer look: %s." % (
+            _plural(len(result["skipped"]), "suggestion"),
+            "; ".join("%s (%s)" % item for item in result["skipped"][:10])))
+    return redirect(reverse("console_customers") + "?show=" + ("mapped" if done else "suggestions"))
+
+
+@never_cache
+@console_required
+@require_POST
+def party_login_issue_json(request, party_id):
+    """Issue one customer login for the bulk page. The password goes back in this response
+    and exists only in that page — never stored. An active login is refused, so bulk can't
+    silently reset anyone's password."""
+    party = get_object_or_404(Party, id=party_id)
+    if party.login_status == Party.LOGIN_ACTIVE:
+        return JsonResponse({"ok": False, "error": "Already has an active login — reset it from "
+                                                   "its own page if the password is lost."})
+    try:
+        password = parties.issue_login(party)
+    except parties.LoginBlocked as e:
+        return JsonResponse({"ok": False, "error": " ".join(e.reasons)})
+    except SyncUpError as e:
+        return JsonResponse({"ok": False, "error": str(e)})
+    phone = next((c.customer_phone for c in parties.members(party) if c.customer_phone), "")
+    return JsonResponse({"ok": True, "email": party.login_email, "password": password,
+                         "phone": phone})

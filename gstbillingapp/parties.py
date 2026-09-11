@@ -397,10 +397,9 @@ def issue_login(party):
         raise LoginBlocked(blockers)
     password = generate_customer_password()
     party.token_version += 1
+    # One call: the account and its app link together (SyncUp replaces the link by key).
     syncup_client.upsert_account(party.external_id, name=party.name, email=party.login_email,
-                                 password=password, is_active=True)
-    syncup_client.replace_link(party.external_id, title="GSTSync", url=app_link(party),
-                               prefix=app_link_prefix())
+                                 password=password, is_active=True, app_link=app_link(party))
     party.login_status = Party.LOGIN_ACTIVE
     party.login_issued_at = timezone.now()
     _record_sync(party, True)
@@ -443,22 +442,38 @@ def refresh_login(party):
 
     Called after anything that can change visibility: a mapping, a business's mobile toggle,
     a business's customer-app switch. Makes no call when nothing changed, and NEVER raises —
-    a business toggling a customer must not fail or hang because SyncUp is down. A failure
-    is recorded on the Party and retried on the next change or from the console."""
+    a business toggling a customer must not fail or wait long because SyncUp is down: the
+    push is capped at QUICK_TIMEOUT, and a failure is recorded on the Party and retried by
+    /cron/syncup (or the console's Retry sync).
+
+    Returns "unchanged", "pushed" or "failed" (None when there's no login to sync)."""
     party = Party.objects.filter(pk=party.pk).first()
     if party is None or party.login_status == Party.LOGIN_NONE:
-        return
+        return None
     want = party.login_status == Party.LOGIN_ACTIVE and bool(visible_rows(party))
     if party.syncup_active == want and not party.syncup_error:
-        return
+        return "unchanged"
     try:
-        syncup_client.set_account_active(party.external_id, want)
+        syncup_client.set_account_active(party.external_id, want,
+                                         timeout=syncup_client.QUICK_TIMEOUT)
     except syncup_client.SyncUpError as e:
         log.warning("SyncUp is_active push failed for %s: %s", party.external_id, e)
         Party.objects.filter(pk=party.pk).update(syncup_error=str(e)[:300])
-        return
+        return "failed"
     Party.objects.filter(pk=party.pk).update(syncup_active=want, syncup_error="",
                                              syncup_synced_at=timezone.now())
+    return "pushed"
+
+
+def retry_pending():
+    """Bring every customer login's SyncUp state up to date — for /cron/syncup. Logins
+    already in step cost no call. Returns counts by outcome."""
+    counts = {"pushed": 0, "failed": 0, "unchanged": 0}
+    for party in Party.objects.exclude(login_status=Party.LOGIN_NONE):
+        outcome = refresh_login(party)
+        if outcome:
+            counts[outcome] += 1
+    return counts
 
 
 def refresh_parties(party_ids):
@@ -508,3 +523,51 @@ def search_rows(q, *, exclude_party=None, limit=25):
     if exclude_party is not None:
         qs = qs.exclude(party_mapping__party=exclude_party)
     return list(qs[:limit])
+
+
+# --------------------------------------------------------------------------- #
+# Bulk (console)
+# --------------------------------------------------------------------------- #
+def bulk_skip_reason(group, own=None):
+    """Why a suggestion needs a one-by-one review rather than bulk mapping — "" when it
+    doesn't. Bulk is only for the clear case: one owner's rows at different businesses,
+    joining at most one existing customer. Everything else is left for a human look."""
+    rows = group["rows"]
+    if len(group["parties"]) > 1:
+        return "its rows already belong to different customers"
+    if len({c.user_id for c in rows}) < len(rows):
+        return "two of its rows are at the same business"
+    own = own_business_gstins() if own is None else own
+    if any(is_inter_company(c, own) for c in rows):
+        return "one row is one of your own businesses"
+    return ""
+
+
+def bulk_map(keys, admin=None):
+    """Map the ticked suggestions in one go. Each becomes a customer, or joins the one
+    customer it already touches; suggestions that need a closer look are skipped and
+    reported, never guessed at. Returns {"created", "added", "skipped": [(name, reason)]}."""
+    wanted = set(keys)
+    own = own_business_gstins()
+    result = {"created": 0, "added": 0, "skipped": []}
+    for group in suggestion_groups():
+        if group["key"] not in wanted:
+            continue
+        reason = bulk_skip_reason(group, own)
+        if reason:
+            result["skipped"].append((group["name"], reason))
+            continue
+        if group["parties"]:
+            unmapped = [c for c in group["rows"] if mapping_of(c) is None]
+            add_rows(group["parties"][0], unmapped, admin=admin, note="Bulk review")
+            result["added"] += 1
+        else:
+            create_party(name=group["name"], customers=group["rows"], admin=admin,
+                         note="Bulk review")
+            result["created"] += 1
+    return result
+
+
+def ready_to_issue(party):
+    """Can a login be issued for this customer right now: none active, nothing blocking."""
+    return party.login_status != Party.LOGIN_ACTIVE and not login_blockers(party)

@@ -1,0 +1,101 @@
+{% extends "console/base.html" %}
+{% block title %}Employees{% endblock %}
+{% block nav_staff %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1 class="disp">Employees</h1>
+    <div class="sub">Staff of every business. One app login per person covers every business they work at.</div>
+  </div>
+</div>
+
+<div class="gstats">
+  <a class="gstat blue {% if show == 'all' %}on{% endif %}" href="?show=all{% if q %}&q={{ q|urlencode }}{% endif %}">
+    <div class="gk"><span class="dot"></span> All staff</div><div class="gv">{{ count_all }}</div></a>
+  <a class="gstat green {% if show == 'login' %}on{% endif %}" href="?show=login{% if q %}&q={{ q|urlencode }}{% endif %}">
+    <div class="gk"><span class="dot"></span> App login</div><div class="gv">{{ count_login }}</div></a>
+  <a class="gstat amber {% if show == 'nologin' %}on{% endif %}" href="?show=nologin{% if q %}&q={{ q|urlencode }}{% endif %}">
+    <div class="gk"><span class="dot"></span> No login yet</div><div class="gv">{{ count_none }}</div></a>
+  <a class="gstat red {% if show == 'inactive' %}on{% endif %}" href="?show=inactive{% if q %}&q={{ q|urlencode }}{% endif %}">
+    <div class="gk"><span class="dot"></span> Switched off</div><div class="gv">{{ count_inactive }}</div></a>
+</div>
+
+<form method="get" class="toolbar">
+  <input type="hidden" name="show" value="{{ show }}">
+  <div class="search">
+    <svg class="gico"><use href="#i-search"/></svg>
+    <input type="text" name="q" value="{{ q }}" placeholder="Search name, phone or email…" autocomplete="off">
+  </div>
+  {% if q %}<a href="?show={{ show }}" class="gbtn">Clear</a>{% endif %}
+</form>
+
+<form method="post" action="{% url 'console_logins_bulk' %}">
+  {% csrf_token %}
+  <input type="hidden" name="kind" value="employee">
+  {% if rows %}
+  <div class="bulkbar">
+    <button type="button" class="gbtn" data-select="input.pick" {% if not ready_count %}disabled{% endif %}>Select all ready ({{ ready_count }})</button>
+    <span class="mut"><b data-picked>0</b> selected</span>
+    <button type="submit" class="gbtn gbtn-primary" data-needs-pick disabled>
+      <svg class="gico"><use href="#i-key"/></svg> Issue logins</button>
+    {% if not ready_count %}<span class="mut">None is ready: a login needs SyncUp set up (Settings) and the person switched on at their home business.</span>{% endif %}
+  </div>
+  {% endif %}
+  <div class="tablecard ctable">
+    <div class="tbl-scroll">
+    <table class="gt ct">
+      <thead><tr>
+        <th>Employee</th><th>Home business</th><th>Works at</th><th>Status</th><th>App login</th>
+      </tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="hd">
+            <div class="pickrow">
+              <input type="checkbox" class="pick" name="ids" value="{{ r.e.id }}"{% if not r.ready %} disabled title="{% if r.login.login_status == 'active' %}Already has a login{% else %}Not ready yet — open it to see why{% endif %}"{% endif %}>
+              <a href="{% url 'console_employee' r.e.id %}">
+                <div class="prim">
+                  <span class="pi"><svg class="gico"><use href="#i-team"/></svg></span>
+                  <div>
+                    <div class="nm">{{ r.e.name }}</div>
+                    <div class="mn">{% if r.login.has_login %}{{ r.email }}{% else %}{{ r.e.phone|default:"No phone" }}{% endif %}</div>
+                  </div>
+                </div>
+              </a>
+            </div>
+          </td>
+          <td data-l="Home business">{{ r.home }}</td>
+          <td data-l="Works at">
+            {% for b in r.brands %}<span class="tag2" style="margin:2px 3px 2px 0">{{ b }}</span>{% empty %}<span class="mut">—</span>{% endfor %}
+          </td>
+          <td data-l="Status">{% if r.e.is_active %}<span class="gbadge ok">Active</span>{% else %}<span class="gbadge grey">Switched off</span>{% endif %}</td>
+          <td data-l="App login">
+            {% if r.login.login_status == "active" %}<span class="gbadge ok">Active</span>
+            {% elif r.login.login_status == "inactive" %}<span class="gbadge out">Deactivated</span>
+            {% else %}<span class="gbadge grey">None</span>{% endif %}
+            {% if r.login.syncup_error %}<span class="gbadge low" title="{{ r.login.syncup_error }}">Sync failed</span>{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="emptycell"><div class="empty">
+          <div class="ei"><svg class="gico"><use href="#i-team"/></svg></div>
+          <h3>No employees found</h3>
+          <p>{% if q %}Nothing matches “{{ q }}”.{% else %}No business has added any staff yet.{% endif %}</p>
+          {% if q %}<a href="?show={{ show }}" class="gbtn">Clear search</a>{% endif %}
+        </div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% if rows %}<div class="tfoot"><div class="cnt">{{ rows|length }} shown</div></div>{% endif %}
+  </div>
+</form>
+
+<div class="hint">
+  <svg class="gico"><use href="#i-alert"/></svg>
+  <div>Businesses add, share and switch off their own staff. App logins are issued here — one by one on
+    each person's page, or ticked here in bulk. When a home business switches someone off, their login
+    stops working too, and switching them back on restores it.</div>
+</div>
+{% endblock %}

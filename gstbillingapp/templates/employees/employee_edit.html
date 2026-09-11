@@ -59,6 +59,7 @@
                 </div>
                 <div class="field full">
                     <label class="gtoggle"><input type="checkbox" name="is_active" {% if posting.is_active or not posting %}checked{% endif %}> Active</label>
+                    {% if posting.is_home or not posting %}<div class="h">Turning this off also stops their app login. The login itself is issued by GSTSync, not from here.</div>{% endif %}
                 </div>
             </div></div>
         </div>
@@ -67,7 +68,6 @@
     <div class="gs-actionbar"><div class="inner">
         <div class="msg">{% if posting %}Editing employee{% else %}New employee · not saved{% endif %}</div>
         <div class="end">
-            {% if posting.is_home %}<a class="gbtn" href="#" onclick="employeeMobileLink({{ posting.id }});return false;" title="Mobile access link"><i class="fas fa-mobile-alt"></i> Mobile link</a>{% endif %}
             <a class="gbtn" href="{% url 'employees' %}">Cancel</a>
             <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> {% if posting %}Save changes{% else %}Save employee{% endif %}</button>
         </div>
@@ -75,15 +75,4 @@
 </form>
 </div>
 
-<script>
-function employeeMobileLink(id){
-    fetch('/employees/' + id + '/mobile-link').then(r=>r.json()).then(d=>{
-        if(!d.ok){ Swal.fire('', d.message||'Not available', 'info'); return; }
-        Swal.fire({title:'Mobile Access Link',
-            html:'<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
-                 '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
-            confirmButtonText:'Copy link', preConfirm:()=>navigator.clipboard&&navigator.clipboard.writeText(d.url)});
-    });
-}
-</script>
 {% endblock %}

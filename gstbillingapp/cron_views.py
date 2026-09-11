@@ -18,6 +18,7 @@ Separate jobs, if your cron service allows several entries:
     02:15 daily     GET /cron/cleanup?key=...
     02:30 Sundays   GET /cron/cleanup?key=...&vacuum=1
     09:00 daily     GET /cron/health?key=...        (optional, visibility only)
+    every 10 min    GET /cron/syncup?key=...        (once SyncUp logins are issued)
 
 Single job, if you only get one entry — does everything, in the right order:
     02:00 daily     GET /cron/cleanup?key=...&backup=1&vacuum=1&quotations=15
@@ -168,5 +169,27 @@ def cleanup(request):
             return JsonResponse(out)
     except LockBusy:
         return _locked("cleanup")
+    except Exception as e:  # noqa: BLE001
+        return _failed(e)
+
+
+# --------------------------------------------------------------------------- #
+# SyncUp — every 5-15 minutes, once app logins are issued
+# --------------------------------------------------------------------------- #
+@cron_endpoint
+def syncup(request):
+    """Re-send any customer or employee login whose SyncUp state fell behind - a push that
+    failed or hit its short time limit while a business was changing access. Logins already
+    in step cost no network call, so a frequent schedule is cheap."""
+    from . import parties, staff
+    from .syncup_client import is_configured
+    if not is_configured():
+        return JsonResponse({"ok": True, "skipped": "not_configured"})
+    try:
+        with job_lock("syncup"):
+            return JsonResponse({"ok": True, "customers": parties.retry_pending(),
+                                 "employees": staff.retry_pending()})
+    except LockBusy:
+        return _locked("syncup")
     except Exception as e:  # noqa: BLE001
         return _failed(e)

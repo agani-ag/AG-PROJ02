@@ -48,7 +48,6 @@
                         <a href="{% url 'employee_invoices' p.id %}" class="gbtn gbtn-icon" title="Related invoices"><i class="fas fa-file-invoice"></i></a>
                         {% if p.is_home %}
                         <button type="button" class="gbtn gbtn-icon" onclick="shareCode('{{ p.employee.share_code }}', '{{ p.employee.name|escapejs }}')" title="Share code"><i class="fas fa-share-alt"></i></button>
-                        <button type="button" class="gbtn gbtn-icon" onclick="mobileLink({{ p.id }})" title="Mobile access link"><i class="fas fa-mobile-alt"></i></button>
                         {% endif %}
                         <button type="button" class="gbtn gbtn-icon del" title="Remove"
                             onclick="removeEmployee({{ p.id }}, '{{ p.employee.name|escapejs }}', {{ p.is_home|yesno:'true,false' }})"><i class="fas fa-trash"></i></button>
@@ -84,19 +83,6 @@ function removeEmployee(id, name, home){
         icon: 'warning', showCancelButton: true, confirmButtonText: 'Remove', confirmButtonColor: '#e11d48', cancelButtonText: 'Cancel'
     }).then(function(r){
         if (r.isConfirmed){ var f = document.getElementById('del-form'); f.action = '/employees/' + id + '/delete'; f.submit(); }
-    });
-}
-
-function mobileLink(id) {
-    fetch('/employees/' + id + '/mobile-link').then(r => r.json()).then(d => {
-        if (!d.ok) { Swal.fire('', d.message || 'Not available', 'info'); return; }
-        Swal.fire({
-            title: 'Mobile Access Link',
-            html: '<small class="text-muted">Paste this URL into the SyncUp app link list for this employee.</small>' +
-                  '<textarea class="form-control mt-2" rows="4" readonly onclick="this.select()">' + d.url + '</textarea>',
-            confirmButtonText: 'Copy link',
-            preConfirm: () => navigator.clipboard && navigator.clipboard.writeText(d.url)
-        });
     });
 }
 

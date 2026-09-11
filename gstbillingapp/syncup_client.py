@@ -1,24 +1,38 @@
 """Client for SyncUp's Partner API (AG-PROJ01, mounted at /partner/v1/).
 
-GSTSync is one SyncUp partner. Each customer login is a SyncUp account that GSTSync creates
-and addresses by its own id — external_id "party-<id>" — so GSTSync never needs SyncUp's
-internal ids. SyncUp stores the password hash and performs the actual login; GSTSync only
-ever sends a password when issuing or resetting one.
+GSTSync is one SyncUp partner. Each login is a SyncUp account that GSTSync creates and
+addresses by its own id — external_id "party-<id>" for customers, "employee-<id>" for
+staff — so GSTSync never needs SyncUp's internal ids. SyncUp stores the password hash and
+performs the actual login; GSTSync only ever sends a password when issuing or resetting one.
+
+Every GSTSync action is ONE Partner API call. Issuing a login sends the account and its app
+link together: SyncUp's upsert replaces the link by its key ("gstsync"), so there is no
+list-then-delete-then-add round trip.
 
 Where SyncUp is, the partner key, this site's public address and the timeout all come from
-the database (models.SyncUpSettings, edited under Console → Settings), not settings.py, so
-an admin can set them up without server access or a restart.
+the database (models.SyncUpSettings, edited under Console → Settings), not settings.py.
 
 Standard library only (urllib), so this adds no dependency. Every call has a short timeout
 and raises SyncUpError on any failure. Callers decide what a failure means: a console action
-reports it, while a business-side toggle only records it — a business must never be blocked,
-or kept waiting, because SyncUp is down.
+reports it, while a business-side change only records it — a business must never be blocked
+because SyncUp is down.
 """
 import json
+import time
 import urllib.error
 import urllib.request
 
 from .models import SyncUpSettings
+
+# The key SyncUp stores on GSTSync's app link, so re-issuing a login replaces that link
+# instead of adding a second one. Links the account holds for other purposes are untouched.
+APP_LINK_KEY = "gstsync"
+
+# Pushes made on a business's behalf (a Mobile toggle, an Active switch) wait at most this
+# long, whatever the console's timeout: a failure is recorded and /cron/syncup retries it,
+# so a business never sits waiting on SyncUp. (No background thread: PythonAnywhere-style
+# uWSGI hosting runs web apps without thread support.)
+QUICK_TIMEOUT = 2
 
 
 class SyncUpError(Exception):
@@ -51,8 +65,11 @@ def link_base(cfg=None):
     return base if base.lower().startswith("https://") else ""
 
 
-def _request(method, path, payload=None, cfg=None):
+def _request(method, path, payload=None, cfg=None, timeout=None):
     cfg = cfg or config()
+    limit = cfg.timeout or 5
+    if timeout:
+        limit = min(timeout, limit)
     if not cfg.is_configured:
         raise SyncUpError("SyncUp isn't set up yet — add its address and partner key under "
                           "Console → Settings.")
@@ -64,7 +81,7 @@ def _request(method, path, payload=None, cfg=None):
         "Accept": "application/json",
     })
     try:
-        with urllib.request.urlopen(req, timeout=cfg.timeout or 5) as resp:
+        with urllib.request.urlopen(req, timeout=limit) as resp:
             raw = resp.read().decode("utf-8") or "{}"
     except urllib.error.HTTPError as e:
         try:
@@ -84,63 +101,58 @@ def _request(method, path, payload=None, cfg=None):
 
 def check_connection(cfg=None):
     """(ok, message) — is SyncUp reachable at the configured address, and does it accept
-    the partner key?
+    the partner key? The message includes the round-trip time.
 
     Looks up an account that can't exist. SyncUp answers that with its own JSON 404 once
     the key is accepted, and with 401 when it isn't. Nothing is created or changed on
     either side."""
-    ok_msg = "Connected — SyncUp accepted the partner key."
+    started = time.perf_counter()
+
+    def took():
+        return " (%d ms)" % round((time.perf_counter() - started) * 1000)
+
+    ok_msg = "Connected — SyncUp accepted the partner key"
     try:
         _request("GET", "users/external/gstsync-connection-check", cfg=cfg)
-        return True, ok_msg
+        return True, ok_msg + took() + "."
     except SyncUpError as e:
         from_syncup = isinstance(e.payload, dict) and "success" in e.payload
         if e.status == 404 and from_syncup:
-            return True, ok_msg
+            return True, ok_msg + took() + "."
         if e.status == 429 and from_syncup:
-            return True, "Connected — the key is accepted, but SyncUp is rate-limiting right now."
+            return True, ("Connected%s — the key is accepted, but SyncUp is rate-limiting "
+                          "right now." % took())
         if e.status == 401:
-            return False, "SyncUp rejected the partner key."
+            return False, "SyncUp rejected the partner key%s." % took()
         if e.status == 404:
             return False, ("Something answered at that address, but it isn't SyncUp's Partner "
                            "API. Check the SyncUp address.")
         return False, str(e)
 
 
-def upsert_account(external_id, *, name, email, password=None, is_active=True):
-    """Create or update the account (SyncUp's PUT is an idempotent upsert).
+def upsert_account(external_id, *, name, email, password=None, is_active=True, app_link=None):
+    """Create or update the account in one call (SyncUp's PUT is an idempotent upsert).
 
-    Creating needs a password; updating only changes the password when one is given."""
+    Creating needs a password; updating only changes the password when one is given. With
+    `app_link`, the same call sets the account's GSTSync link (replaced by its key), and the
+    reply is checked for it: an older SyncUp that doesn't understand links would otherwise
+    leave the customer with a login and nothing to open."""
     payload = {"name": name, "email": email, "is_active": bool(is_active)}
     if password:
         payload["password"] = password
-    return _request("PUT", "users/external/%s" % external_id, payload).get("user") or {}
+    if app_link:
+        payload["links"] = [{"external_id": APP_LINK_KEY, "title": "GSTSync",
+                             "url": app_link, "icon": "home"}]
+    data = _request("PUT", "users/external/%s" % external_id, payload)
+    if app_link and not any((link or {}).get("url") == app_link
+                            for link in (data.get("links") or [])):
+        raise SyncUpError("SyncUp saved the account but not its app link. SyncUp may need "
+                          "updating to the Partner API with link upserts.")
+    return data.get("user") or {}
 
 
-def set_account_active(external_id, is_active):
-    """Switch an existing account on or off without touching anything else."""
+def set_account_active(external_id, is_active, timeout=None):
+    """Switch an existing account on or off without touching anything else. `timeout`
+    lowers the wait for pushes made on a business's behalf (see QUICK_TIMEOUT)."""
     return _request("PUT", "users/external/%s" % external_id,
-                    {"is_active": bool(is_active)}).get("user") or {}
-
-
-def list_links(external_id):
-    return _request("GET", "users/external/%s/links" % external_id).get("links") or []
-
-
-def add_link(external_id, *, title, url, icon=""):
-    return _request("POST", "users/external/%s/links" % external_id,
-                    {"title": title, "url": url, "icon": icon}).get("link") or {}
-
-
-def delete_link(link_id):
-    _request("DELETE", "links/%s" % link_id)
-
-
-def replace_link(external_id, *, title, url, prefix, icon="home"):
-    """Make `url` the account's one GSTSync link: remove our earlier links (any URL under
-    `prefix`, which carries an older token) and add the new one. Links the account holds
-    for other purposes are left alone."""
-    for link in list_links(external_id):
-        if (link.get("url") or "").startswith(prefix):
-            delete_link(link["id"])
-    return add_link(external_id, title=title, url=url, icon=icon)
+                    {"is_active": bool(is_active)}, timeout=timeout).get("user") or {}

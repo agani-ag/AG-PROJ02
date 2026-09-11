@@ -983,3 +983,50 @@ class SyncUpSettings(models.Model):
 
     def __str__(self):
         return "SyncUp settings"
+
+
+class StaffLogin(models.Model):
+    """An employee's SyncUp app login, issued from the console (rules in staff.py).
+
+    One per person: an Employee already spans every business they're posted to, so there's
+    nothing to group (unlike customers - see Party). Kept in its own table so the business's
+    Employee table only changes when the business itself acts. SyncUp holds the password
+    hash; this holds the login's state.
+    """
+    LOGIN_NONE, LOGIN_ACTIVE, LOGIN_INACTIVE = "none", "active", "inactive"
+    LOGIN_STATUS = [
+        (LOGIN_NONE, "No login"),
+        (LOGIN_ACTIVE, "Active"),
+        (LOGIN_INACTIVE, "Deactivated"),
+    ]
+
+    employee = models.OneToOneField("Employee", on_delete=models.CASCADE,
+                                    related_name="staff_login")
+    login_status = models.CharField(max_length=10, choices=LOGIN_STATUS, default=LOGIN_NONE)
+    login_issued_at = models.DateTimeField(null=True, blank=True)
+    # What SyncUp was last told about is_active (None = never told).
+    syncup_active = models.BooleanField(null=True, blank=True)
+    syncup_synced_at = models.DateTimeField(null=True, blank=True)
+    # The last failed push, shown on the console with a retry. Empty when in sync.
+    syncup_error = models.CharField(max_length=300, blank=True, default="")
+
+    @property
+    def external_id(self):
+        """How GSTSync addresses this login in SyncUp's Partner API."""
+        return "employee-%d" % self.employee_id
+
+    def login_email_at(self, domain):
+        return "gse%d@%s" % (self.employee_id, domain)
+
+    @property
+    def login_email(self):
+        """gse{employee id}@<login domain> - login only, never mailed. Doesn't change if the
+        person's home business does."""
+        return self.login_email_at(SyncUpSettings.load().login_domain)
+
+    @property
+    def has_login(self):
+        return self.login_status != self.LOGIN_NONE
+
+    def __str__(self):
+        return "%s login" % self.employee_id

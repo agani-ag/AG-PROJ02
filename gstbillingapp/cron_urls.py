@@ -12,4 +12,5 @@ urlpatterns = [
     path("health", cron_views.health, name="cron_health"),
     path("backup", cron_views.backup, name="cron_backup"),
     path("cleanup", cron_views.cleanup, name="cron_cleanup"),
+    path("syncup", cron_views.syncup, name="cron_syncup"),
 ]

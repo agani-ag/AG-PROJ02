@@ -1,0 +1,110 @@
+{% extends "console/base.html" %}
+{% block title %}{{ emp.name }}{% endblock %}
+{% block nav_staff %}on{% endblock %}
+{% block extracss %}
+<style>
+.gs .kv{display:grid;grid-template-columns:140px 1fr;gap:8px 14px;font-size:13.5px;margin:0 0 14px}
+.gs .kv dt{color:var(--soft);font-weight:600}
+.gs .kv dd{margin:0;word-break:break-all}
+@media(max-width:560px){.gs .kv{grid-template-columns:1fr}.gs .kv dd{margin-bottom:6px}}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{% url 'console_employees' %}">Employees</a> / {{ emp.name }}</div>
+    <h1 class="disp">{{ emp.name }}</h1>
+    <div class="sub">{{ home }}{% if emp.phone %} · {{ emp.phone }}{% endif %}{% if emp.email %} · {{ emp.email }}{% endif %}</div>
+  </div>
+  <div class="actions">
+    {% if login.login_status == "active" %}<span class="gbadge ok">Login active</span>
+    {% elif login.login_status == "inactive" %}<span class="gbadge out">Login deactivated</span>
+    {% else %}<span class="gbadge grey">No login</span>{% endif %}
+  </div>
+</div>
+
+<div class="statgrid">
+  <div class="stat"><span class="si b"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><div class="sv">{{ active_count }}</div><div class="sk">Businesses</div></div></div>
+  <div class="stat"><span class="si v"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><div class="sv" style="font-size:16px">{{ home }}</div><div class="sk">Home business</div></div></div>
+  <div class="stat"><span class="si g"><svg class="gico"><use href="#i-ok"/></svg></span>
+    <div><div class="sv" style="font-size:16px">{% if emp.is_active %}Active{% else %}Switched off{% endif %}</div><div class="sk">At home business</div></div></div>
+  <div class="stat"><span class="si o"><svg class="gico"><use href="#i-key"/></svg></span>
+    <div><div class="sv" style="font-size:16px">{{ login.get_login_status_display }}</div><div class="sk">App login</div></div></div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-shop"/></svg></span>
+    <div><h3 class="disp">Works at</h3><div class="sd">Each business sets its own role and status for them</div></div></div>
+  <div class="body" style="padding:0">
+    <div class="tbl-scroll">
+    <table class="gt ct">
+      <thead><tr><th>Business</th><th>Role</th><th>Admin</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for r in postings %}
+        <tr>
+          <td class="hd"><a href="{% url 'console_business_detail' r.p.business.id %}"><b>{{ r.brand }}</b></a></td>
+          <td data-l="Role">{% if r.p.is_home %}<span class="gbadge blue">Home</span>{% else %}<span class="gbadge grey">Shared</span>{% endif %}</td>
+          <td data-l="Admin">{% if r.p.is_admin %}<span class="gbadge blue">Admin</span>{% else %}<span class="mut">—</span>{% endif %}</td>
+          <td data-l="Status">{% if r.p.is_active %}<span class="gbadge ok">Active</span>{% else %}<span class="gbadge grey">Off</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si v"><svg class="gico"><use href="#i-key"/></svg></span>
+    <div><h3 class="disp">Staff app login</h3><div class="sd">One SyncUp login for every business above</div></div></div>
+  <div class="body">
+    <dl class="kv">
+      <dt>Login email</dt><dd>{{ login.login_email }}</dd>
+      <dt>Status</dt><dd>{{ login.get_login_status_display }}{% if login.login_issued_at %} · issued {{ login.login_issued_at|date:"d M Y, H:i" }}{% endif %}</dd>
+      {% if login.has_login %}
+      <dt>SyncUp</dt><dd>
+        {% if login.syncup_error %}<span class="gbadge low">Out of sync</span> <span class="mut">{{ login.syncup_error }}</span>
+        {% elif login.syncup_active %}<span class="gbadge ok">Can sign in</span>
+        {% else %}<span class="gbadge grey">Can't sign in</span>{% if login.login_status == "active" %} <span class="mut">— switched off at their home business</span>{% endif %}{% endif %}
+      </dd>
+      {% endif %}
+    </dl>
+
+    {% if not syncup_ready %}
+      <p style="margin:0 0 12px"><a class="gbtn" href="{% url 'console_syncup' %}">
+        <svg class="gico"><use href="#i-gear"/></svg> SyncUp settings</a></p>
+    {% endif %}
+    {% if login.login_status != "active" %}
+      {% for b in blockers %}
+        <div class="warnbox"><svg class="gico"><use href="#i-alert"/></svg><div>{{ b }}</div></div>
+      {% endfor %}
+    {% endif %}
+
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      {% if login.login_status == "active" %}
+        <form method="post" action="{% url 'console_employee_login_reset' emp.id %}"
+              onsubmit="return confirm('Make a new password? The old one stops working.')">{% csrf_token %}
+          <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-key"/></svg> Reset password</button></form>
+        <form method="post" action="{% url 'console_employee_login_deactivate' emp.id %}"
+              onsubmit="return confirm('Deactivate this login? They can no longer open the staff app.')">{% csrf_token %}
+          <button class="gbtn gbtn-danger"><svg class="gico"><use href="#i-power"/></svg> Deactivate</button></form>
+      {% else %}
+        <form method="post" action="{% url 'console_employee_login_issue' emp.id %}">{% csrf_token %}
+          <button class="gbtn gbtn-primary" {% if blockers %}disabled{% endif %}>
+            <svg class="gico"><use href="#i-key"/></svg> {% if login.login_status == "inactive" %}Reactivate with a new password{% else %}Issue login{% endif %}</button></form>
+      {% endif %}
+      {% if login.syncup_error %}
+        <form method="post" action="{% url 'console_employee_login_sync' emp.id %}">{% csrf_token %}
+          <button class="gbtn">Retry sync</button></form>
+      {% endif %}
+    </div>
+    <p class="mut" style="font-size:12.5px;margin:12px 0 0">The password is shown once, on the next screen, and is stored only as a hash in SyncUp. The email is for signing in only — nothing is ever sent to it. Their home business can still switch them off, which stops this login too.</p>
+  </div>
+</div>
+
+<p><a href="{% url 'console_employees' %}" class="gbtn">
+  <svg class="gico"><use href="#i-back"/></svg> All employees</a></p>
+{% endblock %}

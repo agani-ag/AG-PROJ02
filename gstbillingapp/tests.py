@@ -748,14 +748,12 @@ class EmployeeManagementTests(TestCase):
         self.assertEqual(self.client.get(reverse("employee_edit", args=[emp.id])).status_code, 404)
 
     def test_mobile_link_endpoints(self):
-        from .models import Employee
-        emp = Employee.objects.create(business=self.owner, name="Ravi")
-        d = self.client.get(reverse("employee_mobile_link", args=[emp.id])).json()
-        self.assertTrue(d["ok"]); self.assertIn("/m/employee/?t=", d["url"])
-        # Businesses no longer mint customer links - customer logins come from the console.
+        # Businesses no longer mint app links: customer and employee logins come from the
+        # console.
         from django.urls import NoReverseMatch
-        with self.assertRaises(NoReverseMatch):
-            reverse("customer_mobile_link", args=[1])
+        for name in ("customer_mobile_link", "employee_mobile_link", "employee_revoke"):
+            with self.assertRaises(NoReverseMatch):
+                reverse(name, args=[1])
 
     def test_employee_share_and_add(self):
         from .models import Employee, EmployeePosting, UserProfile
@@ -780,14 +778,13 @@ class EmployeeManagementTests(TestCase):
         d = self.client.get(reverse("employee_share_lookup"), {"code": emp.share_code}).json()
         self.assertFalse(d["ok"])   # your own employee
 
-    def test_revoke_bumps_version(self):
-        from .models import Employee
+    def test_edit_page_offers_no_app_link(self):
+        from .models import Employee, UserProfile
+        UserProfile.objects.create(user=self.owner, business_title="Boss Co")
         emp = Employee.objects.create(business=self.owner, name="Ravi")
-        home = emp.postings.get(is_home=True)
-        v0 = emp.token_version
-        self.client.post(reverse("employee_revoke", args=[home.id]))
-        emp.refresh_from_db()
-        self.assertEqual(emp.token_version, v0 + 1)
+        r = self.client.get(reverse("employee_edit", args=[emp.postings.get(is_home=True).id]))
+        self.assertNotContains(r, "mobile-link")
+        self.assertContains(r, "issued by GSTSync")
 
 
 class MultiBusinessTests(TestCase):
@@ -3026,7 +3023,7 @@ class PartyOpsTests(TestCase):
         with mock.patch("gstbillingapp.syncup_client.set_account_active") as push:
             with self.captureOnCommitCallbacks(execute=True):
                 purge_business(self.a)
-        push.assert_called_once_with(party.external_id, False)
+        push.assert_called_once_with(party.external_id, False, timeout=2)
 
 
 class PartyLoginTests(TestCase):
@@ -3041,7 +3038,6 @@ class PartyLoginTests(TestCase):
         _syncup_on()
         self.party = create_party(name="KMR", customers=[self.ra, self.rb])
         self.upsert = mock.patch("gstbillingapp.syncup_client.upsert_account").start()
-        self.link = mock.patch("gstbillingapp.syncup_client.replace_link").start()
         self.push = mock.patch("gstbillingapp.syncup_client.set_account_active").start()
         self.addCleanup(mock.patch.stopall)
 
@@ -3055,7 +3051,7 @@ class PartyLoginTests(TestCase):
         self.assertEqual(self.upsert.call_args.args, (self.party.external_id,))
         self.assertEqual(kwargs["email"], "gsp%d@gstsync.app" % self.party.id)
         self.assertEqual(kwargs["password"], password)
-        self.assertTrue(self.link.call_args.kwargs["url"].startswith("https://gstsync.test/m/customer/?t="))
+        self.assertTrue(kwargs["app_link"].startswith("https://gstsync.test/m/customer/?t="))
         self.party.refresh_from_db()
         self.assertEqual(self.party.login_status, "active")
         self.assertEqual(self.party.token_version, version + 1)
@@ -3064,7 +3060,7 @@ class PartyLoginTests(TestCase):
     def test_the_issued_link_opens_every_shown_ledger(self):
         from .parties import issue_login
         issue_login(self.party)
-        url = self.link.call_args.kwargs["url"]
+        url = self.upsert.call_args.kwargs["app_link"]
         token = url.split("?t=", 1)[1]
         self.assertEqual(self.client.get("/m/customer/", {"t": token}).status_code, 302)
         self.assertEqual(self.client.get("/m/customer/").status_code, 200)
@@ -3118,7 +3114,7 @@ class PartyLoginTests(TestCase):
         self.push.assert_not_called()                   # BETA still shows them
         Customer.objects.filter(pk=self.rb.pk).update(is_mobile_user=False)
         refresh_login(self.party)
-        self.push.assert_called_once_with(self.party.external_id, False)
+        self.push.assert_called_once_with(self.party.external_id, False, timeout=2)
         refresh_login(self.party)
         self.assertEqual(self.push.call_count, 1)       # nothing changed, no call
 
@@ -3249,7 +3245,6 @@ class ConsolePartyScreenTests(TestCase):
         _syncup_on()
         party = self._party()
         with mock.patch("gstbillingapp.syncup_client.upsert_account"), \
-             mock.patch("gstbillingapp.syncup_client.replace_link"), \
              mock.patch("gstbillingapp.parties.generate_customer_password", return_value="Zq7Wm4Kp2X"):
             r = self.client.post(reverse("console_party_login_issue", args=[party.id]))
         self.assertContains(r, "Zq7Wm4Kp2X")
@@ -3330,7 +3325,7 @@ class CustomerAppSwitchTests(TestCase):
             push.assert_not_called()
             self.client.force_login(self.other)
             self._toggle(self.c2)
-        push.assert_called_once_with(self.party.external_id, False)
+        push.assert_called_once_with(self.party.external_id, False, timeout=2)
 
     def test_a_syncup_outage_never_blocks_the_business(self):
         from .syncup_client import SyncUpError
@@ -3345,7 +3340,7 @@ class CustomerAppSwitchTests(TestCase):
         Customer.objects.filter(pk=self.c2.pk).update(is_mobile_user=False)
         with mock.patch("gstbillingapp.syncup_client.set_account_active") as push:
             self.client.post(reverse("customer_delete"), {"customer_id": self.c.id})
-        push.assert_called_once_with(self.party.external_id, False)
+        push.assert_called_once_with(self.party.external_id, False, timeout=2)
 
 
 class SyncUpSettingsTests(TestCase):
@@ -3435,17 +3430,17 @@ class SyncUpSettingsTests(TestCase):
 
     def test_the_client_uses_the_saved_settings(self):
         import io
-        from .syncup_client import list_links
+        from .syncup_client import set_account_active
         _syncup_on(timeout=7)
         seen = {}
 
         def fake_urlopen(req, timeout):
             seen.update(url=req.full_url, auth=req.get_header("Authorization"), timeout=timeout)
-            return io.BytesIO(b'{"links": []}')
+            return io.BytesIO(b'{"user": {"id": "1"}}')
 
         with mock.patch("urllib.request.urlopen", fake_urlopen):
-            self.assertEqual(list_links("party-1"), [])
-        self.assertEqual(seen, {"url": "https://syncup.test/partner/v1/users/external/party-1/links",
+            self.assertEqual(set_account_active("party-1", True), {"id": "1"})
+        self.assertEqual(seen, {"url": "https://syncup.test/partner/v1/users/external/party-1",
                                 "auth": "Bearer key", "timeout": 7})
 
     def test_check_connection_reads_syncups_answer(self):
@@ -3559,3 +3554,391 @@ class AccountPerRowTests(TestCase):
         from .parties import map_warnings
         fresh = [Customer.objects.get(pk=r.pk) for r in (self.a1, self.a2)]
         self.assertTrue(any("2 rows are at ALPHA" in w for w in map_warnings(fresh)))
+
+
+def _employee(business, name="RAVI", **fields):
+    from .models import Employee
+    return Employee.objects.create(business=business, name=name, **fields)
+
+
+class StaffLoginTests(TestCase):
+    """Employee logins for the SyncUp app: issued on the console, one per person across all
+    their businesses, and following the home business's Active switch."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import EmployeePosting
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+        cls.emp = _employee(cls.a, "GANESH", phone="9000000009")
+        EmployeePosting.objects.create(employee=cls.emp, business=cls.b, is_home=False,
+                                       is_active=True)
+
+    def setUp(self):
+        _syncup_on()
+        self.upsert = mock.patch("gstbillingapp.syncup_client.upsert_account").start()
+        self.push = mock.patch("gstbillingapp.syncup_client.set_account_active").start()
+        self.addCleanup(mock.patch.stopall)
+
+    def _emp(self):
+        from .models import Employee
+        return Employee.objects.get(pk=self.emp.pk)
+
+    def _ext(self):
+        return "employee-%d" % self.emp.id
+
+    def test_issue_creates_one_login_for_every_business(self):
+        from django.forms.models import model_to_dict
+        from .staff import issue_login, login_of
+        old = self._emp().token_version
+        password = issue_login(self._emp())
+        self.assertEqual(self.upsert.call_args.args, (self._ext(),))
+        self.assertEqual(self.upsert.call_args.kwargs["email"], "gse%d@gstsync.app" % self.emp.id)
+        self.assertEqual(self.upsert.call_args.kwargs["password"], password)
+        self.assertTrue(self.upsert.call_args.kwargs["app_link"].startswith(
+            "https://gstsync.test/m/employee/?t="))
+        emp = self._emp()
+        self.assertEqual(emp.token_version, old + 1)
+        login = login_of(emp)
+        self.assertEqual(login.login_status, "active")
+        self.assertNotIn(password, repr(model_to_dict(login)))        # never stored here
+
+    def test_the_link_opens_the_staff_app_and_older_links_die(self):
+        from .mobile_auth import mint_employee_token
+        from .staff import issue_login
+        old_token = mint_employee_token(self._emp())
+        issue_login(self._emp())
+        token = self.upsert.call_args.kwargs["app_link"].split("?t=", 1)[1]
+        self.assertEqual(self.client.get("/m/employee/", {"t": token}).status_code, 302)
+        self.assertEqual(self.client.get("/m/employee/customers", {"biz": self.b.id}).status_code, 200)
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get("/m/employee/", {"t": old_token}).status_code, 403)
+
+    def test_issue_is_blocked_while_off_or_syncup_unset(self):
+        from .models import Employee
+        from .parties import LoginBlocked
+        from .staff import issue_login
+        Employee.objects.filter(pk=self.emp.pk).update(is_active=False)
+        with self.assertRaises(LoginBlocked):
+            issue_login(self._emp())
+        Employee.objects.filter(pk=self.emp.pk).update(is_active=True)
+        _syncup_on(partner_key="")
+        with self.assertRaises(LoginBlocked):
+            issue_login(self._emp())
+        self.upsert.assert_not_called()
+
+    def test_deactivate_kills_the_link_even_when_syncup_is_down(self):
+        from .staff import deactivate_login, issue_login, login_of
+        from .syncup_client import SyncUpError
+        issue_login(self._emp())
+        token = self.upsert.call_args.kwargs["app_link"].split("?t=", 1)[1]
+        self.push.side_effect = SyncUpError("down")
+        self.assertFalse(deactivate_login(self._emp()))
+        login = login_of(self._emp())
+        self.assertEqual(login.login_status, "inactive")
+        self.assertIn("down", login.syncup_error)
+        self.assertEqual(self.client.get("/m/employee/", {"t": token}).status_code, 403)
+
+    def test_home_business_switching_them_off_and_on_follows_through(self):
+        from .staff import issue_login
+        issue_login(self._emp())
+        home = self._emp().postings.get(is_home=True)
+        self.client.force_login(self.a)
+        form = {"name": "GANESH", "phone": "9000000009"}
+        self.client.post(reverse("employee_edit", args=[home.id]), form)        # Active unticked
+        self.push.assert_called_once_with(self._ext(), False, timeout=2)
+        self.client.post(reverse("employee_edit", args=[home.id]), dict(form, is_active="on"))
+        self.push.assert_called_with(self._ext(), True, timeout=2)
+
+    def test_a_shared_business_switching_its_posting_off_leaves_the_login(self):
+        from .staff import issue_login
+        issue_login(self._emp())
+        shared = self._emp().postings.get(business=self.b)
+        self.client.force_login(self.b)
+        self.client.post(reverse("employee_edit", args=[shared.id]), {"name": "GANESH"})
+        self.push.assert_not_called()
+
+    def test_deleting_the_employee_switches_the_login_off(self):
+        from .staff import issue_login
+        issue_login(self._emp())
+        home = self._emp().postings.get(is_home=True)
+        self.client.force_login(self.a)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("employee_delete", args=[home.id]))
+        self.push.assert_called_once_with(self._ext(), False, timeout=2)
+
+    def test_login_domain_locks_once_an_employee_login_exists(self):
+        from .staff import issue_login
+        from .views.console_settings import domain_locked
+        self.assertFalse(domain_locked())
+        issue_login(self._emp())
+        self.assertTrue(domain_locked())
+
+
+class ConsoleStaffScreenTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from .models import EmployeePosting, PlatformAdmin
+        cls.admin = PlatformAdmin(username="staffop", full_name="Staff Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+        cls.emp = _employee(cls.a, "PAVITHRA")
+        EmployeePosting.objects.create(employee=cls.emp, business=cls.b, is_home=False,
+                                       is_active=True)
+        cls.off = _employee(cls.b, "RIZWAN", is_active=False)
+
+    def setUp(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "staffop", "password": "Cons0le!pass9"})
+
+    def test_requires_console_login(self):
+        self.client.get(reverse("console_logout"))
+        for url in (reverse("console_employees"), reverse("console_employee", args=[self.emp.id])):
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 302, url)
+            self.assertIn("/console/login", r["Location"])
+
+    def test_list_shows_every_business_staff(self):
+        url = reverse("console_employees")
+        r = self.client.get(url)
+        for text in ("PAVITHRA", "RIZWAN", "ALPHA", "BETA", 'href="%s"' % url):
+            self.assertContains(r, text)
+        off = self.client.get(url + "?show=inactive")
+        self.assertContains(off, "RIZWAN")
+        self.assertNotContains(off, "PAVITHRA")
+        self.assertNotContains(self.client.get(url + "?q=RIZ"), "PAVITHRA")
+
+    def test_detail_shows_the_login_email_and_businesses(self):
+        r = self.client.get(reverse("console_employee", args=[self.emp.id]))
+        for text in ("gse%d@gstsync.app" % self.emp.id, "ALPHA", "BETA", "Issue login"):
+            self.assertContains(r, text)
+
+    def test_issued_password_is_shown_once_and_not_cached(self):
+        _syncup_on()
+        with mock.patch("gstbillingapp.syncup_client.upsert_account"), \
+             mock.patch("gstbillingapp.staff.generate_customer_password", return_value="Wq3Rt8Yp2K"):
+            r = self.client.post(reverse("console_employee_login_issue", args=[self.emp.id]))
+        self.assertContains(r, "Wq3Rt8Yp2K")
+        self.assertContains(r, "gse%d@gstsync.app" % self.emp.id)
+        self.assertIn("no-store", r["Cache-Control"])
+        self.assertNotContains(self.client.get(reverse("console_employee", args=[self.emp.id])),
+                               "Wq3Rt8Yp2K")
+
+    def test_issue_blocked_is_explained(self):
+        r = self.client.post(reverse("console_employee_login_issue", args=[self.emp.id]), follow=True)
+        self.assertContains(r, "SyncUp isn")
+
+    def test_unknown_employee_404s(self):
+        self.assertEqual(self.client.get(reverse("console_employee", args=[999999])).status_code, 404)
+
+
+class SyncUpSpeedTests(TestCase):
+    """Every action is one Partner API call, a business never waits more than
+    QUICK_TIMEOUT on SyncUp, and /cron/syncup catches up anything that fell behind."""
+
+    def setUp(self):
+        _syncup_on(timeout=5)
+
+    @staticmethod
+    def _urlopen(reply, seen):
+        import io
+
+        def fake(req, timeout):
+            seen.append({"method": req.get_method(), "timeout": timeout,
+                         "body": json.loads(req.data.decode()) if req.data else None})
+            return io.BytesIO(json.dumps(reply).encode())
+        return fake
+
+    def test_issuing_sends_the_account_and_its_link_in_one_call(self):
+        from .syncup_client import upsert_account
+        link = "https://gstsync.test/m/customer/?t=abc"
+        seen = []
+        reply = {"success": True, "user": {"id": "1"}, "links": [{"id": "9", "url": link}]}
+        with mock.patch("urllib.request.urlopen", self._urlopen(reply, seen)):
+            upsert_account("party-1", name="KMR", email="gsp1@gstsync.app",
+                           password="Abcd1234xy", app_link=link)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0]["method"], "PUT")
+        self.assertEqual(seen[0]["body"]["links"], [
+            {"external_id": "gstsync", "title": "GSTSync", "url": link, "icon": "home"}])
+
+    def test_a_syncup_that_drops_the_link_is_an_error(self):
+        """An older SyncUp ignores `links`: say so, rather than leave a login with no link."""
+        from .syncup_client import SyncUpError, upsert_account
+        with mock.patch("urllib.request.urlopen",
+                        self._urlopen({"success": True, "user": {"id": "1"}}, [])):
+            with self.assertRaises(SyncUpError):
+                upsert_account("party-1", name="KMR", email="gsp1@gstsync.app",
+                               password="Abcd1234xy", app_link="https://gstsync.test/m/customer/?t=abc")
+
+    def test_business_side_pushes_wait_at_most_the_quick_timeout(self):
+        from .syncup_client import QUICK_TIMEOUT, set_account_active
+        seen = []
+        with mock.patch("urllib.request.urlopen", self._urlopen({"user": {}}, seen)):
+            set_account_active("party-1", False, timeout=QUICK_TIMEOUT)     # a business toggle
+            set_account_active("party-1", False)                            # a console action
+        self.assertEqual([s["timeout"] for s in seen], [QUICK_TIMEOUT, 5])
+
+    def test_a_toggle_uses_the_quick_timeout(self):
+        from .models import Party, PartyMapping
+        from .parties import refresh_login
+        a, = _businesses("ALPHA")
+        c = Customer.objects.create(user=a, customer_name="KMR", is_mobile_user=False)
+        party = Party.objects.create(name="KMR", login_status=Party.LOGIN_ACTIVE, syncup_active=True)
+        PartyMapping.objects.create(party=party, customer=c)
+        with mock.patch("gstbillingapp.syncup_client.set_account_active") as push:
+            self.assertEqual(refresh_login(party), "pushed")
+        push.assert_called_once_with(party.external_id, False, timeout=2)
+
+    def test_the_connection_check_reports_the_round_trip(self):
+        from .syncup_client import SyncUpError, check_connection
+        with mock.patch("gstbillingapp.syncup_client._request",
+                        side_effect=SyncUpError("x", 404, {"success": False})):
+            ok, message = check_connection()
+        self.assertTrue(ok)
+        self.assertRegex(message, r"\(\d+ ms\)")
+
+    @override_settings(CRON_KEY="k")
+    def test_cron_catches_up_logins_that_fell_behind(self):
+        from .models import Party, PartyMapping, StaffLogin
+        a, = _businesses("ALPHA")
+        c = Customer.objects.create(user=a, customer_name="KMR", is_mobile_user=True)
+        party = Party.objects.create(name="KMR", login_status=Party.LOGIN_ACTIVE,
+                                     syncup_active=True, syncup_error="timed out")
+        PartyMapping.objects.create(party=party, customer=c)
+        StaffLogin.objects.create(employee=_employee(a, "GANESH"), login_status="active",
+                                  syncup_active=True)                     # already in step
+        with mock.patch("gstbillingapp.syncup_client.set_account_active") as push:
+            r = self.client.get("/cron/syncup", {"key": "k"})
+        body = r.json()
+        self.assertEqual((body["customers"]["pushed"], body["employees"]["unchanged"]), (1, 1))
+        push.assert_called_once_with(party.external_id, True, timeout=2)
+        party.refresh_from_db()
+        self.assertEqual(party.syncup_error, "")
+        self.assertEqual(self.client.get("/cron/syncup", {"key": "wrong"}).status_code, 404)
+
+    @override_settings(CRON_KEY="k")
+    def test_cron_skips_until_syncup_is_set_up(self):
+        _syncup_on(api_base="")
+        self.assertEqual(self.client.get("/cron/syncup", {"key": "k"}).json().get("skipped"),
+                         "not_configured")
+
+
+class BulkConsoleTests(TestCase):
+    """Bulk review maps only the clear-cut suggestions; bulk issue never touches an active
+    login and hands each password back once."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
+        cls.admin = PlatformAdmin(username="bulkop", full_name="Bulk Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.a, cls.b, cls.c = _businesses("ALPHA", "BETA", "GAMMA")
+        g1 = _gstin("33AAAAA0000A1Z")
+
+        def row(user, name, phone, gst=None):
+            return Customer.objects.create(user=user, customer_name=name, customer_phone=phone,
+                                           customer_gst=gst, is_mobile_user=True)
+        cls.k1 = row(cls.a, "KMR", "9000000001", g1)            # clear: phone + GSTIN
+        cls.k2 = row(cls.b, "KMR", "9000000001", g1)
+        cls.d1 = row(cls.a, "DUO", "9000000002")                # needs a look: 2 rows at ALPHA
+        cls.d2 = row(cls.a, "DUO 2", "9000000002")
+        cls.d3 = row(cls.b, "DUO", "9000000002")
+        cls.p1 = row(cls.b, "PHONEY", "9000000003")             # clear, phone only
+        cls.p2 = row(cls.c, "PHONEY", "9000000003")
+
+    def setUp(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "bulkop", "password": "Cons0le!pass9"})
+
+    def _key(self, row):
+        from .parties import suggestion_groups
+        return next(g["key"] for g in suggestion_groups() if row in g["rows"])
+
+    def _party(self, *rows):
+        from .parties import create_party
+        return create_party(name=rows[0].customer_name, customers=list(rows))
+
+    def test_requires_console_login(self):
+        self.client.get(reverse("console_logout"))
+        for url in (reverse("console_suggestions_bulk"), reverse("console_logins_bulk"),
+                    reverse("console_party_login_issue_json", args=[1]),
+                    reverse("console_employee_login_issue_json", args=[1])):
+            r = self.client.post(url)
+            self.assertEqual(r.status_code, 302, url)
+            self.assertIn("/console/login", r["Location"])
+
+    def test_suggestions_list_marks_what_bulk_can_map(self):
+        r = self.client.get(reverse("console_customers") + "?show=suggestions")
+        self.assertContains(r, 'data-ev="phone_gstin"')
+        self.assertContains(r, "two of its rows are at the same business")
+        self.assertContains(r, 'value="%d" data-ev="phone" disabled' % self._key(self.d1))
+
+    def test_bulk_maps_the_clear_ones_and_skips_the_rest(self):
+        from .models import PartyMapping
+        keys = [self._key(self.k1), self._key(self.d1), self._key(self.p1)]
+        r = self.client.post(reverse("console_suggestions_bulk"), {"keys": keys}, follow=True)
+        m = PartyMapping.objects
+        self.assertEqual(m.get(customer=self.k1).party, m.get(customer=self.k2).party)
+        self.assertEqual(m.get(customer=self.p1).party, m.get(customer=self.p2).party)
+        self.assertFalse(m.filter(customer__in=[self.d1, self.d2, self.d3]).exists())
+        self.assertEqual(m.get(customer=self.k1).mapped_by, self.admin)
+        self.assertContains(r, "Mapped 2 suggestions")
+        self.assertContains(r, "Skipped 1 suggestion")
+
+    def test_bulk_joins_the_one_customer_a_suggestion_touches(self):
+        from .models import PartyMapping
+        party = self._party(self.k1)
+        self.client.post(reverse("console_suggestions_bulk"), {"keys": [self._key(self.k1)]})
+        self.assertEqual(PartyMapping.objects.get(customer=self.k2).party, party)
+
+    def test_issue_json_hands_back_the_password_once(self):
+        _syncup_on()
+        party = self._party(self.k1, self.k2)
+        url = reverse("console_party_login_issue_json", args=[party.id])
+        with mock.patch("gstbillingapp.syncup_client.upsert_account"), \
+             mock.patch("gstbillingapp.parties.generate_customer_password", return_value="Pq4Rs7Tu9V"):
+            r = self.client.post(url)
+            again = self.client.post(url).json()
+        d = r.json()
+        self.assertEqual((d["ok"], d["password"], d["email"], d["phone"]),
+                         (True, "Pq4Rs7Tu9V", "gsp%d@gstsync.app" % party.id, "9000000001"))
+        self.assertIn("no-store", r["Cache-Control"])
+        self.assertFalse(again["ok"])            # active now: bulk never resets a password
+
+    def test_issue_json_explains_a_blocked_login(self):
+        party = self._party(self.k1, self.k2)                      # SyncUp not set up
+        d = self.client.post(reverse("console_party_login_issue_json", args=[party.id])).json()
+        self.assertFalse(d["ok"])
+        self.assertIn("SyncUp isn", d["error"])
+
+    def test_bulk_page_lists_only_logins_it_can_issue(self):
+        from .models import Party
+        _syncup_on()
+        ready = self._party(self.k1, self.k2)
+        active = Party.objects.create(name="ALREADY", login_status=Party.LOGIN_ACTIVE)
+        r = self.client.post(reverse("console_logins_bulk"),
+                             {"kind": "party", "ids": [ready.id, active.id]})
+        self.assertContains(r, reverse("console_party_login_issue_json", args=[ready.id]))
+        self.assertNotContains(r, reverse("console_party_login_issue_json", args=[active.id]))
+        self.assertIn("no-store", r["Cache-Control"])
+
+    def test_mapped_list_offers_bulk_issue_only_when_ready(self):
+        party = self._party(self.k1, self.k2)
+        url = reverse("console_customers") + "?show=mapped"
+        self.assertContains(self.client.get(url), 'value="%d" disabled' % party.id)   # no SyncUp yet
+        _syncup_on()
+        self.assertContains(self.client.get(url), 'value="%d">' % party.id)
+
+    def test_employees_in_bulk(self):
+        _syncup_on()
+        emp = _employee(self.a, "GANESH", phone="9000000009")
+        page = self.client.get(reverse("console_employees"))
+        self.assertContains(page, 'value="%d">' % emp.id)
+        r = self.client.post(reverse("console_logins_bulk"), {"kind": "employee", "ids": [emp.id]})
+        self.assertContains(r, reverse("console_employee_login_issue_json", args=[emp.id]))
+        with mock.patch("gstbillingapp.syncup_client.upsert_account"), \
+             mock.patch("gstbillingapp.staff.generate_customer_password", return_value="Ab3Cd5Ef7G"):
+            d = self.client.post(reverse("console_employee_login_issue_json", args=[emp.id])).json()
+        self.assertEqual((d["ok"], d["password"], d["phone"]), (True, "Ab3Cd5Ef7G", "9000000009"))

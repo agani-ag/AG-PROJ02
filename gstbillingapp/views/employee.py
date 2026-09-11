@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from ..models import (Employee, Customer, Invoice, EmployeePosting,
                       AttendanceLog, SalaryRecord, EmployeeIncentive)
 from ..forms import EmployeeForm
-from ..mobile_auth import mint_employee_token
+from .. import staff
 from ..utils import calculate_employee_salary
 
 import csv
@@ -110,9 +110,13 @@ def employee_edit(request, posting_id):
     if request.method == "POST":
         # The person's identity is editable only by their HOME business.
         if posting.is_home:
+            was_active = emp.is_active
             form = EmployeeForm(request.POST, instance=emp)
             if form.is_valid():
                 form.save()
+                if emp.is_active != was_active:
+                    # Their GSTSync app login follows: off stops it, on restores it.
+                    staff.refresh_login(emp)
             else:
                 return render(request, "employees/employee_edit.html", {
                     "posting": posting, "employee": emp,
@@ -264,30 +268,6 @@ def employee_assign_bulk(request, posting_id):
     unmapped = base.filter(id__in=unmap_ids, assigned_employee=emp).update(
         assigned_employee=None, assigned_employee_at=None) if unmap_ids else 0
     return JsonResponse({'ok': True, 'mapped': mapped, 'unmapped': unmapped})
-
-
-@login_required
-def employee_mobile_link(request, posting_id):
-    """Signed /m/employee/ URL. Only the HOME business issues it — the person has one login."""
-    posting = _posting(request, posting_id)
-    if not posting.is_home:
-        return JsonResponse({"ok": False, "message": "Only the home business issues the mobile link."})
-    emp = posting.employee
-    url = request.build_absolute_uri("/m/employee/") + "?t=" + mint_employee_token(emp)
-    return JsonResponse({"ok": True, "url": url, "name": emp.name, "email": emp.email})
-
-
-@login_required
-def employee_revoke(request, posting_id):
-    if request.method != "POST":
-        return JsonResponse({"ok": False}, status=405)
-    posting = _posting(request, posting_id)
-    if not posting.is_home:
-        return JsonResponse({"ok": False, "message": "Only the home business can revoke the login."})
-    emp = posting.employee
-    emp.token_version += 1
-    emp.save()
-    return JsonResponse({"ok": True})
 
 
 

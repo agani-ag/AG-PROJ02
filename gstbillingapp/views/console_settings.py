@@ -12,7 +12,7 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from ..console_auth import console_required
-from ..models import Party, SyncUpSettings
+from ..models import Party, StaffLogin, SyncUpSettings
 from ..syncup_client import check_connection
 
 _DOMAIN = re.compile(r"^(?=.{1,100}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
@@ -38,8 +38,9 @@ def _clean_base(value, *, https_only, label):
 
 def domain_locked():
     """The login domain is part of every issued login's email in SyncUp, so it can't change
-    once one exists — those customers would be locked out."""
-    return Party.objects.exclude(login_status=Party.LOGIN_NONE).exists()
+    once one exists — those customers and employees would be locked out."""
+    return (Party.objects.exclude(login_status=Party.LOGIN_NONE).exists()
+            or StaffLogin.objects.exclude(login_status=StaffLogin.LOGIN_NONE).exists())
 
 
 @console_required

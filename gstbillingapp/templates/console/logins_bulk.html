@@ -1,0 +1,160 @@
+{% extends "console/base.html" %}
+{% block title %}Issue logins{% endblock %}
+{% block nav_cust %}{% if kind == "party" %}on{% endif %}{% endblock %}
+{% block nav_staff %}{% if kind == "employee" %}on{% endif %}{% endblock %}
+{% block extracss %}
+<style>
+.gs .blbar{height:8px;border-radius:6px;background:var(--wash);overflow:hidden;margin:0 0 14px}
+.gs .blbar span{display:block;height:100%;width:0;background:linear-gradient(90deg,#2563eb,#4f46e5);transition:width .25s}
+.gs #bl code{font:600 14px/1.3 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.03em;
+  background:var(--wash);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{{ back_url }}">{% if kind == "employee" %}Employees{% else %}Customers{% endif %}</a> / Issue logins</div>
+    <h1 class="disp">Issue {{ items|length }} login{{ items|length|pluralize }}</h1>
+    <div class="sub" id="bl-sub">Starting…</div>
+  </div>
+</div>
+
+<div class="warnbox"><svg class="gico"><use href="#i-alert"/></svg>
+  <div><b>Passwords appear only on this page.</b> Copy, download or send them before you leave — they can't
+    be shown again (a lost one can be reset from that login's own page). Keep this page open until it finishes.</div></div>
+
+<div class="blbar"><span id="bl-progress"></span></div>
+
+<div class="tablecard ctable">
+  <div class="tbl-scroll">
+  <table class="gt ct" id="bl">
+    <thead><tr>
+      <th>{% if kind == "employee" %}Employee{% else %}Customer{% endif %}</th><th>Email</th><th>Password</th><th>Status</th><th class="r"></th>
+    </tr></thead>
+    <tbody>
+    {% for it in items %}
+      <tr data-url="{{ it.url }}" data-name="{{ it.name }}">
+        <td class="hd"><b>{{ it.name }}</b></td>
+        <td data-l="Email" class="em">{{ it.email }}</td>
+        <td data-l="Password" class="pw"><span class="mut">—</span></td>
+        <td data-l="Status" class="st"><span class="gbadge grey">Waiting</span></td>
+        <td data-l="" class="r act"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px">
+  <button class="gbtn" type="button" id="bl-copy" disabled>Copy all</button>
+  <button class="gbtn" type="button" id="bl-csv" disabled>Download CSV</button>
+  <button class="gbtn" type="button" id="bl-retry" hidden>Retry failed</button>
+  <a class="gbtn gbtn-primary" href="{{ back_url }}" id="bl-back">Done</a>
+</div>
+
+<script>
+(function () {
+  var CSRF = '{{ csrf_token }}', CONCURRENCY = 2;
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#bl tbody tr'));
+  var total = rows.length, done = 0, issued = 0, running = 0, queue = rows.slice();
+  var results = [], saved = false;
+  var sub = document.getElementById('bl-sub'), bar = document.getElementById('bl-progress');
+  var copyBtn = document.getElementById('bl-copy'), csvBtn = document.getElementById('bl-csv');
+  var retryBtn = document.getElementById('bl-retry');
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  function badge(cls, text) { return '<span class="gbadge ' + cls + '">' + esc(text) + '</span>'; }
+  function progress() {
+    var failed = done - issued;
+    sub.textContent = done + ' of ' + total + ' done · ' + issued + ' issued' + (failed ? ' · ' + failed + ' failed' : '');
+    bar.style.width = (total ? Math.round(done / total * 100) : 100) + '%';
+  }
+  function whatsapp(phone, name, email, pw) {
+    var d = (phone || '').replace(/\D/g, '');
+    if (d.length > 10) d = d.slice(-10);
+    if (d.length !== 10) return '';
+    var text = 'Hello ' + name + ', your SyncUp app login:\nEmail: ' + email + '\nPassword: ' + pw +
+               '\nYou can change the password in the app.';
+    return 'https://wa.me/91' + d + '?text=' + encodeURIComponent(text);
+  }
+  function fail(tr, message) {
+    tr.classList.add('failed');
+    tr.querySelector('.st').innerHTML = badge('out', 'Failed') +
+      ' <span class="mut" style="font-size:12px">' + esc(message) + '</span>';
+  }
+  function run(tr) {
+    running++;
+    tr.classList.remove('failed');
+    tr.querySelector('.st').innerHTML = badge('blue', 'Issuing…');
+    fetch(tr.getAttribute('data-url'), { method: 'POST', credentials: 'same-origin',
+                                         headers: { 'X-CSRFToken': CSRF } })
+      .then(function (r) {
+        if (r.redirected) { window.location = r.url; throw new Error('signed out'); }
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d.ok) { fail(tr, d.error || 'Not issued'); return; }
+        issued++;
+        var name = tr.getAttribute('data-name');
+        tr.querySelector('.pw').innerHTML = '<code>' + esc(d.password) + '</code>';
+        tr.querySelector('.st').innerHTML = badge('ok', 'Issued');
+        var link = whatsapp(d.phone, name, d.email, d.password);
+        tr.querySelector('.act').innerHTML = link
+          ? '<a class="gbtn" target="_blank" rel="noopener" href="' + link + '">WhatsApp</a>' : '';
+        results.push({ name: name, email: d.email, password: d.password, phone: d.phone || '' });
+      })
+      .catch(function () { fail(tr, 'No answer from the server — check it on its own page before retrying.'); })
+      .then(function () { running--; done++; progress(); next(); });
+  }
+  function next() {
+    while (running < CONCURRENCY && queue.length) run(queue.shift());
+    if (!running && !queue.length) finish();
+  }
+  function finish() {
+    copyBtn.disabled = csvBtn.disabled = !results.length;
+    retryBtn.hidden = !document.querySelector('#bl tbody tr.failed');
+    sub.textContent = 'Finished · ' + issued + ' of ' + total + ' issued' +
+      (done - issued ? ' · ' + (done - issued) + ' failed' : '');
+  }
+
+  copyBtn.addEventListener('click', function () {
+    var text = results.map(function (r) { return r.name + '\t' + r.email + '\t' + r.password; }).join('\n');
+    var done = function () { saved = true; copyBtn.textContent = 'Copied'; setTimeout(function () { copyBtn.textContent = 'Copy all'; }, 1500); };
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); return; }
+    var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {} document.body.removeChild(ta);
+  });
+  csvBtn.addEventListener('click', function () {
+    function cell(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }
+    var lines = [['Name', 'Email', 'Password', 'Phone'].map(cell).join(',')].concat(
+      results.map(function (r) { return [r.name, r.email, r.password, r.phone].map(cell).join(','); }));
+    var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'syncup-logins-{{ kind }}-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    saved = true;
+  });
+  retryBtn.addEventListener('click', function () {
+    var failed = Array.prototype.slice.call(document.querySelectorAll('#bl tbody tr.failed'));
+    done -= failed.length; retryBtn.hidden = true;
+    queue = queue.concat(failed); progress(); next();
+  });
+  document.getElementById('bl-back').addEventListener('click', function (e) {
+    if (results.length && !saved &&
+        !confirm('You haven\'t copied or downloaded the passwords. Leave anyway? They can\'t be shown again.')) {
+      e.preventDefault();
+    }
+  });
+  window.addEventListener('beforeunload', function (e) {
+    if (running || queue.length || (results.length && !saved)) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  progress();
+  next();
+})();
+</script>
+{% endblock %}

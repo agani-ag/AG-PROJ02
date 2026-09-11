@@ -31,100 +31,140 @@
   {% if q %}<a href="?show={{ show }}" class="gbtn">Clear</a>{% endif %}
 </form>
 
-<div class="tablecard ctable">
-  <div class="tbl-scroll">
-
 {% if show == "mapped" %}
-  <table class="gt ct">
-    <thead><tr>
-      <th>Customer</th><th>Businesses</th><th class="r">Rows</th><th class="r">In app</th>
-      <th class="r">Owed</th><th>Login</th>
-    </tr></thead>
-    <tbody>
-    {% for r in party_rows %}
-      <tr>
-        <td class="hd">
-          <a href="{% url 'console_party' r.party.id %}">
-            <div class="prim">
-              <span class="pi"><svg class="gico"><use href="#i-user"/></svg></span>
-              <div>
-                <div class="nm">{{ r.party.name }}</div>
-                <div class="mn">{% if r.party.has_login %}{{ r.email }}{% else %}No login yet{% endif %}</div>
-              </div>
+<form method="post" action="{% url 'console_logins_bulk' %}">
+  {% csrf_token %}
+  <input type="hidden" name="kind" value="party">
+  {% if party_rows %}
+  <div class="bulkbar">
+    <button type="button" class="gbtn" data-select="input.pick" {% if not ready_count %}disabled{% endif %}>Select all ready ({{ ready_count }})</button>
+    <span class="mut"><b data-picked>0</b> selected</span>
+    <button type="submit" class="gbtn gbtn-primary" data-needs-pick disabled>
+      <svg class="gico"><use href="#i-key"/></svg> Issue logins</button>
+    {% if not ready_count %}<span class="mut">None is ready: a login needs SyncUp set up (Settings) and at least one ledger shown in the app.</span>{% endif %}
+  </div>
+  {% endif %}
+  <div class="tablecard ctable">
+    <div class="tbl-scroll">
+    <table class="gt ct">
+      <thead><tr>
+        <th>Customer</th><th>Businesses</th><th class="r">Rows</th><th class="r">In app</th>
+        <th class="r">Owed</th><th>Login</th>
+      </tr></thead>
+      <tbody>
+      {% for r in party_rows %}
+        <tr>
+          <td class="hd">
+            <div class="pickrow">
+              <input type="checkbox" class="pick" name="ids" value="{{ r.party.id }}"{% if not r.ready %} disabled title="{% if r.party.login_status == 'active' %}Already has a login{% else %}Not ready yet — open it to see why{% endif %}"{% endif %}>
+              <a href="{% url 'console_party' r.party.id %}">
+                <div class="prim">
+                  <span class="pi"><svg class="gico"><use href="#i-user"/></svg></span>
+                  <div>
+                    <div class="nm">{{ r.party.name }}</div>
+                    <div class="mn">{% if r.party.has_login %}{{ r.email }}{% else %}No login yet{% endif %}</div>
+                  </div>
+                </div>
+              </a>
             </div>
-          </a>
-        </td>
-        <td data-l="Businesses">
-          {% for b in r.brands %}<span class="tag2" style="margin:2px 3px 2px 0">{{ b }}</span>{% empty %}<span class="mut">none</span>{% endfor %}
-        </td>
-        <td class="r num" data-l="Rows">{{ r.rows }}</td>
-        <td class="r num" data-l="In app">{% if r.visible %}{{ r.visible }}{% else %}<span class="mut">0</span>{% endif %}</td>
-        <td class="r num" data-l="Owed">
-          {% if r.owed %}<b style="color:var(--red)">₹{{ r.owed|floatformat:0|intcomma }}</b>{% else %}<span class="mut">—</span>{% endif %}
-        </td>
-        <td data-l="Login">
-          {% if r.party.login_status == "active" %}<span class="gbadge ok">Active</span>
-          {% elif r.party.login_status == "inactive" %}<span class="gbadge out">Deactivated</span>
-          {% else %}<span class="gbadge grey">None</span>{% endif %}
-          {% if r.party.syncup_error %}<span class="gbadge low" title="{{ r.party.syncup_error }}">Sync failed</span>{% endif %}
-        </td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="6" class="emptycell"><div class="empty">
-        <div class="ei"><svg class="gico"><use href="#i-user"/></svg></div>
-        <h3>{% if q %}No mapped customer matches{% else %}No customers mapped yet{% endif %}</h3>
-        <p>{% if q %}Nothing matches “{{ q }}”.{% else %}Start with the suggestions — rows that share a phone number or GSTIN.{% endif %}</p>
-        {% if count_suggestions %}<a href="?show=suggestions" class="gbtn gbtn-primary">Review {{ count_suggestions }} suggestion{{ count_suggestions|pluralize }}</a>{% endif %}
-      </div></td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
+          </td>
+          <td data-l="Businesses">
+            {% for b in r.brands %}<span class="tag2" style="margin:2px 3px 2px 0">{{ b }}</span>{% empty %}<span class="mut">none</span>{% endfor %}
+          </td>
+          <td class="r num" data-l="Rows">{{ r.rows }}</td>
+          <td class="r num" data-l="In app">{% if r.visible %}{{ r.visible }}{% else %}<span class="mut">0</span>{% endif %}</td>
+          <td class="r num" data-l="Owed">
+            {% if r.owed %}<b style="color:var(--red)">₹{{ r.owed|floatformat:0|intcomma }}</b>{% else %}<span class="mut">—</span>{% endif %}
+          </td>
+          <td data-l="Login">
+            {% if r.party.login_status == "active" %}<span class="gbadge ok">Active</span>
+            {% elif r.party.login_status == "inactive" %}<span class="gbadge out">Deactivated</span>
+            {% else %}<span class="gbadge grey">None</span>{% endif %}
+            {% if r.party.syncup_error %}<span class="gbadge low" title="{{ r.party.syncup_error }}">Sync failed</span>{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="emptycell"><div class="empty">
+          <div class="ei"><svg class="gico"><use href="#i-user"/></svg></div>
+          <h3>{% if q %}No mapped customer matches{% else %}No customers mapped yet{% endif %}</h3>
+          <p>{% if q %}Nothing matches “{{ q }}”.{% else %}Start with the suggestions — rows that share a phone number or GSTIN.{% endif %}</p>
+          {% if count_suggestions %}<a href="?show=suggestions" class="gbtn gbtn-primary">Review {{ count_suggestions }} suggestion{{ count_suggestions|pluralize }}</a>{% endif %}
+        </div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</form>
 
 {% elif show == "suggestions" %}
-  <table class="gt ct">
-    <thead><tr>
-      <th>Looks like</th><th>Businesses</th><th class="r">Rows</th><th>Linked by</th><th>Status</th><th class="r"></th>
-    </tr></thead>
-    <tbody>
-    {% for g in groups %}
-      <tr>
-        <td class="hd">
-          <a href="{% url 'console_suggestion' g.key %}">
-            <div class="prim">
-              <span class="pi"><svg class="gico"><use href="#i-user"/></svg></span>
-              <div>
-                <div class="nm">{{ g.name|default:"—" }}</div>
-                <div class="mn">{{ g.rows.0.customer_phone|default:"" }}{% if g.rows.0.customer_gst %} · {{ g.rows.0.customer_gst }}{% endif %}</div>
-              </div>
+<form method="post" action="{% url 'console_suggestions_bulk' %}"
+      onsubmit="return confirm('Map the ticked suggestions? Each becomes one customer with all its rows.')">
+  {% csrf_token %}
+  {% if groups %}
+  <div class="bulkbar">
+    <button type="button" class="gbtn" data-select="input.pick[data-ev='phone_gstin']">Select all Phone + GSTIN</button>
+    <button type="button" class="gbtn" data-select="input.pick">Select all</button>
+    <span class="mut"><b data-picked>0</b> selected{% if needs_look %} · {{ needs_look }} need{{ needs_look|pluralize:"s," }} a look on {{ needs_look|pluralize:"its,their" }} own{% endif %}</span>
+    <button type="submit" class="gbtn gbtn-primary" data-needs-pick disabled>
+      <svg class="gico"><use href="#i-ok"/></svg> Map selected</button>
+  </div>
+  {% endif %}
+  <div class="tablecard ctable">
+    <div class="tbl-scroll">
+    <table class="gt ct">
+      <thead><tr>
+        <th>Looks like</th><th>Businesses</th><th class="r">Rows</th><th>Linked by</th><th>Status</th><th class="r"></th>
+      </tr></thead>
+      <tbody>
+      {% for g in groups %}
+        <tr>
+          <td class="hd">
+            <div class="pickrow">
+              <input type="checkbox" class="pick" name="keys" value="{{ g.key }}" data-ev="{{ g.evidence }}"{% if g.skip %} disabled title="Review on its own: {{ g.skip }}"{% endif %}>
+              <a href="{% url 'console_suggestion' g.key %}">
+                <div class="prim">
+                  <span class="pi"><svg class="gico"><use href="#i-user"/></svg></span>
+                  <div>
+                    <div class="nm">{{ g.name|default:"—" }}</div>
+                    <div class="mn">{{ g.rows.0.customer_phone|default:"" }}{% if g.rows.0.customer_gst %} · {{ g.rows.0.customer_gst }}{% endif %}</div>
+                  </div>
+                </div>
+              </a>
             </div>
-          </a>
-        </td>
-        <td data-l="Businesses">
-          {% for c in g.rows %}<span class="tag2" style="margin:2px 3px 2px 0">{{ c.user.userprofile.business_brand|default:c.user.username }}</span>{% endfor %}
-        </td>
-        <td class="r num" data-l="Rows">{{ g.rows|length }}</td>
-        <td data-l="Linked by">
-          {% if g.evidence == "phone_gstin" %}<span class="gbadge blue">Phone + GSTIN</span>
-          {% elif g.evidence == "gstin" %}<span class="gbadge blue">GSTIN</span>
-          {% else %}<span class="gbadge low">Phone only</span>{% endif %}
-        </td>
-        <td data-l="Status">
-          {% if g.parties %}{% for p in g.parties %}<span class="mut">May belong to</span> <a href="{% url 'console_party' p.id %}"><b>{{ p.name }}</b></a>{% if not forloop.last %}, {% endif %}{% endfor %}
-          {% else %}<span class="mut">New</span>{% endif %}
-        </td>
-        <td class="r" data-l=""><a href="{% url 'console_suggestion' g.key %}" class="gbtn">Review</a></td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="6" class="emptycell"><div class="empty">
-        <div class="ei"><svg class="gico"><use href="#i-ok"/></svg></div>
-        <h3>Nothing to review</h3>
-        <p>{% if q %}No suggestion matches “{{ q }}”.{% else %}Every row that shares a phone or GSTIN with another business has been settled.{% endif %}</p>
-      </div></td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
+          </td>
+          <td data-l="Businesses">
+            {% for c in g.rows %}<span class="tag2" style="margin:2px 3px 2px 0" title="{{ c.customer_name }}">{{ c.user.userprofile.business_brand|default:c.user.username }}</span>{% endfor %}
+          </td>
+          <td class="r num" data-l="Rows">{{ g.rows|length }}</td>
+          <td data-l="Linked by">
+            {% if g.evidence == "phone_gstin" %}<span class="gbadge blue">Phone + GSTIN</span>
+            {% elif g.evidence == "gstin" %}<span class="gbadge blue">GSTIN</span>
+            {% else %}<span class="gbadge low">Phone only</span>{% endif %}
+          </td>
+          <td data-l="Status">
+            {% if g.skip %}<span class="gbadge low" title="{{ g.skip }}">Review alone</span> <span class="mut" style="font-size:12px">{{ g.skip }}</span>
+            {% elif g.parties %}{% for p in g.parties %}<span class="mut">May belong to</span> <a href="{% url 'console_party' p.id %}"><b>{{ p.name }}</b></a>{% endfor %}
+            {% else %}<span class="mut">New</span>{% endif %}
+          </td>
+          <td class="r" data-l=""><a href="{% url 'console_suggestion' g.key %}" class="gbtn">Review</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="emptycell"><div class="empty">
+          <div class="ei"><svg class="gico"><use href="#i-ok"/></svg></div>
+          <h3>Nothing to review</h3>
+          <p>{% if q %}No suggestion matches “{{ q }}”.{% else %}Every row that shares a phone or GSTIN with another business has been settled.{% endif %}</p>
+        </div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</form>
 
 {% else %}
+<div class="tablecard ctable">
+  <div class="tbl-scroll">
   <table class="gt ct">
     <thead><tr>
       <th>Customer row</th><th>Business</th><th>GSTIN</th><th class="r">Owed</th><th>In app</th>
@@ -162,17 +202,17 @@
     {% endfor %}
     </tbody>
   </table>
-{% endif %}
-
   </div>
-  {% if show == "unmapped" and rows %}{% include "gs/_pager.html" %}{% endif %}
+  {% if rows %}{% include "gs/_pager.html" %}{% endif %}
 </div>
+{% endif %}
 
 <div class="hint">
   <svg class="gico"><use href="#i-alert"/></svg>
   <div>Each business keeps its own customer rows, so one shop owner who buys from three businesses
     exists three times. <b>Suggestions</b> are rows that share a phone number or a valid GSTIN — they
-    are only hints. A row joins a customer only when you map it, and a business's ledger shows in the
-    customer's app only if that business has the customer app on and its Mobile toggle for them on.</div>
+    are only hints. A row joins a customer only when you map it (one by one, or ticked in bulk), and a
+    business's ledger shows in the customer's app only if that business has the customer app on and its
+    Mobile toggle for them on.</div>
 </div>
 {% endblock %}

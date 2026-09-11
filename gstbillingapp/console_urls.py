@@ -9,6 +9,8 @@ from django.urls import path
 from .views import console
 from .views import console_customers as cc
 from .views import console_settings
+from .views import console_staff
+from .views import console_bulk
 
 urlpatterns = [
     path("login", console.console_login, name="console_login"),
@@ -28,6 +30,7 @@ urlpatterns = [
     # Shared customers: suggestions, Parties (one real shop owner), app logins.
     path("customers", cc.customers, name="console_customers"),
     path("customers/suggestion/<int:key>", cc.suggestion, name="console_suggestion"),
+    path("customers/suggestions/bulk", cc.suggestions_bulk, name="console_suggestions_bulk"),
     path("customer/<int:customer_id>", cc.customer_detail, name="console_customer_detail"),
     path("party/new", cc.party_new, name="console_party_new"),
     path("party/<int:party_id>", cc.party_detail, name="console_party"),
@@ -46,6 +49,24 @@ urlpatterns = [
          name="console_party_login_deactivate"),
     path("party/<int:party_id>/login/sync", cc.party_login_sync,
          name="console_party_login_sync"),
+    path("party/<int:party_id>/login/issue.json", cc.party_login_issue_json,
+         name="console_party_login_issue_json"),
+    # Bulk login issuing: the page lists the chosen people, then calls the issue.json views.
+    path("logins/bulk", console_bulk.logins_bulk, name="console_logins_bulk"),
+
+    # Employees and their staff-app logins.
+    path("employees", console_staff.employees, name="console_employees"),
+    path("employee/<int:employee_id>", console_staff.employee_detail, name="console_employee"),
+    path("employee/<int:employee_id>/login/issue", console_staff.employee_login_issue,
+         name="console_employee_login_issue"),
+    path("employee/<int:employee_id>/login/reset", console_staff.employee_login_reset,
+         name="console_employee_login_reset"),
+    path("employee/<int:employee_id>/login/deactivate", console_staff.employee_login_deactivate,
+         name="console_employee_login_deactivate"),
+    path("employee/<int:employee_id>/login/sync", console_staff.employee_login_sync,
+         name="console_employee_login_sync"),
+    path("employee/<int:employee_id>/login/issue.json", console_staff.employee_login_issue_json,
+         name="console_employee_login_issue_json"),
 
     path("admins", console.admins, name="console_admins"),
     path("password", console.change_password, name="console_change_password"),

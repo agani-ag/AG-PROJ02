@@ -38,7 +38,6 @@ urlpatterns = [
     path('employees/employee-lookup', employee.employee_share_lookup, name='employee_share_lookup'),
     path('employees/edit/<int:posting_id>', employee.employee_edit, name='employee_edit'),
     path('employees/<int:posting_id>/delete', employee.employee_delete, name='employee_delete'),
-    path('employees/<int:posting_id>/mobile-link', employee.employee_mobile_link, name='employee_mobile_link'),
     path('employees/<int:posting_id>/invoices', employee.employee_invoices, name='employee_invoices'),
     path('employees/<int:posting_id>/invoices/pick', employee.employee_invoices_pick, name='employee_invoices_pick'),
     path('employees/<int:posting_id>/invoices/assign-bulk', employee.employee_assign_bulk, name='employee_assign_bulk'),
@@ -49,7 +48,6 @@ urlpatterns = [
     path('employees/<int:posting_id>/incentives', employee.employee_incentives, name='employee_incentives'),
     path('incentives/<int:pk>/toggle-paid', employee.incentive_toggle_paid, name='incentive_toggle_paid'),
     path('incentives/<int:pk>/delete', employee.incentive_delete, name='incentive_delete'),
-    path('employees/<int:posting_id>/revoke', employee.employee_revoke, name='employee_revoke'),
 
     # Invoice URLs
     path('invoices', invoices.invoices, name='invoices'),
