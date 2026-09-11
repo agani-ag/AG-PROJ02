@@ -180,15 +180,23 @@ def cleanup(request):
 def syncup(request):
     """Re-send any customer or employee login whose SyncUp state fell behind - a push that
     failed or hit its short time limit while a business was changing access. Logins already
-    in step cost no network call, so a frequent schedule is cheap."""
-    from . import parties, staff
+    in step cost no network call, so a frequent schedule is cheap.
+
+    Also sends SyncUp messages: queues the scheduled ones that are due (morning list, evening
+    summary, weekly overdue, tile subtitles), sends the outbox, and looks up Approve / Reject
+    answers whose callback never arrived."""
+    from . import parties, staff, syncup_messages
     from .syncup_client import is_configured
     if not is_configured():
         return JsonResponse({"ok": True, "skipped": "not_configured"})
     try:
         with job_lock("syncup"):
-            return JsonResponse({"ok": True, "customers": parties.retry_pending(),
-                                 "employees": staff.retry_pending()})
+            out = {"ok": True, "customers": parties.retry_pending(),
+                   "employees": staff.retry_pending()}
+            scheduled = syncup_messages.run_schedules()
+            out["messages"] = {"scheduled": scheduled, **syncup_messages.flush(),
+                               "answers": syncup_messages.reconcile()}
+            return JsonResponse(out)
     except LockBusy:
         return _locked("syncup")
     except Exception as e:  # noqa: BLE001

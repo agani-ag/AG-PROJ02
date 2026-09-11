@@ -94,6 +94,32 @@
     </div>
   </div>
 
+  <div class="section open">
+    <div class="sh"><span class="si b"><svg class="gico"><use href="#i-bell"/></svg></span>
+      <div><h3 class="disp">Messages</h3><div class="sd">Notifications to customers, employees and admins in the SyncUp app</div></div></div>
+    <div class="body">
+      <label class="gtoggle"><input type="checkbox" name="messages_enabled" value="1" {% if form.messages_enabled %}checked{% endif %}> Send SyncUp messages</label>
+      <div class="h mut" style="font-size:12px;margin:2px 0 10px">The master switch. Each business then chooses which messages it sends, on its console page — all start off. Nothing is sent between 9 pm and 8 am; those wait until morning.</div>
+      <label class="gtoggle"><input type="checkbox" name="tile_due" value="1" {% if form.tile_due %}checked{% endif %}> Show "₹… due" on each customer's GSTSync tile</label>
+      <div class="h mut" style="font-size:12px;margin:2px 0 10px">Refreshed once a day, and only sent to SyncUp when it changes.</div>
+      <div class="row2">
+        <div class="field"><label for="signing_secret">Signing secret</label>
+          <input id="signing_secret" class="control" type="password" name="signing_secret" value=""
+                 placeholder="{% if cfg.signing_secret %}Saved. Leave blank to keep it{% else %}Paste SyncUp's signing secret for GSTSync{% endif %}"
+                 autocomplete="new-password">
+          <div class="h">Needed for Approve / Reject buttons in admins' notifications — it proves an answer came from SyncUp. Never shown again after saving.{% if cfg.signing_secret %}
+            <label class="gtoggle" style="margin:6px 0 0"><input type="checkbox" name="clear_secret" value="1"> Remove the saved secret</label>{% endif %}</div></div>
+        <div class="field"><label>Answers come back to</label>
+          <input class="control" readonly style="background:var(--wash)" value="{{ callback_url|default:'Set this site’s public address first' }}">
+          <div class="h">GSTSync sends this address with each prompt; nothing to set in SyncUp.</div></div>
+      </div>
+      <div class="mut" style="font-size:12.5px;margin-top:12px">
+        Queue: <b>{{ msg_stats.waiting }}</b> waiting · <b>{{ msg_stats.sent_24h }}</b> sent in the last 24 h{% if msg_stats.failed_24h %} · <b style="color:var(--bad,#c50f1f)">{{ msg_stats.failed_24h }}</b> failed{% endif %}.
+        Sent by <code>/cron/syncup</code>.
+      </div>
+    </div>
+  </div>
+
   <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
     <button class="gbtn gbtn-primary" type="submit"><svg class="gico"><use href="#i-ok"/></svg> Save settings</button>
     {% if cfg.updated_at %}<span class="mut" style="font-size:12.5px">Last saved {{ cfg.updated_at|date:"d M Y, H:i" }}{% if cfg.updated_by %} by {{ cfg.updated_by.full_name|default:cfg.updated_by.username }}{% endif %}</span>{% endif %}

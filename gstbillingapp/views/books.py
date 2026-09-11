@@ -22,6 +22,7 @@ from ..utils import (
     round_to_rupee,
 )
 from ..templatetags.money import format_inr_smart
+from ..syncup_messages import delete_booklog
 
 # Python imports
 import json
@@ -151,7 +152,7 @@ def book_logs_add(request, book_id):
 def book_logs_del(request, booklog_id):
     bklg = get_object_or_404(BookLog, id=booklog_id)
     book = get_object_or_404(Book, id=bklg.parent_book.id, user=request.user)
-    bklg.delete()
+    delete_booklog(bklg)        # a pending staff payment = rejected; the employee is told
     new_total = BookLog.objects.filter(parent_book=book, is_active=True).aggregate(Sum('change'))['change__sum']
     new_last_log = BookLog.objects.filter(parent_book=book, is_active=True).last()
     if not new_total:

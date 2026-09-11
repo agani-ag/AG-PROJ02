@@ -6,9 +6,10 @@ from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.db.models import Sum, Case, When, F, FloatField, Count, IntegerField, Min, Max
+from django.utils import timezone
 
 from ...mobile_auth import mobile_login_required
-from ...models import Book, BookLog, Invoice, Quotation
+from ...models import BalanceConfirmation, Book, BookLog, Invoice, Quotation
 from ._paged import PAGE, invoice_page, ledger_page
 from ...templatetags.money import format_inr
 
@@ -226,6 +227,24 @@ def orders(request):
     rows = list(Quotation.objects.filter(user=c.user, quotation_customer=c, created_from_cart=True)
                 .order_by("-quotation_date", "-id")[:100])
     return render(request, "m/c/orders.html", {"c": c, "rows": rows})
+
+
+@mobile_login_required("customer")
+def confirm_balance(request, pk):
+    """A balance confirmation the business asked for (opened from a SyncUp message): shows
+    the balance on that date and records "I confirm this balance"."""
+    c = _cust(request)
+    bc = get_object_or_404(BalanceConfirmation, pk=pk, customer=c)
+    if request.method == "POST" and not bc.confirmed_at:
+        bc.confirmed_at = timezone.now()
+        bc.save(update_fields=["confirmed_at"])
+    prof = getattr(c.user, "userprofile", None)
+    return render(request, "m/c/confirm.html", {
+        "c": c, "bc": bc,
+        "brand": ((prof.business_brand or prof.business_title) if prof else None) or c.user.username,
+        "amount": format_inr(abs(bc.balance), 2),
+        "owes": bc.balance < -0.005, "advance": bc.balance > 0.005,
+    })
 
 
 @mobile_login_required("customer")

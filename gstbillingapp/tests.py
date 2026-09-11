@@ -2325,7 +2325,7 @@ class ConsolePurgeCoverageTests(TestCase):
 
     # Models that belong to the PLATFORM, not to any business. Anything else must be
     # reachable from a business, or the coverage test below fails.
-    PLATFORM_MODELS = {"PlatformAdmin", "Party", "SyncUpSettings"}
+    PLATFORM_MODELS = {"PlatformAdmin", "Party", "SyncUpSettings", "SyncUpJobRun"}
 
     def _app_models(self):
         from django.apps import apps
@@ -4251,3 +4251,402 @@ class PasskeyTests(TestCase):
             p = generate()
             self.assertEqual(problem(p), "")
             self.assertFalse(set(p) & set("01OIL"), p)
+
+
+def _local(day, hour, minute=0):
+    import datetime as _dt
+    return timezone.make_aware(_dt.datetime.combine(day, _dt.time(hour, minute)))
+
+
+class SyncUpMessageTests(TestCase):
+    """SyncUp messages: queued (never sent inline, except an approval's quick try), only when
+    the console has switched them on, only to the right people, never at night."""
+
+    ALL = {"c_bill", "c_payment", "c_order", "c_overdue", "e_payment", "e_morning",
+           "a_approval", "a_order", "a_evening"}
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Party, PartyMapping, StaffLogin
+        cls.a, = _businesses("ALPHA")
+        cls.cust = Customer.objects.create(user=cls.a, customer_name="KMR", is_mobile_user=True)
+        cls.party = Party.objects.create(name="KMR", login_status=Party.LOGIN_ACTIVE)
+        PartyMapping.objects.create(party=cls.party, customer=cls.cust)
+        cls.book = Book.objects.create(user=cls.a, customer=cls.cust, current_balance=0)
+        cls.staff = _employee(cls.a, "RIZWAN")
+        cls.boss = _employee(cls.a, "GANESH")
+        cls.boss.postings.filter(is_home=True).update(is_admin=True)
+        for e in (cls.staff, cls.boss):
+            StaffLogin.objects.create(employee=e, login_status="active")
+        cls.c_ext = "party-%d" % cls.party.id
+        cls.s_ext, cls.b_ext = "employee-%d" % cls.staff.id, "employee-%d" % cls.boss.id
+
+    def setUp(self):
+        from .syncup_messages import set_events
+        _syncup_on(messages_enabled=True)
+        set_events(self.a, self.ALL)
+        self.today = timezone.localdate()
+        self.clock = mock.patch("gstbillingapp.syncup_messages._now",
+                                return_value=_local(self.today, 12)).start()
+        self.bulk = mock.patch("gstbillingapp.syncup_client.notify_bulk", side_effect=lambda msgs, timeout=None: [
+            {"external_id": m["external_id"], "delivered": 1} for m in msgs]).start()
+        self.action = mock.patch("gstbillingapp.syncup_client.create_action", return_value={
+            "success": True, "request_id": "req-1", "delivered": 1}).start()
+        self.addCleanup(mock.patch.stopall)
+
+    # ---- helpers ----
+    def _msgs(self, **kw):
+        from .models import SyncUpMessage
+        return list(SyncUpMessage.objects.filter(**kw).order_by("id"))
+
+    def _bill(self, total=48900):
+        with self.captureOnCommitCallbacks(execute=True):
+            return Invoice.objects.create(
+                user=self.a, invoice_number=7, invoice_date=self.today, invoice_customer=self.cust,
+                invoice_json=json.dumps({"invoice_total_amt_with_gst": total}))
+
+    def _log(self, change, change_type=0, **kw):
+        with self.captureOnCommitCallbacks(execute=True):
+            return BookLog.objects.create(parent_book=self.book, change_type=change_type,
+                                          change=change, **kw)
+
+    def _as(self, emp):
+        from .mobile_auth import mint_employee_token
+        self.client.get("/m/employee/", {"t": mint_employee_token(emp)})
+
+    def _staff_pays(self, amount=400):
+        self._as(self.staff)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("m_employee_record_payment", args=[self.cust.id]),
+                             data=json.dumps({"amount": amount}), content_type="application/json")
+        return BookLog.objects.get(parent_book=self.book, change_type=0, is_active=False)
+
+    def _act(self, log, action):
+        self._as(self.boss)
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(reverse("m_employee_approval_act", args=[log.id]),
+                                    data=json.dumps({"action": action}),
+                                    content_type="application/json")
+
+    # ---- switches and people ----
+    def test_nothing_is_queued_until_switched_on(self):
+        from .syncup_messages import set_events
+        _syncup_on(messages_enabled=False)
+        self._bill()
+        self.assertEqual(self._msgs(), [])
+        _syncup_on(messages_enabled=True)
+        set_events(self.a, self.ALL - {"c_bill"})
+        self._bill()
+        self.assertEqual(self._msgs(), [])
+
+    def test_a_bill_tells_the_customer_once(self):
+        inv = self._bill()
+        m, = self._msgs()
+        self.assertEqual((m.event, m.external_id, m.title), ("c_bill", self.c_ext, "ALPHA · Bill #7"))
+        self.assertIn("₹48,900", m.body)
+        self.assertEqual(m.url, "https://gstsync.test/m/customer/invoice/%d?acct=%d"
+                         % (inv.id, self.cust.id))
+        with self.captureOnCommitCallbacks(execute=True):
+            inv.save()                                           # an edit doesn't notify again
+        self.assertEqual(len(self._msgs()), 1)
+        self.bulk.assert_not_called()                            # queued, not sent inline
+
+    def test_a_row_not_shown_in_the_app_gets_nothing(self):
+        Customer.objects.filter(pk=self.cust.pk).update(is_mobile_user=False)
+        self.cust.refresh_from_db()
+        self._bill()
+        self.assertEqual(self._msgs(), [])
+
+    def test_a_desktop_payment_tells_the_customer_the_new_balance(self):
+        self._log(-1000, change_type=1)
+        self._log(400)
+        m, = self._msgs()
+        self.assertEqual(m.title, "ALPHA · Payment received ₹400")
+        self.assertEqual(m.body, "Balance: ₹600 due")
+        self.assertTrue(m.url.endswith("/m/customer/books?acct=%d" % self.cust.id))
+
+    # ---- approvals ----
+    def test_staff_payment_asks_only_admins_straight_away(self):
+        self._staff_pays(400)
+        m, = self._msgs(event="a_approval")
+        self.assertEqual((m.external_id, m.kind), (self.b_ext, "notify"))
+        self.assertEqual(m.title, "Approve ₹400 from KMR?")
+        self.assertIn("recorded by RIZWAN", m.body)
+        self.bulk.assert_called_once()                            # the immediate try
+        self.assertEqual(self.bulk.call_args.kwargs["timeout"], 2)
+        self.assertIsNotNone(self._msgs(event="a_approval")[0].sent_at)
+
+    def test_approving_tells_the_customer_and_the_employee(self):
+        log = self._staff_pays(400)
+        self.assertTrue(self._act(log, "approve").json()["approved"])
+        self.assertEqual([(m.event, m.external_id) for m in self._msgs(event__in=["c_payment", "e_payment"])],
+                         [("c_payment", self.c_ext), ("e_payment", self.s_ext)])
+        self.assertEqual(self._msgs(event="e_payment")[0].title, "₹400 from KMR approved")
+
+    def test_rejecting_tells_the_employee(self):
+        log = self._staff_pays(400)
+        self.assertTrue(self._act(log, "reject").json()["rejected"])
+        m, = self._msgs(event="e_payment")
+        self.assertEqual((m.external_id, m.title), (self.s_ext, "₹400 from KMR rejected"))
+        self.assertEqual(self._msgs(event="c_payment"), [])
+
+    def test_approve_buttons_go_out_as_a_prompt(self):
+        from .syncup_messages import set_events
+        set_events(self.a, self.ALL | {"a_approval_prompt"})
+        self._staff_pays(400)
+        m, = self._msgs(event="a_approval")
+        self.assertEqual((m.kind, m.request_id), ("approve", "req-1"))
+        ext, payload = self.action.call_args.args
+        self.assertEqual(ext, self.b_ext)
+        self.assertEqual((payload["type"], payload["callback_url"], payload["ttl_seconds"]),
+                         ("approve", "https://gstsync.test/syncup/callback", 3600))
+
+    def _prompted(self):
+        from .syncup_messages import set_events
+        set_events(self.a, self.ALL | {"a_approval_prompt"})
+        _syncup_on(messages_enabled=True, signing_secret="s3cret")
+        return self._staff_pays(400)
+
+    def _callback(self, value, secret="s3cret", request_id="req-1"):
+        import hashlib
+        import hmac
+        body = json.dumps({"request_id": request_id, "type": "approve", "status": "completed",
+                           "value": value, "user": {"id": "9", "external_id": self.b_ext},
+                           "approved": value == "approved"}).encode()
+        sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post("/syncup/callback", data=body, content_type="application/json",
+                                    HTTP_X_SYNCUP_SIGNATURE=sig)
+
+    def test_approve_from_the_notification(self):
+        log = self._prompted()
+        r = self._callback("approved")
+        self.assertEqual(r.json()["result"], "approved")
+        log.refresh_from_db()
+        self.assertTrue(log.is_active)
+        self.book.refresh_from_db()
+        self.assertAlmostEqual(self.book.current_balance, 400)
+        self.assertEqual(len(self._msgs(event="e_payment")), 1)
+        self.assertEqual(self._callback("rejected").json()["result"], "ignored")   # replay
+        self.assertTrue(BookLog.objects.filter(pk=log.pk, is_active=True).exists())
+
+    def test_reject_from_the_notification(self):
+        log = self._prompted()
+        self.assertEqual(self._callback("rejected").json()["result"], "rejected")
+        self.assertFalse(BookLog.objects.filter(pk=log.pk).exists())
+
+    def test_a_forged_or_unconfigured_callback_is_refused(self):
+        log = self._prompted()
+        self.assertEqual(self._callback("approved", secret="guess").status_code, 403)
+        _syncup_on(signing_secret="")
+        self.assertEqual(self._callback("approved").status_code, 404)
+        log.refresh_from_db()
+        self.assertFalse(log.is_active)
+
+    def test_someone_no_longer_admin_cannot_decide(self):
+        log = self._prompted()
+        self.boss.postings.update(is_admin=False)
+        self.assertEqual(self._callback("approved").json()["result"], "not an admin any more")
+        log.refresh_from_db()
+        self.assertFalse(log.is_active)                           # still in Approvals
+
+    def test_the_cron_picks_up_an_answer_whose_callback_was_lost(self):
+        from .syncup_messages import reconcile
+        log = self._prompted()
+        with mock.patch("gstbillingapp.syncup_client.action_status",
+                        return_value={"status": "completed", "value": "approved"}):
+            with self.captureOnCommitCallbacks(execute=True):
+                self.assertEqual(reconcile(), 1)
+        log.refresh_from_db()
+        self.assertTrue(log.is_active)
+
+    def test_a_payment_handled_in_the_app_skips_the_prompt(self):
+        from .syncup_messages import flush
+        from .syncup_client import SyncUpError
+        from .models import SyncUpMessage
+        self.action.side_effect = SyncUpError("down")             # the quick try fails
+        log = self._prompted()
+        self._act(log, "approve")
+        self.action.reset_mock()
+        flush()
+        self.action.assert_not_called()
+        self.assertEqual(SyncUpMessage.objects.get(event="a_approval").answer, "moot")
+
+    # ---- orders ----
+    def test_app_orders_tell_admins_then_the_customer(self):
+        from .models import Quotation
+        with self.captureOnCommitCallbacks(execute=True):
+            q = Quotation.objects.create(user=self.a, quotation_number=812, quotation_date=self.today,
+                                         quotation_customer=self.cust, created_from_cart=True,
+                                         quotation_json=json.dumps({"invoice_total_amt_with_gst": 28440}),
+                                         status="DRAFT")
+        self.assertEqual(self._msgs(), [])
+        with self.captureOnCommitCallbacks(execute=True):
+            q.status = "PENDING"
+            q.save(update_fields=["status"])
+        m, = self._msgs(event="a_order")
+        self.assertEqual((m.external_id, m.title), (self.b_ext, "New order from KMR · ₹28,440"))
+        with self.captureOnCommitCallbacks(execute=True):
+            q.status = "APPROVED"
+            q.save()
+        m, = self._msgs(event="c_order")
+        self.assertEqual((m.external_id, m.title), (self.c_ext, "ALPHA · Order QT-812 approved"))
+
+    # ---- sending ----
+    def test_nothing_goes_out_at_night(self):
+        from .syncup_messages import flush
+        self.clock.return_value = _local(self.today, 22, 30)
+        self._bill()
+        m, = self._msgs()
+        self.assertEqual(timezone.localtime(m.send_after),
+                         _local(self.today + timedelta(days=1), 8))
+        self.assertEqual(flush()["sent"], 0)
+        self.bulk.assert_not_called()
+        self.clock.return_value = _local(self.today + timedelta(days=1), 8, 5)
+        self.assertEqual(flush()["sent"], 1)
+
+    def test_the_queue_goes_25_per_call_and_keeps_what_failed(self):
+        from .syncup_messages import MAX_ATTEMPTS, flush, queue
+        from .syncup_client import SyncUpError
+        for i in range(30):
+            queue(business=self.a, event="c_bill", external_id="party-%d" % i, title="t",
+                  dedupe="t:%d" % i)
+        self.bulk.side_effect = lambda msgs, timeout=None: (
+            [{"error": "User not found"}] + [{"delivered": 1}] * (len(msgs) - 1))
+        self.assertEqual(flush(), {"sent": 28, "failed": 2})
+        self.assertEqual([len(c.args[0]) for c in self.bulk.call_args_list], [25, 5])
+
+        queue(business=self.a, event="c_bill", external_id=self.c_ext, title="t", dedupe="late")
+        self.bulk.side_effect = SyncUpError("SyncUp is unreachable")
+        for _ in range(MAX_ATTEMPTS - 1):
+            flush()
+        m, = self._msgs(dedupe_key="late")
+        self.assertEqual((m.attempts, m.failed, m.sent_at), (MAX_ATTEMPTS - 1, False, None))
+        flush()
+        self.assertTrue(self._msgs(dedupe_key="late")[0].failed)
+
+    # ---- schedules ----
+    def _owing(self, amount=1000, billed=None):
+        from .models import Book
+        billed = billed or self.today - timedelta(days=40)
+        with self.captureOnCommitCallbacks(execute=True):
+            BookLog.objects.create(parent_book=self.book, change_type=1, change=-amount,
+                                   date=_local(billed, 11))
+        Book.objects.filter(pk=self.book.pk).update(current_balance=-amount)
+
+    def test_monday_morning_lists_and_overdue_reminders_run_once(self):
+        from .syncup_messages import run_schedules
+        monday = self.today - timedelta(days=self.today.weekday())
+        Customer.objects.filter(pk=self.cust.pk).update(collection_day=1)   # Monday
+        self._owing(billed=monday - timedelta(days=40))
+        out = run_schedules(_local(monday, 10, 30))
+        self.assertEqual((out["morning"], out["overdue"]), (2, 1))
+        self.assertEqual(sorted(m.external_id for m in self._msgs(event="e_morning")),
+                         sorted([self.s_ext, self.b_ext]))
+        self.assertEqual(self._msgs(event="e_morning")[0].title, "Today at ALPHA: 1 to collect")
+        m, = self._msgs(event="c_overdue")
+        self.assertEqual((m.external_id, m.title), (self.c_ext, "₹1,000 due at ALPHA"))
+        self.assertIn("40 days", m.body)
+        self.assertEqual(run_schedules(_local(monday, 11)), {})             # once per period
+
+    def test_the_evening_summary_goes_to_admins(self):
+        from .syncup_messages import run_schedules
+        self._log(250)
+        out = run_schedules(_local(self.today, 19, 30))
+        self.assertEqual(out["evening"], 1)
+        m, = self._msgs(event="a_evening")
+        self.assertEqual(m.external_id, self.b_ext)
+        self.assertIn("collected ₹250", m.body)
+
+    def test_the_tile_shows_whats_due_and_only_changes_when_it_does(self):
+        from .syncup_messages import refresh_tiles, run_schedules
+        from .models import Party
+        _syncup_on(messages_enabled=True, tile_due=True)
+        self._owing(1000)
+        with mock.patch("gstbillingapp.syncup_client.update_app_link") as tile:
+            self.assertEqual(run_schedules(_local(self.today, 7, 30))["tiles"], 1)
+            self.assertEqual(tile.call_args.kwargs["description"], "₹1,000 due")
+            self.assertEqual(refresh_tiles(), 0)                 # unchanged: no call
+            self.assertEqual(tile.call_count, 1)
+            _syncup_on(tile_due=False)
+            run_schedules(_local(self.today, 13))
+            self.assertEqual(tile.call_args.kwargs["description"], "")
+        self.assertEqual(Party.objects.get(pk=self.party.pk).tile_text, "")
+
+    # ---- balance confirmation ----
+    def test_balance_confirmation_is_asked_and_answered(self):
+        from .mobile_auth import mint_party_token
+        from .models import BalanceConfirmation
+        from .syncup_messages import request_balance_confirmations
+        self._owing(1000)
+        self.assertEqual(request_balance_confirmations(self.a, self.today), 1)
+        bc = BalanceConfirmation.objects.get()
+        self.assertEqual(bc.balance, -1000)
+        m, = self._msgs(event="c_confirm")
+        self.assertTrue(m.url.endswith("/m/customer/confirm/%d?acct=%d" % (bc.id, self.cust.id)))
+        self.client.get("/m/customer/", {"t": mint_party_token(self.party)})
+        url = reverse("m_customer_confirm", args=[bc.id]) + "?acct=%d" % self.cust.id
+        self.assertContains(self.client.get(url), "I confirm this balance")
+        self.assertContains(self.client.post(url), "You confirmed this balance")
+        bc.refresh_from_db()
+        self.assertIsNotNone(bc.confirmed_at)
+
+    def test_a_confirmation_is_only_open_to_its_customer(self):
+        from .mobile_auth import mint_customer_token
+        from .models import BalanceConfirmation
+        bc = BalanceConfirmation.objects.create(customer=self.cust, balance=-5, as_of=self.today)
+        other = Customer.objects.create(user=self.a, customer_name="OTHER", is_mobile_user=True)
+        self.client.get("/m/customer/", {"t": mint_customer_token(other)})
+        self.assertEqual(self.client.get(reverse("m_customer_confirm", args=[bc.id])).status_code, 404)
+
+    # ---- cron and console ----
+    @override_settings(CRON_KEY="k")
+    def test_the_cron_sends_the_queue(self):
+        self._bill()
+        with mock.patch("gstbillingapp.syncup_client.set_account_active"):   # login catch-up
+            body = self.client.get("/cron/syncup", {"key": "k"}).json()
+        self.assertEqual(body["messages"]["sent"], 1)
+        self.bulk.assert_called_once()
+
+
+class ConsoleMessageScreenTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
+        cls.admin = PlatformAdmin(username="msgop", full_name="Msg Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.a, = _businesses("ALPHA")
+
+    def setUp(self):
+        self.client.post(reverse("console_login"), {"username": "msgop", "password": "Cons0le!pass9"})
+
+    def test_settings_hold_the_switches_and_a_write_only_secret(self):
+        from .models import SyncUpSettings
+        _syncup_on()
+        form = {"api_base": "https://syncup.test", "link_base": "https://gstsync.test",
+                "timeout": "5", "login_domain": "gstsync.app", "messages_enabled": "1",
+                "tile_due": "1", "signing_secret": "s3cret-value"}
+        self.client.post(reverse("console_syncup"), form)
+        cfg = SyncUpSettings.load()
+        self.assertEqual((cfg.messages_enabled, cfg.tile_due, cfg.signing_secret),
+                         (True, True, "s3cret-value"))
+        page = self.client.get(reverse("console_syncup"))
+        self.assertNotContains(page, "s3cret-value")
+        self.assertContains(page, "https://gstsync.test/syncup/callback")
+        self.client.post(reverse("console_syncup"), dict(form, signing_secret=""))
+        self.assertEqual(SyncUpSettings.load().signing_secret, "s3cret-value")   # blank keeps it
+
+    def test_business_page_switches_each_message(self):
+        from .syncup_messages import events_for
+        page = self.client.get(reverse("console_business_detail", args=[self.a.id]))
+        self.assertContains(page, "SyncUp messages")
+        self.assertContains(page, "Send SyncUp messages")                        # not ready yet
+        self.client.post(reverse("console_business_messages", args=[self.a.id]),
+                         {"events": ["c_bill", "a_approval_prompt", "nonsense"]})
+        self.assertEqual(events_for(self.a), {"c_bill", "a_approval", "a_approval_prompt"})
+
+    def test_balance_confirmation_needs_messages_on(self):
+        r = self.client.post(reverse("console_business_confirm_balances", args=[self.a.id]),
+                             {"as_of": timezone.localdate().isoformat()}, follow=True)
+        self.assertContains(r, "Turn on SyncUp messages")

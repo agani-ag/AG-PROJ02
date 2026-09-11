@@ -11,10 +11,11 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
+from .. import syncup_messages
 from ..console_auth import console_required
 from ..models import Party, StaffLogin, SyncUpSettings
 from ..syncup_app import DEFAULT_CUSTOMER_TEXT, DEFAULT_SHARE_TEXT, listing, parse_play_url
-from ..syncup_client import check_connection
+from ..syncup_client import check_connection, link_base as link_base_of
 
 _DOMAIN = re.compile(r"^(?=.{1,100}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
 # Plain http is only accepted for a SyncUp on this machine (development). Anywhere else
@@ -51,8 +52,11 @@ def syncup_settings(request):
     form = {"api_base": cfg.api_base, "link_base": cfg.link_base,
             "timeout": cfg.timeout, "login_domain": cfg.login_domain,
             "play_url": cfg.play_url, "play_on_landing": cfg.play_on_landing,
-            "customer_share_text": cfg.customer_share_text, "share_text": cfg.share_text}
-    extra = {"defaults": {"customer": DEFAULT_CUSTOMER_TEXT, "share": DEFAULT_SHARE_TEXT}}
+            "customer_share_text": cfg.customer_share_text, "share_text": cfg.share_text,
+            "messages_enabled": cfg.messages_enabled, "tile_due": cfg.tile_due}
+    extra = {"defaults": {"customer": DEFAULT_CUSTOMER_TEXT, "share": DEFAULT_SHARE_TEXT},
+             "msg_stats": syncup_messages.stats(),
+             "callback_url": (link_base_of(cfg) + "/syncup/callback") if link_base_of(cfg) else ""}
 
     if request.method == "POST":
         d = request.POST
@@ -90,12 +94,16 @@ def syncup_settings(request):
                  for name in ("customer_share_text", "share_text")}
         if any(len(t) > 600 for t in texts.values()):
             errors.append("Share messages must be under 600 characters.")
+        secret = (d.get("signing_secret") or "").strip()
+        if len(secret) > 200:
+            errors.append("That signing secret is too long.")
 
         if errors:
             form.update(api_base=d.get("api_base") or "", link_base=d.get("link_base") or "",
                         timeout=d.get("timeout") or "", login_domain=d.get("login_domain") or "",
                         play_url=play_raw, play_on_landing=bool(d.get("play_on_landing")),
-                        **texts)
+                        messages_enabled=bool(d.get("messages_enabled")),
+                        tile_due=bool(d.get("tile_due")), **texts)
             return render(request, "console/syncup_settings.html",
                           dict(extra, cfg=cfg, form=form, locked=locked, errors=errors,
                                app=listing(cfg)),
@@ -109,6 +117,11 @@ def syncup_settings(request):
             cfg.partner_key = ""
         elif key:                                       # blank keeps the current key
             cfg.partner_key = key
+        cfg.messages_enabled, cfg.tile_due = bool(d.get("messages_enabled")), bool(d.get("tile_due"))
+        if d.get("clear_secret"):
+            cfg.signing_secret = ""
+        elif secret:                                    # blank keeps the current secret
+            cfg.signing_secret = secret
         cfg.updated_by = request.platform_admin
         cfg.save()
         messages.success(request, "SyncUp settings saved.")

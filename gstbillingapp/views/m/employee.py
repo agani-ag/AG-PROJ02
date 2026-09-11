@@ -18,6 +18,7 @@ from ._paged import PAGE, invoice_page, ledger_page
 from ...mobile_auth import label_accounts
 from ...parties import members, party_for, row_is_visible
 from ...syncup_app import customer_invite
+from ...syncup_messages import approve_pending_payment, delete_booklog
 
 
 def _user(request):
@@ -269,7 +270,7 @@ def record_payment(request, customer_id):
     log = BookLog(parent_book=book, change_type=0, change=amount,
                   description=(data.get("note") or "Payment (mobile)"),
                   createdby=(emp.name if emp else u.username),
-                  is_active=is_admin)
+                  recorded_by=emp, is_active=is_admin)
     log.save()
     if is_admin:
         recalculate_book_current_balance(book)
@@ -312,15 +313,10 @@ def approval_act(request, log_id):
     except (ValueError, TypeError):
         action = None
     if action == "approve":
-        lg.is_active = True
-        lg.save()
-        book = lg.parent_book
-        recalculate_book_current_balance(book)
-        book.last_log = lg
-        book.save()
+        approve_pending_payment(lg)
         return JsonResponse({"ok": True, "approved": True})
     if action == "reject":
-        lg.delete()
+        delete_booklog(lg)
         return JsonResponse({"ok": True, "rejected": True})
     return JsonResponse({"ok": False, "message": "Unknown action"}, status=400)
 

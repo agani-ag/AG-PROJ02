@@ -70,6 +70,56 @@
 </div>
 
 <div class="section open">
+  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-bell"/></svg></span>
+    <div><h3 class="disp">SyncUp messages</h3><div class="sd">Notifications this business sends in the SyncUp app</div></div></div>
+  <div class="body">
+    {% if not msg_ready %}
+    <div class="cmsg bad" style="margin:0 0 12px"><svg class="gico"><use href="#i-alert"/></svg>
+      <div>Nothing is sent yet — turn on <b>Send SyncUp messages</b> under <a href="{% url 'console_syncup' %}">Settings</a> (SyncUp and this site's public address must be set too).</div></div>
+    {% endif %}
+    <p class="mut" style="font-size:12.5px;margin:0 0 12px">
+      Reaches {{ msg_reach.customers }} customer{{ msg_reach.customers|pluralize }} with an app login ·
+      {{ msg_reach.staff }} employee{{ msg_reach.staff|pluralize }} with a staff login, {{ msg_reach.admins }} of them Admin here.
+      Nothing goes out between 9 pm and 8 am.
+    </p>
+    <form method="post" action="{% url 'console_business_messages' b.user.id %}">
+      {% csrf_token %}
+      <div style="display:flex;flex-wrap:wrap;gap:6px 28px">
+        {% for g in msg_groups %}
+        <div style="flex:1 1 240px;min-width:0">
+          <div style="font-weight:700;font-size:13px;margin:0 0 6px">{{ g.label }}</div>
+          {% for e in g.items %}
+          <label class="gtoggle" style="display:flex;margin:0 0 6px{% if e.key == 'a_approval_prompt' %};padding-left:22px{% endif %}">
+            <input type="checkbox" name="events" value="{{ e.key }}" {% if e.on %}checked{% endif %}> {{ e.label }}</label>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      <button class="gbtn gbtn-primary" style="margin-top:8px"><svg class="gico"><use href="#i-ok"/></svg> Save messages</button>
+    </form>
+
+    <div style="border-top:1px solid var(--line);margin:20px 0 14px"></div>
+    <div style="font-weight:700;font-size:14px;margin:0 0 4px">Balance confirmation</div>
+    <p class="mut" style="font-size:13px;margin:0 0 12px">
+      Asks every customer with an app login to confirm their balance with this business on a date
+      (e.g. 31 March). They get a message that opens a page with <b>I confirm this balance</b>.
+    </p>
+    <form method="post" action="{% url 'console_business_confirm_balances' b.user.id %}"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"
+          onsubmit="return confirm('Send a balance confirmation to every customer of this business with an app login?')">
+      {% csrf_token %}
+      <input class="control" type="date" name="as_of" value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" required style="width:170px" aria-label="Balance as of">
+      <button class="gbtn" {% if not msg_ready %}disabled{% endif %}>Ask customers to confirm</button>
+    </form>
+    {% if confirmations %}
+    <p class="mut" style="font-size:12.5px;margin:10px 0 0">
+      {% for r in confirmations %}{{ r.as_of|date:"d M Y" }}: {{ r.confirmed }} of {{ r.asked }} confirmed{% if not forloop.last %} · {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section open">
   <div class="sh"><span class="si o"><svg class="gico"><use href="#i-power"/></svg></span>
     <div><h3 class="disp">Access</h3><div class="sd">Sign-in and password</div></div></div>
   <div class="body">

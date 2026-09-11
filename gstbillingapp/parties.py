@@ -402,6 +402,7 @@ def issue_login(party):
                                  password=password, is_active=True, app_link=app_link(party))
     party.login_status = Party.LOGIN_ACTIVE
     party.login_issued_at = timezone.now()
+    party.tile_text = ""            # the new link has no "₹… due" subtitle yet
     _record_sync(party, True)
     party.save()
     return password

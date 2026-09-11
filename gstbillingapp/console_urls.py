@@ -32,6 +32,10 @@ urlpatterns = [
          name="console_business_passkey_set"),
     path("business/<int:user_id>/passkey/off", console.business_passkey_off,
          name="console_business_passkey_off"),
+    path("business/<int:user_id>/messages", console.business_messages,
+         name="console_business_messages"),
+    path("business/<int:user_id>/confirm-balances", console.business_confirm_balances,
+         name="console_business_confirm_balances"),
 
     # Shared customers: suggestions, Parties (one real shop owner), app logins.
     path("customers", cc.customers, name="console_customers"),

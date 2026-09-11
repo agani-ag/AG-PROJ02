@@ -8,3 +8,5 @@ class GstbillingappConfig(AppConfig):
     def ready(self):
         # Connects the hook that switches off a deleted employee's SyncUp login.
         from . import staff  # noqa: F401
+        # Connects the hooks that queue SyncUp messages (bills, payments, orders).
+        from . import syncup_messages  # noqa: F401

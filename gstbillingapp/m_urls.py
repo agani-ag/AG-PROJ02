@@ -28,6 +28,7 @@ urlpatterns = [
     path('customer/invoice/<int:invoice_id>', c.invoice_detail, name='m_customer_invoice'),
     path('customer/orders', c.orders, name='m_customer_orders'),
     path('customer/profile', c.profile, name='m_customer_profile'),
+    path('customer/confirm/<int:pk>', c.confirm_balance, name='m_customer_confirm'),
 
     # ---- Employee / field-staff ----
     path('employee/', e.home, name='m_employee_home'),

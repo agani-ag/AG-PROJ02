@@ -7,6 +7,7 @@ from django.contrib.auth.hashers import check_password, make_password
 import uuid
 from datetime import datetime
 from django.db.models import Q
+from django.utils import timezone
 from django.core.exceptions import ValidationError
 
 # ========================== SAAS Data models ==================================
@@ -376,6 +377,10 @@ class BookLog(models.Model):
     associated_invoice = models.ForeignKey(Invoice, blank=True, null=True, default=None, on_delete=models.SET_NULL)
     description = models.TextField(max_length=600, blank=True, null=True)
     createdby = models.CharField(max_length=100, blank=True, null=True, default='SYSTEM')
+    # The employee who recorded it from the staff app — so they can be told when it's
+    # approved or rejected. (createdby is only a name.)
+    recorded_by = models.ForeignKey('Employee', null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='+')
     is_active = models.BooleanField(default=True)
 
     def save(self, *args, **kwargs):
@@ -879,6 +884,9 @@ class Party(models.Model):
     syncup_synced_at = models.DateTimeField(null=True, blank=True)
     # The last failed push, shown on the console with a retry. Empty when in sync.
     syncup_error = models.CharField(max_length=300, blank=True, default="")
+    # The subtitle last put on this customer's GSTSync tile ("₹… due · N shops"), so the daily
+    # refresh only calls SyncUp when it changes. Cleared when a login is (re)issued.
+    tile_text = models.CharField(max_length=80, blank=True, default="")
 
     class Meta:
         ordering = ["name", "id"]
@@ -964,6 +972,14 @@ class SyncUpSettings(models.Model):
     # Editable share messages; blank = the built-in default text.
     customer_share_text = models.TextField(blank=True, default="")
     share_text = models.TextField(blank=True, default="")
+    # ---- messages to customers, staff and admins (see syncup_messages.py) ----
+    # Master switch; which messages each business sends is set on its console page.
+    messages_enabled = models.BooleanField(default=False)
+    # Show "₹… due · N shops" on each customer's GSTSync tile in the app (refreshed daily).
+    tile_due = models.BooleanField(default=False)
+    # SyncUp's signing secret for GSTSync — proves an Approve / Reject answer really came from
+    # SyncUp. Write-only on the console, like the partner key.
+    signing_secret = models.CharField(max_length=200, blank=True, default="")
     updated_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
@@ -1057,3 +1073,79 @@ class BusinessPasskey(models.Model):
 
     def __str__(self):
         return "passkey for %s" % self.user_id
+
+
+# ======================= SyncUp messages (see syncup_messages.py) ==========================
+class BusinessNotifications(models.Model):
+    """Which SyncUp messages a business sends — each event switched on on the console business
+    page. No row, or an empty list, means none. Event names: syncup_messages.EVENTS."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="notifications")
+    events = models.JSONField(default=list, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return "notifications for %s" % self.user_id
+
+
+class SyncUpMessage(models.Model):
+    """One queued SyncUp push or Approve / Reject prompt — the outbox.
+
+    Business actions only ever add a row here; /cron/syncup sends the queue, so a bill or a
+    payment never waits on SyncUp. `dedupe_key` is unique, so an event can't be queued twice.
+    """
+    KIND_NOTIFY, KIND_APPROVE = "notify", "approve"
+
+    business = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE,
+                                 related_name="+")
+    kind = models.CharField(max_length=10, default=KIND_NOTIFY)
+    event = models.CharField(max_length=20)
+    external_id = models.CharField(max_length=40)          # party-N / employee-N in SyncUp
+    title = models.CharField(max_length=100)
+    body = models.CharField(max_length=300, blank=True, default="")
+    url = models.CharField(max_length=500, blank=True, default="")
+    data = models.JSONField(default=dict, blank=True)       # approve: {"log_id": …}
+    dedupe_key = models.CharField(max_length=160, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    send_after = models.DateTimeField(default=timezone.now, db_index=True)   # quiet hours
+    sent_at = models.DateTimeField(null=True, blank=True)
+    delivered = models.IntegerField(default=0)              # devices reached
+    attempts = models.PositiveSmallIntegerField(default=0)
+    failed = models.BooleanField(default=False)             # gave up, or the person is gone
+    last_error = models.CharField(max_length=300, blank=True, default="")
+    # Approve / Reject prompts: SyncUp's id for it, and the answer once known.
+    request_id = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+    answer = models.CharField(max_length=20, blank=True, default="")
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return "%s → %s" % (self.event, self.external_id)
+
+
+class SyncUpJobRun(models.Model):
+    """When each scheduled message job last ran (morning list, evening summary, weekly
+    overdue, tile refresh). /cron/syncup runs every few minutes; each job once per period."""
+    name = models.CharField(max_length=40, unique=True)
+    period = models.CharField(max_length=20, blank=True, default="")    # the day or week
+    ran_at = models.DateTimeField(auto_now=True)
+
+
+class BalanceConfirmation(models.Model):
+    """A request for a customer to confirm their balance with a business on a date. Answered on
+    a GSTSync page opened from a SyncUp message — not a SyncUp prompt, which expires in an hour."""
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE,
+                                 related_name="balance_confirmations")
+    balance = models.FloatField()                  # ledger balance on as_of (negative = owes)
+    as_of = models.DateField()
+    requested_at = models.DateTimeField(auto_now_add=True)
+    requested_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
+                                     on_delete=models.SET_NULL, related_name="+")
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-requested_at"]
+
+    def __str__(self):
+        return "balance confirmation %s" % self.pk

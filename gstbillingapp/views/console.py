@@ -19,13 +19,13 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
-from .. import passkeys
+from .. import passkeys, syncup_messages
 from ..console_auth import authenticate_admin, console_required, end_session, start_session
 from ..console_ops import (
     business_footprint, business_summary, create_business, purge_business,
     reset_business_password, set_business_active, set_customer_app,
 )
-from ..models import BusinessPasskey, Invoice, PlatformAdmin, UserProfile
+from ..models import BusinessPasskey, Customer, Invoice, PlatformAdmin, UserProfile
 
 
 # --------------------------------------------------------------------------- #
@@ -136,10 +136,61 @@ def business_new(request):
 @console_required
 def business_detail(request, user_id):
     user = get_object_or_404(User.objects.select_related("userprofile"), id=user_id)
+    on = syncup_messages.events_for(user)
     return render(request, "console/business_detail.html", {
         "b": business_summary(user),
         "passkey": BusinessPasskey.objects.select_related("set_by").filter(user=user).first(),
+        "msg_ready": syncup_messages.ready(),
+        "msg_groups": [{"label": label, "items": [{"key": k, "label": text, "on": k in on}
+                                                  for k, text in items]}
+                       for _key, label, items in syncup_messages.EVENTS],
+        "msg_reach": {"customers": sum(1 for c in Customer.objects.filter(user=user, is_mobile_user=True)
+                                       if syncup_messages.customer_target(c)),
+                      "staff": len(syncup_messages.staff_targets(user)),
+                      "admins": len(syncup_messages.admin_targets(user))},
+        "confirmations": syncup_messages.confirmation_summary(user),
+        "today": timezone.localdate(),
     })
+
+
+@console_required
+@require_POST
+def business_messages(request, user_id):
+    """Which SyncUp messages this business sends."""
+    user = get_object_or_404(User, id=user_id)
+    events = set(request.POST.getlist("events"))
+    if "a_approval_prompt" in events:
+        events.add("a_approval")            # the buttons ride on the approval message
+    syncup_messages.set_events(user, events)
+    messages.success(request, "SyncUp messages saved for '%s'." % user.username)
+    return redirect("console_business_detail", user_id=user.id)
+
+
+@console_required
+@require_POST
+def business_confirm_balances(request, user_id):
+    """Ask this business's app customers to confirm their balance on a date."""
+    user = get_object_or_404(User.objects.select_related("userprofile"), id=user_id)
+    try:
+        as_of = datetime.date.fromisoformat(request.POST.get("as_of") or "")
+    except ValueError:
+        messages.error(request, "Pick the date the balances are as of.")
+        return redirect("console_business_detail", user_id=user.id)
+    if as_of > timezone.localdate():
+        messages.error(request, "The date can't be in the future.")
+        return redirect("console_business_detail", user_id=user.id)
+    try:
+        asked = syncup_messages.request_balance_confirmations(user, as_of,
+                                                             admin=request.platform_admin)
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect("console_business_detail", user_id=user.id)
+    if asked:
+        messages.success(request, "Asked %d customer%s to confirm their balance on %s." % (
+            asked, "" if asked == 1 else "s", as_of.strftime("%d %b %Y")))
+    else:
+        messages.error(request, "No customer of '%s' has an active app login yet." % user.username)
+    return redirect("console_business_detail", user_id=user.id)
 
 
 @console_required

@@ -172,3 +172,28 @@ def set_account_active(external_id, is_active, timeout=None):
     lowers the wait for pushes made on a business's behalf (see QUICK_TIMEOUT)."""
     return _request("PUT", "users/external/%s" % external_id,
                     {"is_active": bool(is_active)}, timeout=timeout).get("user") or {}
+
+
+def notify_bulk(messages, timeout=None):
+    """Send many pushes in one call — each `{external_id, title, body, url}`. Returns SyncUp's
+    per-message results in the same order (`{"delivered": n}` or `{"error": …}`)."""
+    return _request("POST", "notify/bulk", {"messages": messages},
+                    timeout=timeout).get("results") or []
+
+
+def create_action(external_id, payload, timeout=None):
+    """Send a prompt (e.g. `{"type": "approve", …}`). Returns SyncUp's reply with request_id."""
+    return _request("POST", "users/external/%s/action" % external_id, payload, timeout=timeout)
+
+
+def action_status(request_id, timeout=None):
+    """A prompt's state and answer — for an answer whose callback never arrived."""
+    return _request("GET", "actions/%s" % request_id, timeout=timeout)
+
+
+def update_app_link(external_id, *, url, description, timeout=None):
+    """Change only the GSTSync tile (e.g. its "₹… due" subtitle); the account is untouched."""
+    return _request("PUT", "users/external/%s" % external_id, {"links": [{
+        "external_id": APP_LINK_KEY, "title": "GSTSync", "url": url, "icon": "home",
+        "description": description,
+    }]}, timeout=timeout)
