@@ -1,6 +1,6 @@
 # Django imports
 from django.contrib.auth import login, logout
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, redirect
 from django.contrib.auth.forms import AuthenticationForm
 from django.utils.http import url_has_allowed_host_and_scheme
 
@@ -65,51 +65,38 @@ def logout_view(request):
     logout(request)
     return redirect('login_view')
 
-# ================= Auth API Views ===========================
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
-from ..models import UserProfile
+# ================= Passkey sign-in ===========================
 import json
-@csrf_exempt
+
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.http import require_POST
+
+from .. import passkeys
+from ..models import BusinessPasskey
+
+
+@require_POST
 def passkey_auth(request):
-    # Only allow POST requests
-    if request.method == "POST":
-        try:
-            # Parse the incoming JSON body
-            data = json.loads(request.body)
-            passkey = data.get("passkey")
+    """Sign in with a business's passkey — the 5-character shortcut behind "Sign in with
+    passkey" (login page) and "Switch User" (navbar). Passkeys are set per business on the
+    console and stored only as a keyed digest (passkeys.py); nothing is hard-coded here.
 
-            # Define valid passkeys
-            passkeys = {
-                "11111": 1,
-                "22222": 2,
-                "33333": 3,
-                "44444": 4,
-                "55555": 5,
-                "97911": 1,
-            }
-
-            # Check if the passkey is valid
-            user_id = passkeys.get(passkey)
-
-            if not user_id:
-                return JsonResponse({"error": "User not found"}, status=400)
-
-            # Look up the user profile using the user_id
-            user_profile = get_object_or_404(UserProfile, user__id=user_id)
-
-            if not user_profile.user.is_active:
-                return JsonResponse({"error": "User account is inactive"}, status=403)
-
-            # Log the user in
-            login(request, user_profile.user, backend='django.contrib.auth.backends.ModelBackend')
-
-            # Return a successful response
-            return JsonResponse({"message": "Passkey authentication successful"}, status=200)
-
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON payload"}, status=400)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-
-    return JsonResponse({"error": "Invalid request method"}, status=405)
+    CSRF is enforced (both pop-ups send the token), wrong tries are limited per device, and
+    every failure gets the same answer, so nothing about the businesses leaks."""
+    if passkeys.too_many_tries(request):
+        return JsonResponse({"error": "Too many tries — wait a few minutes and try again."},
+                            status=429)
+    try:
+        passkey = json.loads(request.body or b"{}").get("passkey")
+    except (ValueError, AttributeError):
+        passkey = None
+    record = passkeys.authenticate(passkey)
+    if record is None:
+        passkeys.record_failure(request)
+        return JsonResponse({"error": "That passkey isn't right."}, status=400)
+    passkeys.clear_failures(request)
+    login(request, record.user, backend="django.contrib.auth.backends.ModelBackend")
+    request.session.set_expiry(0)       # like a password sign-in without "Remember me"
+    BusinessPasskey.objects.filter(pk=record.pk).update(last_used_at=timezone.now())
+    return JsonResponse({"message": "Signed in."})

@@ -1,4 +1,5 @@
 {% extends "console/base.html" %}
+{% load humanize %}
 {% block title %}{{ b.user.username }}{% endblock %}
 {% block nav_biz %}on{% endblock %}
 {% block content %}
@@ -89,6 +90,39 @@
       <button class="gbtn" style="margin-top:11px">
         <svg class="gico"><use href="#i-key"/></svg> Set password</button>
     </form>
+
+    <div style="border-top:1px solid var(--line);margin:20px 0 14px"></div>
+    <div style="font-weight:700;font-size:14px;margin:0 0 4px">Passkey</div>
+    <p class="mut" style="font-size:13px;margin:0 0 12px">
+      {% if passkey %}<span class="gbadge ok">On</span>
+        Set {{ passkey.set_at|date:"d M Y" }}{% if passkey.set_by %} by {{ passkey.set_by.full_name|default:passkey.set_by.username }}{% endif %}
+        · {% if passkey.last_used_at %}last used {{ passkey.last_used_at|naturaltime }}{% else %}not used yet{% endif %}.
+      {% else %}<span class="gbadge grey">Off</span>
+        No passkey — "Sign in with passkey" and "Switch User" don't open this business.
+      {% endif %}
+      A 5-character shortcut that signs straight into this business. It's shown once, when set.
+    </p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <form method="post" action="{% url 'console_business_passkey_generate' b.user.id %}"
+            {% if passkey %}onsubmit="return confirm('Make a new passkey? The current one stops working.')"{% endif %}>
+        {% csrf_token %}
+        <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-key"/></svg> Generate {% if passkey %}a new {% endif %}passkey</button>
+      </form>
+      <form method="post" action="{% url 'console_business_passkey_set' b.user.id %}" style="display:flex;gap:8px;align-items:center"
+            {% if passkey %}onsubmit="return confirm('Replace the current passkey?')"{% endif %}>
+        {% csrf_token %}
+        <input class="control" name="passkey" maxlength="5" placeholder="Your own" autocomplete="off" aria-label="Your own passkey"
+               style="width:130px;text-transform:uppercase;letter-spacing:.25em;font-weight:700">
+        <button class="gbtn">Set</button>
+      </form>
+      {% if passkey %}
+      <form method="post" action="{% url 'console_business_passkey_off' b.user.id %}"
+            onsubmit="return confirm('Turn off passkey sign-in for this business?')">
+        {% csrf_token %}<button class="gbtn gbtn-danger">Turn off</button>
+      </form>
+      {% endif %}
+    </div>
+    <p class="mut" style="font-size:12px;margin:10px 0 0">5 letters or digits. Not all one character, not a run like 12345 or ABCDE, and different from every other business's.</p>
   </div>
 </div>
 

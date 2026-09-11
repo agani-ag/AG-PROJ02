@@ -4131,3 +4131,123 @@ class GooglePlayTests(TestCase):
             r = self.client.post(reverse("console_party_login_issue", args=[party.id]))
         self.assertContains(r, 'id="wa-send"')
         self.assertContains(r, "utm_medium%3Dconsole")
+
+
+class PasskeyTests(TestCase):
+    """Business passkeys: set on the console, stored only as a digest, never hard-coded, and
+    guarded against guessing."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
+        cls.admin = PlatformAdmin(username="keyop", full_name="Key Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()                         # the attempt limit lives in the cache
+
+    def _console(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "keyop", "password": "Cons0le!pass9"})
+
+    def _sign_in(self, passkey, client=None):
+        return (client or self.client).post(reverse("passkey_auth"),
+                                            data=json.dumps({"passkey": passkey}),
+                                            content_type="application/json")
+
+    def test_the_old_hard_coded_passkeys_are_gone_for_good(self):
+        from .passkeys import problem
+        for old in ("11111", "22222", "33333", "44444", "55555"):
+            self.assertEqual(self._sign_in(old).status_code, 400, old)
+        self.assertIn("published", problem("97911"))
+
+    def test_generate_shows_it_once_and_it_signs_in(self):
+        from django.forms.models import model_to_dict
+        from django.test import Client
+        from .models import BusinessPasskey
+        self._console()
+        r = self.client.post(reverse("console_business_passkey_generate", args=[self.a.id]))
+        self.assertIn("no-store", r["Cache-Control"])
+        passkey = r.context["passkey"]
+        self.assertRegex(passkey, r"^[A-Z0-9]{5}$")
+        record = BusinessPasskey.objects.get(user=self.a)
+        self.assertNotIn(passkey, repr(model_to_dict(record)))        # only the digest is kept
+        self.assertEqual(record.set_by, self.admin)
+        self.assertNotContains(self.client.get(reverse("console_business_detail", args=[self.a.id])),
+                               'data-passkey="%s"' % passkey)
+        phone = Client()
+        self.assertEqual(self._sign_in(passkey.lower(), phone).status_code, 200)   # any case
+        self.assertEqual(int(phone.session["_auth_user_id"]), self.a.id)
+        record.refresh_from_db()
+        self.assertIsNotNone(record.last_used_at)
+
+    def test_weak_leaked_and_taken_passkeys_are_refused(self):
+        from .models import BusinessPasskey
+        from .passkeys import set_passkey
+        set_passkey(self.b, "K7M2Q")
+        self._console()
+        url = reverse("console_business_passkey_set", args=[self.a.id])
+        for bad in ("AAAAA", "12345", "54321", "ABCDE", "11111", "K7M2", "K7M2Q9", "K7M2Q"):
+            self.client.post(url, {"passkey": bad})
+            self.assertFalse(BusinessPasskey.objects.filter(user=self.a).exists(), bad)
+        ok = self.client.post(url, {"passkey": "r8t3w"})
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(ok.context["passkey"], "R8T3W")
+
+    def test_turning_it_off_stops_it(self):
+        from django.test import Client
+        from .passkeys import set_passkey
+        set_passkey(self.a, "R8T3W")
+        self._console()
+        self.client.post(reverse("console_business_passkey_off", args=[self.a.id]))
+        self.assertEqual(self._sign_in("R8T3W", Client()).status_code, 400)
+
+    def test_a_suspended_business_cant_sign_in(self):
+        from .passkeys import set_passkey
+        set_passkey(self.a, "R8T3W")
+        User.objects.filter(pk=self.a.pk).update(is_active=False)
+        self.assertEqual(self._sign_in("R8T3W").status_code, 400)
+
+    def test_wrong_tries_are_limited_per_device(self):
+        from .passkeys import set_passkey
+        set_passkey(self.a, "R8T3W")
+        for _ in range(5):
+            self.assertEqual(self._sign_in("ZZZZ9").status_code, 400)
+        self.assertEqual(self._sign_in("R8T3W").status_code, 429)   # even the right one, for now
+
+    def test_one_answer_for_every_failure(self):
+        from .passkeys import set_passkey
+        set_passkey(self.a, "R8T3W")
+        User.objects.filter(pk=self.a.pk).update(is_active=False)
+        answers = {self._sign_in(p).json()["error"] for p in ("R8T3W", "ZZZZ9", "")}
+        self.assertEqual(answers, {"That passkey isn't right."})
+
+    def test_csrf_is_enforced_and_only_post(self):
+        from django.test import Client
+        from .passkeys import set_passkey
+        set_passkey(self.a, "R8T3W")
+        self.assertEqual(self._sign_in("R8T3W", Client(enforce_csrf_checks=True)).status_code, 403)
+        self.assertEqual(self.client.get(reverse("passkey_auth")).status_code, 405)
+
+    def test_console_shows_passkey_status(self):
+        from .passkeys import set_passkey
+        set_passkey(self.a, "R8T3W", admin=self.admin)
+        self._console()
+        detail = self.client.get(reverse("console_business_detail", args=[self.a.id]))
+        self.assertContains(detail, "not used yet")
+        self.assertContains(self.client.get(reverse("console_businesses")), 'data-l="Passkey"')
+
+    def test_setting_needs_the_console(self):
+        r = self.client.post(reverse("console_business_passkey_generate", args=[self.a.id]))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/console/login", r["Location"])
+
+    def test_generated_passkeys_pass_the_rules_and_skip_look_alikes(self):
+        from .passkeys import generate, problem
+        for _ in range(40):
+            p = generate()
+            self.assertEqual(problem(p), "")
+            self.assertFalse(set(p) & set("01OIL"), p)

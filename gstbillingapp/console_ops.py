@@ -18,7 +18,7 @@ from django.contrib.auth.models import User
 from django.db import models, transaction
 from django.db.models import Max
 
-from .models import ActiveDevice, Customer, Invoice, Party, Product, UserProfile
+from .models import ActiveDevice, BusinessPasskey, Customer, Invoice, Party, Product, UserProfile
 from .parties import refresh_for_business, refresh_parties
 
 
@@ -136,6 +136,7 @@ def business_summary(user):
         # A business with no profile takes the field's default (on).
         "customer_app_enabled": profile.customer_app_enabled if profile else True,
         "mobile_customers": Customer.objects.filter(user=user, is_mobile_user=True).count(),
+        "passkey_on": BusinessPasskey.objects.filter(user=user).exists(),
     }
 
 

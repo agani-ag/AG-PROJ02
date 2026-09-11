@@ -16,14 +16,16 @@ from django.core.exceptions import ValidationError
 from django.db.models import Max
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
+from .. import passkeys
 from ..console_auth import authenticate_admin, console_required, end_session, start_session
 from ..console_ops import (
     business_footprint, business_summary, create_business, purge_business,
     reset_business_password, set_business_active, set_customer_app,
 )
-from ..models import Invoice, PlatformAdmin, UserProfile
+from ..models import BusinessPasskey, Invoice, PlatformAdmin, UserProfile
 
 
 # --------------------------------------------------------------------------- #
@@ -134,8 +136,10 @@ def business_new(request):
 @console_required
 def business_detail(request, user_id):
     user = get_object_or_404(User.objects.select_related("userprofile"), id=user_id)
-    return render(request, "console/business_detail.html",
-                  {"b": business_summary(user)})
+    return render(request, "console/business_detail.html", {
+        "b": business_summary(user),
+        "passkey": BusinessPasskey.objects.select_related("set_by").filter(user=user).first(),
+    })
 
 
 @console_required
@@ -176,6 +180,48 @@ def business_customer_app(request, user_id):
     set_customer_app(user, on)
     messages.success(request, "Customer app is now %s for '%s'." % (
         "on" if on else "off", user.username))
+    return redirect("console_business_detail", user_id=user.id)
+
+
+# --------------------------------------------------------------------------- #
+# Passkey — the 5-character sign-in shortcut (rules in passkeys.py)
+# --------------------------------------------------------------------------- #
+def _passkey_shown(request, user, passkey, generated):
+    """The one time a passkey is shown: rendered straight into this response — never put in
+    the session or a message; never_cache keeps it out of caches."""
+    return render(request, "console/passkey_shown.html",
+                  {"b": business_summary(user), "passkey": passkey, "generated": generated})
+
+
+@never_cache
+@console_required
+@require_POST
+def business_passkey_generate(request, user_id):
+    user = get_object_or_404(User.objects.select_related("userprofile"), id=user_id)
+    passkey = passkeys.set_passkey(user, passkeys.generate(), admin=request.platform_admin)
+    return _passkey_shown(request, user, passkey, generated=True)
+
+
+@never_cache
+@console_required
+@require_POST
+def business_passkey_set(request, user_id):
+    user = get_object_or_404(User.objects.select_related("userprofile"), id=user_id)
+    try:
+        passkey = passkeys.set_passkey(user, request.POST.get("passkey"),
+                                       admin=request.platform_admin)
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect("console_business_detail", user_id=user.id)
+    return _passkey_shown(request, user, passkey, generated=False)
+
+
+@console_required
+@require_POST
+def business_passkey_off(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    passkeys.turn_off(user)
+    messages.success(request, "Passkey sign-in is off for '%s'." % user.username)
     return redirect("console_business_detail", user_id=user.id)
 
 

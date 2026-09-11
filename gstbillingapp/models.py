@@ -1037,3 +1037,23 @@ class StaffLogin(models.Model):
 
     def __str__(self):
         return "%s login" % self.employee_id
+
+
+class BusinessPasskey(models.Model):
+    """A business's passkey — the 5-character shortcut behind "Sign in with passkey" (login
+    page) and "Switch User" (navbar). Set on the console; rules in passkeys.py.
+
+    Stored ONLY as a keyed digest (HMAC-SHA256 under a key derived from SECRET_KEY): the
+    passkey is the only thing typed, so the business must be found from it directly, and a
+    copied database is useless without the server's secret. Never readable again once set.
+    No row = passkey sign-in is off for that business.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="passkey")
+    digest = models.CharField(max_length=64, unique=True)
+    set_at = models.DateTimeField(auto_now=True)
+    set_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
+                               on_delete=models.SET_NULL, related_name="+")
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return "passkey for %s" % self.user_id
