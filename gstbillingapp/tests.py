@@ -3942,3 +3942,37 @@ class BulkConsoleTests(TestCase):
              mock.patch("gstbillingapp.staff.generate_customer_password", return_value="Ab3Cd5Ef7G"):
             d = self.client.post(reverse("console_employee_login_issue_json", args=[emp.id])).json()
         self.assertEqual((d["ok"], d["password"], d["phone"]), (True, "Ab3Cd5Ef7G", "9000000009"))
+
+
+class SyncUpErrorMessageTests(TestCase):
+    """When SyncUp itself crashes, the console says what broke instead of a bare 500."""
+
+    def _crash(self, body):
+        import io
+        import urllib.error
+
+        def fake(req, timeout):
+            raise urllib.error.HTTPError(req.full_url, 500, "Internal Server Error", {},
+                                         io.BytesIO(body.encode()))
+        return fake
+
+    def test_a_syncup_crash_names_the_error_from_its_debug_page(self):
+        from .syncup_client import SyncUpError, set_account_active
+        _syncup_on()
+        page = ("<html><head><title>OperationalError at /partner/v1/users/external/party-3"
+                "</title></head><body>no such column</body></html>")
+        with mock.patch("urllib.request.urlopen", self._crash(page)):
+            with self.assertRaises(SyncUpError) as ctx:
+                set_account_active("party-3", True)
+        message = str(ctx.exception)
+        self.assertIn("OperationalError at /partner/v1/users/external/party-3", message)
+        self.assertIn("error log", message)
+        self.assertEqual(ctx.exception.status, 500)
+
+    def test_a_plain_crash_still_reads_sensibly(self):
+        from .syncup_client import SyncUpError, set_account_active
+        _syncup_on()
+        with mock.patch("urllib.request.urlopen", self._crash("")):
+            with self.assertRaises(SyncUpError) as ctx:
+                set_account_active("party-3", True)
+        self.assertIn("SyncUp hit an error on its side (500): Internal Server Error", str(ctx.exception))

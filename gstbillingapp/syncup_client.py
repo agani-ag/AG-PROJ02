@@ -18,6 +18,7 @@ reports it, while a business-side change only records it — a business must nev
 because SyncUp is down.
 """
 import json
+import re
 import time
 import urllib.error
 import urllib.request
@@ -65,6 +66,12 @@ def link_base(cfg=None):
     return base if base.lower().startswith("https://") else ""
 
 
+def _page_title(html):
+    """The <title> of an HTML error page, whitespace-collapsed and trimmed — "" if none."""
+    m = re.search(r"<title[^>]*>(.*?)</title>", html or "", re.I | re.S)
+    return " ".join(m.group(1).split())[:160] if m else ""
+
+
 def _request(method, path, payload=None, cfg=None, timeout=None):
     cfg = cfg or config()
     limit = cfg.timeout or 5
@@ -84,11 +91,20 @@ def _request(method, path, payload=None, cfg=None, timeout=None):
         with urllib.request.urlopen(req, timeout=limit) as resp:
             raw = resp.read().decode("utf-8") or "{}"
     except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")
         try:
-            data = json.loads(e.read().decode("utf-8") or "{}")
-        except (ValueError, UnicodeDecodeError):
+            data = json.loads(body or "{}")
+        except ValueError:
             data = None
-        detail = (data.get("message") if isinstance(data, dict) else None) or e.reason
+        detail = ((data.get("message") if isinstance(data, dict) else None)
+                  or _page_title(body) or e.reason)
+        if e.code >= 500:
+            # SyncUp itself broke. Its error page's title names the exception when its
+            # DEBUG page is on (e.g. "OperationalError at /partner/v1/..."), which is usually
+            # enough to spot a missing migration.
+            raise SyncUpError("SyncUp hit an error on its side (%s): %s. SyncUp's server error "
+                              "log has the details." % (e.code, detail),
+                              status=e.code, payload=data)
         raise SyncUpError("SyncUp %s %s failed (%s): %s" % (method, path, e.code, detail),
                           status=e.code, payload=data)
     except (urllib.error.URLError, OSError) as e:        # includes timeouts
