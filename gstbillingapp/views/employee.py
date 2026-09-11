@@ -10,6 +10,8 @@ from ..models import (Employee, Customer, Invoice, EmployeePosting,
                       AttendanceLog, SalaryRecord, EmployeeIncentive)
 from ..forms import EmployeeForm
 from .. import staff
+from ..mobile_auth import mint_employee_token
+from ..syncup_client import link_base
 from ..utils import calculate_employee_salary
 
 import csv
@@ -130,7 +132,21 @@ def employee_edit(request, posting_id):
         messages.success(request, "Saved.")
         return redirect("employees")
     return render(request, "employees/employee_edit.html", {
-        "posting": posting, "employee": emp, "form": EmployeeForm(instance=emp)})
+        "posting": posting, "employee": emp, "form": EmployeeForm(instance=emp),
+        "app_link": _app_link(request, posting)})
+
+
+def _app_link(request, posting):
+    """The employee's SyncUp link, for the home business to copy and send them. Only the
+    home business has it (one person, one link) and only while they're active — switching
+    them off, or a login issued/deactivated on the console, stops any copied link. Built
+    from the public https address set on the console when there is one, so a link copied
+    over an internal address still opens on a phone."""
+    emp = posting.employee
+    if not (posting.is_home and emp.is_active):
+        return ""
+    base = link_base() or request.build_absolute_uri("/").rstrip("/")
+    return base + "/m/employee/?t=" + mint_employee_token(emp)
 
 
 @login_required

@@ -748,8 +748,8 @@ class EmployeeManagementTests(TestCase):
         self.assertEqual(self.client.get(reverse("employee_edit", args=[emp.id])).status_code, 404)
 
     def test_mobile_link_endpoints(self):
-        # Businesses no longer mint app links: customer and employee logins come from the
-        # console.
+        # The old link endpoints are gone: customer logins come from the console, and the
+        # employee edit page copies the employee's link directly (no endpoint).
         from django.urls import NoReverseMatch
         for name in ("customer_mobile_link", "employee_mobile_link", "employee_revoke"):
             with self.assertRaises(NoReverseMatch):
@@ -778,13 +778,37 @@ class EmployeeManagementTests(TestCase):
         d = self.client.get(reverse("employee_share_lookup"), {"code": emp.share_code}).json()
         self.assertFalse(d["ok"])   # your own employee
 
-    def test_edit_page_offers_no_app_link(self):
+    def test_edit_page_copies_the_employee_app_link(self):
+        """The home business can copy the person's SyncUp link, and it really opens."""
         from .models import Employee, UserProfile
         UserProfile.objects.create(user=self.owner, business_title="Boss Co")
         emp = Employee.objects.create(business=self.owner, name="Ravi")
-        r = self.client.get(reverse("employee_edit", args=[emp.postings.get(is_home=True).id]))
-        self.assertNotContains(r, "mobile-link")
-        self.assertContains(r, "issued by GSTSync")
+        url = reverse("employee_edit", args=[emp.postings.get(is_home=True).id])
+        r = self.client.get(url)
+        self.assertContains(r, "Copy app link")
+        link = r.context["app_link"]
+        self.assertIn("/m/employee/?t=", link)
+        _syncup_on()              # with a public https address set, the link uses it
+        self.assertTrue(self.client.get(url).context["app_link"].startswith(
+            "https://gstsync.test/m/employee/?t="))
+        self.client.logout()      # a fresh phone opens the copied link
+        self.assertEqual(self.client.get(link.split("testserver", 1)[1]).status_code, 302)
+
+    def test_no_app_link_while_switched_off_or_for_a_shared_employee(self):
+        from .models import Employee, EmployeePosting, UserProfile
+        UserProfile.objects.create(user=self.owner, business_title="Boss Co")
+        emp = Employee.objects.create(business=self.owner, name="Ravi")
+        other = User.objects.create_user("sharer", password="x")
+        UserProfile.objects.create(user=other, business_title="Other Co")
+        shared = EmployeePosting.objects.create(employee=emp, business=other, is_home=False)
+        self.client.force_login(other)
+        self.assertNotContains(self.client.get(reverse("employee_edit", args=[shared.id])),
+                               "Copy app link")
+        Employee.objects.filter(pk=emp.pk).update(is_active=False)
+        self.client.force_login(self.owner)
+        home = emp.postings.get(is_home=True)
+        self.assertNotContains(self.client.get(reverse("employee_edit", args=[home.id])),
+                               "Copy app link")
 
 
 class MultiBusinessTests(TestCase):
@@ -3976,3 +4000,134 @@ class SyncUpErrorMessageTests(TestCase):
             with self.assertRaises(SyncUpError) as ctx:
                 set_account_active("party-3", True)
         self.assertIn("SyncUp hit an error on its side (500): Internal Server Error", str(ctx.exception))
+
+
+class GooglePlayTests(TestCase):
+    """The SyncUp app's Google Play listing: one URL on the console, shown wherever it's set,
+    and never half-shown when it isn't."""
+
+    PLAY = "https://play.google.com/store/apps/details?id=com.agani.syncup"
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
+        cls.admin = PlatformAdmin(username="playop", full_name="Play Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.a, = _businesses("ALPHA")
+
+    def _play(self, **fields):
+        return _syncup_on(play_url=self.PLAY, **fields)
+
+    def _console(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "playop", "password": "Cons0le!pass9"})
+
+    def _save(self, **fields):
+        data = {"api_base": "", "partner_key": "", "link_base": "", "timeout": "5",
+                "login_domain": "gstsync.app", "play_url": "", "customer_share_text": "",
+                "share_text": ""}
+        data.update(fields)
+        return self.client.post(reverse("console_syncup"), data)
+
+    # ---- the listing ----------------------------------------------------------------
+    def test_play_links_are_recognised_and_made_canonical(self):
+        from .syncup_app import parse_play_url
+        want = (self.PLAY, "com.agani.syncup")
+        for raw in ("https://play.google.com/store/apps/details?id=com.agani.syncup&hl=en_IN&gl=US",
+                    "  https://play.google.com/store/apps/details/?id=com.agani.syncup  ",
+                    "market://details?id=com.agani.syncup",
+                    "com.agani.syncup"):
+            self.assertEqual(parse_play_url(raw), want, raw)
+        for bad in ("https://example.com/store/apps/details?id=com.agani.syncup",
+                    "https://play.google.com/store/apps/details", "not a link", "syncup",
+                    "javascript:alert(1)"):
+            self.assertEqual(parse_play_url(bad), ("", ""), bad)
+
+    def test_nothing_until_a_url_is_set_then_each_place_is_tagged(self):
+        from .syncup_app import listing
+        self.assertIsNone(listing())
+        self._play()
+        app = listing()
+        self.assertEqual(app["package"], "com.agani.syncup")
+        self.assertEqual(app["staff"],
+                         self.PLAY + "&referrer=utm_source%3Dgstsync%26utm_medium%3Dstaff")
+
+    def test_share_texts_fill_in_and_survive_stray_braces(self):
+        from .syncup_app import customer_text, share_text
+        cfg = self._play()
+        self.assertIn("Hello KMR, see your ALPHA ledger",
+                      customer_text(cfg, customer="KMR", business="ALPHA", link="L"))
+        self.assertEqual(share_text(cfg, business="ALPHA", link="L"),
+                         "Get the SyncUp app for ALPHA: L")
+        cfg.customer_share_text = "Hi {customer} {oops} } { {link}"
+        self.assertEqual(customer_text(cfg, customer="KMR", business="B", link="L"),
+                         "Hi KMR {oops} } { L")
+
+    # ---- console --------------------------------------------------------------------
+    def test_console_saves_a_canonical_play_link(self):
+        from .models import SyncUpSettings
+        self._console()
+        r = self._save(play_url=self.PLAY + "&hl=en", play_on_landing="1",
+                       share_text="Get {business}: {link}")
+        self.assertRedirects(r, reverse("console_syncup"))
+        cfg = SyncUpSettings.load()
+        self.assertEqual((cfg.play_url, cfg.play_on_landing, cfg.share_text),
+                         (self.PLAY, True, "Get {business}: {link}"))
+        self.assertContains(self.client.get(reverse("console_syncup")), "com.agani.syncup")
+
+    def test_console_refuses_a_link_that_isnt_google_play(self):
+        from .models import SyncUpSettings
+        self._console()
+        self.assertEqual(self._save(play_url="https://example.com/app").status_code, 400)
+        self.assertFalse(SyncUpSettings.objects.exists())
+
+    # ---- where it shows -------------------------------------------------------------
+    def test_public_landing_page_only_when_set_and_switched_on(self):
+        self.assertNotContains(self.client.get("/"), "Google Play")
+        self._play()
+        r = self.client.get("/")
+        self.assertContains(r, "Get SyncUp on Google Play")
+        self.assertContains(r, "utm_medium%3Dlanding")
+        self._play(play_on_landing=False)
+        self.assertNotContains(self.client.get("/"), "Google Play")
+
+    def test_business_dashboard_and_profile_offer_the_app(self):
+        self.client.force_login(self.a)
+        self.assertNotContains(self.client.get("/"), "SyncUp on Google Play")
+        self.assertNotContains(self.client.get(reverse("user_profile")), 'class="papp"')
+        self._play()
+        home = self.client.get("/")
+        self.assertContains(home, "SyncUp on Google Play")
+        self.assertContains(home, "https://wa.me/?text=Get%20the%20SyncUp%20app%20for%20ALPHA")
+        profile = self.client.get(reverse("user_profile"))
+        self.assertContains(profile, 'class="papp"')      # the block beside Bank & payments
+        self.assertContains(profile, "utm_medium%3Dbusiness")
+
+    def test_staff_can_invite_only_customers_shown_in_the_app(self):
+        from .mobile_auth import mint_employee_token
+        self._play()
+        emp = _employee(self.a, "GANESH")
+        shown = Customer.objects.create(user=self.a, customer_name="KMR",
+                                        customer_phone="9000000001", is_mobile_user=True)
+        hidden = Customer.objects.create(user=self.a, customer_name="LONE",
+                                         customer_phone="9000000002", is_mobile_user=False)
+        self.client.get("/m/employee/", {"t": mint_employee_token(emp)})
+        r = self.client.get(reverse("m_employee_customer", args=[shown.id]))
+        self.assertContains(r, 'onclick="shareApp()"')
+        self.assertContains(r, "utm_medium%3Dstaff")
+        self.assertNotContains(self.client.get(reverse("m_employee_customer", args=[hidden.id])),
+                               'onclick="shareApp()"')
+
+    def test_console_login_message_carries_the_app_link(self):
+        from .parties import create_party
+        self._play()
+        self._console()
+        c = Customer.objects.create(user=self.a, customer_name="KMR",
+                                    customer_phone="9000000001", is_mobile_user=True)
+        party = create_party(name="KMR", customers=[c])
+        with mock.patch("gstbillingapp.syncup_client.upsert_account"), \
+             mock.patch("gstbillingapp.parties.generate_customer_password", return_value="Pq4Rs7Tu9V"):
+            r = self.client.post(reverse("console_party_login_issue", args=[party.id]))
+        self.assertContains(r, 'id="wa-send"')
+        self.assertContains(r, "utm_medium%3Dconsole")

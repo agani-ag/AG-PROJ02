@@ -21,7 +21,10 @@
         <button class="btn btn-sm btn-green" style="flex:1" onclick="remind()"><svg class="i" style="stroke:#fff"><use href="#ic-message"/></svg> Remind</button>
     </div>
     {% endif %}
-    <a class="btn mt" href="{% url 'm_employee_customer_map' c.id %}"><svg class="i"><use href="#ic-pin"/></svg> {% if c.customer_latitude and c.customer_longitude %}Location · Open map{% else %}Set location{% endif %}</a>
+    <div class="between mt" style="gap:10px">
+        <a class="btn btn-sm btn-soft-teal" style="flex:1" href="{% url 'm_employee_customer_map' c.id %}"><svg class="i"><use href="#ic-pin"/></svg> {% if c.customer_latitude and c.customer_longitude %}Open map{% else %}Set location{% endif %}</a>
+        {% if app_share %}<button class="btn btn-sm btn-soft-purple" style="flex:1" onclick="shareApp()"><svg class="i"><use href="#ic-message"/></svg> Share SyncUp</button>{% endif %}
+    </div>
     <a class="btn btn-acc mt" href="{% url 'm_order' %}?customer={{ c.id }}"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> New order</a>
 </div>
 
@@ -64,6 +67,7 @@ async function pay(){
         setTimeout(()=>location.reload(), 800);
     } else { M.toast(r.message||'Failed'); }
 }
+function shareApp(){M.wa("{{ c.customer_phone|escapejs }}","{{ app_share|escapejs }}");}
 function remind(){M.sms("{{ c.customer_phone|escapejs }}","Dear {{ c.customer_name|escapejs }}, our records show an outstanding balance of {{ outstanding|inr }}. Kindly arrange payment. Thank you.");}
 </script>
 

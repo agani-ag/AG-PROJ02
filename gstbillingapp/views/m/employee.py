@@ -16,7 +16,8 @@ from ...utils import recalculate_book_current_balance, round_to_rupee, calculate
 from ...templatetags.money import format_inr
 from ._paged import PAGE, invoice_page, ledger_page
 from ...mobile_auth import label_accounts
-from ...parties import members, party_for
+from ...parties import members, party_for, row_is_visible
+from ...syncup_app import customer_invite
 
 
 def _user(request):
@@ -230,10 +231,18 @@ def customer_detail(request, customer_id):
     qs = (BookLog.objects.filter(parent_book=book).order_by("-date", "-id")
           if book else BookLog.objects.none())
     logs, has_more, _ = ledger_page(qs, 0, "all")
+    # "Share SyncUp app" — only for a customer this business actually shows in the app, so
+    # nobody is invited to install an app with nothing in it.
+    app_share = ""
+    if c.customer_phone and row_is_visible(c):
+        prof = getattr(u, "userprofile", None)
+        app_share = customer_invite(c.customer_name, ((prof.business_brand or prof.business_title)
+                                                      if prof else None) or u.username)
     return render(request, "m/e/customer_detail.html", {
         "c": c, "logs": logs, "balance": bal, "has_more": has_more,
         "outstanding": round(-bal, 2) if bal < 0 else 0.0,
         "brand_nav": _brand_nav(request, c), "brand_url": "m_employee_customer",
+        "app_share": app_share,
     })
 
 

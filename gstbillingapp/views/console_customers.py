@@ -338,6 +338,7 @@ def _password_page(request, party, password, issued):
     return render(request, "console/login_password.html", {
         "name": party.name, "email": party.login_email, "password": password, "issued": issued,
         "back_url": reverse("console_party", args=[party.id]), "app": "the SyncUp app",
+        "phone": next((c.customer_phone for c in parties.members(party) if c.customer_phone), ""),
     })
 
 

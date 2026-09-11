@@ -67,6 +67,33 @@
     </div>
   </div>
 
+  <div class="section open">
+    <div class="sh"><span class="si g"><svg class="gico"><use href="#i-team"/></svg></span>
+      <div><h3 class="disp">SyncUp app on Google Play</h3><div class="sd">Shown on the landing page, the business dashboard &amp; profile, and shared by staff</div></div></div>
+    <div class="body">
+      <div class="row2">
+        <div class="field"><label for="play_url">Google Play link</label>
+          <input id="play_url" class="control" name="play_url" value="{{ form.play_url }}" placeholder="https://play.google.com/store/apps/details?id=com.agani.syncup">
+          <div class="h">{% if app %}App id <b>{{ app.package }}</b> · <a href="{{ app.url }}" target="_blank" rel="noopener">Open in Google Play</a>{% else %}Leave it empty to hide the app everywhere.{% endif %}</div></div>
+      </div>
+      <label class="gtoggle"><input type="checkbox" name="play_on_landing" value="1" {% if form.play_on_landing %}checked{% endif %}> Show on the public landing page</label>
+      <div class="row2" style="margin-top:12px">
+        <div class="field"><label for="cst">Message staff send to a customer</label>
+          <textarea id="cst" class="control" name="customer_share_text" rows="3" placeholder="{{ defaults.customer }}">{{ form.customer_share_text }}</textarea>
+          <div class="h">Blank uses the text shown. <code>{customer}</code>, <code>{business}</code> and <code>{link}</code> are filled in. Only customers a business shows in the app are offered it.</div></div>
+        <div class="field"><label for="sht">Message a business shares</label>
+          <textarea id="sht" class="control" name="share_text" rows="3" placeholder="{{ defaults.share }}">{{ form.share_text }}</textarea>
+          <div class="h">From the business dashboard and profile. Blank uses the text shown. <code>{business}</code> and <code>{link}</code> are filled in.</div></div>
+      </div>
+      {% if app %}
+      <div style="display:flex;gap:14px;align-items:center;margin-top:14px;flex-wrap:wrap">
+        <div data-qr="{{ app.url }}" data-qr-size="96" style="background:#fff;padding:6px;border:1px solid var(--line);border-radius:10px;line-height:0"></div>
+        <div class="mut" style="font-size:12.5px;max-width:520px">This is the code people scan. {% if app.badge %}Google's official badge is shown next to it on each page.{% else %}To show Google's official "Get it on Google Play" badge instead of a text button, add it as <code>static/gstbillingapp/images/google-play-badge.png</code>.{% endif %}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
   <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
     <button class="gbtn gbtn-primary" type="submit"><svg class="gico"><use href="#i-ok"/></svg> Save settings</button>
     {% if cfg.updated_at %}<span class="mut" style="font-size:12.5px">Last saved {{ cfg.updated_at|date:"d M Y, H:i" }}{% if cfg.updated_by %} by {{ cfg.updated_by.full_name|default:cfg.updated_by.username }}{% endif %}</span>{% endif %}
@@ -84,4 +111,5 @@
     <p class="mut" style="font-size:12.5px;margin:10px 0 0">Asks SyncUp about an account that doesn't exist. It proves the address and key work, and changes nothing on either side.</p>
   </div>
 </div>
+{% if app %}{% include "partials/app_qr.html" with lib=True %}{% endif %}
 {% endblock %}

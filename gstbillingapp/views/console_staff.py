@@ -118,6 +118,7 @@ def _password_page(request, emp, password, issued):
         "name": emp.name, "email": login.login_email, "password": password, "issued": issued,
         "back_url": reverse("console_employee", args=[emp.id]),
         "app": "the staff app",
+        "phone": emp.phone or "",
     })
 
 

@@ -957,6 +957,13 @@ class SyncUpSettings(models.Model):
     timeout = models.PositiveSmallIntegerField(default=5)          # seconds per call
     # Customer logins are gsp{party id}@<this>. Login only - never mailed.
     login_domain = models.CharField(max_length=100, default="gstsync.app")
+    # ---- the SyncUp app's Google Play listing (see syncup_app.py) ----
+    # Blank hides every "get the app" block and share button everywhere.
+    play_url = models.CharField(max_length=300, blank=True, default="")
+    play_on_landing = models.BooleanField(default=True)   # show on the public landing page
+    # Editable share messages; blank = the built-in default text.
+    customer_share_text = models.TextField(blank=True, default="")
+    share_text = models.TextField(blank=True, default="")
     updated_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)

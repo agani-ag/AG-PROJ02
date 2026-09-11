@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from ..console_auth import console_required
 from ..models import Party, StaffLogin, SyncUpSettings
+from ..syncup_app import DEFAULT_CUSTOMER_TEXT, DEFAULT_SHARE_TEXT, listing, parse_play_url
 from ..syncup_client import check_connection
 
 _DOMAIN = re.compile(r"^(?=.{1,100}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
@@ -48,7 +49,10 @@ def syncup_settings(request):
     cfg = SyncUpSettings.load()
     locked = domain_locked()
     form = {"api_base": cfg.api_base, "link_base": cfg.link_base,
-            "timeout": cfg.timeout, "login_domain": cfg.login_domain}
+            "timeout": cfg.timeout, "login_domain": cfg.login_domain,
+            "play_url": cfg.play_url, "play_on_landing": cfg.play_on_landing,
+            "customer_share_text": cfg.customer_share_text, "share_text": cfg.share_text}
+    extra = {"defaults": {"customer": DEFAULT_CUSTOMER_TEXT, "share": DEFAULT_SHARE_TEXT}}
 
     if request.method == "POST":
         d = request.POST
@@ -77,16 +81,30 @@ def syncup_settings(request):
         key = (d.get("partner_key") or "").strip()
         if key and len(key) > 200:
             errors.append("That partner key is too long.")
+        play_raw = (d.get("play_url") or "").strip()
+        play_url, _package = parse_play_url(play_raw)
+        if play_raw and not play_url:
+            errors.append("That isn't a Google Play app link. It should look like "
+                          "https://play.google.com/store/apps/details?id=com.example.app")
+        texts = {name: (d.get(name) or "").strip()
+                 for name in ("customer_share_text", "share_text")}
+        if any(len(t) > 600 for t in texts.values()):
+            errors.append("Share messages must be under 600 characters.")
 
         if errors:
             form.update(api_base=d.get("api_base") or "", link_base=d.get("link_base") or "",
-                        timeout=d.get("timeout") or "", login_domain=d.get("login_domain") or "")
+                        timeout=d.get("timeout") or "", login_domain=d.get("login_domain") or "",
+                        play_url=play_raw, play_on_landing=bool(d.get("play_on_landing")),
+                        **texts)
             return render(request, "console/syncup_settings.html",
-                          {"cfg": cfg, "form": form, "locked": locked, "errors": errors},
+                          dict(extra, cfg=cfg, form=form, locked=locked, errors=errors,
+                               app=listing(cfg)),
                           status=400)
 
         cfg.api_base, cfg.link_base = api_base, link_base
         cfg.timeout, cfg.login_domain = timeout, domain
+        cfg.play_url, cfg.play_on_landing = play_url, bool(d.get("play_on_landing"))
+        cfg.customer_share_text, cfg.share_text = texts["customer_share_text"], texts["share_text"]
         if d.get("clear_key"):
             cfg.partner_key = ""
         elif key:                                       # blank keeps the current key
@@ -97,7 +115,7 @@ def syncup_settings(request):
         return redirect("console_syncup")
 
     return render(request, "console/syncup_settings.html",
-                  {"cfg": cfg, "form": form, "locked": locked, "errors": []})
+                  dict(extra, cfg=cfg, form=form, locked=locked, errors=[], app=listing(cfg)))
 
 
 @console_required

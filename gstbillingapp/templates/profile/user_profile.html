@@ -77,6 +77,13 @@
             <div class="pcard-head"><span class="pchip g"><i class="fas fa-landmark"></i></span>
                 <div><h3>Bank &amp; payments</h3><div class="sd">Account &amp; UPI collection</div></div></div>
             <div class="pcard-body">
+                <style>
+                    /* Bank on the left, the SyncUp app on the right; stacked on narrow screens. */
+                    .pbank{display:grid;grid-template-columns:1fr;gap:20px}
+                    @media(min-width:900px){.pbank.two{grid-template-columns:1fr 1fr}.pbank.two .papp{border-left:1px solid var(--line);padding-left:22px}}
+                </style>
+                <div class="pbank{% if SYNCUP_APP.url %} two{% endif %}">
+                <div>
                 <div class="pgrid">
                     <div class="pf full"><div class="pl">Bank Detail</div><div class="pv">{% if user_profile.bankdetails %}{{ user_profile.bankdetails }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
                 </div>
@@ -86,6 +93,29 @@
                     <div><div class="pl">UPI ID</div><div class="pv mono">{{ user_profile.bankdetails.upi_id }}</div><div class="mut" style="font-size:11.5px;margin-top:3px">Click the code to enlarge &amp; scan to pay this business</div></div>
                 </div>
                 {% endif %}
+                </div>
+                {% if SYNCUP_APP.url %}
+                <div class="papp">
+                    <div class="pl">SyncUp app</div>
+                    <div style="display:flex;gap:18px;align-items:center;margin-top:8px;flex-wrap:wrap">
+                        <div data-qr="{{ SYNCUP_APP.business }}" data-qr-size="116" title="Scan to open SyncUp on Google Play" style="background:#fff;padding:8px;border:1px solid var(--line);border-radius:12px;line-height:0"></div>
+                        <div>
+                            <div class="pv">Your customers and staff use <b>SyncUp</b> on their phones.</div>
+                            <div class="mut" style="font-size:11.5px;margin-top:3px">Scan the code to open it on Google Play.</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                                {% if SYNCUP_APP.badge %}
+                                <a href="{{ SYNCUP_APP.business }}" target="_blank" rel="noopener"><img src="{{ SYNCUP_APP.badge }}" alt="Get it on Google Play" style="height:40px;width:auto"></a>
+                                {% else %}
+                                <a class="gbtn" href="{{ SYNCUP_APP.business }}" target="_blank" rel="noopener"><i class="fas fa-mobile-screen-button"></i> Open in Google Play</a>
+                                {% endif %}
+                                {% if SYNCUP_APP.share_wa %}<a class="gbtn" href="{{ SYNCUP_APP.share_wa }}" target="_blank" rel="noopener"><i class="fas fa-share-nodes"></i> Share on WhatsApp</a>{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if SYNCUP_APP.badge %}<div class="mut" style="font-size:10.5px;margin-top:10px">Google Play and the Google Play logo are trademarks of Google LLC.</div>{% endif %}
+                </div>
+                {% endif %}
+                </div>
             </div>
         </div>
 
@@ -264,4 +294,4 @@ function changePassword(){
 
 {% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}
 
-{% block body_libs %}{% include "partials/libs/leaflet_body.html" %}{% include "partials/libs/qr_body.html" %}{% endblock %}
+{% block body_libs %}{% include "partials/libs/leaflet_body.html" %}{% include "partials/libs/qr_body.html" %}{% if SYNCUP_APP.url %}{% include "partials/app_qr.html" %}{% endif %}{% endblock %}

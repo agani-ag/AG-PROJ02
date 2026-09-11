@@ -47,3 +47,32 @@ def asset_version(request):
     if _cached_version is None:
         _cached_version = _compute_version()
     return {'ASSET_VER': _cached_version}
+
+
+def syncup_app(request):
+    """`SYNCUP_APP` — the SyncUp app's Google Play listing (see syncup_app.listing), or {}
+    when no Play URL is set, so `{% if SYNCUP_APP.url %}` hides every app block.
+
+    Lazy: a page that never mentions it costs no query. For a signed-in business it also
+    carries `share_wa`, a ready WhatsApp share naming that business."""
+    from urllib.parse import quote
+
+    from django.utils.functional import SimpleLazyObject
+
+    def build():
+        from .models import SyncUpSettings
+        from .syncup_app import listing, share_text
+        cfg = SyncUpSettings.load()
+        data = listing(cfg)
+        if not data:
+            return {}
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            prof = getattr(user, "userprofile", None)
+            business = ((prof.business_brand or prof.business_title) if prof else None) \
+                or user.username
+            data["share_wa"] = "https://wa.me/?text=" + quote(
+                share_text(cfg, business=business, link=data["business"]))
+        return data
+
+    return {'SYNCUP_APP': SimpleLazyObject(build)}

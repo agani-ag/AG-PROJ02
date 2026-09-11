@@ -57,6 +57,7 @@
 <script>
 (function () {
   var CSRF = '{{ csrf_token }}', CONCURRENCY = 2;
+  var APP_LINK = '{{ SYNCUP_APP.console|escapejs }}';     // Play link, when one is set
   var rows = Array.prototype.slice.call(document.querySelectorAll('#bl tbody tr'));
   var total = rows.length, done = 0, issued = 0, running = 0, queue = rows.slice();
   var results = [], saved = false;
@@ -76,6 +77,7 @@
     if (d.length > 10) d = d.slice(-10);
     if (d.length !== 10) return '';
     var text = 'Hello ' + name + ', your SyncUp app login:\nEmail: ' + email + '\nPassword: ' + pw +
+               (APP_LINK ? '\nGet the app: ' + APP_LINK : '') +
                '\nYou can change the password in the app.';
     return 'https://wa.me/91' + d + '?text=' + encodeURIComponent(text);
   }

@@ -246,6 +246,10 @@ section{scroll-margin-top:78px}
             <div class="cta">
                 <a class="btn btn-white btn-lg" href="{% url 'login_view' %}"><i class="fas fa-right-to-bracket"></i> Sign in</a>
                 <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+                {% if SYNCUP_APP.url and SYNCUP_APP.on_landing %}
+                {% if SYNCUP_APP.badge %}<a href="{{ SYNCUP_APP.landing }}" target="_blank" rel="noopener" style="line-height:0"><img src="{{ SYNCUP_APP.badge }}" alt="Get it on Google Play" style="height:52px;width:auto"></a>
+                {% else %}<a class="btn btn-ghost btn-lg" href="{{ SYNCUP_APP.landing }}" target="_blank" rel="noopener"><i class="fas fa-mobile-screen-button"></i> Get SyncUp on Google Play</a>{% endif %}
+                {% endif %}
             </div>
         </div>
         <div class="visual rv" style="--d:120ms" aria-hidden="true">
@@ -320,8 +324,19 @@ section{scroll-margin-top:78px}
                 <ul class="blist">
                     <li><i class="fas fa-circle-check"></i> Mobile order-taking that syncs instantly</li>
                     <li><i class="fas fa-circle-check"></i> Attendance &amp; salary calculated for you</li>
+                    {% if SYNCUP_APP.url and SYNCUP_APP.on_landing %}
+                    <li><i class="fas fa-circle-check"></i> The SyncUp app, free on Google Play</li>
+                    {% else %}
                     <li><i class="fas fa-circle-check"></i> Works on any phone — nothing to install</li>
+                    {% endif %}
                 </ul>
+                {% if SYNCUP_APP.url and SYNCUP_APP.on_landing %}
+                <div style="display:flex;gap:16px;align-items:center;margin-top:20px;flex-wrap:wrap">
+                    <div data-qr="{{ SYNCUP_APP.landing }}" data-qr-size="104" style="background:#fff;padding:8px;border-radius:12px;line-height:0;box-shadow:0 6px 18px rgba(15,23,42,.08)"></div>
+                    <div><b>Scan to get SyncUp</b><br>
+                        <a href="{{ SYNCUP_APP.landing }}" target="_blank" rel="noopener" style="font-weight:600">or open it on Google Play <i class="fas fa-arrow-up-right-from-square"></i></a></div>
+                </div>
+                {% endif %}
             </div>
             <div class="rv" style="--d:120ms">
                 <div class="phone">
@@ -368,7 +383,7 @@ section{scroll-margin-top:78px}
             <h2 class="h2 disp rv" style="--d:60ms">Three steps. That's the whole thing.</h2>
         </div>
         <div class="steps">
-            <div class="step rv"><span class="n">1</span><h4>Sign in</h4><p>Open GSTSync on your desktop and hand your reps the SyncUp link. Nothing to install.</p></div>
+            <div class="step rv"><span class="n">1</span><h4>Sign in</h4><p>{% if SYNCUP_APP.url and SYNCUP_APP.on_landing %}Open GSTSync on your desktop; your reps and customers get the SyncUp app from Google Play.{% else %}Open GSTSync on your desktop and hand your reps the SyncUp link. Nothing to install.{% endif %}</p></div>
             <div class="step rv" style="--d:80ms"><span class="n">2</span><h4>Bill &amp; track</h4><p>Raise invoices, take field orders, and log purchases — everything lands in one ledger.</p></div>
             <div class="step rv" style="--d:160ms"><span class="n">3</span><h4>Money comes back</h4><p>Watch receivables age, send UPI links, and collect faster. That's where it pays for itself.</p></div>
         </div>
@@ -410,12 +425,18 @@ section{scroll-margin-top:78px}
             <a class="logo" href="#top" style="color:#fff"><span class="mark"><i class="fas fa-bolt"></i></span> GSTSync</a>
             <div class="brands">
                 <span class="bx">Desktop · <b>GSTSync</b></span>
+                {% if SYNCUP_APP.url and SYNCUP_APP.on_landing %}
+                <a class="bx" href="{{ SYNCUP_APP.landing }}" target="_blank" rel="noopener" style="color:inherit">Mobile · <b>SyncUp</b> on Google Play</a>
+                {% else %}
                 <span class="bx">Mobile · <b>SyncUp</b></span>
+                {% endif %}
             </div>
         </div>
         <div class="cc">Billing · Collections · Inventory · Purchases · Field force — one calm place.</div>
+        {% if SYNCUP_APP.badge and SYNCUP_APP.on_landing %}<div class="cc" style="font-size:11px;opacity:.7">Google Play and the Google Play logo are trademarks of Google LLC.</div>{% endif %}
     </div>
 </footer>
+{% if SYNCUP_APP.url and SYNCUP_APP.on_landing %}{% include "partials/app_qr.html" with lib=True %}{% endif %}
 
 <script>
 (function(){

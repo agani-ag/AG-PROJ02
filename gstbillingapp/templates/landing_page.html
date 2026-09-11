@@ -264,6 +264,7 @@
             </ul>
             <div class="lp-acts">
                 <a href="{% url 'employees' %}">Employees <i class="fas fa-arrow-right"></i></a>
+                {% if SYNCUP_APP.url %}<a href="{{ SYNCUP_APP.business }}" target="_blank" rel="noopener">SyncUp on Google Play <i class="fas fa-arrow-up-right-from-square"></i></a>{% endif %}
             </div>
         </article>
 
@@ -341,6 +342,7 @@
             <p>Bill today, watch the receivables come back, and keep your whole shop on one screen.</p>
         </div>
         <a class="lp-btn lp-btn-white" href="{% url 'invoice_create' %}"><i class="fas fa-file-invoice"></i> Create an invoice</a>
+        {% if SYNCUP_APP.share_wa %}<a class="lp-btn lp-btn-white" href="{{ SYNCUP_APP.share_wa }}" target="_blank" rel="noopener"><i class="fas fa-share-nodes"></i> Share SyncUp app</a>{% endif %}
     </section>
 
 </div>

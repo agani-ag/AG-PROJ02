@@ -59,7 +59,7 @@
                 </div>
                 <div class="field full">
                     <label class="gtoggle"><input type="checkbox" name="is_active" {% if posting.is_active or not posting %}checked{% endif %}> Active</label>
-                    {% if posting.is_home or not posting %}<div class="h">Turning this off also stops their app login. The login itself is issued by GSTSync, not from here.</div>{% endif %}
+                    {% if posting.is_home or not posting %}<div class="h">Turning this off also stops their app login and any app link you've copied for them.</div>{% endif %}
                 </div>
             </div></div>
         </div>
@@ -68,6 +68,21 @@
     <div class="gs-actionbar"><div class="inner">
         <div class="msg">{% if posting %}Editing employee{% else %}New employee · not saved{% endif %}</div>
         <div class="end">
+            {% if app_link %}
+            <button type="button" class="gbtn" id="copy-app-link" title="Copy {{ employee.name }}'s SyncUp link to send them"><i class="fas fa-link"></i> Copy app link</button>
+            <script>
+            document.getElementById('copy-app-link').addEventListener('click', function () {
+                var btn = this, link = "{{ app_link|escapejs }}";
+                var done = function () {
+                    btn.innerHTML = '<i class="fas fa-check"></i> Copied';
+                    setTimeout(function () { btn.innerHTML = '<i class="fas fa-link"></i> Copy app link'; }, 1600);
+                };
+                if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(link).then(done); return; }
+                var ta = document.createElement('textarea'); ta.value = link; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); done(); } catch (e) {} document.body.removeChild(ta);
+            });
+            </script>
+            {% endif %}
             <a class="gbtn" href="{% url 'employees' %}">Cancel</a>
             <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> {% if posting %}Save changes{% else %}Save employee{% endif %}</button>
         </div>

@@ -66,6 +66,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'gstbillingapp.context_processors.asset_version',
+                'gstbillingapp.context_processors.syncup_app',
             ],
         },
     },
