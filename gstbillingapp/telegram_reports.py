@@ -10,6 +10,7 @@
 """
 import datetime
 import logging
+import uuid
 
 from django.utils import timezone
 
@@ -177,17 +178,17 @@ def _days(params):
 
 REPORTS = {
     TelegramReport.OVERDUE: {
-        "label": "Overdue report", "page": "overdue_report", "has_days": True,
+        "label": "Overdue report", "page": "overdue_report", "has_days": True, "unit": "customer",
         "default_time": datetime.time(9, 0), "default_days": 90,
         "build": lambda business, params: overdue_markdown(business, _days(params)),
     },
     TelegramReport.CHEQUE: {
-        "label": "Cheque clearance reminder", "page": "cheque_leafs", "has_days": False,
+        "label": "Cheque clearance reminder", "page": "cheque_leafs", "has_days": False, "unit": "cheque",
         "default_time": datetime.time(19, 0), "default_days": 0,
         "build": lambda business, params: cheque_markdown(business),
     },
     TelegramReport.COLLECTION: {
-        "label": "Collection route", "page": "customers_collection_calendar", "has_days": False,
+        "label": "Collection route", "page": "customers_collection_calendar", "has_days": False, "unit": "customer",
         "default_time": datetime.time(9, 0), "default_days": 0,
         "build": lambda business, params: collection_markdown(business),
     },
@@ -297,11 +298,13 @@ def run_due(now=None):
 
 
 def send_now(business, report, params=None, chat_rows=None):
-    """Send this report immediately (the popup's "Send now"). Returns (queued, count)."""
+    """Send this report immediately (the popup's "Send now"). Returns (queued, count).
+
+    The key is unique per press: a manual send is never a duplicate of another, so sending
+    the 90-day and the 120-day row in the same second both go."""
     from .syncup_messages import flush
     queued, count = queue_report(business, report, params, chat_rows,
-                                 key="now-" + timezone.localtime().strftime("%Y%m%d%H%M%S"),
-                                 skip_empty=False)
+                                 key="now-" + uuid.uuid4().hex[:10], skip_empty=False)
     if queued:
         flush(only_ids=list(SyncUpMessage.objects.filter(
             business=business, kind=SyncUpMessage.KIND_TELEGRAM, sent_at__isnull=True)

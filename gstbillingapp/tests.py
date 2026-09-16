@@ -4756,7 +4756,7 @@ class TelegramReportTests(TestCase):
         text, count = build("overdue", self.a, {"days": 90})
         self.assertEqual(count, 1)
         for bit in ("📋  *OVERDUE REPORT*", "🏢  *ALPHA CO*", "KMR", "9876543210",
-                    "⚠️  Overdue Customers: *1*", "Crab AI"):
+                    "⚠️  Overdue Customers: *1*", "SyncUp"):
             self.assertIn(bit, text)
 
         text, count = build("collection", self.a, {})
@@ -4839,6 +4839,35 @@ class TelegramReportTests(TestCase):
         self.assertEqual(sent[0]["parse_mode"], "MarkdownV2")
         self.assertIn("OVERDUE REPORT", sent[0]["text"])
         self.assertIsNotNone(self._msgs()[0].sent_at)
+
+    def test_each_row_sends_its_own_days(self):
+        """Two rows of one report (90 and 120 days) each send THEIR report — pressing Send
+        now on the second must not re-send the first."""
+        self._owing(days_old=100)                    # overdue by 100 days: in 90, not in 120
+        self._login()
+        url = reverse("telegram_report_send", args=["overdue"])
+        for days, customers in ((90, 1), (120, 0)):
+            r = self.client.post(url, data=json.dumps({"days": days, "chats": [self.chat.id]}),
+                                 content_type="application/json")
+            self.assertTrue(r.json()["ok"])
+            self.assertIn("(%d days)" % days, r.json()["message"])
+            self.assertIn("%d customer" % customers, r.json()["message"])
+        self.assertEqual(self.bulk.call_count, 2)
+        first, second = [c.args[0][0]["text"] for c in self.bulk.call_args_list]
+        self.assertIn("⏳ 90 Days", first)
+        self.assertIn("KMR", first)
+        self.assertIn("⏳ 120 Days", second)          # the second row really sent 120
+        self.assertIn("No overdue customers", second)
+
+    def test_two_manual_sends_in_the_same_second_both_go(self):
+        from .models import SyncUpMessage
+        self._owing()
+        self._login()
+        url = reverse("telegram_report_send", args=["overdue"])
+        for days in (90, 120):
+            self.client.post(url, data=json.dumps({"days": days, "chats": [self.chat.id]}),
+                             content_type="application/json")
+        self.assertEqual(SyncUpMessage.objects.filter(kind="telegram").count(), 2)
 
     # ---- the schedule ----
     def _schedule(self, at="09:00", report="overdue", days=90):

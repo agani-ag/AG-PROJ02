@@ -27,7 +27,6 @@ groups. The groups themselves are added by us on the console — never here.
     </div>
     <div class="gmodal-foot">
       <button type="button" class="gbtn" data-gclose>Close</button>
-      <button type="button" class="gbtn" id="tgNow" onclick="tgSendNow()"><i class="fas fa-paper-plane"></i> Send now</button>
       <button type="button" class="gbtn gbtn-primary" id="tgSave" onclick="tgSave()"><i class="fas fa-check"></i> Save</button>
     </div>
   </div>
@@ -62,7 +61,7 @@ function tgRender(){
   blocked.style.display = tgState.available ? "none" : "flex";
   document.getElementById('tgReason').textContent = tgState.reason;
   document.getElementById('tgBody').style.display = tgState.available ? "block" : "none";
-  ['tgSave', 'tgNow'].forEach(function(id){ document.getElementById(id).disabled = !tgState.available; });
+  document.getElementById('tgSave').disabled = !tgState.available;
   document.getElementById('tgRows').innerHTML = "";
   (tgState.rows.length ? tgState.rows : []).forEach(tgRow);
   if(!tgState.rows.length && tgState.available) tgAddRow();
@@ -97,30 +96,34 @@ function tgRow(row){
     + '<label class="small" style="margin:0">at <input type="time" class="form-control form-control-sm tgtime" value="'
     + row.send_at + '" style="display:inline-block;width:auto"></label>'
     + days
-    + '<button type="button" class="gbtn gbtn-sm" style="margin-left:auto" onclick="this.closest(\'.tgrow\').remove()">Remove</button>'
+    + '<span style="margin-left:auto;display:flex;gap:8px">'
+    + '<button type="button" class="gbtn gbtn-sm" onclick="tgSendRow(this)"><i class="fas fa-paper-plane"></i> Send now</button>'
+    + '<button type="button" class="gbtn gbtn-sm" onclick="this.closest(\'.tgrow\').remove()">Remove</button>'
+    + '</span>'
     + '</div>'
     + '<div style="margin-top:8px">' + (chats || '<span class="text-muted small">No groups yet.</span>') + '</div>'
-    + (row.last ? '<div class="text-muted small" style="margin-top:6px">' + tgEsc(row.last) + '</div>' : '');
+    + '<div class="text-muted small tgrowmsg" style="margin-top:6px">' + tgEsc(row.last || "") + '</div>';
   document.getElementById('tgRows').appendChild(wrap);
 }
 function tgEsc(s){ var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-function tgCollect(){
-  return Array.prototype.map.call(document.querySelectorAll('#tgRows .tgrow'), function(el){
-    return {
-      enabled: el.querySelector('.tgon').checked,
-      send_at: el.querySelector('.tgtime').value,
-      days: el.querySelector('.tgdays') ? parseInt(el.querySelector('.tgdays').value, 10) : null,
-      chats: Array.prototype.map.call(el.querySelectorAll('.tgchat:checked'), function(c){
-        return parseInt(c.value, 10); })
-    };
-  });
+function tgReadRow(el){
+  return {
+    enabled: el.querySelector('.tgon').checked,
+    send_at: el.querySelector('.tgtime').value,
+    days: el.querySelector('.tgdays') ? parseInt(el.querySelector('.tgdays').value, 10) : null,
+    chats: Array.prototype.map.call(el.querySelectorAll('.tgchat:checked'), function(c){
+      return parseInt(c.value, 10); })
+  };
 }
-function tgPost(url, body, done){
+function tgCollect(){
+  return Array.prototype.map.call(document.querySelectorAll('#tgRows .tgrow'), tgReadRow);
+}
+function tgPost(url, body, done, failed){
   fetch(url, {method: "POST", headers: {"Content-Type": "application/json", "X-CSRFToken": tgCsrf()},
               body: JSON.stringify(body)})
     .then(function(r){ return r.json(); })
     .then(done)
-    .catch(function(){ tgSay("That didn't go through. Try again.", true); });
+    .catch(failed || function(){ tgSay("That didn't go through. Try again.", true); });
 }
 function tgSave(){
   tgSay("Saving…");
@@ -129,12 +132,20 @@ function tgSave(){
     tgState = d; tgRender(); tgSay("Saved.");
   });
 }
-function tgSendNow(){
-  var rows = tgCollect();
-  tgSay("Sending…");
-  tgPost(TG_SEND_URL, {days: rows.length ? rows[0].days : null,
-                       chats: rows.length ? rows[0].chats : []}, function(d){
-    tgSay(d.message || (d.ok ? "Sent." : "Nothing was sent."), !d.ok);
-  });
+function tgSendRow(btn){
+  // Each row carries its own days and groups, so a row sends ITSELF. (One shared button
+  // sent whichever row happened to be first — the 120-day row could never be sent.)
+  var el = btn.closest('.tgrow'), row = tgReadRow(el), note = el.querySelector('.tgrowmsg');
+  function say(text, bad){
+    btn.disabled = false;
+    note.textContent = text;
+    note.style.color = bad ? "var(--red)" : "var(--soft)";
+  }
+  btn.disabled = true;
+  note.textContent = "Sending…";
+  note.style.color = "var(--soft)";
+  tgPost(TG_SEND_URL, {days: row.days, chats: row.chats},
+         function(d){ say(d.message || (d.ok ? "Sent." : "Nothing was sent."), !d.ok); },
+         function(){ say("That didn't go through. Try again.", true); });
 }
 </script>

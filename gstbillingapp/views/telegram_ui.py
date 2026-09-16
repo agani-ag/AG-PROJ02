@@ -160,6 +160,9 @@ def report_send_now(request, report):
     queued, count = tg.send_now(request.user, report, params, chats)
     if not queued:
         return JsonResponse({"ok": False, "message": "Nothing was sent — try again in a moment."})
-    return JsonResponse({"ok": True, "message": "Sent to %d group%s (%d row%s in the report)."
-                         % (len(chats), "" if len(chats) == 1 else "s",
-                            count, "" if count == 1 else "s")})
+    meta = tg.REPORTS[report]
+    # Name what was sent: two rows of the same report differ only by their days.
+    what = meta["label"] + (" (%d days)" % params["days"] if params else "")
+    return JsonResponse({"ok": True, "message": "%s sent to %s — %d %s%s." % (
+        what, ", ".join(c.name for c in chats), count, meta["unit"],
+        "" if count == 1 else "s")})
