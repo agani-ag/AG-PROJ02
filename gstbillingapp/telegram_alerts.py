@@ -35,7 +35,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from .models import BusinessTelegram, StaffLogin, SyncUpMessage
-from .telegram_reports import SEPARATOR, available, chats
+from .telegram_reports import SEPARATOR, available, brand, chats
 from .utils import _escape_md
 
 log = logging.getLogger(__name__)
@@ -83,11 +83,18 @@ def _bump(row):
     return (row.app_opens or 0) + 1
 
 
-def message(who, role, count, when, device, detail=""):
-    """The MarkdownV2 body — one screenful, the same shape as SyncUp's device notice."""
+def message(who, role, count, when, device, detail="", at=""):
+    """The MarkdownV2 body — one screenful, the same shape as SyncUp's device notice.
+
+    `at` is the business this login belongs to. It is worth a line because one Telegram group
+    can serve several businesses (a shared chat id), and "KMR opened the app" is no use if you
+    can't tell which of your shops they opened. The owner's own sign-in already says it in the
+    name, so it isn't repeated there."""
     lines = ["*🤝 App Login 🔔*", "", _escape_md(THIN_SEP), "*%s*" % _escape_md(who.upper())]
     if detail:
         lines.append("_%s_" % _escape_md(detail))
+    if at and at.upper() != who.upper():
+        lines.append("*🏢 %s*" % _escape_md(at))
     lines.append(_escape_md(SEPARATOR))
     lines.append("*%s%s*" % (_escape_md(ROLE_WORDS.get(role, "User")),
                              " \\| 📲 %d Times" % count if count else ""))
@@ -127,12 +134,13 @@ def announce(businesses, *, who, role, when, device, count=None, detail=""):
     targets = [(b, group) for b, group in targets if group]
     if not targets:
         return 0
-    text = message(who, role, count, when, device, detail)
     # A login is a one-off, so its key is unique: two sign-ins in the same second both go.
     # What stops a flood is SESSION_GAP (mobile) — never this key.
     stamp = uuid.uuid4().hex[:10]
     ids = []
     for business, group in targets:
+        # Written per business, because each one's copy names itself (a group may be shared).
+        text = message(who, role, count, when, device, detail, at=brand(business))
         for chat in group:
             # any_time: a login at 10 pm is news at 10 pm, not at 8 the next morning.
             m = queue(business=business, event="login", external_id=chat.chat_id,

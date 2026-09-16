@@ -157,6 +157,7 @@ def business_detail(request, user_id):
             "enabled": telegram_reports.business_enabled(user),
             "row": BusinessTelegram.objects.filter(user=user).first(),
             "chats": TelegramChat.objects.filter(business=user),
+            "reusable": reusable_chats(user),
             "reports": [{"label": telegram_reports.REPORTS[r.report]["label"], "row": r,
                          "chats": ", ".join(c.name for c in telegram_reports.chats_for(r))}
                         for r in TelegramReport.objects.filter(business=user)],
@@ -201,6 +202,51 @@ def business_telegram_logins(request, user_id):
     row.save()
     messages.success(request, "Login notifications are now %s for '%s'." % (
         "on" if row.login_alerts else "off", user.username))
+    return redirect("console_business_detail", user_id=user.id)
+
+
+def _display(user):
+    profile = getattr(user, "userprofile", None)
+    return ((profile.business_brand or profile.business_title) if profile else "") or user.username
+
+
+def reusable_chats(business):
+    """Groups already held for OTHER businesses, so a shared one is picked, never retyped.
+
+    One small owner often runs two or three businesses that all report to the same group;
+    re-typing the id is the only way to get a digit wrong, and a wrong digit fails silently
+    (Telegram simply refuses that message later)."""
+    held = set(TelegramChat.objects.filter(business=business).values_list("chat_id", flat=True))
+    out = {}
+    for c in (TelegramChat.objects.exclude(chat_id__in=held)
+              .select_related("business", "business__userprofile").order_by("-id")):
+        # Rows come newest first, so the first one seen carries the most recent label.
+        entry = out.setdefault(c.chat_id, {"chat_id": c.chat_id, "label": c.label, "used_by": []})
+        entry["used_by"].append(_display(c.business))
+    return [dict(e, used_by=", ".join(e["used_by"])) for e in out.values()]
+
+
+@console_required
+@require_POST
+def business_telegram_chat_reuse(request, user_id):
+    """Put a group we already hold on this business too. Each business keeps its own row —
+    its own active switch, its own last result — so removing one leaves the others alone."""
+    user = get_object_or_404(User, id=user_id)
+    chat_id = (request.POST.get("chat_id") or "").strip()
+    label = (request.POST.get("label") or "").strip()
+    source = (TelegramChat.objects.filter(chat_id=chat_id).exclude(business=user)
+              .select_related("business", "business__userprofile").order_by("-id").first())
+    if source is None:
+        # Only ids we already hold are on offer, which is the whole point of this form.
+        messages.error(request, "Pick one of the groups we already have.")
+    elif TelegramChat.objects.filter(business=user, chat_id=chat_id).exists():
+        messages.error(request, "That group is already on this business.")
+    else:
+        TelegramChat.objects.create(business=user, chat_id=chat_id,
+                                    label=(label or source.label)[:40],
+                                    added_by=request.platform_admin)
+        messages.success(request, "Added — this group also hears from %s."
+                         % _display(source.business))
     return redirect("console_business_detail", user_id=user.id)
 
 

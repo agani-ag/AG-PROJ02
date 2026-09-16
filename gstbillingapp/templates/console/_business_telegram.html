@@ -81,6 +81,25 @@ The business picks WHICH reports and WHEN on each report's own page.{% endcommen
       <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-plus"/></svg> Add chat id</button>
     </form>
 
+    {% if tg.reusable %}
+    <div class="mut" style="font-size:12.5px;margin:12px 0 6px">
+      …or use a group we already have — for an owner whose businesses all report to one place.
+      Nothing is typed, so the id can't come out wrong.
+    </div>
+    <form method="post" action="{% url 'console_business_telegram_chat_reuse' b.user.id %}"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      {% csrf_token %}
+      <select class="control" name="chat_id" required style="width:370px" aria-label="Existing group">
+        <option value="">Pick an existing group…</option>
+        {% for r in tg.reusable %}
+        <option value="{{ r.chat_id }}">{{ r.label|default:r.chat_id }} · {{ r.chat_id }} · used by {{ r.used_by }}</option>
+        {% endfor %}
+      </select>
+      <input class="control" name="label" placeholder="Label here (optional)" maxlength="40" style="width:170px" aria-label="Label for this business">
+      <button class="gbtn"><svg class="gico"><use href="#i-plus"/></svg> Use this group</button>
+    </form>
+    {% endif %}
+
     {% if tg.reports %}
     <div style="border-top:1px solid var(--line);margin:20px 0 14px"></div>
     <div style="font-weight:700;font-size:14px;margin:0 0 4px">What this business has scheduled</div>

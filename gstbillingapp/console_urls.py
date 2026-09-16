@@ -42,6 +42,8 @@ urlpatterns = [
          name="console_business_telegram_logins"),
     path("business/<int:user_id>/telegram/add", console.business_telegram_chat_add,
          name="console_business_telegram_chat_add"),
+    path("business/<int:user_id>/telegram/reuse", console.business_telegram_chat_reuse,
+         name="console_business_telegram_chat_reuse"),
     path("business/<int:user_id>/telegram/<int:chat_id>/toggle",
          console.business_telegram_chat_toggle, name="console_business_telegram_chat_toggle"),
     path("business/<int:user_id>/telegram/<int:chat_id>/delete",

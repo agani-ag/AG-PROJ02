@@ -38,6 +38,13 @@ DAY_OPTIONS = list(range(15, 465, 15))
 # --------------------------------------------------------------------------- #
 # The reports — same MarkdownV2 the group receives today
 # --------------------------------------------------------------------------- #
+def brand(business):
+    """What a business is called in a message — its brand, else its title, else the username."""
+    profile = getattr(business, "userprofile", None)
+    return ((profile.business_brand or profile.business_title) if profile else "") or \
+        business.username
+
+
 def _footer(lines, today):
     lines.append("🔄  _SyncUp \\| %s_" % _escape_md(today.strftime("%d %b %Y")))
 
@@ -153,7 +160,9 @@ def collection_markdown(business):
     books = list(Book.objects.filter(user=business, customer__collection_day=day)
                  .exclude(customer_id__isnull=True).select_related("customer")
                  .order_by("current_balance"))
-    lines = ["📅  _*COLLECTION ROUTE* \\- *%s*_\n" % _escape_md(day_name)]
+    # Naming the business matters: one group can serve several of them (a shared chat id).
+    lines = ["📅  _*COLLECTION ROUTE* \\- *%s*_\n" % _escape_md(day_name),
+             "🏢  *%s*\n" % _escape_md(brand(business))]
     if not books:
         lines.append("_No customers with collection day on %s\\._" % _escape_md(day_name))
     for counter, book in enumerate(books, 1):

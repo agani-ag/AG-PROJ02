@@ -5018,6 +5018,59 @@ class TelegramReportTests(TestCase):
             self.assertContains(r, 'onclick="tgOpen()"', msg_prefix=name)
             self.assertContains(r, "/telegram/report/", msg_prefix=name)
 
+    # ---- re-using one group across an owner's businesses ----
+    def test_a_group_can_be_picked_instead_of_typed_again(self):
+        from .models import TelegramChat
+        from .views.console import reusable_chats
+        self._console()
+        # BETA has none of its own yet, so ALPHA's group is on offer…
+        offered = reusable_chats(self.b)
+        self.assertEqual([(r["chat_id"], r["label"]) for r in offered],
+                         [(self.chat.chat_id, "Owner group")])
+        self.assertIn("ALPHA", offered[0]["used_by"])
+        self.client.post(reverse("console_business_telegram_chat_reuse", args=[self.b.id]),
+                         {"chat_id": self.chat.chat_id})
+        copy = TelegramChat.objects.get(business=self.b)
+        self.assertEqual((copy.chat_id, copy.label), (self.chat.chat_id, "Owner group"))
+        # …and once taken it is no longer offered to BETA.
+        self.assertEqual(reusable_chats(self.b), [])
+
+    def test_the_copy_lives_its_own_life(self):
+        from .models import TelegramChat
+        self._console()
+        self.client.post(reverse("console_business_telegram_chat_reuse", args=[self.b.id]),
+                         {"chat_id": self.chat.chat_id, "label": "Shared with BETA"})
+        copy = TelegramChat.objects.get(business=self.b)
+        self.assertEqual(copy.label, "Shared with BETA")        # its own label
+        self.client.post(reverse("console_business_telegram_chat_toggle",
+                                 args=[self.b.id, copy.id]))
+        self.chat.refresh_from_db()
+        self.assertTrue(self.chat.is_active)                    # ALPHA's is untouched
+        self.client.post(reverse("console_business_telegram_chat_delete",
+                                 args=[self.a.id, self.chat.id]))
+        self.assertTrue(TelegramChat.objects.filter(pk=copy.pk).exists())
+
+    def test_only_a_group_we_already_hold_can_be_picked(self):
+        from .models import TelegramChat
+        self._console()
+        r = self.client.post(reverse("console_business_telegram_chat_reuse", args=[self.b.id]),
+                             {"chat_id": "-100555000"}, follow=True)
+        self.assertContains(r, "Pick one of the groups we already have")
+        self.assertFalse(TelegramChat.objects.filter(business=self.b).exists())
+        self.client.post(reverse("console_business_telegram_chat_reuse", args=[self.b.id]),
+                         {"chat_id": self.chat.chat_id})
+        again = self.client.post(reverse("console_business_telegram_chat_reuse",
+                                         args=[self.b.id]),
+                                 {"chat_id": self.chat.chat_id}, follow=True)
+        self.assertContains(again, "already on this business")
+        self.assertEqual(TelegramChat.objects.filter(business=self.b).count(), 1)
+
+    def test_a_shared_group_can_tell_the_businesses_apart(self):
+        from .telegram_reports import build
+        text, _ = build("collection", self.a, {})
+        self.assertIn("COLLECTION ROUTE", text)
+        self.assertIn("ALPHA", text)                            # whose route this is
+
     # ---- what the old SyncUp job used ----
     def test_the_open_report_endpoints_are_gone(self):
         for url in ("/api/reports/overdue", "/api/cheque_leaf_reminder",
@@ -5290,6 +5343,19 @@ class TelegramLoginAlertTests(TestCase):
         self.bulk.side_effect = RuntimeError("relay exploded")
         self.assertEqual(self._open_customer().status_code, 302)
         self.assertEqual(len(self._msgs()), 2)              # queued, to go with the cron
+
+    def test_a_login_alert_names_the_business_it_belongs_to(self):
+        """One group can serve several businesses, so "KMR opened the app" has to say where."""
+        self._open_customer()
+        for m in self._msgs():
+            expected = "ALPHA" if m.business_id == self.a.id else "BETA"
+            self.assertIn("🏢 %s" % expected, m.text)
+
+    def test_the_owners_own_alert_does_not_repeat_the_name(self):
+        from .telegram_alerts import message
+        text = message("ALPHA", "owner", None, timezone.localtime(), "Windows · Chrome",
+                       at="ALPHA")
+        self.assertNotIn("🏢", text)
 
     def test_a_late_alert_still_says_when_they_logged_in(self):
         from .telegram_alerts import message
