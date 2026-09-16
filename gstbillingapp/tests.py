@@ -5132,7 +5132,7 @@ class TelegramLoginAlertTests(TestCase):
         self.assertEqual(sorted(m.external_id for m in msgs), ["-100%d" % self.a.id,
                                                                "-100%d" % self.b.id])
         text = msgs[0].text
-        for bit in ("App Login", "KMR", "Customer", "1 Times", "Android · Chrome", "SyncUp"):
+        for bit in ("Mobile Login", "KMR", "Customer", "1 Times", "Android · Chrome", "SyncUp"):
             self.assertIn(bit, text)
         self.assertEqual(Party.objects.get(pk=self.party.pk).app_opens, 1)
         self.assertIsNotNone(Party.objects.get(pk=self.party.pk).last_open_at)
@@ -5277,7 +5277,7 @@ class TelegramLoginAlertTests(TestCase):
         self.assertIn(r.status_code, (200, 302))
         msgs = self._msgs()
         self.assertEqual([m.external_id for m in msgs], ["-100%d" % self.a.id])
-        for bit in ("App Login", "ALPHA", "Owner", "Windows · Chrome"):
+        for bit in ("Desktop Login", "ALPHA", "Owner", "Windows · Chrome"):
             self.assertIn(bit, msgs[0].text)
         self.assertNotIn("Times", msgs[0].text)         # no count for the owner
 
@@ -5343,6 +5343,22 @@ class TelegramLoginAlertTests(TestCase):
         self.bulk.side_effect = RuntimeError("relay exploded")
         self.assertEqual(self._open_customer().status_code, 302)
         self.assertEqual(len(self._msgs()), 2)              # queued, to go with the cron
+
+    def test_each_kind_of_sign_in_is_named_for_what_it_was(self):
+        from .models import SyncUpMessage
+        self._open_customer()
+        for m in self._msgs():
+            self.assertIn("📱 Mobile Login", m.text)
+            self.assertEqual(m.title, "Mobile login")
+        self.a.set_password("Xx!998877aa")
+        self.a.save()
+        self.client.cookies.clear()
+        self.client.post(reverse("login_view"), {"username": self.a.username,
+                                                 "password": "Xx!998877aa"})
+        owner = SyncUpMessage.objects.filter(event="login", title="Desktop login")
+        self.assertEqual(owner.count(), 1)
+        self.assertIn("🖥️ Desktop Login", owner.first().text)
+        self.assertNotIn("Mobile", owner.first().text)
 
     def test_a_login_alert_names_the_business_it_belongs_to(self):
         """One group can serve several businesses, so "KMR opened the app" has to say where."""

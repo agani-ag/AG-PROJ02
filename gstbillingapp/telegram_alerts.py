@@ -54,6 +54,22 @@ THIN_SEP = "-" * 12
 
 OWNER, EMPLOYEE, CUSTOMER = "owner", "employee", "customer"
 ROLE_WORDS = {OWNER: "Owner", EMPLOYEE: "Employee", CUSTOMER: "Customer"}
+# How each sign-in is announced: the heading Telegram shows, and the outbox row's own label.
+# Signing in to the desktop and opening the app on a phone are different events, so they are
+# named for what actually happened rather than both being "App Login".
+CHANNELS = {
+    OWNER: ("🖥️ Desktop Login", "Desktop login"),
+    EMPLOYEE: ("📱 Mobile Login", "Mobile login"),
+    CUSTOMER: ("📱 Mobile Login", "Mobile login"),
+}
+
+
+def heading(role):
+    return CHANNELS.get(role, ("🔐 Login", "Login"))[0]
+
+
+def row_title(role):
+    return CHANNELS.get(role, ("🔐 Login", "Login"))[1]
 
 # Enough of the user agent to recognise the device, without pretending to be analytics.
 _PLATFORMS = [("Android", "Android"), ("iPhone", "iPhone"), ("iPad", "iPad"),
@@ -90,7 +106,8 @@ def message(who, role, count, when, device, detail="", at=""):
     can serve several businesses (a shared chat id), and "KMR opened the app" is no use if you
     can't tell which of your shops they opened. The owner's own sign-in already says it in the
     name, so it isn't repeated there."""
-    lines = ["*🤝 App Login 🔔*", "", _escape_md(THIN_SEP), "*%s*" % _escape_md(who.upper())]
+    lines = ["*%s 🔔*" % _escape_md(heading(role)), "", _escape_md(THIN_SEP),
+             "*%s*" % _escape_md(who.upper())]
     if detail:
         lines.append("_%s_" % _escape_md(detail))
     if at and at.upper() != who.upper():
@@ -144,7 +161,7 @@ def announce(businesses, *, who, role, when, device, count=None, detail=""):
         for chat in group:
             # any_time: a login at 10 pm is news at 10 pm, not at 8 the next morning.
             m = queue(business=business, event="login", external_id=chat.chat_id,
-                      kind=SyncUpMessage.KIND_TELEGRAM, title="App login", text=text,
+                      kind=SyncUpMessage.KIND_TELEGRAM, title=row_title(role), text=text,
                       dedupe="tg_login:%s:%d:%s:%s" % (role, business.id, chat.chat_id, stamp),
                       any_time=True)
             if m:
