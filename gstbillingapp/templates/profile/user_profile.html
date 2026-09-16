@@ -119,6 +119,41 @@
             </div>
         </div>
 
+        <!-- Telegram login notifications (only when we've allowed them for this business) -->
+        {% if login_alerts %}
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip b"><i class="fab fa-telegram"></i></span>
+                <div><h3>Login notifications</h3>
+                    <div class="sd">A Telegram message when someone signs in to your business</div></div></div>
+            <div class="pcard-body">
+                <form method="post" action="{% url 'telegram_login_alerts' %}">
+                    {% csrf_token %}
+                    <div class="pl" style="margin-bottom:6px">Tell me about</div>
+                    <label class="small" style="display:block;margin:0 0 6px">
+                        <input type="checkbox" name="desktop" value="1" {% if login_alerts.desktop %}checked{% endif %}>
+                        <b>Desktop</b> — you signing in to GSTSync on a computer</label>
+                    <label class="small" style="display:block;margin:0 0 14px">
+                        <input type="checkbox" name="mobile" value="1" {% if login_alerts.mobile %}checked{% endif %}>
+                        <b>Mobile</b> — your customers and employees opening the SyncUp app</label>
+
+                    <div class="pl" style="margin-bottom:6px">Send it to</div>
+                    {% for c in login_alerts.chats %}
+                    <label class="small" style="display:block;margin:0 0 6px">
+                        <input type="checkbox" name="chats" value="{{ c.id }}" {% if c.on %}checked{% endif %}> {{ c.name }}</label>
+                    {% empty %}
+                    <div class="mut" style="font-size:12.5px">No Telegram group is set up for you yet — ask us to add one.</div>
+                    {% endfor %}
+
+                    <div class="mut" style="font-size:11.5px;margin:10px 0 12px">
+                        Each message says who signed in, at what time and on what device. Opening
+                        the app counts once per visit, and your own console sign-ins are never sent.
+                    </div>
+                    <button class="gbtn gbtn-primary" type="submit"><i class="fas fa-check"></i> Save</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Location map -->
         {% if user_profile.business_latitude and user_profile.business_longitude %}
         <div class="pcard">

@@ -559,7 +559,10 @@ def flush(limit=200, only_ids=None, timeout=None):
         try:
             results = syncup_client.telegram_bulk(
                 [{"chat_id": m.external_id, "text": m.text, "parse_mode": "MarkdownV2"}
-                 for m in chunk])
+                 for m in chunk],
+                # A caller with a timeout is waiting on a page (a login alert's quick try);
+                # the cron passes none and gets the relay's generous allowance.
+                **({"timeout": timeout, "longer": False} if timeout else {}))
         except syncup_client.SyncUpError as e:
             _retry_later(chunk, e)
             if e.status is None:

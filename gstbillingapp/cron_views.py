@@ -156,10 +156,10 @@ def cleanup(request):
     ledger and stock are never touched. Omit it and no quotation is removed at all. Windows
     shorter than MIN_QUOTATION_RETENTION_DAYS are refused rather than honoured.
 
-    Sent SyncUp notifications and Telegram reports are pruned here rather than by
-    /cron/syncup, which runs every few minutes and should only send: a Telegram report goes
-    after a week (it carries its whole text, and SyncUp keeps its own copy), everything else
-    after a fortnight. See cleanup.purge_outbox().
+    Spent outbox rows are pruned here rather than by /cron/syncup, which runs every few
+    minutes and should only send: login records go after 3 days (the person's own count and
+    last-opened survive them), Telegram reports after a week (each carries its whole text, and
+    SyncUp keeps its own copy), everything else after a fortnight. See cleanup.purge_outbox().
 
     The vacuum is still skipped when there is too little to reclaim, no recent backup, or
     too little free disk — it reports which, rather than failing.

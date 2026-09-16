@@ -253,22 +253,23 @@ def chats_for(row):
 # --------------------------------------------------------------------------- #
 def queue_report(business, report, params=None, chat_rows=None, key=None, skip_empty=True):
     """Build the report and put it in the outbox, once per chat id (split if long).
-    Returns (queued, count) — `queued` is 0 when there was nothing to report."""
+    Returns (the queued message ids, how many rows the report holds)."""
     from .syncup_messages import queue
     text, count = build(report, business, params)
     if skip_empty and not count:
-        return 0, 0
+        return [], 0
     targets = chat_rows if chat_rows is not None else chats(business)
     stamp = key or timezone.localtime().strftime("%Y%m%d%H%M%S")
     label = REPORTS[report]["label"]
-    queued = 0
+    queued = []
     for chat in targets:
         for index, part in enumerate(split_parts(text), 1):
-            if queue(business=business, event=report, external_id=chat.chat_id,
-                     kind=SyncUpMessage.KIND_TELEGRAM, title=label, text=part,
-                     dedupe="tg:%s:%s:%s:%d" % (report, stamp, chat.chat_id, index),
-                     any_time=True):
-                queued += 1
+            m = queue(business=business, event=report, external_id=chat.chat_id,
+                      kind=SyncUpMessage.KIND_TELEGRAM, title=label, text=part,
+                      dedupe="tg:%s:%s:%s:%d" % (report, stamp, chat.chat_id, index),
+                      any_time=True)
+            if m:
+                queued.append(m.id)
     return queued, count
 
 
@@ -288,12 +289,12 @@ def run_due(now=None):
             continue                            # not yet, or too late — it waits for tomorrow
         if not available(row.business, cfg):
             continue
-        sent, count = queue_report(row.business, row.report, row.params, chats_for(row),
-                                   key="%s-%d" % (today.isoformat(), row.id))
+        ids, count = queue_report(row.business, row.report, row.params, chats_for(row),
+                                  key="%s-%d" % (today.isoformat(), row.id))
         TelegramReport.objects.filter(pk=row.pk).update(
             last_sent_on=today,
-            last_status=("Queued for %d chat(s)" % sent) if sent else "Nothing to report")
-        queued += sent
+            last_status=("Queued for %d chat(s)" % len(ids)) if ids else "Nothing to report")
+        queued += len(ids)
     return queued
 
 
@@ -303,13 +304,13 @@ def send_now(business, report, params=None, chat_rows=None):
     The key is unique per press: a manual send is never a duplicate of another, so sending
     the 90-day and the 120-day row in the same second both go."""
     from .syncup_messages import flush
-    queued, count = queue_report(business, report, params, chat_rows,
-                                 key="now-" + uuid.uuid4().hex[:10], skip_empty=False)
-    if queued:
-        flush(only_ids=list(SyncUpMessage.objects.filter(
-            business=business, kind=SyncUpMessage.KIND_TELEGRAM, sent_at__isnull=True)
-            .values_list("id", flat=True)))
-    return queued, count
+    ids, count = queue_report(business, report, params, chat_rows,
+                              key="now-" + uuid.uuid4().hex[:10], skip_empty=False)
+    if ids:
+        # Only what this press queued — not a login alert or a scheduled report that
+        # happens to be waiting its turn.
+        flush(only_ids=ids)
+    return len(ids), count
 
 
 def test_message(chat):

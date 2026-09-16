@@ -22,6 +22,21 @@ The business picks WHICH reports and WHEN on each report's own page.{% endcommen
         {% if tg.enabled %}Turn Telegram off{% else %}Turn Telegram on{% endif %}</button>
     </form>
 
+    <form method="post" action="{% url 'console_business_telegram_logins' b.user.id %}" style="margin-top:14px">
+      {% csrf_token %}
+      <label class="gtoggle" style="display:flex;margin:0 0 6px"><input type="checkbox" name="login_alerts" value="1" {% if tg.row.login_alerts %}checked{% endif %}> Login notifications</label>
+      <div class="h mut" style="font-size:12px;margin:0 0 8px">
+        Announces every sign-in — the owner on the desktop, and customers and employees opening
+        the app — with who, when and on what device. Console sign-ins are never announced, and a
+        visit to the app alerts once, not once per screen. The business then picks which logins
+        it wants, and which of its groups hear them, on its own Profile page.
+      </div>
+      <button class="gbtn gbtn-sm" {% if not tg.enabled %}disabled{% endif %}><svg class="gico"><use href="#i-ok"/></svg> Save</button>
+      {% if tg.row.login_alerts %}<span class="mut" style="font-size:12.5px;margin-left:8px">
+        Business chose: {% if tg.row.notify_desktop %}desktop{% endif %}{% if tg.row.notify_desktop and tg.row.notify_mobile %} + {% endif %}{% if tg.row.notify_mobile %}mobile{% endif %}{% if not tg.row.notify_desktop and not tg.row.notify_mobile %}nothing yet{% endif %}.
+      </span>{% endif %}
+    </form>
+
     <div style="border-top:1px solid var(--line);margin:20px 0 14px"></div>
     <div style="font-weight:700;font-size:14px;margin:0 0 4px">Chat ids</div>
     <p class="mut" style="font-size:13px;margin:0 0 12px">

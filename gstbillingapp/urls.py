@@ -28,6 +28,7 @@ urlpatterns = [
          name='telegram_report_settings'),
     path('telegram/report/<str:report>/send', telegram_ui.report_send_now,
          name='telegram_report_send'),
+    path('telegram/login-alerts', telegram_ui.login_alerts_save, name='telegram_login_alerts'),
 
     # Real-time active-device presence (heartbeat)
     path('presence/ping', presence.presence_ping, name='presence_ping'),

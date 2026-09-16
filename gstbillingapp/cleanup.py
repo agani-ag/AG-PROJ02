@@ -368,9 +368,12 @@ def purge_stale_devices(days=DEVICE_RETENTION_DAYS):
 #
 #   * app notifications and Approve / Reject prompts are one-liners, and their answers are
 #     worth keeping around for a fortnight while a question about one is still likely;
-#   * a Telegram report carries its WHOLE text (up to 4 KB, one row per group per day),
-#     and SyncUp keeps its own copy of every relayed message, so a second copy here has
-#     no reason to live long.
+#   * a Telegram REPORT carries its whole text (up to 4 KB, one row per group per day), and
+#     SyncUp keeps its own copy of every relayed message, so a second copy here has no
+#     reason to live long;
+#   * a LOGIN record is small but frequent — one per sign-in per group — and is only ever
+#     read as recent history, so it goes soonest of all. What it leaves behind is the part
+#     worth keeping: the person's own app_opens count and last_open_at.
 #
 # Rows go by age, whatever state they are in: a message still unsent after its window
 # means the cron was broken for that long, and yesterday's "payment received" push is not
@@ -378,22 +381,26 @@ def purge_stale_devices(days=DEVICE_RETENTION_DAYS):
 # id's last result on the chat — neither is lost here.
 MESSAGE_RETENTION_DAYS = 14
 TELEGRAM_RETENTION_DAYS = 7
+LOGIN_RETENTION_DAYS = 3
 
 
-def purge_outbox(days=MESSAGE_RETENTION_DAYS, telegram_days=TELEGRAM_RETENTION_DAYS):
+def purge_outbox(days=MESSAGE_RETENTION_DAYS, telegram_days=TELEGRAM_RETENTION_DAYS,
+                 login_days=LOGIN_RETENTION_DAYS):
     """Prune old outbox rows. Returns what went, and what is still waiting to be sent."""
     now = timezone.now()
-    telegram = SyncUpMessage.objects.filter(
-        kind=SyncUpMessage.KIND_TELEGRAM,
-        created_at__lt=now - datetime.timedelta(days=telegram_days))
-    deleted_telegram, _ = telegram.delete()
-    rest = SyncUpMessage.objects.filter(
-        created_at__lt=now - datetime.timedelta(days=days)).exclude(
-        kind=SyncUpMessage.KIND_TELEGRAM)
-    deleted_rest, _ = rest.delete()
+
+    def older(window, rows):
+        return rows.filter(created_at__lt=now - datetime.timedelta(days=window)).delete()[0]
+
+    telegram = SyncUpMessage.objects.filter(kind=SyncUpMessage.KIND_TELEGRAM)
+    # Login records go first, so the report sweep behind them counts only reports.
+    logins = older(login_days, telegram.filter(event="login"))
+    reports = older(telegram_days, telegram)
+    messages = older(days, SyncUpMessage.objects.exclude(kind=SyncUpMessage.KIND_TELEGRAM))
     return {
-        "telegram": deleted_telegram,
-        "messages": deleted_rest,
+        "logins": logins,
+        "telegram": reports,
+        "messages": messages,
         "waiting": SyncUpMessage.objects.filter(sent_at__isnull=True, failed=False).count(),
         "rows": SyncUpMessage.objects.count(),
     }

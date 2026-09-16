@@ -22,6 +22,7 @@ switch businesses with `?biz=`. The `v` version stamp is enforced so bumping the
 version revokes one link and its live session.
 """
 from collections import defaultdict
+import logging
 from functools import wraps
 
 from django.core import signing
@@ -30,6 +31,8 @@ from django.shortcuts import render, redirect
 
 from .models import Customer, Employee, Party, UserProfile
 from .parties import row_is_visible, visible_rows
+
+_log = logging.getLogger(__name__)
 
 _SALT = "gstbillingapp.mobile.v2"
 
@@ -252,6 +255,14 @@ def mobile_login_required(role=None):
                 reason = getattr(request, "_mobile_denied", "expired") if not actor else "expired"
                 return render(request, "m/denied.html", {"reason": reason}, status=403)
             request.mobile_actor = actor
+
+            # First page of a visit? Count it, and tell the businesses that asked to hear
+            # about it. Never let that get in the way of the page itself.
+            try:
+                from .telegram_alerts import note_app_open
+                note_app_open(request, actor)
+            except Exception:  # noqa: BLE001
+                _log.exception("App-login alert failed")
 
             if request.GET.get("t"):
                 resp = redirect(request.path)  # drop token from URL/history

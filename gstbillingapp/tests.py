@@ -1496,27 +1496,29 @@ class CronOutboxCleanupTests(_CronTestBase, TestCase):
     """The daily cleanup prunes the SyncUp / Telegram outbox: a Telegram report carries its
     whole text, so it goes sooner than a one-line push."""
 
-    def _msg(self, kind, age_days, dedupe):
+    def _msg(self, kind, age_days, dedupe, event="x"):
         from .models import SyncUpMessage
-        m = SyncUpMessage.objects.create(kind=kind, event="x", external_id="-100", title="t",
+        m = SyncUpMessage.objects.create(kind=kind, event=event, external_id="-100", title="t",
                                          text="report" if kind == "telegram" else "",
                                          dedupe_key=dedupe, sent_at=timezone.now())
         SyncUpMessage.objects.filter(pk=m.pk).update(
             created_at=timezone.now() - timedelta(days=age_days))
         return m
 
-    def test_old_messages_go_and_recent_ones_stay(self):
+    def test_each_kind_is_kept_for_its_own_window(self):
         from .cleanup import purge_outbox
         from .models import SyncUpMessage
-        fresh_tg = self._msg("telegram", 3, "tg-fresh")
-        old_tg = self._msg("telegram", 9, "tg-old")
-        fresh_push = self._msg("notify", 9, "push-fresh")      # older than a Telegram window…
-        old_push = self._msg("notify", 20, "push-old")
+        self._msg("telegram", 3, "tg-fresh")
+        self._msg("telegram", 9, "tg-old")
+        self._msg("notify", 9, "push-fresh")                   # older than a Telegram window…
+        self._msg("notify", 20, "push-old")
+        self._msg("telegram", 1, "login-fresh", event="login")
+        self._msg("telegram", 4, "login-old", event="login")    # logins go soonest of all
         out = purge_outbox()
-        self.assertEqual((out["telegram"], out["messages"]), (1, 1))
+        self.assertEqual((out["logins"], out["telegram"], out["messages"]), (1, 1, 1))
         left = set(SyncUpMessage.objects.values_list("dedupe_key", flat=True))
-        self.assertEqual(left, {"tg-fresh", "push-fresh"})     # …but a push is kept a fortnight
-        self.assertEqual(out["rows"], 2)
+        self.assertEqual(left, {"tg-fresh", "push-fresh", "login-fresh"})
+        self.assertEqual(out["rows"], 3)                       # …a push is kept a fortnight
 
     def test_a_message_stuck_unsent_past_its_window_is_dropped_too(self):
         from .cleanup import purge_outbox
@@ -1532,7 +1534,8 @@ class CronOutboxCleanupTests(_CronTestBase, TestCase):
                                                title="t", text="soon", dedupe_key="tg-waiting")
         with self._settings():
             body = self._get("cron_cleanup").json()
-        self.assertEqual(body["outbox"], {"telegram": 1, "messages": 0, "waiting": 1, "rows": 1})
+        self.assertEqual(body["outbox"], {"logins": 0, "telegram": 1, "messages": 0,
+                                          "waiting": 1, "rows": 1})
         self.assertTrue(SyncUpMessage.objects.filter(pk=waiting.pk).exists())
 
 
@@ -4745,9 +4748,12 @@ class TelegramReportTests(TestCase):
         return self.client.post(reverse("telegram_report_settings", args=[report]),
                                 data=json.dumps({"rows": rows}), content_type="application/json")
 
-    def _msgs(self):
+    def _msgs(self, event=None):
+        """This report's queued messages. Signing in queues a login alert of its own
+        (telegram_alerts), which is not what these tests are about."""
         from .models import SyncUpMessage
-        return list(SyncUpMessage.objects.filter(kind="telegram").order_by("id"))
+        qs = SyncUpMessage.objects.filter(kind="telegram").exclude(event="login")
+        return list(qs.filter(event=event) if event else qs.order_by("id"))
 
     # ---- the reports themselves ----
     def test_the_reports_read_like_the_ones_the_group_already_gets(self):
@@ -4867,7 +4873,7 @@ class TelegramReportTests(TestCase):
         for days in (90, 120):
             self.client.post(url, data=json.dumps({"days": days, "chats": [self.chat.id]}),
                              content_type="application/json")
-        self.assertEqual(SyncUpMessage.objects.filter(kind="telegram").count(), 2)
+        self.assertEqual(SyncUpMessage.objects.filter(event="overdue").count(), 2)
 
     # ---- the schedule ----
     def _schedule(self, at="09:00", report="overdue", days=90):
@@ -4946,7 +4952,7 @@ class TelegramReportTests(TestCase):
             {"chat_id": m["chat_id"], "error": "chat not found"} for m in msgs]
         queue_report(self.a, "overdue", {"days": 90}, [self.chat])
         flush()
-        m = SyncUpMessage.objects.get(kind="telegram")
+        m = SyncUpMessage.objects.get(event="overdue")
         self.assertTrue(m.failed)
         self.assertIn("chat not found", TelegramChat.objects.get(pk=self.chat.pk).last_error)
         self.bulk.reset_mock()
@@ -5017,3 +5023,300 @@ class TelegramReportTests(TestCase):
         for url in ("/api/reports/overdue", "/api/cheque_leaf_reminder",
                     "/customers/api/collection-day/show?markdown=true&user_id=1"):
             self.assertEqual(self.client.get(url).status_code, 404, url)
+
+
+class TelegramLoginAlertTests(TestCase):
+    """The owner hears when their customer or employee opens the app — once per visit,
+    only where it was asked for, and never in the way of the page itself."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Party, PartyMapping, StaffLogin
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+        cls.cust = Customer.objects.create(user=cls.a, customer_name="KMR",
+                                           customer_place="SALEM", is_mobile_user=True)
+        cls.cust_b = Customer.objects.create(user=cls.b, customer_name="KMR TRADERS",
+                                             is_mobile_user=True)
+        cls.party = Party.objects.create(name="KMR", login_status=Party.LOGIN_ACTIVE)
+        PartyMapping.objects.create(party=cls.party, customer=cls.cust)
+        PartyMapping.objects.create(party=cls.party, customer=cls.cust_b)
+        cls.emp = _employee(cls.a, "RIZWAN")
+        StaffLogin.objects.create(employee=cls.emp, login_status="active")
+
+    def setUp(self):
+        from .models import BusinessTelegram, TelegramChat
+        _syncup_on(telegram_enabled=True)
+        self.bulk = self._relay(side_effect=lambda msgs, timeout=None, longer=True: [
+            {"chat_id": m["chat_id"], "message_id": "7"} for m in msgs])
+        self.addCleanup(mock.patch.stopall)
+        for biz in (self.a, self.b):
+            BusinessTelegram.objects.update_or_create(
+                user=biz, defaults={"enabled": True, "login_alerts": True})
+            TelegramChat.objects.create(business=biz, chat_id="-100%d" % biz.id,
+                                        label="%s group" % biz.username)
+
+    def _msgs(self):
+        from .models import SyncUpMessage
+        return list(SyncUpMessage.objects.filter(event="login").order_by("id"))
+
+    def _relay(self, **kwargs):
+        """Stand in for SyncUp's relay — an alert tries to send the moment it is made."""
+        return mock.patch("gstbillingapp.syncup_client.telegram_bulk", **kwargs).start()
+
+    def _open_customer(self):
+        from .mobile_auth import mint_party_token
+        return self.client.get("/m/customer/", {"t": mint_party_token(self.party)},
+                               HTTP_USER_AGENT="Mozilla/5.0 (Linux; Android 14) Chrome/128")
+
+    def _open_employee(self):
+        from .mobile_auth import mint_employee_token
+        return self.client.get("/m/employee/", {"t": mint_employee_token(self.emp)})
+
+    def test_a_customer_opening_the_app_tells_every_business_they_can_see(self):
+        from .models import Party
+        self._open_customer()
+        msgs = self._msgs()
+        self.assertEqual(sorted(m.external_id for m in msgs), ["-100%d" % self.a.id,
+                                                               "-100%d" % self.b.id])
+        text = msgs[0].text
+        for bit in ("App Login", "KMR", "Customer", "1 Times", "Android · Chrome", "SyncUp"):
+            self.assertIn(bit, text)
+        self.assertEqual(Party.objects.get(pk=self.party.pk).app_opens, 1)
+        self.assertIsNotNone(Party.objects.get(pk=self.party.pk).last_open_at)
+
+    def test_an_employee_opening_the_app_tells_their_business(self):
+        from .models import StaffLogin
+        self._open_employee()
+        m, = self._msgs()
+        self.assertEqual(m.external_id, "-100%d" % self.a.id)
+        self.assertIn("Employee", m.text)
+        self.assertIn("RIZWAN", m.text)
+        self.assertEqual(StaffLogin.objects.get(employee=self.emp).app_opens, 1)
+
+    def test_the_rest_of_the_visit_is_quiet(self):
+        self._open_customer()
+        self.client.get(reverse("m_customer_books"))
+        self.client.get(reverse("m_customer_profile"))
+        self.assertEqual(len(self._msgs()), 2)          # the two businesses, once each
+
+    def test_opening_the_app_again_later_is_a_second_login(self):
+        """9 am, close the app, open it again at 11 am — two alerts, because tapping the
+        tile brings the link with it."""
+        from .models import Party
+        from .telegram_alerts import SESSION_KEY
+        self._open_customer()
+        session = self.client.session
+        session[SESSION_KEY] = session[SESSION_KEY] - 2 * 3600      # two hours later
+        session.save()
+        self._open_customer()
+        self.assertEqual(len(self._msgs()), 4)                      # two businesses, twice
+        self.assertEqual(Party.objects.get(pk=self.party.pk).app_opens, 2)
+        self.assertIn("2 Times", self._msgs()[-1].text)
+
+    def test_a_double_tap_on_the_tile_is_one_login(self):
+        self._open_customer()
+        self._open_customer()
+        self.assertEqual(len(self._msgs()), 2)
+
+    def test_coming_back_later_is_a_new_login(self):
+        from .models import Party
+        from .telegram_alerts import SESSION_KEY, SESSION_GAP
+        self._open_customer()
+        session = self.client.session
+        session[SESSION_KEY] = session[SESSION_KEY] - SESSION_GAP - 60
+        session.save()
+        self.client.get(reverse("m_customer_home"))
+        self.assertEqual(len(self._msgs()), 4)
+        self.assertEqual(Party.objects.get(pk=self.party.pk).app_opens, 2)
+        self.assertIn("2 Times", self._msgs()[-1].text)
+
+    def test_a_business_with_telegram_off_hears_nothing(self):
+        from .models import BusinessTelegram
+        BusinessTelegram.objects.all().update(enabled=False)
+        self._open_customer()
+        self.assertEqual(self._msgs(), [])
+        self.client.cookies.clear()
+        self._open_employee()
+        self.assertEqual(self._msgs(), [])
+
+    def test_login_notifications_must_be_allowed_on_the_console(self):
+        from .models import BusinessTelegram
+        BusinessTelegram.objects.all().update(login_alerts=False)   # Telegram still on
+        self._open_customer()
+        self.assertEqual(self._msgs(), [])
+
+    def test_the_business_chooses_desktop_or_mobile(self):
+        from .models import BusinessTelegram
+        BusinessTelegram.objects.filter(user=self.a).update(notify_mobile=False)
+        self._open_customer()
+        self.assertEqual([m.external_id for m in self._msgs()], ["-100%d" % self.b.id])
+        BusinessTelegram.objects.filter(user=self.a).update(notify_desktop=False)
+        self.a.set_password("Xx!998877aa")
+        self.a.save()
+        self.client.post(reverse("login_view"), {"username": self.a.username,
+                                                 "password": "Xx!998877aa"})
+        self.assertEqual(len(self._msgs()), 1)                      # still just BETA's
+
+    def test_the_business_chooses_which_group_hears_it(self):
+        from .models import BusinessTelegram, TelegramChat
+        second = TelegramChat.objects.create(business=self.a, chat_id="-100999",
+                                             label="Second group")
+        row = BusinessTelegram.objects.get(user=self.a)
+        row.alert_chats.set([second])
+        self._open_customer()
+        alpha = [m.external_id for m in self._msgs() if m.business_id == self.a.id]
+        self.assertEqual(alpha, ["-100999"])
+
+    def test_the_profile_page_shows_it_only_when_allowed(self):
+        from .models import BusinessTelegram
+        self.a.set_password("Xx!998877aa")
+        self.a.save()
+        self.client.force_login(self.a)
+        page = self.client.get(reverse("user_profile"))
+        self.assertContains(page, "Login notifications")
+        from .models import TelegramChat
+        mine = TelegramChat.objects.get(business=self.a)
+        self.assertContains(page, mine.label)               # its own group, by name
+        self.assertNotContains(page, mine.chat_id)          # never the raw id
+        BusinessTelegram.objects.filter(user=self.a).update(login_alerts=False)
+        self.assertNotContains(self.client.get(reverse("user_profile")),
+                               "Login notifications")
+
+    def test_the_business_saves_its_own_choice(self):
+        from .models import BusinessTelegram, TelegramChat
+        second = TelegramChat.objects.create(business=self.a, chat_id="-100999", label="Second")
+        theirs = TelegramChat.objects.create(business=self.b, chat_id="-100888", label="Theirs")
+        self.client.force_login(self.a)
+        self.client.post(reverse("telegram_login_alerts"),
+                         {"mobile": "1", "chats": [str(second.id), str(theirs.id)]})
+        row = BusinessTelegram.objects.get(user=self.a)
+        self.assertEqual((row.notify_desktop, row.notify_mobile), (False, True))
+        # Another business's group is not theirs to pick.
+        self.assertEqual([c.id for c in row.alert_chats.all()], [second.id])
+
+    def test_ticking_every_group_keeps_following_the_list(self):
+        from .models import BusinessTelegram, TelegramChat
+        self.client.force_login(self.a)
+        mine = TelegramChat.objects.filter(business=self.a)
+        self.client.post(reverse("telegram_login_alerts"),
+                         {"mobile": "1", "desktop": "1",
+                          "chats": [str(c.id) for c in mine]})
+        row = BusinessTelegram.objects.get(user=self.a)
+        self.assertEqual(list(row.alert_chats.all()), [])       # "all" is stored as none…
+        later = TelegramChat.objects.create(business=self.a, chat_id="-100777", label="Later")
+        self.client.cookies.clear()
+        self._open_customer()
+        self.assertIn(later.chat_id, [m.external_id for m in self._msgs()])   # …so a new one counts
+
+    def test_a_business_cannot_save_what_was_never_allowed(self):
+        from .models import BusinessTelegram
+        BusinessTelegram.objects.filter(user=self.a).update(login_alerts=False)
+        self.client.force_login(self.a)
+        r = self.client.post(reverse("telegram_login_alerts"), {"desktop": "1"})
+        self.assertEqual(r.status_code, 400)
+
+    def test_the_owner_signing_in_on_the_desktop_is_announced(self):
+        self.a.set_password("Xx!998877aa")
+        self.a.save()
+        r = self.client.post(reverse("login_view"),
+                             {"username": self.a.username, "password": "Xx!998877aa"},
+                             HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0) Chrome/128")
+        self.assertIn(r.status_code, (200, 302))
+        msgs = self._msgs()
+        self.assertEqual([m.external_id for m in msgs], ["-100%d" % self.a.id])
+        for bit in ("App Login", "ALPHA", "Owner", "Windows · Chrome"):
+            self.assertIn(bit, msgs[0].text)
+        self.assertNotIn("Times", msgs[0].text)         # no count for the owner
+
+    def test_a_passkey_sign_in_is_announced_too(self):
+        from django.core.cache import cache
+        from .passkeys import set_passkey
+        # The wrong-passkey limiter is per device and lives in the cache, which the test
+        # client shares across tests — start this one with a clean slate.
+        cache.clear()
+        set_passkey(self.a, "R8T3W")
+        r = self.client.post(reverse("passkey_auth"), data=json.dumps({"passkey": "R8T3W"}),
+                             content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual([m.external_id for m in self._msgs()], ["-100%d" % self.a.id])
+
+    def test_the_console_is_never_announced(self):
+        from .models import PlatformAdmin
+        admin = PlatformAdmin(username="quietop", full_name="Quiet Op")
+        admin.set_password("Cons0le!pass9")
+        admin.save()
+        self.client.post(reverse("console_login"), {"username": "quietop",
+                                                    "password": "Cons0le!pass9"})
+        self.assertEqual(self._msgs(), [])
+
+    def test_the_count_is_kept_even_when_nobody_is_listening(self):
+        from .models import BusinessTelegram, Party
+        BusinessTelegram.objects.all().update(enabled=False)
+        self._open_customer()
+        self.assertEqual(self._msgs(), [])
+        self.assertEqual(Party.objects.get(pk=self.party.pk).app_opens, 1)
+
+    def test_a_broken_alert_never_blocks_the_page(self):
+        with mock.patch("gstbillingapp.telegram_alerts.note_app_open",
+                        side_effect=RuntimeError("boom")):
+            self.assertEqual(self._open_customer().status_code, 302)
+            self.assertEqual(self.client.get(reverse("m_customer_home")).status_code, 200)
+
+    def test_it_goes_out_at_once_not_at_the_next_cron_run(self):
+        from .models import SyncUpMessage
+        from .telegram_alerts import INSTANT_TIMEOUT
+        self._open_customer()
+        self.bulk.assert_called_once()                      # sent while they signed in
+        self.assertEqual(self.bulk.call_args.kwargs["timeout"], INSTANT_TIMEOUT)
+        self.assertFalse(self.bulk.call_args.kwargs["longer"])   # a cap, not an extension
+        self.assertEqual(self.bulk.call_args.args[0][0]["parse_mode"], "MarkdownV2")
+        self.assertFalse(SyncUpMessage.objects.filter(event="login",
+                                                      sent_at__isnull=True).exists())
+
+    def test_a_failed_instant_try_is_left_for_the_cron(self):
+        from .models import SyncUpMessage
+        from .syncup_client import SyncUpError
+        from .syncup_messages import flush
+        self.bulk.side_effect = SyncUpError("SyncUp is unreachable")
+        self._open_customer()
+        waiting = SyncUpMessage.objects.filter(event="login", sent_at__isnull=True, failed=False)
+        self.assertEqual(waiting.count(), 2)                # still queued, one try spent
+        self.assertEqual(waiting.first().attempts, 1)
+        self.bulk.side_effect = lambda msgs, timeout=None, longer=True: [
+            {"chat_id": m["chat_id"], "message_id": "7"} for m in msgs]
+        self.assertEqual(flush()["sent"], 2)                # the cron gets it out
+
+    def test_signing_in_is_never_held_up_by_a_broken_relay(self):
+        self.bulk.side_effect = RuntimeError("relay exploded")
+        self.assertEqual(self._open_customer().status_code, 302)
+        self.assertEqual(len(self._msgs()), 2)              # queued, to go with the cron
+
+    def test_a_late_alert_still_says_when_they_logged_in(self):
+        from .telegram_alerts import message
+        when = timezone.localtime().replace(hour=22, minute=5)
+        text = message("KMR", "customer", 3, when, "iPhone · Safari")
+        self.assertIn("10:05 PM", text)
+        self.assertIn("3 Times", text)
+
+    def test_the_device_is_named_when_the_browser_says_so(self):
+        from .telegram_alerts import device_name
+        self.assertEqual(device_name("Mozilla/5.0 (Linux; Android 14) Chrome/128"),
+                         "Android · Chrome")
+        self.assertEqual(device_name("Mozilla/5.0 (iPhone) Version/17 Safari/605"),
+                         "iPhone · Safari")
+        self.assertEqual(device_name(""), "")
+
+    def test_the_console_allows_or_stops_login_notifications(self):
+        from .models import BusinessTelegram, PlatformAdmin
+        admin = PlatformAdmin(username="alertop", full_name="Alert Op")
+        admin.set_password("Cons0le!pass9")
+        admin.save()
+        self.client.post(reverse("console_login"), {"username": "alertop",
+                                                    "password": "Cons0le!pass9"})
+        page = self.client.get(reverse("console_business_detail", args=[self.a.id]))
+        self.assertContains(page, "Login notifications")
+        self.client.post(reverse("console_business_telegram_logins", args=[self.a.id]), {})
+        self.assertFalse(BusinessTelegram.objects.get(user=self.a).login_alerts)
+        self.client.post(reverse("console_business_telegram_logins", args=[self.a.id]),
+                         {"login_alerts": "1"})
+        self.assertTrue(BusinessTelegram.objects.get(user=self.a).login_alerts)

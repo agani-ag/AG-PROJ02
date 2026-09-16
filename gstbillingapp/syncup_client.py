@@ -210,18 +210,22 @@ def update_app_link(external_id, *, url, description, timeout=None):
 TELEGRAM_TIMEOUT = 20
 
 
-def telegram_send(chat_id, text, parse_mode="MarkdownV2", timeout=TELEGRAM_TIMEOUT):
+def telegram_send(chat_id, text, parse_mode="MarkdownV2", timeout=TELEGRAM_TIMEOUT,
+                  longer=True):
     """One message to one chat. Returns SyncUp's reply (it carries Telegram's message_id).
 
     SyncUp answers 502 when Telegram refused (bad chat id, bot removed), and 503 when no bot is
     set up on its side — both arrive here as SyncUpError with that status."""
     return _request("POST", "telegram/send",
                     {"chat_id": str(chat_id), "text": text, "parse_mode": parse_mode},
-                    timeout=timeout, longer=True)
+                    timeout=timeout, longer=longer)
 
 
-def telegram_bulk(messages, timeout=TELEGRAM_TIMEOUT):
+def telegram_bulk(messages, timeout=TELEGRAM_TIMEOUT, longer=True):
     """Many messages in one call — each `{chat_id, text, parse_mode}`. Returns the per-message
-    results in the same order (`{"chat_id", "message_id"}` or `{"chat_id", "error"}`)."""
+    results in the same order (`{"chat_id", "message_id"}` or `{"chat_id", "error"}`).
+
+    `longer=False` caps the wait instead of extending it — for the one quick try a login alert
+    makes while somebody is signing in."""
     return _request("POST", "telegram/bulk", {"messages": messages},
-                    timeout=timeout, longer=True).get("results") or []
+                    timeout=timeout, longer=longer).get("results") or []

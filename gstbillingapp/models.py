@@ -887,6 +887,10 @@ class Party(models.Model):
     # The subtitle last put on this customer's GSTSync tile ("₹… due · N shops"), so the daily
     # refresh only calls SyncUp when it changes. Cleared when a login is (re)issued.
     tile_text = models.CharField(max_length=80, blank=True, default="")
+    # How often they have opened the app, and when they last did (a fresh open more than
+    # telegram_alerts.SESSION_GAP after the last one counts as a new login).
+    app_opens = models.PositiveIntegerField(default=0)
+    last_open_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["name", "id"]
@@ -1035,6 +1039,9 @@ class StaffLogin(models.Model):
     syncup_synced_at = models.DateTimeField(null=True, blank=True)
     # The last failed push, shown on the console with a retry. Empty when in sync.
     syncup_error = models.CharField(max_length=300, blank=True, default="")
+    # How often they have opened the app, and when they last did (see telegram_alerts.py).
+    app_opens = models.PositiveIntegerField(default=0)
+    last_open_at = models.DateTimeField(null=True, blank=True)
 
     @property
     def external_id(self):
@@ -1158,11 +1165,21 @@ class BalanceConfirmation(models.Model):
 
 # ================= Telegram reports (see telegram_reports.py) =============================
 class BusinessTelegram(models.Model):
-    """May this business send its reports to Telegram? Switched on by a platform admin on the
-    console, along with the chat ids it may reach — the business itself only chooses which
-    reports to send and when (from each report's own page)."""
+    """May this business send to Telegram? Switched on by a platform admin on the console,
+    along with the chat ids it may reach — the business itself only chooses which reports to
+    send and when (from each report's own page).
+
+    One switch covers everything: the daily reports, and an alert for every sign-in — the
+    owner on the desktop, and customers and employees opening the app (telegram_alerts.py)."""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="telegram")
     enabled = models.BooleanField(default=False)
+    # Console: may this business send login alerts at all (telegram_alerts.py)?
+    login_alerts = models.BooleanField(default=False)
+    # The business's own choices, made on its profile page: which logins it wants to hear
+    # about, and which of its groups they go to (none picked = every active group).
+    notify_desktop = models.BooleanField(default=True)
+    notify_mobile = models.BooleanField(default=True)
+    alert_chats = models.ManyToManyField("TelegramChat", blank=True, related_name="login_alerts")
     updated_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
                                    on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)

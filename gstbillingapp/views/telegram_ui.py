@@ -9,14 +9,62 @@ Both views answer JSON — the popup is a small piece of script on the page it b
 import datetime
 import json
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
 
 from .. import telegram_reports as tg
 from ..models import TelegramChat, TelegramReport
 
 MAX_ROWS = 6            # per report — more than enough for "90 days at 9:00, 120 at 9:05"
+
+
+def login_alert_block(user):
+    """What the Profile page shows for login notifications — None when they aren't allowed
+    for this business (the console decides that)."""
+    from .. import telegram_alerts
+    row = telegram_alerts.settings_for(user)
+    if row is None or not row.login_alerts or not tg.available(user):
+        return None
+    picked = {c.id for c in row.alert_chats.all()}
+    groups = tg.chats(user)
+    return {
+        "desktop": row.notify_desktop,
+        "mobile": row.notify_mobile,
+        # Nothing picked means every group, so show them all ticked — that is what happens.
+        "chats": [{"id": c.id, "name": c.name, "on": not picked or c.id in picked}
+                  for c in groups],
+    }
+
+
+@login_required
+@require_POST
+def login_alerts_save(request):
+    """The business's own choice: which logins it wants, and which of its groups hear them."""
+    from ..models import BusinessTelegram
+    row = BusinessTelegram.objects.filter(user=request.user).first()
+    if row is None or not row.login_alerts:
+        return JsonResponse({"ok": False, "message": "Login notifications aren't on for this "
+                                                     "business."}, status=400)
+    mine = {c.id for c in TelegramChat.objects.filter(business=request.user)}
+    picked = [i for i in _ids(request.POST.getlist("chats")) if i in mine]
+    row.notify_desktop = bool(request.POST.get("desktop"))
+    row.notify_mobile = bool(request.POST.get("mobile"))
+    row.save(update_fields=["notify_desktop", "notify_mobile"])
+    # Every group ticked is the same as none picked: it keeps following the group list.
+    row.alert_chats.set([] if len(picked) == len(mine) else picked)
+    messages.success(request, "Login notifications saved.")
+    return redirect("user_profile")
+
+
+def _ids(values):
+    out = []
+    for v in values:
+        if str(v).isdigit():
+            out.append(int(v))
+    return out
 
 
 def _known(report):

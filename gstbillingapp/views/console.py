@@ -155,6 +155,7 @@ def business_detail(request, user_id):
         "tg": {
             "relay_ready": telegram_reports.relay_ready(),
             "enabled": telegram_reports.business_enabled(user),
+            "row": BusinessTelegram.objects.filter(user=user).first(),
             "chats": TelegramChat.objects.filter(business=user),
             "reports": [{"label": telegram_reports.REPORTS[r.report]["label"], "row": r,
                          "chats": ", ".join(c.name for c in telegram_reports.chats_for(r))}
@@ -176,11 +177,30 @@ def business_telegram(request, user_id):
     """Switch Telegram reports on or off for one business."""
     user = get_object_or_404(User, id=user_id)
     row, _ = BusinessTelegram.objects.get_or_create(user=user)
-    row.enabled = not row.enabled
+    was = row.enabled
+    row.enabled = not was
+    # The login-alert box rides with this form; unticking Telegram itself stops everything.
+    row.login_alerts = bool(request.POST.get("login_alerts")) and row.enabled
     row.updated_by = request.platform_admin
     row.save()
-    messages.success(request, "Telegram reports are now %s for '%s'." % (
-        "on" if row.enabled else "off", user.username))
+    messages.success(request, "Telegram is now %s for '%s'%s." % (
+        "on" if row.enabled else "off", user.username,
+        " (login alerts on)" if row.login_alerts else ""))
+    return redirect("console_business_detail", user_id=user.id)
+
+
+@console_required
+@require_POST
+def business_telegram_logins(request, user_id):
+    """Allow (or stop) login alerts for this business. What it then hears about — desktop,
+    mobile, and which groups — is the business's own choice, on its profile page."""
+    user = get_object_or_404(User, id=user_id)
+    row, _ = BusinessTelegram.objects.get_or_create(user=user)
+    row.login_alerts = bool(request.POST.get("login_alerts"))
+    row.updated_by = request.platform_admin
+    row.save()
+    messages.success(request, "Login notifications are now %s for '%s'." % (
+        "on" if row.login_alerts else "off", user.username))
     return redirect("console_business_detail", user_id=user.id)
 
 

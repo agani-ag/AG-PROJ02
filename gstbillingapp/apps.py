@@ -10,3 +10,5 @@ class GstbillingappConfig(AppConfig):
         from . import staff  # noqa: F401
         # Connects the hooks that queue SyncUp messages (bills, payments, orders).
         from . import syncup_messages  # noqa: F401
+        # Connects the desktop sign-in hook that announces logins to Telegram.
+        from . import telegram_alerts  # noqa: F401

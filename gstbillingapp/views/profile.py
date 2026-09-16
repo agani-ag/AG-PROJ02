@@ -22,6 +22,9 @@ def user_profile(request):
     context['devices'] = device_info(request.user)
     context['devices_online'] = _active_count(request.user)
     context['this_device_token'] = request.session.get('device_token', '')
+    # Telegram login notifications — shown only when a platform admin has allowed them.
+    from .telegram_ui import login_alert_block
+    context['login_alerts'] = login_alert_block(request.user)
     return render(request, 'profile/user_profile.html', context)
 
 
