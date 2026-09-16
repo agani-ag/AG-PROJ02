@@ -38,7 +38,7 @@ DAY_OPTIONS = list(range(15, 465, 15))
 # The reports — same MarkdownV2 the group receives today
 # --------------------------------------------------------------------------- #
 def _footer(lines, today):
-    lines.append("🦀  _Crab AI \\| %s_" % _escape_md(today.strftime("%d %b %Y")))
+    lines.append("🔄  _SyncUp \\| %s_" % _escape_md(today.strftime("%d %b %Y")))
 
 
 def overdue_markdown(business, days=90):
@@ -140,7 +140,7 @@ def cheque_markdown(business):
             )
     if len(cheques) > 1:
         markdown += "*%d Cheques \\= ₹%s*\n" % (len(cheques), _escape_md(str(amounts)))
-    markdown += "🦀  _Crab AI \\| %s_" % _escape_md(timezone.localtime().strftime("%d %b %Y"))
+    markdown += "🔄  _SyncUp \\| %s_" % _escape_md(timezone.localtime().strftime("%d %b %Y"))
     return markdown, len(cheques)
 
 
