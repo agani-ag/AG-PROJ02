@@ -977,6 +977,9 @@ class SyncUpSettings(models.Model):
     messages_enabled = models.BooleanField(default=False)
     # Show "₹… due · N shops" on each customer's GSTSync tile in the app (refreshed daily).
     tile_due = models.BooleanField(default=False)
+    # Master switch for Telegram reports (sent through SyncUp's relay, see telegram_reports.py).
+    # Each business is then switched on, and given its chat ids, on its console page.
+    telegram_enabled = models.BooleanField(default=False)
     # SyncUp's signing secret for GSTSync — proves an Approve / Reject answer really came from
     # SyncUp. Write-only on the console, like the partner key.
     signing_secret = models.CharField(max_length=200, blank=True, default="")
@@ -1093,7 +1096,7 @@ class SyncUpMessage(models.Model):
     Business actions only ever add a row here; /cron/syncup sends the queue, so a bill or a
     payment never waits on SyncUp. `dedupe_key` is unique, so an event can't be queued twice.
     """
-    KIND_NOTIFY, KIND_APPROVE = "notify", "approve"
+    KIND_NOTIFY, KIND_APPROVE, KIND_TELEGRAM = "notify", "approve", "telegram"
 
     business = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE,
                                  related_name="+")
@@ -1102,6 +1105,8 @@ class SyncUpMessage(models.Model):
     external_id = models.CharField(max_length=40)          # party-N / employee-N in SyncUp
     title = models.CharField(max_length=100)
     body = models.CharField(max_length=300, blank=True, default="")
+    # A Telegram report's full text (up to 4096 chars) — `body` is only a push's one-liner.
+    text = models.TextField(blank=True, default="")
     url = models.CharField(max_length=500, blank=True, default="")
     data = models.JSONField(default=dict, blank=True)       # approve: {"log_id": …}
     dedupe_key = models.CharField(max_length=160, unique=True)
@@ -1149,3 +1154,78 @@ class BalanceConfirmation(models.Model):
 
     def __str__(self):
         return "balance confirmation %s" % self.pk
+
+
+# ================= Telegram reports (see telegram_reports.py) =============================
+class BusinessTelegram(models.Model):
+    """May this business send its reports to Telegram? Switched on by a platform admin on the
+    console, along with the chat ids it may reach — the business itself only chooses which
+    reports to send and when (from each report's own page)."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="telegram")
+    enabled = models.BooleanField(default=False)
+    updated_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
+                                   on_delete=models.SET_NULL, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return "telegram for %s" % self.user_id
+
+
+class TelegramChat(models.Model):
+    """One Telegram group (or chat) a business's reports may go to. A business can have as many
+    as it needs. Added on the console only: the id is read from SyncUp's Telegram page after our
+    bot is in the group."""
+    business = models.ForeignKey(User, on_delete=models.CASCADE, related_name="telegram_chats")
+    chat_id = models.CharField(max_length=32)
+    label = models.CharField(max_length=40, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    added_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_ok_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        unique_together = ("business", "chat_id")
+        ordering = ["id"]
+
+    @property
+    def name(self):
+        return self.label or self.chat_id
+
+    def __str__(self):
+        return self.name
+
+
+class TelegramReport(models.Model):
+    """One report a business sends to Telegram at a set time — made on that report's own page.
+    A report can have several rows (e.g. overdue 90 days at 9:00 and 120 days at 9:05)."""
+    OVERDUE, CHEQUE, COLLECTION = "overdue", "cheque", "collection"
+    REPORT_CHOICES = [
+        (OVERDUE, "Overdue report"),
+        (CHEQUE, "Cheque clearance reminder"),
+        (COLLECTION, "Collection route"),
+    ]
+
+    business = models.ForeignKey(User, on_delete=models.CASCADE, related_name="telegram_reports")
+    report = models.CharField(max_length=12, choices=REPORT_CHOICES)
+    enabled = models.BooleanField(default=True)
+    send_at = models.TimeField()
+    params = models.JSONField(default=dict, blank=True)       # overdue: {"days": 90}
+    chats = models.ManyToManyField(TelegramChat, blank=True, related_name="reports")
+    last_sent_on = models.DateField(null=True, blank=True)    # so it goes once a day
+    last_status = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["report", "send_at", "id"]
+
+    @property
+    def days(self):
+        try:
+            return int(self.params.get("days") or 0)
+        except (AttributeError, TypeError, ValueError):
+            return 0
+
+    def __str__(self):
+        return "%s at %s" % (self.report, self.send_at)

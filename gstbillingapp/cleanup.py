@@ -30,7 +30,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.contrib.sessions.models import Session
 
-from .models import Quotation, ActiveDevice
+from .models import ActiveDevice, Quotation, SyncUpMessage
 
 
 # --------------------------------------------------------------------------- #
@@ -361,6 +361,45 @@ def purge_stale_devices(days=DEVICE_RETENTION_DAYS):
 
 
 # --------------------------------------------------------------------------- #
+# The SyncUp / Telegram outbox
+# --------------------------------------------------------------------------- #
+# Messages are queued, sent by /cron/syncup, and then only history — nothing reads them
+# back. Two windows, because the rows are not the same size:
+#
+#   * app notifications and Approve / Reject prompts are one-liners, and their answers are
+#     worth keeping around for a fortnight while a question about one is still likely;
+#   * a Telegram report carries its WHOLE text (up to 4 KB, one row per group per day),
+#     and SyncUp keeps its own copy of every relayed message, so a second copy here has
+#     no reason to live long.
+#
+# Rows go by age, whatever state they are in: a message still unsent after its window
+# means the cron was broken for that long, and yesterday's "payment received" push is not
+# worth delivering now. What each report last did is on the report itself, and each chat
+# id's last result on the chat — neither is lost here.
+MESSAGE_RETENTION_DAYS = 14
+TELEGRAM_RETENTION_DAYS = 7
+
+
+def purge_outbox(days=MESSAGE_RETENTION_DAYS, telegram_days=TELEGRAM_RETENTION_DAYS):
+    """Prune old outbox rows. Returns what went, and what is still waiting to be sent."""
+    now = timezone.now()
+    telegram = SyncUpMessage.objects.filter(
+        kind=SyncUpMessage.KIND_TELEGRAM,
+        created_at__lt=now - datetime.timedelta(days=telegram_days))
+    deleted_telegram, _ = telegram.delete()
+    rest = SyncUpMessage.objects.filter(
+        created_at__lt=now - datetime.timedelta(days=days)).exclude(
+        kind=SyncUpMessage.KIND_TELEGRAM)
+    deleted_rest, _ = rest.delete()
+    return {
+        "telegram": deleted_telegram,
+        "messages": deleted_rest,
+        "waiting": SyncUpMessage.objects.filter(sent_at__isnull=True, failed=False).count(),
+        "rows": SyncUpMessage.objects.count(),
+    }
+
+
+# --------------------------------------------------------------------------- #
 # Cleanup
 # --------------------------------------------------------------------------- #
 # An in-place VACUUM needs roughly 2x the file size free while it runs. It is atomic —
@@ -385,11 +424,12 @@ def reclaimable_bytes():
 
 
 def run_cleanup(vacuum=False, quotation_days=None):
-    """Delete expired sessions and stale presence rows; optionally purge stale
-    quotations, then compact.
+    """Delete expired sessions, stale presence rows and old outbox messages; optionally
+    purge stale quotations, then compact.
 
-    Sessions and stale ActiveDevice rows always. Quotations ONLY when `quotation_days`
-    is given — never by default. Nothing else in this database is touched.
+    Sessions, stale ActiveDevice rows and spent SyncUp / Telegram messages always.
+    Quotations ONLY when `quotation_days` is given — never by default. Nothing else in
+    this database is touched.
     """
     now = timezone.now()
     before = db_size_bytes()
@@ -406,6 +446,9 @@ def run_cleanup(vacuum=False, quotation_days=None):
     # pruned so the table stays bounded without losing the recent device list.
     stats["pruned_devices"] = purge_stale_devices()
     stats["device_rows"] = ActiveDevice.objects.count()
+
+    # Sent messages and Telegram reports — see purge_outbox() for the two windows.
+    stats["outbox"] = purge_outbox()
 
     # Opt-in retention. Runs before the vacuum so the freed pages are reclaimed in the
     # same pass.

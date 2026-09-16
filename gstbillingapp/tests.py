@@ -1,3 +1,4 @@
+import datetime
 import json
 from datetime import date, timedelta
 from unittest import mock
@@ -1489,6 +1490,50 @@ class CronMaintenanceTests(_CronTestBase, TestCase):
             self.assertIn(field, body)
         self.assertEqual(body["sessions_expired"], 1)
         self.assertEqual(Session.objects.count(), 1)   # health must not have purged it
+
+
+class CronOutboxCleanupTests(_CronTestBase, TestCase):
+    """The daily cleanup prunes the SyncUp / Telegram outbox: a Telegram report carries its
+    whole text, so it goes sooner than a one-line push."""
+
+    def _msg(self, kind, age_days, dedupe):
+        from .models import SyncUpMessage
+        m = SyncUpMessage.objects.create(kind=kind, event="x", external_id="-100", title="t",
+                                         text="report" if kind == "telegram" else "",
+                                         dedupe_key=dedupe, sent_at=timezone.now())
+        SyncUpMessage.objects.filter(pk=m.pk).update(
+            created_at=timezone.now() - timedelta(days=age_days))
+        return m
+
+    def test_old_messages_go_and_recent_ones_stay(self):
+        from .cleanup import purge_outbox
+        from .models import SyncUpMessage
+        fresh_tg = self._msg("telegram", 3, "tg-fresh")
+        old_tg = self._msg("telegram", 9, "tg-old")
+        fresh_push = self._msg("notify", 9, "push-fresh")      # older than a Telegram window…
+        old_push = self._msg("notify", 20, "push-old")
+        out = purge_outbox()
+        self.assertEqual((out["telegram"], out["messages"]), (1, 1))
+        left = set(SyncUpMessage.objects.values_list("dedupe_key", flat=True))
+        self.assertEqual(left, {"tg-fresh", "push-fresh"})     # …but a push is kept a fortnight
+        self.assertEqual(out["rows"], 2)
+
+    def test_a_message_stuck_unsent_past_its_window_is_dropped_too(self):
+        from .cleanup import purge_outbox
+        from .models import SyncUpMessage
+        m = self._msg("telegram", 9, "stuck")
+        SyncUpMessage.objects.filter(pk=m.pk).update(sent_at=None)
+        self.assertEqual(purge_outbox()["telegram"], 1)
+
+    def test_the_cleanup_cron_reports_what_it_pruned(self):
+        from .models import SyncUpMessage
+        self._msg("telegram", 9, "tg-old")
+        waiting = SyncUpMessage.objects.create(kind="telegram", event="x", external_id="-100",
+                                               title="t", text="soon", dedupe_key="tg-waiting")
+        with self._settings():
+            body = self._get("cron_cleanup").json()
+        self.assertEqual(body["outbox"], {"telegram": 1, "messages": 0, "waiting": 1, "rows": 1})
+        self.assertTrue(SyncUpMessage.objects.filter(pk=waiting.pk).exists())
 
 
 class CronBackupVacuumTests(_CronTestBase, TransactionTestCase):
@@ -4650,3 +4695,296 @@ class ConsoleMessageScreenTests(TestCase):
         r = self.client.post(reverse("console_business_confirm_balances", args=[self.a.id]),
                              {"as_of": timezone.localdate().isoformat()}, follow=True)
         self.assertContains(r, "Turn on SyncUp messages")
+
+
+class TelegramReportTests(TestCase):
+    """Telegram reports: the console decides whether a business may send and to which groups;
+    the business decides which reports and when, on each report's own page."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+        cls.cust = Customer.objects.create(user=cls.a, customer_name="KMR",
+                                           customer_phone="9876543210", collection_day=1,
+                                           customer_place="SALEM")
+        cls.book = Book.objects.create(user=cls.a, customer=cls.cust, current_balance=-1000)
+
+    def setUp(self):
+        from .models import BusinessTelegram, TelegramChat
+        _syncup_on(telegram_enabled=True)
+        BusinessTelegram.objects.update_or_create(user=self.a, defaults={"enabled": True})
+        self.chat = TelegramChat.objects.create(business=self.a, chat_id="-1001234567890",
+                                                label="Owner group")
+        self.bulk = mock.patch("gstbillingapp.syncup_client.telegram_bulk", side_effect=lambda msgs, timeout=None: [
+            {"chat_id": m["chat_id"], "message_id": "11"} for m in msgs]).start()
+        self.one = mock.patch("gstbillingapp.syncup_client.telegram_send",
+                              return_value={"success": True, "message_id": "11"}).start()
+        self.addCleanup(mock.patch.stopall)
+
+    # ---- helpers ----
+    def _owing(self, days_old=100, amount=1000):
+        when = timezone.now() - timedelta(days=days_old)
+        BookLog.objects.create(parent_book=self.book, change_type=1, change=-amount, date=when)
+
+    def _login(self, user=None):
+        self.client.force_login(user or self.a)
+
+    def _console(self):
+        from .models import PlatformAdmin
+        admin = PlatformAdmin(username="tgop", full_name="TG Op")
+        admin.set_password("Cons0le!pass9")
+        admin.save()
+        self.client.post(reverse("console_login"), {"username": "tgop",
+                                                    "password": "Cons0le!pass9"})
+        return admin
+
+    def _settings(self, report="overdue"):
+        return self.client.get(reverse("telegram_report_settings", args=[report])).json()
+
+    def _save(self, rows, report="overdue"):
+        return self.client.post(reverse("telegram_report_settings", args=[report]),
+                                data=json.dumps({"rows": rows}), content_type="application/json")
+
+    def _msgs(self):
+        from .models import SyncUpMessage
+        return list(SyncUpMessage.objects.filter(kind="telegram").order_by("id"))
+
+    # ---- the reports themselves ----
+    def test_the_reports_read_like_the_ones_the_group_already_gets(self):
+        from .telegram_reports import build
+        self._owing()
+        text, count = build("overdue", self.a, {"days": 90})
+        self.assertEqual(count, 1)
+        for bit in ("📋  *OVERDUE REPORT*", "🏢  *ALPHA CO*", "KMR", "9876543210",
+                    "⚠️  Overdue Customers: *1*", "Crab AI"):
+            self.assertIn(bit, text)
+
+        text, count = build("collection", self.a, {})
+        self.assertIn("COLLECTION ROUTE", text)
+        # Only counts today's route — the customer collects on Mondays.
+        self.assertEqual(count, 1 if timezone.localdate().weekday() == 0 else 0)
+
+        from .models import ChequeLeaf
+        ChequeLeaf.objects.create(user=self.a, cheque_number="000123", bank="HDFC",
+                                  payee_name="RAJ", amount=5000, status="ISSUED",
+                                  clearance_date=timezone.localdate() + timedelta(days=1))
+        text, count = build("cheque", self.a, {})
+        self.assertEqual(count, 1)
+        self.assertIn("Cheque Clearance Reminder", text)
+        self.assertIn("000123", text)
+
+    def test_a_long_report_is_split_not_lost(self):
+        from .telegram_reports import MAX_TEXT, split_parts
+        parts = split_parts("\n".join("line %d" % i for i in range(3000)))
+        self.assertGreater(len(parts), 1)
+        self.assertTrue(all(len(p) <= MAX_TEXT + 40 for p in parts))
+        self.assertIn("_Part 1 of %d_" % len(parts), parts[0])
+
+    # ---- the popup ----
+    def test_the_popup_says_when_telegram_is_not_set_up(self):
+        from .models import BusinessTelegram
+        self._login(self.b)                                    # no chat ids, not enabled
+        state = self._settings()
+        self.assertFalse(state["available"])
+        self.assertIn("isn't switched on", state["reason"])
+        BusinessTelegram.objects.update_or_create(user=self.b, defaults={"enabled": True})
+        self.assertIn("No Telegram group", self._settings()["reason"])
+        self._login()
+        self.assertTrue(self._settings()["available"])
+
+    def test_saving_times_and_groups(self):
+        from .models import TelegramReport
+        self._login()
+        r = self._save([{"enabled": True, "send_at": "09:00", "days": 90, "chats": [self.chat.id]},
+                        {"enabled": True, "send_at": "09:05", "days": 120, "chats": [self.chat.id]}])
+        self.assertEqual(r.status_code, 200)
+        rows = TelegramReport.objects.filter(business=self.a, report="overdue")
+        self.assertEqual([(str(x.send_at)[:5], x.days) for x in rows.order_by("send_at")],
+                         [("09:00", 90), ("09:05", 120)])
+        self.assertEqual([c.id for c in rows.first().chats.all()], [self.chat.id])
+        # Saving fewer rows removes the extra one.
+        self._save([{"enabled": False, "send_at": "10:30", "days": 90, "chats": []}])
+        self.assertEqual(rows.count(), 1)
+
+    def test_a_bad_time_or_another_business_chat_is_refused(self):
+        from .models import TelegramChat, TelegramReport
+        theirs = TelegramChat.objects.create(business=self.b, chat_id="-100999", label="Theirs")
+        self._login()
+        r = self._save([{"enabled": True, "send_at": "nine", "days": 90, "chats": []}])
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("HH:MM", r.json()["message"])
+        self._save([{"enabled": True, "send_at": "09:00", "days": 90, "chats": [theirs.id]}])
+        row = TelegramReport.objects.get(business=self.a)
+        self.assertEqual(list(row.chats.all()), [])            # not ours to send to
+        self.assertEqual(self._save([{"enabled": True, "send_at": "09:00", "days": 7,
+                                      "chats": []}]).status_code, 400)
+
+    def test_the_popup_is_only_the_signed_in_business(self):
+        url = reverse("telegram_report_settings", args=["overdue"])
+        self.assertIn("/login", self.client.get(url)["Location"])
+        self._login()
+        self.assertEqual(self.client.get(reverse("telegram_report_settings",
+                                                 args=["nonsense"])).status_code, 404)
+
+    def test_send_now_posts_the_report(self):
+        self._owing()
+        self._login()
+        r = self.client.post(reverse("telegram_report_send", args=["overdue"]),
+                             data=json.dumps({"days": 90, "chats": [self.chat.id]}),
+                             content_type="application/json")
+        self.assertTrue(r.json()["ok"])
+        self.bulk.assert_called_once()
+        sent = self.bulk.call_args.args[0]
+        self.assertEqual(sent[0]["chat_id"], "-1001234567890")
+        self.assertEqual(sent[0]["parse_mode"], "MarkdownV2")
+        self.assertIn("OVERDUE REPORT", sent[0]["text"])
+        self.assertIsNotNone(self._msgs()[0].sent_at)
+
+    # ---- the schedule ----
+    def _schedule(self, at="09:00", report="overdue", days=90):
+        from .models import TelegramReport
+        row = TelegramReport.objects.create(business=self.a, report=report,
+                                            send_at=datetime.time(*[int(x) for x in at.split(":")]),
+                                            params={"days": days} if days else {})
+        row.chats.set([self.chat])
+        return row
+
+    def test_it_goes_once_at_the_time_that_was_set(self):
+        from .telegram_reports import run_due
+        self._owing()
+        row = self._schedule("09:00")
+        today = timezone.localdate()
+        self.assertEqual(run_due(_local(today, 8, 50)), 0)          # not yet
+        self.assertEqual(run_due(_local(today, 9, 5)), 1)           # first run after 9:00
+        self.assertEqual(run_due(_local(today, 9, 15)), 0)          # and only once
+        row.refresh_from_db()
+        self.assertEqual(row.last_sent_on, today)
+        self.assertIn("Queued", row.last_status)
+        m, = self._msgs()
+        self.assertEqual((m.external_id, m.event), ("-1001234567890", "overdue"))
+        self.assertIn("OVERDUE REPORT", m.text)
+
+    def test_a_missed_report_waits_for_tomorrow_rather_than_arriving_late(self):
+        from .telegram_reports import run_due
+        self._owing()
+        self._schedule("03:00")
+        self.assertEqual(run_due(_local(timezone.localdate(), 9, 0)), 0)
+        self.assertEqual(self._msgs(), [])
+
+    def test_an_empty_report_is_not_sent(self):
+        from .telegram_reports import run_due
+        row = self._schedule("09:00")                               # nothing overdue at all
+        self.assertEqual(run_due(_local(timezone.localdate(), 9, 5)), 0)
+        row.refresh_from_db()
+        self.assertEqual(row.last_status, "Nothing to report")
+
+    def test_nothing_goes_out_while_a_switch_is_off(self):
+        from .models import BusinessTelegram, TelegramChat
+        from .telegram_reports import run_due
+        self._owing()
+        self._schedule("09:00")
+        at = _local(timezone.localdate(), 9, 5)
+        _syncup_on(telegram_enabled=False)                          # the platform switch
+        self.assertEqual(run_due(at), 0)
+        _syncup_on(telegram_enabled=True)
+        BusinessTelegram.objects.filter(user=self.a).update(enabled=False)   # the business switch
+        self.assertEqual(run_due(at), 0)
+        BusinessTelegram.objects.filter(user=self.a).update(enabled=True)
+        TelegramChat.objects.filter(pk=self.chat.pk).update(is_active=False)  # the chat id
+        self.assertEqual(run_due(at), 0)
+        self.assertEqual(self._msgs(), [])
+
+    def test_the_cron_sends_what_is_due(self):
+        from .models import TelegramChat
+        self._owing()
+        self._schedule("00:01")                 # already due, but only within the catch-up window
+        from .telegram_reports import CATCH_UP
+        with override_settings(CRON_KEY="k"), \
+             mock.patch("gstbillingapp.telegram_reports.CATCH_UP", timedelta(days=1)), \
+             mock.patch("gstbillingapp.syncup_client.set_account_active"):
+            body = self.client.get("/cron/syncup", {"key": "k"}).json()
+        self.assertEqual(body["telegram"], 1)
+        self.assertEqual(body["messages"]["sent"], 1)
+        self.bulk.assert_called_once()
+        self.assertIsNotNone(TelegramChat.objects.get(pk=self.chat.pk).last_ok_at)
+
+    def test_a_chat_telegram_refuses_is_not_retried(self):
+        from .models import SyncUpMessage, TelegramChat
+        from .telegram_reports import queue_report
+        from .syncup_messages import flush
+        self._owing()
+        self.bulk.side_effect = lambda msgs, timeout=None: [
+            {"chat_id": m["chat_id"], "error": "chat not found"} for m in msgs]
+        queue_report(self.a, "overdue", {"days": 90}, [self.chat])
+        flush()
+        m = SyncUpMessage.objects.get(kind="telegram")
+        self.assertTrue(m.failed)
+        self.assertIn("chat not found", TelegramChat.objects.get(pk=self.chat.pk).last_error)
+        self.bulk.reset_mock()
+        flush()
+        self.bulk.assert_not_called()
+
+    def test_reports_ignore_the_quiet_hours(self):
+        from .telegram_reports import queue_report
+        with mock.patch("gstbillingapp.syncup_messages._now",
+                        return_value=_local(timezone.localdate(), 22, 30)):
+            self._owing()
+            queue_report(self.a, "overdue", {"days": 90}, [self.chat])
+        m, = self._msgs()
+        self.assertEqual(timezone.localtime(m.send_after).hour, 22)
+
+    # ---- the console side ----
+    def test_console_adds_checks_and_tests_a_chat_id(self):
+        from .models import TelegramChat
+        self._console()
+        url = reverse("console_business_telegram_chat_add", args=[self.b.id])
+        self.client.post(url, {"chat_id": "not-an-id", "label": "Nope"})
+        self.assertFalse(TelegramChat.objects.filter(business=self.b).exists())
+        self.client.post(url, {"chat_id": "-1009876543210", "label": "Beta group"})
+        chat = TelegramChat.objects.get(business=self.b)
+        self.assertEqual(chat.label, "Beta group")
+        r = self.client.post(url, {"chat_id": "-1009876543210"}, follow=True)
+        self.assertContains(r, "already on this business")
+        self.client.post(reverse("console_business_telegram_chat_test",
+                                 args=[self.b.id, chat.id]))
+        self.one.assert_called_once()
+        chat.refresh_from_db()
+        self.assertIsNotNone(chat.last_ok_at)
+
+    def test_console_switch_and_removal(self):
+        from .models import TelegramChat
+        from .telegram_reports import business_enabled
+        self._console()
+        self.client.post(reverse("console_business_telegram", args=[self.b.id]))
+        self.assertTrue(business_enabled(self.b))
+        self.client.post(reverse("console_business_telegram", args=[self.b.id]))
+        self.assertFalse(business_enabled(self.b))
+        self.client.post(reverse("console_business_telegram_chat_delete",
+                                 args=[self.a.id, self.chat.id]))
+        self.assertFalse(TelegramChat.objects.filter(pk=self.chat.pk).exists())
+
+    def test_the_console_needs_a_console_login(self):
+        r = self.client.post(reverse("console_business_telegram", args=[self.a.id]))
+        self.assertIn("/console/login", r["Location"])
+
+    def test_the_business_page_shows_what_is_scheduled(self):
+        self._schedule("09:00")
+        self._console()
+        page = self.client.get(reverse("console_business_detail", args=[self.a.id]))
+        self.assertContains(page, "Telegram reports")
+        self.assertContains(page, "Owner group")
+        self.assertContains(page, "Overdue report")
+
+    def test_the_button_is_on_all_three_report_pages(self):
+        self._login()
+        for name in ("overdue_report", "cheque_leafs", "customers_collection_calendar"):
+            r = self.client.get(reverse(name))
+            self.assertEqual(r.status_code, 200, name)
+            self.assertContains(r, 'onclick="tgOpen()"', msg_prefix=name)
+            self.assertContains(r, "/telegram/report/", msg_prefix=name)
+
+    # ---- what the old SyncUp job used ----
+    def test_the_open_report_endpoints_are_gone(self):
+        for url in ("/api/reports/overdue", "/api/cheque_leaf_reminder",
+                    "/customers/api/collection-day/show?markdown=true&user_id=1"):
+            self.assertEqual(self.client.get(url).status_code, 404, url)

@@ -53,7 +53,8 @@ def syncup_settings(request):
             "timeout": cfg.timeout, "login_domain": cfg.login_domain,
             "play_url": cfg.play_url, "play_on_landing": cfg.play_on_landing,
             "customer_share_text": cfg.customer_share_text, "share_text": cfg.share_text,
-            "messages_enabled": cfg.messages_enabled, "tile_due": cfg.tile_due}
+            "messages_enabled": cfg.messages_enabled, "tile_due": cfg.tile_due,
+            "telegram_enabled": cfg.telegram_enabled}
     extra = {"defaults": {"customer": DEFAULT_CUSTOMER_TEXT, "share": DEFAULT_SHARE_TEXT},
              "msg_stats": syncup_messages.stats(),
              "callback_url": (link_base_of(cfg) + "/syncup/callback") if link_base_of(cfg) else ""}
@@ -103,7 +104,8 @@ def syncup_settings(request):
                         timeout=d.get("timeout") or "", login_domain=d.get("login_domain") or "",
                         play_url=play_raw, play_on_landing=bool(d.get("play_on_landing")),
                         messages_enabled=bool(d.get("messages_enabled")),
-                        tile_due=bool(d.get("tile_due")), **texts)
+                        tile_due=bool(d.get("tile_due")),
+                        telegram_enabled=bool(d.get("telegram_enabled")), **texts)
             return render(request, "console/syncup_settings.html",
                           dict(extra, cfg=cfg, form=form, locked=locked, errors=errors,
                                app=listing(cfg)),
@@ -118,6 +120,7 @@ def syncup_settings(request):
         elif key:                                       # blank keeps the current key
             cfg.partner_key = key
         cfg.messages_enabled, cfg.tile_due = bool(d.get("messages_enabled")), bool(d.get("tile_due"))
+        cfg.telegram_enabled = bool(d.get("telegram_enabled"))
         if d.get("clear_secret"):
             cfg.signing_secret = ""
         elif secret:                                    # blank keeps the current secret

@@ -1,0 +1,140 @@
+{% comment %}
+The Telegram button and its popup for one report page. Include it inside the page's
+`.actions` area, naming the report:
+
+    {% include "partials/telegram_report.html" with report="overdue" %}
+
+The popup sets WHICH times this report goes out and to WHICH of the business's Telegram
+groups. The groups themselves are added by us on the console — never here.
+{% endcomment %}
+<button type="button" class="gbtn" onclick="tgOpen()"><i class="fab fa-telegram"></i> Telegram</button>
+
+<div class="gmodal" id="tgModal">
+  <div class="gmodal-panel gs">
+    <div class="gmodal-head"><span><i class="fab fa-telegram"></i> Telegram — <span id="tgLabel">report</span></span>
+      <button type="button" class="x" data-gclose>&times;</button></div>
+    <div class="gmodal-body">
+      <div id="tgBlocked" style="display:none;gap:9px;align-items:flex-start;font-size:13px;color:#92400e;background:#fff7e6;border:1px solid #fde2b0;border-radius:10px;padding:9px 13px;margin-bottom:10px"><i class="fas fa-circle-info"></i><span id="tgReason"></span></div>
+      <div id="tgBody" style="display:none">
+        <p class="text-muted small" style="margin:0 0 10px">
+          This report is built and sent automatically at the times below. The cron runs every
+          10 minutes, so it goes out at the first run on or after the time you set.
+        </p>
+        <div id="tgRows"></div>
+        <button type="button" class="gbtn gbtn-sm" id="tgAdd" onclick="tgAddRow()"><i class="fas fa-plus"></i> Add another time</button>
+      </div>
+      <div id="tgMsg" class="text-muted small" style="margin-top:10px"></div>
+    </div>
+    <div class="gmodal-foot">
+      <button type="button" class="gbtn" data-gclose>Close</button>
+      <button type="button" class="gbtn" id="tgNow" onclick="tgSendNow()"><i class="fas fa-paper-plane"></i> Send now</button>
+      <button type="button" class="gbtn gbtn-primary" id="tgSave" onclick="tgSave()"><i class="fas fa-check"></i> Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Telegram report settings (one report, this business) ----
+var TG_URL = "{% url 'telegram_report_settings' report %}";
+var TG_SEND_URL = "{% url 'telegram_report_send' report %}";
+var tgState = null;
+
+function tgCsrf(){
+  var m = document.cookie.match(/(^|;\s*)csrftoken=([^;]+)/);
+  return m ? m[2] : "";
+}
+function tgSay(text, bad){
+  var el = document.getElementById('tgMsg');
+  el.textContent = text || "";
+  el.style.color = bad ? "var(--red)" : "var(--soft)";
+}
+function tgOpen(){
+  gOpenModal('tgModal');
+  tgSay("Loading…");
+  fetch(TG_URL, {headers: {"X-Requested-With": "fetch"}})
+    .then(function(r){ return r.json(); })
+    .then(function(d){ tgState = d; tgRender(); tgSay(""); })
+    .catch(function(){ tgSay("Couldn't load these settings. Try again.", true); });
+}
+function tgRender(){
+  document.getElementById('tgLabel').textContent = tgState.label;
+  var blocked = document.getElementById('tgBlocked');
+  blocked.style.display = tgState.available ? "none" : "flex";
+  document.getElementById('tgReason').textContent = tgState.reason;
+  document.getElementById('tgBody').style.display = tgState.available ? "block" : "none";
+  ['tgSave', 'tgNow'].forEach(function(id){ document.getElementById(id).disabled = !tgState.available; });
+  document.getElementById('tgRows').innerHTML = "";
+  (tgState.rows.length ? tgState.rows : []).forEach(tgRow);
+  if(!tgState.rows.length && tgState.available) tgAddRow();
+}
+function tgAddRow(){
+  if(document.querySelectorAll('#tgRows .tgrow').length >= 6){
+    return tgSay("That's as many times as one report can have.", true);
+  }
+  tgRow({enabled: true, send_at: tgState.default_time, days: tgState.default_days,
+         chats: tgState.chats.map(function(c){ return c.id; }), last: ""});
+}
+function tgRow(row){
+  var wrap = document.createElement('div');
+  wrap.className = "tgrow";
+  wrap.style.cssText = "border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px";
+  var days = "";
+  if(tgState.has_days){
+    days = '<label class="small" style="margin:0 12px 0 0">Overdue by '
+      + '<select class="form-control form-control-sm tgdays" style="display:inline-block;width:auto">'
+      + tgState.day_options.map(function(d){
+          return '<option value="' + d + '"' + (d === row.days ? ' selected' : '') + '>' + d + ' days</option>';
+        }).join('') + '</select></label>';
+  }
+  var chats = tgState.chats.map(function(c){
+    var on = !row.chats.length || row.chats.indexOf(c.id) !== -1;
+    return '<label class="small" style="margin:0 12px 0 0"><input type="checkbox" class="tgchat" value="'
+      + c.id + '"' + (on ? ' checked' : '') + '> ' + tgEsc(c.name) + '</label>';
+  }).join('');
+  wrap.innerHTML =
+    '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">'
+    + '<label class="small" style="margin:0"><input type="checkbox" class="tgon"' + (row.enabled ? ' checked' : '') + '> Send this report</label>'
+    + '<label class="small" style="margin:0">at <input type="time" class="form-control form-control-sm tgtime" value="'
+    + row.send_at + '" style="display:inline-block;width:auto"></label>'
+    + days
+    + '<button type="button" class="gbtn gbtn-sm" style="margin-left:auto" onclick="this.closest(\'.tgrow\').remove()">Remove</button>'
+    + '</div>'
+    + '<div style="margin-top:8px">' + (chats || '<span class="text-muted small">No groups yet.</span>') + '</div>'
+    + (row.last ? '<div class="text-muted small" style="margin-top:6px">' + tgEsc(row.last) + '</div>' : '');
+  document.getElementById('tgRows').appendChild(wrap);
+}
+function tgEsc(s){ var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function tgCollect(){
+  return Array.prototype.map.call(document.querySelectorAll('#tgRows .tgrow'), function(el){
+    return {
+      enabled: el.querySelector('.tgon').checked,
+      send_at: el.querySelector('.tgtime').value,
+      days: el.querySelector('.tgdays') ? parseInt(el.querySelector('.tgdays').value, 10) : null,
+      chats: Array.prototype.map.call(el.querySelectorAll('.tgchat:checked'), function(c){
+        return parseInt(c.value, 10); })
+    };
+  });
+}
+function tgPost(url, body, done){
+  fetch(url, {method: "POST", headers: {"Content-Type": "application/json", "X-CSRFToken": tgCsrf()},
+              body: JSON.stringify(body)})
+    .then(function(r){ return r.json(); })
+    .then(done)
+    .catch(function(){ tgSay("That didn't go through. Try again.", true); });
+}
+function tgSave(){
+  tgSay("Saving…");
+  tgPost(TG_URL, {rows: tgCollect()}, function(d){
+    if(!d.ok) return tgSay(d.message || "Couldn't save that.", true);
+    tgState = d; tgRender(); tgSay("Saved.");
+  });
+}
+function tgSendNow(){
+  var rows = tgCollect();
+  tgSay("Sending…");
+  tgPost(TG_SEND_URL, {days: rows.length ? rows[0].days : null,
+                       chats: rows.length ? rows[0].chats : []}, function(d){
+    tgSay(d.message || (d.ok ? "Sent." : "Nothing was sent."), !d.ok);
+  });
+}
+</script>

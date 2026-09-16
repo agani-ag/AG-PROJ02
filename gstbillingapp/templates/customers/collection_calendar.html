@@ -13,6 +13,7 @@
     <div class="page-head">
         <div><h1 class="disp">Collection Calendar</h1><div class="sub">{% if filter_day_display %}{{ filter_day_display }}{% else %}All Days{% endif %}</div></div>
         <div class="actions">
+            {% include "partials/telegram_report.html" with report="collection" %}
             <form method="GET" style="display:inline">
                 <select name="filter" class="selctl" onchange="this.form.submit()">
                     <option value="">All Days</option>

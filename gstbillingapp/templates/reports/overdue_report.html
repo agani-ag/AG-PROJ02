@@ -33,6 +33,7 @@
         <div class="actions">
             <a href="{% url 'bi_dashboard' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Back to BI</a>
             <button type="button" class="gbtn" onclick="printTable('overdueTable','Overdue Report ({{ selected_days }}+ Days)')"><i class="fas fa-print"></i> Print</button>
+            {% include "partials/telegram_report.html" with report="overdue" %}
         </div>
     </div>
 

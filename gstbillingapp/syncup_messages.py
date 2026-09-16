@@ -27,7 +27,7 @@ from django.utils import timezone
 from . import syncup_client
 from .models import (BalanceConfirmation, Book, BookLog, BusinessNotifications, Customer,
                      Employee, EmployeePosting, Invoice, Party, Quotation, StaffLogin,
-                     SyncUpJobRun, SyncUpMessage, SyncUpSettings)
+                     SyncUpJobRun, SyncUpMessage, SyncUpSettings, TelegramChat, TelegramReport)
 from .parties import party_for, row_is_visible
 from .templatetags.money import format_inr
 
@@ -56,8 +56,8 @@ EVENT_NAMES = {key for _, _, items in EVENTS for key, _ in items}
 
 QUIET_FROM, QUIET_UNTIL = 21, 8       # local hours — nothing goes out in between
 BULK_SIZE = 25                        # per notify/bulk call, to keep SyncUp's request light
+TELEGRAM_CHUNK = 10                   # per telegram/bulk call — each send may retry inside SyncUp
 MAX_ATTEMPTS = 6
-KEEP_DAYS = 14
 PROMPT_TTL = 3600                     # SyncUp's cap for a prompt
 OVERDUE_DAYS = 30
 
@@ -136,14 +136,18 @@ def _after_quiet(now):
 
 
 def queue(*, business, event, external_id, title, body="", url="", dedupe,
-          kind=SyncUpMessage.KIND_NOTIFY, data=None):
-    """Add one message to the outbox. Returns it, or None if that event was already queued."""
+          kind=SyncUpMessage.KIND_NOTIFY, data=None, text="", any_time=False):
+    """Add one message to the outbox. Returns it, or None if that event was already queued.
+
+    `any_time` skips the quiet hours — a Telegram report goes at the time the business set,
+    not at 8 a.m.; quiet hours are there to protect a person's phone at night."""
     try:
         with transaction.atomic():
             return SyncUpMessage.objects.create(
                 business=business, event=event, kind=kind, external_id=external_id,
-                title=title[:100], body=body[:300], url=url[:500], data=data or {},
-                dedupe_key=dedupe[:160], send_after=_after_quiet(_now()))
+                title=title[:100], body=body[:300], url=url[:500], data=data or {}, text=text,
+                dedupe_key=dedupe[:160],
+                send_after=_now() if any_time else _after_quiet(_now()))
     except IntegrityError:
         return None
 
@@ -549,6 +553,37 @@ def flush(limit=200, only_ids=None, timeout=None):
                 _give_up(m, res.get("error") if isinstance(res, dict) else "No result from SyncUp")
                 failed += 1
 
+    reports = [m for m in msgs if m.kind == SyncUpMessage.KIND_TELEGRAM]
+    for i in range(0, len(reports), TELEGRAM_CHUNK):
+        chunk = reports[i:i + TELEGRAM_CHUNK]
+        try:
+            results = syncup_client.telegram_bulk(
+                [{"chat_id": m.external_id, "text": m.text, "parse_mode": "MarkdownV2"}
+                 for m in chunk])
+        except syncup_client.SyncUpError as e:
+            _retry_later(chunk, e)
+            if e.status is None:
+                break                                # SyncUp is down — the rest wait
+            continue
+        for m, res in zip(chunk, list(results) + [None] * (len(chunk) - len(results))):
+            res = res if isinstance(res, dict) else {}
+            if res and "error" not in res:
+                m.delivered = 1
+                m.save(update_fields=["delivered"])
+                TelegramChat.objects.filter(business=m.business, chat_id=m.external_id).update(
+                    last_ok_at=now, last_error="")
+                sent += 1
+            else:
+                # Telegram already retried inside SyncUp, so a refusal here is the chat id
+                # itself (removed, blocked, wrong) — not worth sending again.
+                error = res.get("error") or "No result from SyncUp"
+                _give_up(m, error)
+                TelegramChat.objects.filter(business=m.business, chat_id=m.external_id).update(
+                    last_error=str(error)[:300])
+                TelegramReport.objects.filter(business=m.business, report=m.event).update(
+                    last_status=("Failed: %s" % error)[:200])
+                failed += 1
+
     prompts = [m for m in msgs if m.kind == SyncUpMessage.KIND_APPROVE]
     for n, m in enumerate(prompts):
         if not BookLog.objects.filter(pk=m.data.get("log_id"), is_active=False).exists():
@@ -576,7 +611,8 @@ def flush(limit=200, only_ids=None, timeout=None):
         m.save(update_fields=["request_id", "delivered"])
         sent += 1
 
-    SyncUpMessage.objects.filter(created_at__lt=now - datetime.timedelta(days=KEEP_DAYS)).delete()
+    # Old rows are pruned by the daily /cron/cleanup run (cleanup.purge_outbox), not here —
+    # this runs every few minutes and sending is all it should do.
     return {"sent": sent, "failed": failed}
 
 

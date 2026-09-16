@@ -2,7 +2,6 @@
 from django.utils import timezone
 from django.contrib import messages
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Sum, Case, When, FloatField, F, Q
@@ -17,7 +16,6 @@ from ..forms import (
 )
 # Python imports
 import json
-from ..utils import _escape_md
 
 # ===================== Bank Details views =============================
 @login_required
@@ -161,72 +159,3 @@ def cheque_leaf_delete(request, pk):
     cheque_leaf.delete()
     messages.success(request, "Cheque leaf entry deleted successfully.")
     return redirect('cheque_leafs')
-
-@csrf_exempt
-def cheque_leaf_reminder_api(request):
-    """
-    API endpoint to fetch upcoming cheque clearances for the logged-in user.
-    Accepts an optional 'user_ids' parameter (comma-separated integers) to filter by specific users.
-    Returns a JSON response with clearance details and a formatted message.
-    Example request:
-    GET /api/cheque_leaf_reminder/?user_ids=1,2,3 or POST with JSON body {"user_ids": [1, 2, 3]}
-    """
-    # --- Parse user_ids ---
-    user_ids = []
-    if request.method == 'POST':
-        try:
-            body = json.loads(request.body.decode('utf-8'))
-            user_ids = body.get('user_ids', [])
-        except (json.JSONDecodeError, ValueError):
-            return JsonResponse({'status': 'error', 'message': 'Invalid JSON body.'}, status=400)
-    else:
-        raw = request.GET.get('user_ids', '')
-        if raw:
-            try:
-                user_ids = [int(uid.strip()) for uid in raw.split(',') if uid.strip()]
-            except ValueError:
-                return JsonResponse({'status': 'error', 'message': 'user_ids must be comma-separated integers.'}, status=400)
-
-    if not user_ids:
-        return JsonResponse({'status': 'error', 'message': 'user_ids is required (non-empty array).'}, status=400)
-    
-    active_status = ['ISSUED', 'PRESENTED','BOUNCED']
-    tommorrow = timezone.localtime().date() + timezone.timedelta(days=1)
-    clearance_cheque_leafs = ChequeLeaf.objects.filter(
-        user__id__in=user_ids,
-        clearance_date=tommorrow,
-        status__in=active_status
-    )
-
-    markdown = "_*💰 Cheque Clearance Reminder*_\n\n"
-    separator = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
-    amounts = 0
-
-    if not clearance_cheque_leafs.exists():
-        markdown += f"_No upcoming cheque clearances for {_escape_md(tommorrow.strftime('%d-%m-%Y'))}\\._"
-        markdown += f'\n{separator}\n'
-    else:
-        for cheque in clearance_cheque_leafs:
-            Brand = str(cheque.user if cheque.user else "N/A")
-            amounts += int(cheque.amount)
-            markdown += (
-                f"🔢  Cheque No: *`{_escape_md(str(cheque.cheque_number))}`*\n"
-                f"🏦  Bank: *{_escape_md(cheque.bank)}*\n"
-                f"👤  Payee: *{_escape_md(cheque.payee_name)}*\n"
-                f"💰  Amount: *₹{_escape_md(str(cheque.amount))}*\n"
-                f"📅  Clearance Date: *{_escape_md(cheque.clearance_date.strftime('%d-%m-%Y'))}*\n"
-                f"📌  Status: *{_escape_md(cheque.status)}*\n"
-                f"🏷️  Brand: *{_escape_md(Brand.upper())}*\n"
-                f"{separator}\n\n"
-            )
-    if clearance_cheque_leafs.count() > 1:
-        markdown += f"*{clearance_cheque_leafs.count()} Cheques \\= ₹{_escape_md(str(amounts))}*\n"
-    # ── Footer ──
-    markdown += f'🦀  _Crab AI \\| {_escape_md(timezone.localtime().strftime("%d %b %Y"))}_'
-    
-    return JsonResponse({
-        "status": "success",
-        "count": clearance_cheque_leafs.count(),
-        "data": list(clearance_cheque_leafs.values()),
-        "markdown": markdown
-    })

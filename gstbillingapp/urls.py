@@ -7,7 +7,7 @@ from .views import (
     expense_tracker, features, graphs, invoices,
     inventory, products, profile,
     purchases, quotation, reports, vendor_purchase,
-    views, insights, employee, presence, syncup_callback,
+    views, insights, employee, presence, syncup_callback, telegram_ui,
 )
 
 urlpatterns = [
@@ -22,6 +22,12 @@ urlpatterns = [
 
     # SyncUp posts Approve / Reject answers here (signed; see syncup_messages.py)
     path('syncup/callback', syncup_callback.syncup_callback, name='syncup_callback'),
+
+    # The Telegram button on a report page (Overdue / Cheque leafs / Collection calendar)
+    path('telegram/report/<str:report>', telegram_ui.report_settings,
+         name='telegram_report_settings'),
+    path('telegram/report/<str:report>/send', telegram_ui.report_send_now,
+         name='telegram_report_send'),
 
     # Real-time active-device presence (heartbeat)
     path('presence/ping', presence.presence_ping, name='presence_ping'),
@@ -91,7 +97,6 @@ urlpatterns = [
     path('customers/collection-calendar', customers.customers_collection_calendar, name='customers_collection_calendar'),
     # API Endpoints
     path('customers/api/is_mobile_user', customers.customer_is_mobile_user, name='customer_is_mobile_user'),
-    path('customers/api/collection-day/show', customers.show_customer_collection_api, name='customer_collection_day_show'),
     path('customers/api/collection-day/update', customers.customer_collection_day_update, name='customer_collection_day_update'),
 
     # Book URLs
@@ -190,14 +195,12 @@ urlpatterns = [
     path('cheque_leaf/add', bank_details.cheque_leaf_add, name='cheque_leaf_add'),
     path('cheque_leaf/edit/<int:pk>', bank_details.cheque_leaf_edit, name='cheque_leaf_edit'),
     path('cheque_leaf/delete/<int:pk>', bank_details.cheque_leaf_delete, name='cheque_leaf_delete'),
-    path('api/cheque_leaf_reminder', bank_details.cheque_leaf_reminder_api, name='cheque_leaf_reminder_api'),
 
     # Features URLs
     path('download/sqlite', features.download_sqlite, name='download_sqlite'),
 
     # Reports URLs
     path('reports/overdue', reports.overdue_report, name='overdue_report'),
-    path('api/reports/overdue', reports.overdue_report_api, name='overdue_report_api'),
     path('reports/bi-dashboard', reports.bi_dashboard, name='bi_dashboard'),
     path('reports/ar-aging', reports.ar_aging_report, name='ar_aging_report'),
     path('reports/transactions', reports.transaction_report, name='transaction_report'),

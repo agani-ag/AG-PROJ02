@@ -113,6 +113,10 @@
           <input class="control" readonly style="background:var(--wash)" value="{{ callback_url|default:'Set this site’s public address first' }}">
           <div class="h">GSTSync sends this address with each prompt; nothing to set in SyncUp.</div></div>
       </div>
+      <div style="border-top:1px solid var(--line);margin:18px 0 14px"></div>
+      <label class="gtoggle"><input type="checkbox" name="telegram_enabled" value="1" {% if form.telegram_enabled %}checked{% endif %}> Send Telegram reports</label>
+      <div class="h mut" style="font-size:12px;margin:2px 0 10px">The master switch for the daily reports (overdue, cheque clearances, collection route) that businesses send to their own Telegram groups through SyncUp's bot. Each business is then switched on, and given its chat ids, on its own page.</div>
+
       <div class="mut" style="font-size:12.5px;margin-top:12px">
         Queue: <b>{{ msg_stats.waiting }}</b> waiting · <b>{{ msg_stats.sent_24h }}</b> sent in the last 24 h{% if msg_stats.failed_24h %} · <b style="color:var(--bad,#c50f1f)">{{ msg_stats.failed_24h }}</b> failed{% endif %}.
         Sent by <code>/cron/syncup</code>.

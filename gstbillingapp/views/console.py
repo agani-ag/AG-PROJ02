@@ -8,6 +8,7 @@ Everything here is gated by @console_required, which reads the console's own ses
 and ignores request.user entirely (see console_auth.py).
 """
 import datetime
+import re
 
 from django.contrib import messages
 from django.contrib.auth.models import User
@@ -19,13 +20,14 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
-from .. import passkeys, syncup_messages
+from .. import passkeys, syncup_messages, telegram_reports
 from ..console_auth import authenticate_admin, console_required, end_session, start_session
 from ..console_ops import (
     business_footprint, business_summary, create_business, purge_business,
     reset_business_password, set_business_active, set_customer_app,
 )
-from ..models import BusinessPasskey, Customer, Invoice, PlatformAdmin, UserProfile
+from ..models import (BusinessPasskey, BusinessTelegram, Customer, Invoice, PlatformAdmin,
+                      TelegramChat, TelegramReport, UserProfile)
 
 
 # --------------------------------------------------------------------------- #
@@ -150,7 +152,93 @@ def business_detail(request, user_id):
                       "admins": len(syncup_messages.admin_targets(user))},
         "confirmations": syncup_messages.confirmation_summary(user),
         "today": timezone.localdate(),
+        "tg": {
+            "relay_ready": telegram_reports.relay_ready(),
+            "enabled": telegram_reports.business_enabled(user),
+            "chats": TelegramChat.objects.filter(business=user),
+            "reports": [{"label": telegram_reports.REPORTS[r.report]["label"], "row": r,
+                         "chats": ", ".join(c.name for c in telegram_reports.chats_for(r))}
+                        for r in TelegramReport.objects.filter(business=user)],
+        },
     })
+
+
+# --------------------------------------------------------------------------- #
+# Telegram — the switch and the chat ids (the business picks reports and times
+# itself, on each report's own page; see telegram_reports.py)
+# --------------------------------------------------------------------------- #
+_CHAT_ID = re.compile(r"^(-?\d{5,20}|@[A-Za-z][A-Za-z0-9_]{4,31})$")
+
+
+@console_required
+@require_POST
+def business_telegram(request, user_id):
+    """Switch Telegram reports on or off for one business."""
+    user = get_object_or_404(User, id=user_id)
+    row, _ = BusinessTelegram.objects.get_or_create(user=user)
+    row.enabled = not row.enabled
+    row.updated_by = request.platform_admin
+    row.save()
+    messages.success(request, "Telegram reports are now %s for '%s'." % (
+        "on" if row.enabled else "off", user.username))
+    return redirect("console_business_detail", user_id=user.id)
+
+
+@console_required
+@require_POST
+def business_telegram_chat_add(request, user_id):
+    """Add one chat id this business's reports may go to. Ids come from SyncUp's Telegram
+    page (Discover) after our bot is in the group — never typed on the business side."""
+    user = get_object_or_404(User, id=user_id)
+    chat_id = (request.POST.get("chat_id") or "").strip()
+    label = (request.POST.get("label") or "").strip()
+    if not _CHAT_ID.match(chat_id):
+        messages.error(request, "That doesn't look like a Telegram chat id. A group's is a "
+                                "number like -1001234567890; a channel can be @name.")
+    elif TelegramChat.objects.filter(business=user, chat_id=chat_id).exists():
+        messages.error(request, "That chat id is already on this business.")
+    else:
+        TelegramChat.objects.create(business=user, chat_id=chat_id, label=label[:40],
+                                    added_by=request.platform_admin)
+        messages.success(request, "Chat id added. Send a test to make sure our bot can reach it.")
+    return redirect("console_business_detail", user_id=user.id)
+
+
+def _chat(user_id, chat_id):
+    return get_object_or_404(TelegramChat, id=chat_id, business_id=user_id)
+
+
+@console_required
+@require_POST
+def business_telegram_chat_toggle(request, user_id, chat_id):
+    chat = _chat(user_id, chat_id)
+    chat.is_active = not chat.is_active
+    chat.save(update_fields=["is_active"])
+    messages.success(request, "%s is now %s." % (chat.name, "active" if chat.is_active else "off"))
+    return redirect("console_business_detail", user_id=user_id)
+
+
+@console_required
+@require_POST
+def business_telegram_chat_delete(request, user_id, chat_id):
+    chat = _chat(user_id, chat_id)
+    name = chat.name
+    chat.delete()
+    messages.success(request, "%s removed. Reports that used only it now have nowhere to go."
+                     % name)
+    return redirect("console_business_detail", user_id=user_id)
+
+
+@console_required
+@require_POST
+def business_telegram_chat_test(request, user_id, chat_id):
+    chat = _chat(user_id, chat_id)
+    if not telegram_reports.relay_ready():
+        messages.error(request, "Turn Telegram on under Console → Settings first.")
+    else:
+        ok, message = telegram_reports.test_message(chat)
+        (messages.success if ok else messages.error)(request, message)
+    return redirect("console_business_detail", user_id=user_id)
 
 
 @console_required

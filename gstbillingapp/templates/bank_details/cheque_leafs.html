@@ -15,6 +15,7 @@
     <div class="page-head">
         <div><h1 class="disp">Cheque Leaf</h1><div class="sub">{{ total_count }} cheque{{ total_count|pluralize }}</div></div>
         <div class="actions">
+            {% include "partials/telegram_report.html" with report="cheque" %}
             <a href="{% url 'cheque_leaf_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add cheque</a>
         </div>
     </div>

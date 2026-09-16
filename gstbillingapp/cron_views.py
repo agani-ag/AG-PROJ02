@@ -139,7 +139,8 @@ def backup(request):
 # --------------------------------------------------------------------------- #
 @cron_endpoint
 def cleanup(request):
-    """Delete expired sessions, and optionally back up and compact in the same call.
+    """Delete expired sessions and spent outbox messages, and optionally back up and
+    compact in the same call.
 
         ?backup=1        take a backup FIRST (same work as /cron/backup)
         ?quotations=15   delete ALL quotations older than 15 days (any status)
@@ -154,6 +155,11 @@ def cleanup(request):
     and mobile cart orders — so read purge_quotations() for what that gives up. Invoices,
     ledger and stock are never touched. Omit it and no quotation is removed at all. Windows
     shorter than MIN_QUOTATION_RETENTION_DAYS are refused rather than honoured.
+
+    Sent SyncUp notifications and Telegram reports are pruned here rather than by
+    /cron/syncup, which runs every few minutes and should only send: a Telegram report goes
+    after a week (it carries its whole text, and SyncUp keeps its own copy), everything else
+    after a fortnight. See cleanup.purge_outbox().
 
     The vacuum is still skipped when there is too little to reclaim, no recent backup, or
     too little free disk — it reports which, rather than failing.
@@ -184,8 +190,9 @@ def syncup(request):
 
     Also sends SyncUp messages: queues the scheduled ones that are due (morning list, evening
     summary, weekly overdue, tile subtitles), sends the outbox, and looks up Approve / Reject
-    answers whose callback never arrived."""
-    from . import parties, staff, syncup_messages
+    answers whose callback never arrived. Telegram reports whose time has come are queued in
+    the same run (see telegram_reports.py)."""
+    from . import parties, staff, syncup_messages, telegram_reports
     from .syncup_client import is_configured
     if not is_configured():
         return JsonResponse({"ok": True, "skipped": "not_configured"})
@@ -194,6 +201,8 @@ def syncup(request):
             out = {"ok": True, "customers": parties.retry_pending(),
                    "employees": staff.retry_pending()}
             scheduled = syncup_messages.run_schedules()
+            # Telegram reports are queued first, so anything due goes out in this same run.
+            out["telegram"] = telegram_reports.run_due()
             out["messages"] = {"scheduled": scheduled, **syncup_messages.flush(),
                                "answers": syncup_messages.reconcile()}
             return JsonResponse(out)

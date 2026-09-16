@@ -36,6 +36,16 @@ urlpatterns = [
          name="console_business_messages"),
     path("business/<int:user_id>/confirm-balances", console.business_confirm_balances,
          name="console_business_confirm_balances"),
+    path("business/<int:user_id>/telegram", console.business_telegram,
+         name="console_business_telegram"),
+    path("business/<int:user_id>/telegram/add", console.business_telegram_chat_add,
+         name="console_business_telegram_chat_add"),
+    path("business/<int:user_id>/telegram/<int:chat_id>/toggle",
+         console.business_telegram_chat_toggle, name="console_business_telegram_chat_toggle"),
+    path("business/<int:user_id>/telegram/<int:chat_id>/delete",
+         console.business_telegram_chat_delete, name="console_business_telegram_chat_delete"),
+    path("business/<int:user_id>/telegram/<int:chat_id>/test",
+         console.business_telegram_chat_test, name="console_business_telegram_chat_test"),
 
     # Shared customers: suggestions, Parties (one real shop owner), app logins.
     path("customers", cc.customers, name="console_customers"),

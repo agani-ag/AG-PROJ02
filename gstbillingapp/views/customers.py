@@ -20,7 +20,6 @@ from ..forms import CustomerForm
 
 # Python imports
 import json
-from ..utils import _escape_md
 
 
 # ================= Customer Views ===========================
@@ -196,47 +195,3 @@ def customer_collection_day_update(request):
     customer_obj.save()
     return JsonResponse({'status': 'success', 'message': 'Customer collection day & place updated.'})
 
-
-def show_customer_collection_api(request):
-    markdown = request.GET.get('markdown', 'false').lower() == 'true'
-    user_id = request.GET.get('user_id', None)
-    today = timezone.localtime().weekday()
-    collection_day = (today + 1) % 7
-    collection_day_name = Customer.DAYS[collection_day][1]
-    books = Book.objects.filter(user_id=user_id, customer__collection_day=collection_day)\
-        .exclude(customer_id__isnull=True)\
-        .order_by('current_balance')
-
-    data = []
-    markdown_blocks = []
-    separator = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
-    counter = 1
-    
-    markdown_blocks.append(f"📅  _*COLLECTION ROUTE* \\- *{_escape_md(collection_day_name)}*_\n")
-    if not books.exists():
-        markdown_blocks.append(f"_No customers with collection day on {_escape_md(collection_day_name)}\\._")
-    for book in books:
-        customer = book.customer
-        current_balance = -round(book.current_balance or 0, 2)
-        data.append({
-            'current_balance': current_balance,
-            'customer_name': customer.customer_name,
-            'customer_place': customer.customer_place,
-            'collection_day': customer.collection_day,
-        })
-        markdown_blocks.append(f"{counter}\\. *{_escape_md(customer.customer_name)}*")
-        if customer.customer_place:
-            markdown_blocks.append(f"    📍  *{_escape_md(customer.customer_place)}*")
-        markdown_blocks.append(f"    💰  *₹{_escape_md(str(current_balance))}*\n")
-        counter += 1
-    # ── Footer ──
-    markdown_blocks.append(separator)
-    markdown_blocks.append(f'🦀  _Crab AI \\| {_escape_md(timezone.localtime().strftime("%d %b %Y"))}_')
-    markdown_formatted = '\n'.join(markdown_blocks)
-    if markdown:
-        markdown_data = {
-            'markdown': markdown_formatted,
-            'count': len(books),
-        }
-        return JsonResponse(markdown_data, safe=False)
-    return JsonResponse(data, safe=False)

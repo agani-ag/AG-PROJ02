@@ -72,11 +72,14 @@ def _page_title(html):
     return " ".join(m.group(1).split())[:160] if m else ""
 
 
-def _request(method, path, payload=None, cfg=None, timeout=None):
+def _request(method, path, payload=None, cfg=None, timeout=None, longer=False):
+    """`timeout` normally only LOWERS the console's per-call limit. `longer` lets it raise it
+    instead — for the Telegram relay, which retries inside SyncUp and so legitimately takes
+    longer than a console call may. Only the cron uses it."""
     cfg = cfg or config()
     limit = cfg.timeout or 5
     if timeout:
-        limit = min(timeout, limit)
+        limit = max(timeout, limit) if longer else min(timeout, limit)
     if not cfg.is_configured:
         raise SyncUpError("SyncUp isn't set up yet — add its address and partner key under "
                           "Console → Settings.")
@@ -197,3 +200,28 @@ def update_app_link(external_id, *, url, description, timeout=None):
         "external_id": APP_LINK_KEY, "title": "GSTSync", "url": url, "icon": "home",
         "description": description,
     }]}, timeout=timeout)
+
+
+# --------------------------------------------------------------------------- #
+# Telegram relay — SyncUp's bot posts our reports to a chat id we supply
+# --------------------------------------------------------------------------- #
+# A Telegram send retries inside SyncUp (3 tries, short backoff), so these calls are given more
+# room than a console call. They only ever run from /cron/syncup or a console test.
+TELEGRAM_TIMEOUT = 20
+
+
+def telegram_send(chat_id, text, parse_mode="MarkdownV2", timeout=TELEGRAM_TIMEOUT):
+    """One message to one chat. Returns SyncUp's reply (it carries Telegram's message_id).
+
+    SyncUp answers 502 when Telegram refused (bad chat id, bot removed), and 503 when no bot is
+    set up on its side — both arrive here as SyncUpError with that status."""
+    return _request("POST", "telegram/send",
+                    {"chat_id": str(chat_id), "text": text, "parse_mode": parse_mode},
+                    timeout=timeout, longer=True)
+
+
+def telegram_bulk(messages, timeout=TELEGRAM_TIMEOUT):
+    """Many messages in one call — each `{chat_id, text, parse_mode}`. Returns the per-message
+    results in the same order (`{"chat_id", "message_id"}` or `{"chat_id", "error"}`)."""
+    return _request("POST", "telegram/bulk", {"messages": messages},
+                    timeout=timeout, longer=True).get("results") or []
