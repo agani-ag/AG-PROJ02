@@ -99,19 +99,24 @@ def _bump(row):
     return (row.app_opens or 0) + 1
 
 
-def message(who, role, count, when, device, detail="", at=""):
+def message(who, role, count, when, device, detail="", at=()):
     """The MarkdownV2 body — one screenful, the same shape as SyncUp's device notice.
 
-    `at` is the business this login belongs to. It is worth a line because one Telegram group
-    can serve several businesses (a shared chat id), and "KMR opened the app" is no use if you
-    can't tell which of your shops they opened. The owner's own sign-in already says it in the
-    name, so it isn't repeated there."""
+    `at` is the business (or businesses) this login belongs to — every one of this person's
+    businesses that reports to the group receiving it. It is worth saying because a group can
+    serve several businesses, and "RIZWAN opened the app" is no use if you can't tell where.
+    The owner's own sign-in already says it in the name, so that isn't repeated."""
+    names = [at] if isinstance(at, str) else list(at)
+    names = [n for n in names if n and n.upper() != who.upper()]
     lines = ["*%s 🔔*" % _escape_md(heading(role)), "", _escape_md(THIN_SEP),
              "*%s*" % _escape_md(who.upper())]
     if detail:
         lines.append("_%s_" % _escape_md(detail))
-    if at and at.upper() != who.upper():
-        lines.append("*🏢 %s*" % _escape_md(at))
+    if len(names) == 1:
+        lines.append("*🏢 %s*" % _escape_md(names[0]))
+    elif names:
+        lines.append("*🏢 %d Businesses*" % len(names))
+        lines.extend("    • %s" % _escape_md(n) for n in names)
     lines.append(_escape_md(SEPARATOR))
     lines.append("*%s%s*" % (_escape_md(ROLE_WORDS.get(role, "User")),
                              " \\| 📲 %d Times" % count if count else ""))
@@ -144,28 +149,45 @@ def wanted(business, role, row=None):
     return picked or chats(business)
 
 
+def by_group(businesses, role):
+    """{chat_id: [businesses]} — for one login, which of this person's businesses each Telegram
+    group should hear about, after every business's own choice (wanted()).
+
+    One login is ONE message per group. An employee posted to five businesses that all report
+    to the same group gives that group one message listing all five, not five messages at once.
+    And a group only ever lists the businesses that send to it: five owners with five separate
+    groups each see their own business alone — nobody learns where else the person works or
+    buys."""
+    groups = {}
+    for business in businesses:
+        for chat in wanted(business, role):
+            groups.setdefault(chat.chat_id, [])
+            if business not in groups[chat.chat_id]:
+                groups[chat.chat_id].append(business)
+    return groups
+
+
 def announce(businesses, *, who, role, when, device, count=None, detail=""):
-    """Queue the alert for every business that asked to hear this login. Returns how many."""
+    """Queue this login once per Telegram group that asked to hear it. Returns how many."""
     from .syncup_messages import queue
-    targets = [(b, wanted(b, role)) for b in businesses]
-    targets = [(b, group) for b, group in targets if group]
-    if not targets:
+    groups = by_group(businesses, role)
+    if not groups:
         return 0
     # A login is a one-off, so its key is unique: two sign-ins in the same second both go.
     # What stops a flood is SESSION_GAP (mobile) — never this key.
     stamp = uuid.uuid4().hex[:10]
     ids = []
-    for business, group in targets:
-        # Written per business, because each one's copy names itself (a group may be shared).
-        text = message(who, role, count, when, device, detail, at=brand(business))
-        for chat in group:
-            # any_time: a login at 10 pm is news at 10 pm, not at 8 the next morning.
-            m = queue(business=business, event="login", external_id=chat.chat_id,
-                      kind=SyncUpMessage.KIND_TELEGRAM, title=row_title(role), text=text,
-                      dedupe="tg_login:%s:%d:%s:%s" % (role, business.id, chat.chat_id, stamp),
-                      any_time=True)
-            if m:
-                ids.append(m.id)
+    for chat_id, members in groups.items():
+        text = message(who, role, count, when, device, detail,
+                       at=[brand(b) for b in members])
+        # any_time: a login at 10 pm is news at 10 pm, not at 8 the next morning. The message
+        # belongs to its first business; `businesses` lets each of them see how it went.
+        m = queue(business=members[0], event="login", external_id=chat_id,
+                  kind=SyncUpMessage.KIND_TELEGRAM, title=row_title(role), text=text,
+                  data={"businesses": [b.id for b in members]},
+                  dedupe="tg_login:%s:%s:%s" % (role, chat_id, stamp), any_time=True)
+        if m:
+            ids.append(m.id)
     _try_now(ids)
     return len(ids)
 

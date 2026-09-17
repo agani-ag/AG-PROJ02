@@ -5364,8 +5364,54 @@ class TelegramLoginAlertTests(TestCase):
         """One group can serve several businesses, so "KMR opened the app" has to say where."""
         self._open_customer()
         for m in self._msgs():
-            expected = "ALPHA" if m.business_id == self.a.id else "BETA"
-            self.assertIn("🏢 %s" % expected, m.text)
+            mine, other = ("ALPHA", "BETA") if m.business_id == self.a.id else ("BETA", "ALPHA")
+            self.assertIn("🏢 %s" % mine, m.text)
+            # Separate groups: an owner never learns where else this person buys.
+            self.assertNotIn(other, m.text)
+
+    def _share_one_group(self):
+        """BETA reports to ALPHA's group too (the console's re-use picker)."""
+        from .models import TelegramChat
+        TelegramChat.objects.filter(business=self.b).update(chat_id="-100%d" % self.a.id)
+
+    def test_several_businesses_in_one_group_are_one_message(self):
+        self._share_one_group()
+        self._open_customer()
+        m, = self._msgs()                                   # not one per business
+        self.assertIn("2 Businesses", m.text)
+        self.assertIn("ALPHA", m.text)
+        self.assertIn("BETA", m.text)
+        self.assertEqual(sorted(m.data["businesses"]), sorted([self.a.id, self.b.id]))
+        self.bulk.assert_called_once()                      # and sent once, at once
+
+    def test_an_employee_posted_to_several_businesses_is_one_message(self):
+        from .models import EmployeePosting
+        EmployeePosting.objects.create(employee=self.emp, business=self.b, is_active=True)
+        self._share_one_group()
+        self._open_employee()
+        m, = self._msgs()
+        for bit in ("Mobile Login", "RIZWAN", "Employee", "2 Businesses", "ALPHA", "BETA"):
+            self.assertIn(bit, m.text)
+
+    def test_a_shared_message_credits_every_business_it_spoke_for(self):
+        from .models import TelegramChat
+        self._share_one_group()
+        self._open_customer()
+        rows = TelegramChat.objects.filter(chat_id="-100%d" % self.a.id)
+        self.assertEqual(rows.count(), 2)
+        self.assertTrue(all(r.last_ok_at for r in rows))    # both businesses see it went
+
+    def test_a_business_that_chose_another_group_is_not_listed(self):
+        from .models import BusinessTelegram, TelegramChat
+        self._share_one_group()
+        own = TelegramChat.objects.create(business=self.b, chat_id="-100424242", label="BETA only")
+        BusinessTelegram.objects.get(user=self.b).alert_chats.set([own])
+        self._open_customer()
+        shared = [m for m in self._msgs() if m.external_id == "-100%d" % self.a.id]
+        self.assertEqual(len(shared), 1)
+        self.assertNotIn("BETA", shared[0].text)            # BETA sends its logins elsewhere
+        beta_only, = [m for m in self._msgs() if m.external_id == "-100424242"]
+        self.assertNotIn("ALPHA", beta_only.text)
 
     def test_the_owners_own_alert_does_not_repeat_the_name(self):
         from .telegram_alerts import message

@@ -509,6 +509,13 @@ def _retry_later(msgs, error):
         m.save(update_fields=["attempts", "last_error", "failed", "sent_at"])
 
 
+def _telegram_chat_rows(m):
+    """The chat rows a Telegram message went to. One login message can speak for several
+    businesses sharing a group (data["businesses"]), so each of their rows hears the result."""
+    ids = (m.data or {}).get("businesses") or [m.business_id]
+    return TelegramChat.objects.filter(business_id__in=ids, chat_id=m.external_id)
+
+
 def _give_up(m, error):
     """Not worth retrying — e.g. the person's SyncUp login is gone."""
     m.failed, m.sent_at, m.last_error = True, None, str(error or "Not delivered")[:300]
@@ -573,16 +580,14 @@ def flush(limit=200, only_ids=None, timeout=None):
             if res and "error" not in res:
                 m.delivered = 1
                 m.save(update_fields=["delivered"])
-                TelegramChat.objects.filter(business=m.business, chat_id=m.external_id).update(
-                    last_ok_at=now, last_error="")
+                _telegram_chat_rows(m).update(last_ok_at=now, last_error="")
                 sent += 1
             else:
                 # Telegram already retried inside SyncUp, so a refusal here is the chat id
                 # itself (removed, blocked, wrong) — not worth sending again.
                 error = res.get("error") or "No result from SyncUp"
                 _give_up(m, error)
-                TelegramChat.objects.filter(business=m.business, chat_id=m.external_id).update(
-                    last_error=str(error)[:300])
+                _telegram_chat_rows(m).update(last_error=str(error)[:300])
                 TelegramReport.objects.filter(business=m.business, report=m.event).update(
                     last_status=("Failed: %s" % error)[:200])
                 failed += 1
