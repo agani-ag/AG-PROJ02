@@ -27,6 +27,8 @@ urlpatterns = [
     path('customer/books/data', c.books_data, name='m_customer_books_data'),
     path('customer/invoice/<int:invoice_id>', c.invoice_detail, name='m_customer_invoice'),
     path('customer/orders', c.orders, name='m_customer_orders'),
+    path('customer/surveys', c.surveys, name='m_customer_surveys'),
+    path('customer/survey/<int:survey_id>', c.survey_answer, name='m_customer_survey_answer'),
     path('customer/profile', c.profile, name='m_customer_profile'),
     path('customer/confirm/<int:pk>', c.confirm_balance, name='m_customer_confirm'),
 
@@ -37,6 +39,8 @@ urlpatterns = [
     path('employee/customer/<int:customer_id>/pay', e.record_payment, name='m_employee_record_payment'),
     path('employee/customer/<int:customer_id>/ledger', e.customer_ledger_data, name='m_employee_customer_ledger'),
     path('employee/customer/<int:customer_id>/map', e.customer_map, name='m_employee_customer_map'),
+    path('employee/customer/<int:customer_id>/surveys', e.customer_surveys, name='m_employee_customer_surveys'),
+    path('employee/customer/<int:customer_id>/survey/<int:survey_id>', e.customer_survey_answer, name='m_employee_customer_survey_answer'),
     path('employee/customer/<int:customer_id>/location', e.customer_set_location, name='m_employee_customer_set_location'),
     path('employee/invoices', e.invoices, name='m_employee_invoices'),
     path('employee/invoices/data', e.invoices_data, name='m_employee_invoices_data'),

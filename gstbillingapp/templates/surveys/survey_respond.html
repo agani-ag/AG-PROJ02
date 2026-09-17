@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Record response · {{ survey.title }} · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+.gs .qb{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.gs .qt{font-weight:600;margin-bottom:10px}
+.gs .opt{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;cursor:pointer;max-width:460px}
+.gs .opt input{width:17px;height:17px;flex:none}
+.gs .opt:has(input:checked){border-color:var(--brand);background:var(--bluebg)}
+.gs .qb input[type=text],.gs .qb textarea{width:100%;max-width:460px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit;background:#fff}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs gs-pad">
+    <div class="formwrap" style="max-width:720px;margin:0 auto">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'surveys' %}">Surveys</a> › Record response</div>
+                <h1 class="disp">{{ survey.title }}</h1>
+                <div class="sub">Fill a customer's answers — e.g. while on a call.
+                    {% if survey.status != 'active' %}<span style="color:var(--red)">Activate the survey first.</span>{% endif %}</div>
+            </div>
+            <div class="actions"><a href="{% url 'survey_results' survey.id %}" class="gbtn"><i class="fas fa-chart-simple"></i> Results</a></div>
+        </div>
+
+        <!-- Customer picker -->
+        <form method="get" class="fcard" style="background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);padding:16px;margin-bottom:16px">
+            <label style="display:block;font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);margin-bottom:6px">Customer</label>
+            <select name="customer" class="selctl" style="width:100%;max-width:460px" onchange="this.form.submit()">
+                <option value="">Select a customer…</option>
+                {% for cu in customers %}<option value="{{ cu.id }}" {% if selected and selected.id == cu.id %}selected{% endif %}>{{ cu.customer_name }}{% if cu.customer_phone %} · {{ cu.customer_phone }}{% endif %}</option>{% endfor %}
+            </select>
+        </form>
+
+        {% if selected %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="customer" value="{{ selected.id }}">
+            <div style="font-family:var(--disp);font-weight:700;margin:2px 2px 12px">
+                Answering for {{ selected.customer_name }}{% if answered %} <span class="gbadge low" style="margin-left:6px">Updating existing</span>{% endif %}
+            </div>
+            {% for q in questions %}
+            <div class="qb">
+                <div class="qt">{{ forloop.counter }}. {{ q.text }}{% if q.required %} <span style="color:var(--red)">*</span>{% endif %}</div>
+                {% if q.type == 'bool' %}
+                    <label class="opt"><input type="radio" name="q{{ q.id }}" value="true" {% if q.pf == 'true' %}checked{% endif %}> Yes</label>
+                    <label class="opt"><input type="radio" name="q{{ q.id }}" value="false" {% if q.pf == 'false' %}checked{% endif %}> No</label>
+                {% elif q.type == 'single' %}
+                    {% for o in q.options %}<label class="opt"><input type="radio" name="q{{ q.id }}" value="{{ o.id }}" {% if q.pf == o.id %}checked{% endif %}> {{ o.label }}</label>{% endfor %}
+                {% elif q.type == 'multi' %}
+                    {% for o in q.options %}<label class="opt"><input type="checkbox" name="q{{ q.id }}" value="{{ o.id }}" {% if o.id in q.pf_set %}checked{% endif %}> {{ o.label }}</label>{% endfor %}
+                {% elif q.type == 'text_long' %}
+                    <textarea name="q{{ q.id }}" rows="3" placeholder="Answer">{{ q.pf }}</textarea>
+                {% else %}
+                    <input type="text" name="q{{ q.id }}" value="{{ q.pf }}" maxlength="200" placeholder="Answer">
+                {% endif %}
+            </div>
+            {% empty %}
+            <div class="mut" style="padding:12px">This survey has no questions.</div>
+            {% endfor %}
+            {% if questions %}<button type="submit" class="gbtn gbtn-primary"><i class="fas fa-check"></i> Save response</button>{% endif %}
+        </form>
+        {% else %}
+        <div class="mut" style="padding:8px 2px">Pick a customer above to record their answers.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

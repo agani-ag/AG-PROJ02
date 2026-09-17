@@ -1246,3 +1246,97 @@ class TelegramReport(models.Model):
 
     def __str__(self):
         return "%s at %s" % (self.report, self.send_at)
+
+
+# ============================ Customer Surveys ============================
+class Survey(models.Model):
+    """A questionnaire a business collects about its customers (e.g. "Do you have a PC?").
+    Answered by the customer in the SyncUp mobile app, or by an employee on the customer's
+    behalf during a field visit. One answer-set per customer (see SurveyResponse)."""
+    DRAFT, ACTIVE, CLOSED = "draft", "active", "closed"
+    STATUS_CHOICES = [(DRAFT, "Draft"), (ACTIVE, "Active"), (CLOSED, "Closed")]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="surveys")
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=DRAFT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return self.title
+
+
+class SurveyQuestion(models.Model):
+    BOOL, SINGLE, MULTI, TEXT_SHORT, TEXT_LONG = (
+        "bool", "single", "multi", "text_short", "text_long")
+    TYPE_CHOICES = [
+        (BOOL, "Yes / No"),
+        (SINGLE, "Single choice"),
+        (MULTI, "Multiple choice"),
+        (TEXT_SHORT, "Short text"),
+        (TEXT_LONG, "Long text"),
+    ]
+    CHOICE_TYPES = (SINGLE, MULTI)
+    TEXT_TYPES = (TEXT_SHORT, TEXT_LONG)
+
+    survey = models.ForeignKey(Survey, on_delete=models.CASCADE, related_name="questions")
+    order = models.PositiveIntegerField(default=0)
+    text = models.CharField(max_length=400)
+    type = models.CharField(max_length=12, choices=TYPE_CHOICES, default=BOOL)
+    required = models.BooleanField(default=True)
+    # {"options": [{"id": "o1", "label": "..."}], "maxlen": 200}
+    config = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return self.text
+
+    @property
+    def options(self):
+        cfg = self.config if isinstance(self.config, dict) else {}
+        return cfg.get("options", []) or []
+
+
+class SurveyResponse(models.Model):
+    """One customer's answer-set for one survey. Shared record — whether the customer filled
+    it themselves or an employee filled it for them, `source` / `answered_by_employee` record
+    the last editor. Enforced one-per-customer by the unique_together."""
+    CUSTOMER, EMPLOYEE, OWNER = "customer", "employee", "owner"
+    SOURCE_CHOICES = [(CUSTOMER, "Customer"), (EMPLOYEE, "Employee"), (OWNER, "Owner")]
+
+    survey = models.ForeignKey(Survey, on_delete=models.CASCADE, related_name="responses")
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="survey_responses")
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=CUSTOMER)
+    answered_by_employee = models.ForeignKey(
+        EmployeePosting, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="survey_responses")
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("survey", "customer")
+        ordering = ["-updated_at", "-id"]
+
+    def __str__(self):
+        return "%s / %s" % (self.survey_id, self.customer_id)
+
+
+class SurveyAnswer(models.Model):
+    """One answer to one question. value shapes by question type:
+    bool -> {"bool": true}, single -> {"option": "o1"}, multi -> {"options": ["o1","o3"]},
+    text_short/text_long -> {"text": "..."}."""
+    response = models.ForeignKey(SurveyResponse, on_delete=models.CASCADE, related_name="answers")
+    question = models.ForeignKey(SurveyQuestion, on_delete=models.CASCADE, related_name="answers")
+    value = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        unique_together = ("response", "question")
+
+    def __str__(self):
+        return "%s / %s" % (self.response_id, self.question_id)

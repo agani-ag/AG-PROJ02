@@ -1,0 +1,25 @@
+{% extends "m/base.html" %}
+{% block title %}Surveys · {{ c.customer_name }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_customer' c.id %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> {{ c.customer_name|truncatechars:18 }}</a>{% endblock %}
+{% block heading %}Surveys{% endblock %}
+{% block subhead %}<div class="sub">Answer on behalf of <b>{{ c.customer_name }}</b></div>{% endblock %}
+{% block content %}
+{% if rows %}
+<div class="list">
+    {% for r in rows %}
+    <a class="row" href="{% url 'm_employee_customer_survey_answer' c.id r.s.id %}" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-edit"/></svg></span>
+            <span style="min-width:0"><span class="b">{{ r.s.title }}</span>
+                {% if r.s.description %}<div class="sub">{{ r.s.description|truncatechars:60 }}</div>{% endif %}</span>
+        </span>
+        {% if r.done %}<span style="font-size:11px;font-weight:700;color:var(--green);background:var(--greenbg);padding:4px 10px;border-radius:999px;white-space:nowrap">Done</span>
+        {% else %}<span style="font-size:11px;font-weight:700;color:var(--brand);background:var(--bluebg);padding:4px 10px;border-radius:999px;white-space:nowrap">Fill</span>{% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-edit"/></svg><div>No active surveys.</div></div>
+{% endif %}
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="customers" %}{% endblock %}

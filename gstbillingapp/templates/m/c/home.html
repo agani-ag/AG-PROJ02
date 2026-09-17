@@ -78,6 +78,18 @@
 <button type="button" id="ov-toggle" class="btn" style="margin-bottom:14px" onclick="toggleOverdue()">Show only 90+ days overdue</button>
 {% endif %}
 
+{% if survey_pending %}
+<div class="list" style="margin-bottom:14px">
+    <a href="{% url 'm_customer_surveys' %}" class="row" style="display:flex;align-items:center;justify-content:space-between">
+        <span class="lbl" style="display:flex;align-items:center;gap:10px">
+            <span class="ico ic-purple" style="width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center"><svg class="i" style="width:16px;height:16px"><use href="#ic-edit"/></svg></span>
+            <span><span class="b">Answer {{ survey_pending }} survey{{ survey_pending|pluralize }}</span><div class="sub">Tap to respond</div></span>
+        </span>
+        <span class="badge b-red">{{ survey_pending }}</span>
+    </a>
+</div>
+{% endif %}
+
 {% if multi %}
 <div class="sec"><h2 class="t">By shop</h2><p class="s">Your balance at each</p></div>
 <div class="list">

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Surveys · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Customers › Surveys</div>
+            <h1 class="disp">Surveys</h1>
+            <div class="sub">{{ total_count }} survey{{ total_count|pluralize }} · {{ total_customers }} customer{{ total_customers|pluralize }}</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'survey_new' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> New survey</a>
+        </div>
+    </div>
+
+    <div class="gstats">
+        <a class="gstat blue {% if not status %}on{% endif %}" href="?{% if q %}q={{ q }}{% endif %}">
+            <div class="gk"><span class="dot"></span> All</div><div class="gv">{{ count_all }}</div></a>
+        <a class="gstat green {% if status == 'active' %}on{% endif %}" href="?status=active{% if q %}&q={{ q }}{% endif %}">
+            <div class="gk"><span class="dot"></span> Active</div><div class="gv">{{ count_active }}</div></a>
+        <a class="gstat amber {% if status == 'draft' %}on{% endif %}" href="?status=draft{% if q %}&q={{ q }}{% endif %}">
+            <div class="gk"><span class="dot"></span> Draft</div><div class="gv">{{ count_draft }}</div></a>
+        <a class="gstat grey {% if status == 'closed' %}on{% endif %}" href="?status=closed{% if q %}&q={{ q }}{% endif %}">
+            <div class="gk"><span class="dot"></span> Closed</div><div class="gv">{{ count_closed }}</div></a>
+    </div>
+
+    <form method="get" class="toolbar">
+        {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+        <div class="search"><i class="fas fa-magnifying-glass"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search surveys…" autocomplete="off"></div>
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Survey</th><th>Status</th><th class="r">Questions</th><th class="r">Responses</th><th>Created</th><th class="r">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for s in surveys %}
+                <tr>
+                    <td><div class="prim"><span class="pi"><i class="fas fa-clipboard-question"></i></span>
+                        <div><div class="nm">{{ s.title }}</div>
+                            {% if s.description %}<div class="mn">{{ s.description|truncatechars:60 }}</div>{% endif %}</div></div></td>
+                    <td>
+                        {% if s.status == 'active' %}<span class="gbadge ok">Active</span>
+                        {% elif s.status == 'draft' %}<span class="gbadge low">Draft</span>
+                        {% else %}<span class="gbadge grey">Closed</span>{% endif %}
+                    </td>
+                    <td class="r num">{{ s.n_questions }}</td>
+                    <td class="r"><span class="num">{{ s.n_responses }}</span>{% if total_customers %}<span class="mut" style="font-size:11.5px"> / {{ total_customers }}</span>{% endif %}</td>
+                    <td>{{ s.created_at|date:"d M Y" }}</td>
+                    <td class="r"><div class="rowacts">
+                        <a href="{% url 'survey_results' s.id %}" class="gbtn gbtn-icon" title="Results"><i class="fas fa-chart-simple"></i></a>
+                        {% if s.status == 'active' %}<a href="{% url 'survey_respond' s.id %}" class="gbtn gbtn-icon" title="Record a response"><i class="fas fa-phone"></i></a>{% endif %}
+                        <a href="{% url 'survey_edit' s.id %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
+                        {% if s.status == 'draft' or s.status == 'closed' %}
+                        <button type="button" class="gbtn gbtn-icon" title="Activate" onclick="postForm('{% url 'survey_activate' s.id %}')"><i class="fas fa-play"></i></button>
+                        {% endif %}
+                        {% if s.status == 'active' %}
+                        <button type="button" class="gbtn gbtn-icon" title="Close" onclick="postForm('{% url 'survey_close' s.id %}')"><i class="fas fa-stop"></i></button>
+                        {% endif %}
+                        <button type="button" class="gbtn gbtn-icon" title="Duplicate" onclick="postForm('{% url 'survey_duplicate' s.id %}')"><i class="fas fa-copy"></i></button>
+                        <button type="button" class="gbtn gbtn-icon del" title="Delete" onclick="deleteSurvey('{% url 'survey_delete' s.id %}', '{{ s.title|escapejs }}')"><i class="fas fa-trash"></i></button>
+                    </div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty">
+                    <div class="ei"><i class="fas fa-clipboard-question fa-lg"></i></div>
+                    <h3>No surveys yet</h3>
+                    <p>{% if q or status %}Nothing matches this filter.{% else %}Create a survey to collect answers from your customers.{% endif %}</p>
+                    {% if not q and not status %}<a href="{% url 'survey_new' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> New survey</a>{% endif %}
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+function postForm(url){
+    var f = document.createElement('form'); f.method = 'POST'; f.action = url;
+    var t = document.createElement('input'); t.type = 'hidden'; t.name = 'csrfmiddlewaretoken';
+    t.value = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
+    f.appendChild(t); document.body.appendChild(f); f.submit();
+}
+function deleteSurvey(url, title){
+    Swal.fire({
+        title: 'Delete survey?', html: 'Delete <b>' + title + '</b> and all its responses? This cannot be undone.',
+        icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete', confirmButtonColor: '#e11d48'
+    }).then(function(r){ if(r.isConfirmed) postForm(url); });
+}
+</script>
+{% endblock %}

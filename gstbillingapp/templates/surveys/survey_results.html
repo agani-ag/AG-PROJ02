@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ survey.title }} · Results · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+.gs .qres{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh);padding:16px 18px;margin-bottom:14px}
+.gs .qres h4{font-family:var(--disp);font-size:15px;margin:0 0 12px;color:var(--ink)}
+.gs .abar{display:flex;align-items:center;gap:10px;margin:6px 0}
+.gs .abar .lbl{width:150px;font-size:13px;color:var(--soft);flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gs .abar .track{flex:1;height:12px;border-radius:6px;background:var(--line2);overflow:hidden}
+.gs .abar .fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#60a5fa,#2563eb)}
+.gs .abar .fill.g{background:linear-gradient(90deg,#34d399,#16a34a)} .gs .abar .fill.r{background:linear-gradient(90deg,#fb7185,#e11d48)}
+.gs .abar .cnt{width:96px;text-align:right;font-size:12.5px;color:var(--ink);flex:none;font-variant-numeric:tabular-nums}
+.gs .tlist{margin:0;padding:0;list-style:none;max-height:220px;overflow:auto}
+.gs .tlist li{padding:8px 0;border-bottom:1px solid var(--line2);font-size:13.5px}
+.gs .tlist li .who{color:var(--faint);font-size:11.5px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><a href="{% url 'surveys' %}">Surveys</a> › Results</div>
+            <h1 class="disp">{{ survey.title }}</h1>
+            <div class="sub">
+                {% if survey.status == 'active' %}<span class="gbadge ok">Active</span>
+                {% elif survey.status == 'draft' %}<span class="gbadge low">Draft</span>
+                {% else %}<span class="gbadge grey">Closed</span>{% endif %}
+                &nbsp;{{ survey.description }}
+            </div>
+        </div>
+        <div class="actions">
+            {% if survey.status == 'active' %}<a href="{% url 'survey_respond' survey.id %}" class="gbtn gbtn-primary"><i class="fas fa-phone"></i> Record response</a>{% endif %}
+            <a href="{% url 'survey_export' survey.id %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-csv"></i> Export CSV</a>
+            <a href="{% url 'survey_edit' survey.id %}" class="gbtn"><i class="fas fa-pen-to-square"></i> Edit</a>
+        </div>
+    </div>
+
+    <div class="statgrid">
+        <div class="stat"><span class="si b"><i class="fas fa-reply-all"></i></span>
+            <div><div class="sv">{{ answered }}</div><div class="sk">Responses</div><div class="ss">of {{ total_customers }} customers</div></div></div>
+        <div class="stat"><span class="si g"><i class="fas fa-chart-pie"></i></span>
+            <div><div class="sv">{{ coverage_pct }}%</div><div class="sk">Coverage</div></div></div>
+        <div class="stat"><span class="si s"><i class="fas fa-list-check"></i></span>
+            <div><div class="sv">{{ questions|length }}</div><div class="sk">Questions</div></div></div>
+    </div>
+
+    <!-- AGGREGATE -->
+    <div class="rsec"><i class="fas fa-chart-simple"></i> Answers summary</div>
+    {% for a in aggregate %}
+    <div class="qres">
+        <h4>{{ a.q.text }}</h4>
+        {% if a.q.type == 'bool' %}
+            <div class="abar"><span class="lbl">Yes</span><div class="track"><div class="fill g" style="width:{{ a.bool.yes_pct }}%"></div></div><span class="cnt">{{ a.bool.yes }} · {{ a.bool.yes_pct }}%</span></div>
+            <div class="abar"><span class="lbl">No</span><div class="track"><div class="fill r" style="width:{{ a.bool.no_pct }}%"></div></div><span class="cnt">{{ a.bool.no }} · {{ a.bool.no_pct }}%</span></div>
+        {% elif a.q.type == 'single' or a.q.type == 'multi' %}
+            {% for c in a.choices %}
+            <div class="abar"><span class="lbl" title="{{ c.label }}">{{ c.label }}</span><div class="track"><div class="fill" style="width:{{ c.pct }}%"></div></div><span class="cnt">{{ c.count }} · {{ c.pct }}%</span></div>
+            {% endfor %}
+        {% else %}
+            {% if a.texts %}<ul class="tlist">{% for t in a.texts %}<li>{{ t.text }}<div class="who">— {{ t.customer }}</div></li>{% endfor %}</ul>
+            {% else %}<div class="mut">No answers yet.</div>{% endif %}
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="mut" style="padding:14px">This survey has no questions.</div>
+    {% endfor %}
+
+    <!-- BY CUSTOMER -->
+    <div class="rsec"><i class="fas fa-users"></i> By customer <span class="mut" style="font-size:12px;font-weight:400">— filter to a target list</span></div>
+    <form method="get" class="toolbar" id="filterForm">
+        <select name="fq" id="fq" class="selctl">
+            <option value="">Filter by answer…</option>
+            {% for q in questions %}<option value="{{ q.id }}" {% if fq == q.id|stringformat:'s' %}selected{% endif %}>{{ q.text|truncatechars:42 }}</option>{% endfor %}
+        </select>
+        <span id="fvWrap"></span>
+        <button type="submit" class="gbtn"><i class="fas fa-filter"></i> Apply</button>
+        {% if fq or fv %}<a href="{% url 'survey_results' survey.id %}" class="gbtn">Clear</a>{% endif %}
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Customer</th>
+                {% for q in questions %}<th title="{{ q.text }}">{{ q.text|truncatechars:22 }}</th>{% endfor %}
+                <th>Answered by</th><th>Updated</th>
+            </tr></thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td><a href="{% url 'customer_edit' row.customer.id %}" class="nm" style="color:var(--ink)">{{ row.customer.customer_name }}</a>
+                        {% if row.customer.customer_phone %}<div class="mut" style="font-size:11.5px">{{ row.customer.customer_phone }}</div>{% endif %}</td>
+                    {% for cell in row.cells %}<td>{% if cell %}{{ cell }}{% else %}<span class="mut">—</span>{% endif %}</td>{% endfor %}
+                    <td>{% if row.by %}<span class="gbadge blue">{{ row.by }}</span>{% else %}<span class="gbadge grey">{{ row.source }}</span>{% endif %}</td>
+                    <td>{{ row.submitted|date:"d M Y" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="{{ questions|length|add:3 }}"><div class="empty">
+                    <div class="ei"><i class="fas fa-inbox fa-lg"></i></div>
+                    <h3>No responses{% if fq %} match this filter{% endif %}</h3>
+                    <p>{% if survey.status == 'draft' %}Activate the survey so customers can answer it.{% else %}Responses will appear here as customers answer.{% endif %}</p>
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+(function(){
+    var QMETA = { {% for q in questions %}"{{ q.id }}":{type:"{{ q.type }}",options:[{% for o in q.options %}{id:"{{ o.id }}",label:"{{ o.label|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]}{% if not forloop.last %},{% endif %}{% endfor %} };
+    var CURRENT_FV = "{{ fv|escapejs }}";
+    var fq = document.getElementById('fq'), wrap = document.getElementById('fvWrap');
+    function buildFv(){
+        var meta = QMETA[fq.value];
+        wrap.innerHTML = '';
+        if (!meta) return;
+        var ctl;
+        if (meta.type === 'bool'){
+            ctl = document.createElement('select'); ctl.className='selctl';
+            ctl.innerHTML = '<option value="yes">Yes</option><option value="no">No</option>';
+        } else if (meta.type === 'single' || meta.type === 'multi'){
+            ctl = document.createElement('select'); ctl.className='selctl';
+            ctl.innerHTML = meta.options.map(function(o){ return '<option value="'+o.id+'">'+o.label+'</option>'; }).join('');
+        } else {
+            ctl = document.createElement('input'); ctl.type='text'; ctl.className='selctl'; ctl.placeholder='contains…';
+        }
+        ctl.name = 'fv';
+        if (CURRENT_FV){ ctl.value = CURRENT_FV; }
+        wrap.appendChild(ctl);
+    }
+    fq.addEventListener('change', function(){ CURRENT_FV=''; buildFv(); });
+    buildFv();
+})();
+</script>
+{% endblock %}

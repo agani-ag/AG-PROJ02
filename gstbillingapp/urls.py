@@ -8,6 +8,7 @@ from .views import (
     inventory, products, profile,
     purchases, quotation, reports, vendor_purchase,
     views, insights, employee, presence, syncup_callback, telegram_ui,
+    surveys,
 )
 
 urlpatterns = [
@@ -187,6 +188,18 @@ urlpatterns = [
     path('asset/log/delete/<int:log_id>', asset.asset_log_delete, name='asset_log_delete'),
 
     # Bank Details URLs
+    # Customer Surveys
+    path('surveys', surveys.surveys, name='surveys'),
+    path('surveys/new', surveys.survey_new, name='survey_new'),
+    path('surveys/<int:pk>/edit', surveys.survey_edit, name='survey_edit'),
+    path('surveys/<int:pk>/activate', surveys.survey_activate, name='survey_activate'),
+    path('surveys/<int:pk>/close', surveys.survey_close, name='survey_close'),
+    path('surveys/<int:pk>/duplicate', surveys.survey_duplicate, name='survey_duplicate'),
+    path('surveys/<int:pk>/delete', surveys.survey_delete, name='survey_delete'),
+    path('surveys/<int:pk>/results', surveys.survey_results, name='survey_results'),
+    path('surveys/<int:pk>/respond', surveys.survey_respond, name='survey_respond'),
+    path('surveys/<int:pk>/export', surveys.survey_export, name='survey_export'),
+
     path('bank_details', bank_details.bank_details, name='bank_details'),
     path('bank_details/add', bank_details.bank_details_add, name='bank_details_add'),
     path('bank_details/edit/<int:pk>', bank_details.bank_details_edit, name='bank_details_edit'),

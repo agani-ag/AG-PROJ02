@@ -6,7 +6,8 @@ from .models import (
     Inventory, InventoryLog,
     BookLog, Book, PurchaseLog, VendorPurchase,
     ExpenseTracker, BankDetails,
-    ProductCategory, Quotation, Asset, ActiveDevice
+    ProductCategory, Quotation, Asset, ActiveDevice,
+    Survey, SurveyQuestion, SurveyResponse, SurveyAnswer,
 )
 
 # User Profile
@@ -26,6 +27,24 @@ admin.site.register(InventoryLog)
 admin.site.register(VendorPurchase)
 admin.site.register(ExpenseTracker)
 admin.site.register(ProductCategory)
+
+
+# Surveys
+class SurveyQuestionInline(admin.TabularInline):
+    model = SurveyQuestion
+    extra = 0
+
+
+@admin.register(Survey)
+class SurveyAdmin(admin.ModelAdmin):
+    list_display = ("title", "user", "status", "created_at")
+    list_filter = ("status",)
+    search_fields = ("title", "user__username")
+    inlines = [SurveyQuestionInline]
+
+
+admin.site.register(SurveyResponse)
+admin.site.register(SurveyAnswer)
 
 
 @admin.register(ActiveDevice)

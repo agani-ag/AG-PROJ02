@@ -573,3 +573,52 @@ def my_pay(request):
     ctx["inc_total"] = sum(float(i.amount) for i in incentives)
     ctx["inc_unpaid"] = sum(float(i.amount) for i in incentives if not i.is_paid)
     return render(request, "m/e/pay.html", ctx)
+
+
+# ============================== Surveys ==================================
+from django.urls import reverse as _reverse
+from ...models import Survey as _Survey
+from ..surveys import save_survey_response, response_raw_values
+
+
+@mobile_login_required("employee")
+def customer_surveys(request, customer_id):
+    """Active surveys for this business, showing which are done for THIS customer."""
+    u = _user(request)
+    c = get_object_or_404(Customer, id=customer_id, user=u)
+    active = _Survey.objects.filter(user=u, status=_Survey.ACTIVE).order_by("-created_at")
+    answered = set(c.survey_responses.values_list("survey_id", flat=True))
+    rows = [{"s": s, "done": s.id in answered} for s in active]
+    return render(request, "m/e/customer_surveys.html", {
+        "c": c, "rows": rows, "pending": sum(1 for r in rows if not r["done"]),
+    })
+
+
+@csrf_exempt
+@mobile_login_required("employee")
+def customer_survey_answer(request, customer_id, survey_id):
+    u = _user(request)
+    c = get_object_or_404(Customer, id=customer_id, user=u)
+    survey = get_object_or_404(_Survey, id=survey_id, user=u, status=_Survey.ACTIVE)
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+        except (ValueError, TypeError):
+            return JsonResponse({"ok": False, "message": "Bad request"}, status=400)
+        posting = request.mobile_actor.get("posting")
+        ok, err = save_survey_response(survey, c, "employee", posting, data.get("answers") or {})
+        if not ok:
+            return JsonResponse({"ok": False, "message": err}, status=400)
+        return JsonResponse({"ok": True})
+
+    questions = list(survey.questions.all())
+    prefill = response_raw_values(survey, c)
+    return render(request, "m/survey_answer.html", {
+        "survey": survey, "questions": questions,
+        "prefill_json": json.dumps({str(k): v for k, v in prefill.items()}),
+        "submit_url": _reverse("m_employee_customer_survey_answer", args=[c.id, survey.id]),
+        "back_url": _reverse("m_employee_customer_surveys", args=[c.id]),
+        "done": survey.id in set(c.survey_responses.values_list("survey_id", flat=True)),
+        "on_behalf": c.customer_name,
+        "nav_include": "employee",
+    })

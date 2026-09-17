@@ -1,0 +1,94 @@
+{% extends "m/base.html" %}
+{% block title %}{{ survey.title }}{% endblock %}
+{% block back %}<a class="back" href="{{ back_url }}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Back</a>{% endblock %}
+{% block heading %}{{ survey.title }}{% endblock %}
+{% block subhead %}<div class="sub">{% if on_behalf %}Answering for <b>{{ on_behalf }}</b>{% elif survey.description %}{{ survey.description }}{% endif %}{% if done %} · <span style="color:var(--green)">already answered — you can update</span>{% endif %}</div>{% endblock %}
+
+{% block includecss %}
+<style>
+.qb{background:var(--card,#fff);border:1px solid var(--line,#e7ebf2);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.qt{font-weight:600;margin-bottom:10px;line-height:1.4}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line,#e7ebf2);border-radius:10px;cursor:pointer}
+.opt input{width:18px;height:18px;flex:none}
+.opt:has(input:checked){border-color:var(--brand,#2563eb);background:var(--bluebg,#e8f1ff)}
+</style>
+{% endblock %}
+
+{% block content %}
+<form id="answerForm" onsubmit="return false">
+    {% for q in questions %}
+    <div class="qb" data-qid="{{ q.id }}" data-type="{{ q.type }}">
+        <div class="qt">{{ forloop.counter }}. {{ q.text }}{% if q.required %} <span style="color:var(--red)">*</span>{% endif %}</div>
+        {% if q.type == 'bool' %}
+        <div class="opts">
+            <label class="opt"><input type="radio" name="q{{ q.id }}" value="true"><span>Yes</span></label>
+            <label class="opt"><input type="radio" name="q{{ q.id }}" value="false"><span>No</span></label>
+        </div>
+        {% elif q.type == 'single' %}
+        <div class="opts">
+            {% for o in q.options %}<label class="opt"><input type="radio" name="q{{ q.id }}" value="{{ o.id }}"><span>{{ o.label }}</span></label>{% endfor %}
+        </div>
+        {% elif q.type == 'multi' %}
+        <div class="opts">
+            {% for o in q.options %}<label class="opt"><input type="checkbox" name="q{{ q.id }}" value="{{ o.id }}"><span>{{ o.label }}</span></label>{% endfor %}
+        </div>
+        {% elif q.type == 'text_long' %}
+        <textarea class="field" rows="3" placeholder="Your answer"></textarea>
+        {% else %}
+        <input class="field" type="text" placeholder="Your answer" maxlength="200">
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="empty"><svg class="i"><use href="#ic-edit"/></svg><div>This survey has no questions.</div></div>
+    {% endfor %}
+
+    {% if questions %}
+    <button type="button" class="btn btn-green" id="submitBtn" style="width:100%;padding:14px;margin-top:6px">
+        <svg class="i" style="stroke:#fff;width:18px;height:18px"><use href="#ic-check"/></svg> Submit
+    </button>
+    {% endif %}
+</form>
+
+<script>
+(function(){
+    var SUBMIT_URL = "{{ submit_url|escapejs }}", BACK_URL = "{{ back_url|escapejs }}";
+    var PRE = {}; try { PRE = JSON.parse('{{ prefill_json|escapejs }}') || {}; } catch(e){ PRE = {}; }
+
+    // Prefill existing answers.
+    Object.keys(PRE).forEach(function(qid){
+        var wrap = document.querySelector('.qb[data-qid="' + qid + '"]'); if(!wrap) return;
+        var type = wrap.dataset.type, v = PRE[qid];
+        if(type === 'bool'){ var r = wrap.querySelector('input[value="' + (v===true?'true':(v===false?'false':'__')) + '"]'); if(r) r.checked = true; }
+        else if(type === 'single'){ var r2 = wrap.querySelector('input[value="' + v + '"]'); if(r2) r2.checked = true; }
+        else if(type === 'multi'){ (v||[]).forEach(function(o){ var c = wrap.querySelector('input[value="' + o + '"]'); if(c) c.checked = true; }); }
+        else { var i = wrap.querySelector('input,textarea'); if(i) i.value = v || ''; }
+    });
+
+    function collect(){
+        var answers = {};
+        document.querySelectorAll('.qb[data-qid]').forEach(function(wrap){
+            var qid = wrap.dataset.qid, type = wrap.dataset.type;
+            if(type === 'bool' || type === 'single'){
+                var r = wrap.querySelector('input:checked'); if(r) answers[qid] = (type==='bool' ? (r.value==='true') : r.value);
+            } else if(type === 'multi'){
+                var sel = Array.prototype.map.call(wrap.querySelectorAll('input:checked'), function(x){ return x.value; });
+                if(sel.length) answers[qid] = sel;
+            } else {
+                var i = wrap.querySelector('input,textarea'); if(i && i.value.trim()) answers[qid] = i.value.trim();
+            }
+        });
+        return answers;
+    }
+
+    var btn = document.getElementById('submitBtn');
+    if(btn) btn.addEventListener('click', async function(){
+        btn.disabled = true;
+        var r = await M.post(SUBMIT_URL, { answers: collect() });
+        if(r.ok){ M.toast('Thank you!'); setTimeout(function(){ location.href = BACK_URL; }, 800); }
+        else { M.toast(r.message || 'Please complete the required questions'); btn.disabled = false; }
+    });
+})();
+</script>
+{% endblock %}
+{% block nav %}{% if nav_include == 'employee' %}{% include "m/nav_employee.html" with active="customers" %}{% else %}{% include "m/nav_customer.html" with active="home" %}{% endif %}{% endblock %}

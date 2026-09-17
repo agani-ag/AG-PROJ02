@@ -3,7 +3,7 @@ import json
 from datetime import date, timedelta
 from unittest import mock
 
-from django.test import TestCase, override_settings, TransactionTestCase
+from django.test import TestCase, override_settings, TransactionTestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 from django.contrib.auth.models import User
@@ -5448,3 +5448,152 @@ class TelegramLoginAlertTests(TestCase):
         self.client.post(reverse("console_business_telegram_logins", args=[self.a.id]),
                          {"login_alerts": "1"})
         self.assertTrue(BusinessTelegram.objects.get(user=self.a).login_alerts)
+
+
+class SurveyTests(TestCase):
+    """Customer surveys: builder, lifecycle, scoping, results, and mobile answering."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import UserProfile, Employee, EmployeePosting
+        cls.owner = User.objects.create_user(username="surveyowner", password="x")
+        UserProfile.objects.create(user=cls.owner, business_title="Survey Co")
+        cls.customer = Customer.objects.create(
+            user=cls.owner, customer_name="Gamma Store", customer_phone="9000000001",
+            is_mobile_user=True)
+        cls.emp = Employee.objects.create(business=cls.owner, name="Field Rep", email="fr@syncup.local")
+        cls.posting, _ = EmployeePosting.objects.get_or_create(
+            employee=cls.emp, business=cls.owner, defaults={"is_admin": True, "is_home": True})
+
+    def setUp(self):
+        self.client.force_login(self.owner)
+
+    # ---- builder ----
+    def test_builder_creates_survey_with_questions(self):
+        qs = json.dumps([
+            {"text": "Do you have a PC?", "type": "bool", "required": True, "options": []},
+            {"text": "Which software?", "type": "single", "required": False, "options": ["Tally", "Busy"]},
+        ])
+        r = self.client.post("/surveys/new", {"title": "IT survey", "description": "d", "questions_json": qs})
+        self.assertEqual(r.status_code, 302)
+        from .models import Survey
+        s = Survey.objects.get(user=self.owner, title="IT survey")
+        self.assertEqual(s.questions.count(), 2)
+        single = s.questions.get(type="single")
+        self.assertEqual([o["id"] for o in single.options], ["o1", "o2"])
+
+    def test_choice_needs_two_options(self):
+        qs = json.dumps([{"text": "Pick", "type": "single", "required": True, "options": ["only one"]}])
+        r = self.client.post("/surveys/new", {"title": "Bad", "questions_json": qs})
+        self.assertEqual(r.status_code, 400)
+        from .models import Survey
+        self.assertFalse(Survey.objects.filter(title="Bad").exists())
+
+    # ---- lifecycle ----
+    def test_activate_requires_questions(self):
+        from .models import Survey, SurveyQuestion
+        s = Survey.objects.create(user=self.owner, title="Empty")
+        self.client.post("/surveys/%d/activate" % s.id)
+        s.refresh_from_db()
+        self.assertEqual(s.status, "draft")
+        SurveyQuestion.objects.create(survey=s, order=0, text="q", type="bool")
+        self.client.post("/surveys/%d/activate" % s.id)
+        s.refresh_from_db()
+        self.assertEqual(s.status, "active")
+
+    def test_structure_locks_after_response(self):
+        from .models import Survey, SurveyQuestion, SurveyResponse
+        s = Survey.objects.create(user=self.owner, title="Locked", status="active")
+        SurveyQuestion.objects.create(survey=s, order=0, text="q1", type="bool")
+        SurveyResponse.objects.create(survey=s, customer=self.customer, source="customer")
+        qs = json.dumps([{"text": "NEW", "type": "bool", "required": True, "options": []},
+                         {"text": "q2", "type": "bool", "required": False, "options": []}])
+        self.client.post("/surveys/%d/edit" % s.id, {"title": "Renamed", "questions_json": qs})
+        s.refresh_from_db()
+        self.assertEqual(s.title, "Renamed")            # meta editable
+        self.assertEqual(s.questions.count(), 1)         # structure frozen
+        self.assertEqual(s.questions.first().text, "q1")
+
+    # ---- scoping ----
+    def test_other_business_cannot_access(self):
+        from .models import Survey
+        s = Survey.objects.create(user=self.owner, title="Mine")
+        other = User.objects.create_user("intruder", password="x")
+        self.client.force_login(other)
+        self.assertEqual(self.client.get("/surveys/%d/edit" % s.id).status_code, 404)
+        self.assertEqual(self.client.get("/surveys/%d/results" % s.id).status_code, 404)
+
+    # ---- save helper ----
+    def test_one_response_per_customer_and_required(self):
+        from .models import Survey, SurveyQuestion
+        from .views.surveys import save_survey_response
+        s = Survey.objects.create(user=self.owner, title="Once", status="active")
+        q = SurveyQuestion.objects.create(survey=s, order=0, text="PC?", type="bool", required=True)
+        ok, _ = save_survey_response(s, self.customer, "customer", None, {str(q.id): True})
+        self.assertTrue(ok)
+        ok2, _ = save_survey_response(s, self.customer, "customer", None, {str(q.id): False})
+        self.assertTrue(ok2)
+        self.assertEqual(s.responses.count(), 1)                       # upsert, not duplicate
+        self.assertFalse(s.responses.first().answers.first().value["bool"])
+        bad, err = save_survey_response(s, self.customer, "customer", None, {})
+        self.assertFalse(bad)
+        self.assertIn("PC?", err)
+
+    # ---- mobile ----
+    def test_mobile_customer_answers(self):
+        from .models import Survey, SurveyQuestion, SurveyResponse
+        from .mobile_auth import mint_customer_token
+        s = Survey.objects.create(user=self.owner, title="M", status="active")
+        q = SurveyQuestion.objects.create(survey=s, order=0, text="PC?", type="bool", required=True)
+        cl = Client()
+        cl.get("/m/customer/", {"t": mint_customer_token(self.customer)})
+        r = cl.post("/m/customer/survey/%d" % s.id,
+                    data=json.dumps({"answers": {str(q.id): True}}), content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        resp = SurveyResponse.objects.get(survey=s, customer=self.customer)
+        self.assertEqual(resp.source, "customer")
+        bad = cl.post("/m/customer/survey/%d" % s.id,
+                      data=json.dumps({"answers": {}}), content_type="application/json")
+        self.assertEqual(bad.status_code, 400)
+
+    def test_mobile_employee_answers_for_customer(self):
+        from .models import Survey, SurveyQuestion, SurveyResponse
+        from .mobile_auth import mint_employee_token
+        s = Survey.objects.create(user=self.owner, title="E", status="active")
+        q = SurveyQuestion.objects.create(survey=s, order=0, text="PC?", type="bool", required=True)
+        cl = Client()
+        cl.get("/m/employee/", {"t": mint_employee_token(self.emp)})
+        r = cl.post("/m/employee/customer/%d/survey/%d" % (self.customer.id, s.id),
+                    data=json.dumps({"answers": {str(q.id): False}}), content_type="application/json")
+        self.assertEqual(r.status_code, 200)
+        resp = SurveyResponse.objects.get(survey=s, customer=self.customer)
+        self.assertEqual(resp.source, "employee")
+        self.assertEqual(resp.answered_by_employee_id, self.posting.id)
+
+    # ---- results / export ----
+    def test_results_and_export(self):
+        from .models import Survey, SurveyQuestion, SurveyResponse, SurveyAnswer
+        s = Survey.objects.create(user=self.owner, title="R", status="active")
+        q = SurveyQuestion.objects.create(survey=s, order=0, text="PC?", type="bool")
+        resp = SurveyResponse.objects.create(survey=s, customer=self.customer, source="customer")
+        SurveyAnswer.objects.create(response=resp, question=q, value={"bool": True})
+        rr = self.client.get("/surveys/%d/results" % s.id)
+        self.assertEqual(rr.status_code, 200)
+        self.assertContains(rr, "Answers summary")
+        ex = self.client.get("/surveys/%d/export" % s.id)
+        self.assertEqual(ex.status_code, 200)
+        self.assertEqual(ex["Content-Type"], "text/csv")
+
+    def test_owner_desktop_records_response(self):
+        from .models import Survey, SurveyQuestion, SurveyResponse
+        s = Survey.objects.create(user=self.owner, title="Desk", status="active")
+        q = SurveyQuestion.objects.create(survey=s, order=0, text="PC?", type="bool", required=True)
+        page = self.client.get("/surveys/%d/respond?customer=%d" % (s.id, self.customer.id))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "PC?")
+        r = self.client.post("/surveys/%d/respond" % s.id,
+                             {"customer": self.customer.id, "q%d" % q.id: "true"})
+        self.assertEqual(r.status_code, 302)
+        resp = SurveyResponse.objects.get(survey=s, customer=self.customer)
+        self.assertEqual(resp.source, "owner")
+        self.assertTrue(resp.answers.first().value["bool"])

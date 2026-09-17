@@ -145,10 +145,14 @@ def home(request):
         })
     overdue_amount = sum(o["owed"] for o in overdue)
 
+    survey_pending = (Survey.objects.filter(user=actor["user"], status=Survey.ACTIVE)
+                      .exclude(responses__customer=c).count())
+
     return render(request, "m/c/home.html", {
         "primary": actor["primary"], "multi": actor["multi"],
         "per": per, "group_total": round(group_total, 2),
         "fy": fy,
+        "survey_pending": survey_pending,
         "transaction": transaction,
         "payment_progress": payment_progress,
         "balance_overview": balance_overview,
@@ -262,4 +266,53 @@ def profile(request):
         "bank": (prof.bankdetails if prof else None),
         "due": due,
         "due_fmt": format_inr(due, 2) if due else "",
+    })
+
+
+# ============================== Surveys ==================================
+from django.urls import reverse
+from django.views.decorators.csrf import csrf_exempt
+from ...models import Survey
+from ..surveys import save_survey_response, response_raw_values
+
+
+@mobile_login_required("customer")
+def surveys(request):
+    """Active surveys of the customer's active business, with Pending / Done status."""
+    u = request.mobile_actor["user"]
+    cust = _cust(request)
+    active = Survey.objects.filter(user=u, status=Survey.ACTIVE).order_by("-created_at")
+    answered = set(cust.survey_responses.values_list("survey_id", flat=True))
+    rows = [{"s": s, "done": s.id in answered} for s in active]
+    return render(request, "m/c/surveys.html", {
+        "rows": rows, "pending": sum(1 for r in rows if not r["done"]),
+    })
+
+
+@csrf_exempt
+@mobile_login_required("customer")
+def survey_answer(request, survey_id):
+    u = request.mobile_actor["user"]
+    cust = _cust(request)
+    survey = get_object_or_404(Survey, id=survey_id, user=u, status=Survey.ACTIVE)
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+        except (ValueError, TypeError):
+            return JsonResponse({"ok": False, "message": "Bad request"}, status=400)
+        ok, err = save_survey_response(survey, cust, "customer", None, data.get("answers") or {})
+        if not ok:
+            return JsonResponse({"ok": False, "message": err}, status=400)
+        return JsonResponse({"ok": True})
+
+    questions = list(survey.questions.all())
+    prefill = response_raw_values(survey, cust)
+    return render(request, "m/survey_answer.html", {
+        "survey": survey, "questions": questions,
+        "prefill_json": json.dumps({str(k): v for k, v in prefill.items()}),
+        "submit_url": reverse("m_customer_survey_answer", args=[survey.id]),
+        "back_url": reverse("m_customer_surveys"),
+        "done": survey.id in set(cust.survey_responses.values_list("survey_id", flat=True)),
+        "on_behalf": "",
+        "nav_include": "customer",
     })

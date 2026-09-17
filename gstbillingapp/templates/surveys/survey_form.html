@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if mode == 'edit' %}Edit survey{% else %}New survey{% endif %} · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+.gs .fcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);padding:18px;margin-bottom:16px}
+.gs .fld{margin-bottom:14px}
+.gs .fld label{display:block;font-size:12px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+.gs .fld input[type=text],.gs .fld textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:14px;color:var(--ink);background:#fff;outline:none}
+.gs .fld input:focus,.gs .fld textarea:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.gs .qcard{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--wash)}
+.gs .qhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gs .qnum{font-family:var(--disp);font-weight:700;color:var(--faint);flex:none;width:30px}
+.gs .qtext{flex:1;min-width:200px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit;background:#fff}
+.gs .qtype{flex:none}
+.gs .qreq{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--soft);white-space:nowrap}
+.gs .qopts{margin:10px 0 2px 38px;display:flex;flex-direction:column;gap:6px}
+.gs .qopt{display:flex;gap:6px;align-items:center;max-width:420px}
+.gs .qopt input{flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff}
+.gs .iconbtn{border:1px solid var(--line);background:#fff;border-radius:8px;width:32px;height:32px;flex:none;cursor:pointer;color:var(--soft)}
+.gs .iconbtn:hover{background:var(--wash);color:var(--brand)}
+.gs .iconbtn.del{color:var(--red)}
+.gs .lockbar{display:flex;align-items:center;gap:9px;padding:11px 14px;border:1px dashed var(--amber);background:var(--amberbg);border-radius:10px;color:var(--amber);font-weight:600;margin-bottom:14px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs gs-pad">
+    <div class="formwrap" style="max-width:760px;margin:0 auto">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'surveys' %}">Surveys</a> › {% if mode == 'edit' %}Edit{% else %}New{% endif %}</div>
+                <h1 class="disp">{% if mode == 'edit' %}Edit survey{% else %}New survey{% endif %}</h1>
+            </div>
+            <div class="actions"><a href="{% url 'surveys' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Back</a></div>
+        </div>
+
+        {% if errors %}
+        <div class="lockbar" style="border-color:var(--red);background:var(--redbg);color:var(--red)">
+            <i class="fas fa-circle-exclamation"></i>
+            <div>{% for e in errors %}{{ e }}<br>{% endfor %}</div>
+        </div>
+        {% endif %}
+        {% if locked %}
+        <div class="lockbar"><i class="fas fa-lock"></i>
+            <div>This survey already has responses, so its questions are locked. You can still edit the title &amp; description, or close it.</div></div>
+        {% endif %}
+
+        <form method="post" id="surveyForm">
+            {% csrf_token %}
+            <div class="fcard">
+                <div class="fld"><label>Title</label>
+                    <input type="text" name="title" id="title" value="{% if entered %}{{ entered.title }}{% elif survey %}{{ survey.title }}{% endif %}" placeholder="e.g. Customer IT survey" maxlength="200"></div>
+                <div class="fld" style="margin-bottom:0"><label>Description <span style="text-transform:none;font-weight:400">(optional)</span></label>
+                    <textarea name="description" id="description" rows="2" placeholder="Shown to the customer above the questions">{% if entered %}{{ entered.description }}{% elif survey %}{{ survey.description }}{% endif %}</textarea></div>
+            </div>
+
+            <div class="fcard">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                    <div style="font-family:var(--disp);font-weight:700">Questions</div>
+                    {% if not locked %}<button type="button" class="gbtn gbtn-primary" id="addQ"><i class="fas fa-plus"></i> Add question</button>{% endif %}
+                </div>
+                <div id="questions"></div>
+                <div id="noQ" class="mut" style="text-align:center;padding:14px;display:none">No questions yet — click “Add question”.</div>
+            </div>
+
+            <input type="hidden" name="questions_json" id="questions_json">
+            <div style="display:flex;gap:10px">
+                <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-check"></i> Save survey</button>
+                <a href="{% url 'surveys' %}" class="gbtn">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+(function(){
+    var LOCKED = {{ locked|yesno:"true,false" }};
+    var TYPES = [['bool','Yes / No'],['single','Single choice'],['multi','Multiple choice'],['text_short','Short text'],['text_long','Long text']];
+    var CHOICE = {single:1, multi:1};
+    var state = [];
+    try { state = JSON.parse(document.getElementById('questions_json').getAttribute('data-init') || '{{ questions_json|escapejs }}') || []; }
+    catch(e){ state = []; }
+    if (!Array.isArray(state)) state = [];
+
+    var wrap = document.getElementById('questions');
+    var noQ = document.getElementById('noQ');
+
+    function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':s; return d.innerHTML; }
+
+    function render(){
+        if (LOCKED){ renderLocked(); return; }
+        wrap.innerHTML = '';
+        state.forEach(function(q, i){
+            var card = document.createElement('div'); card.className='qcard'; card.dataset.i=i;
+            var typeOpts = TYPES.map(function(t){ return '<option value="'+t[0]+'"'+(t[0]===q.type?' selected':'')+'>'+t[1]+'</option>'; }).join('');
+            var opts = '';
+            if (CHOICE[q.type]){
+                opts += '<div class="qopts">';
+                (q.options||[]).forEach(function(o, oi){
+                    opts += '<div class="qopt"><input data-role="opt" data-i="'+i+'" data-oi="'+oi+'" placeholder="Option '+(oi+1)+'"><button type="button" class="iconbtn del" data-role="rmopt" data-i="'+i+'" data-oi="'+oi+'" title="Remove">&times;</button></div>';
+                });
+                opts += '<div><button type="button" class="gbtn" data-role="addopt" data-i="'+i+'"><i class="fas fa-plus"></i> Add option</button></div></div>';
+            }
+            card.innerHTML =
+                '<div class="qhead"><span class="qnum">Q'+(i+1)+'</span>'
+                + '<input class="qtext" data-role="qtext" data-i="'+i+'" placeholder="Question text" maxlength="400">'
+                + '<select class="selctl qtype" data-role="qtype" data-i="'+i+'">'+typeOpts+'</select>'
+                + '<label class="qreq"><input type="checkbox" data-role="qreq" data-i="'+i+'"'+(q.required?' checked':'')+'> Required</label>'
+                + '<button type="button" class="iconbtn" data-role="up" data-i="'+i+'" title="Move up"><i class="fas fa-arrow-up"></i></button>'
+                + '<button type="button" class="iconbtn" data-role="down" data-i="'+i+'" title="Move down"><i class="fas fa-arrow-down"></i></button>'
+                + '<button type="button" class="iconbtn del" data-role="rm" data-i="'+i+'" title="Remove"><i class="fas fa-trash"></i></button>'
+                + '</div>' + opts;
+            wrap.appendChild(card);
+            // set values via property (safe against quotes)
+            card.querySelector('.qtext').value = q.text || '';
+            card.querySelectorAll('input[data-role="opt"]').forEach(function(inp){
+                inp.value = (q.options||[])[+inp.dataset.oi] || '';
+            });
+        });
+        noQ.style.display = state.length ? 'none' : 'block';
+    }
+
+    function renderLocked(){
+        wrap.innerHTML = '';
+        state.forEach(function(q, i){
+            var card = document.createElement('div'); card.className='qcard';
+            var meta = TYPES.filter(function(t){return t[0]===q.type;}).map(function(t){return t[1];})[0] || q.type;
+            var opts = (CHOICE[q.type] && q.options) ? '<div class="qopts">'+q.options.map(function(o){return '<div class="mut">• '+esc(o)+'</div>';}).join('')+'</div>' : '';
+            card.innerHTML = '<div class="qhead"><span class="qnum">Q'+(i+1)+'</span><b>'+esc(q.text)+'</b><span class="gbadge grey">'+meta+'</span>'+(q.required?'<span class="gbadge low">Required</span>':'')+'</div>'+opts;
+            wrap.appendChild(card);
+        });
+        noQ.style.display = state.length ? 'none' : 'block';
+    }
+
+    // Text edits update state WITHOUT re-render (keeps focus/caret).
+    wrap.addEventListener('input', function(e){
+        var t = e.target, role = t.dataset.role, i = +t.dataset.i;
+        if (role === 'qtext') state[i].text = t.value;
+        else if (role === 'opt') state[i].options[+t.dataset.oi] = t.value;
+    });
+    wrap.addEventListener('change', function(e){
+        var t = e.target, role = t.dataset.role, i = +t.dataset.i;
+        if (role === 'qtype'){
+            state[i].type = t.value;
+            if (CHOICE[t.value] && (!state[i].options || state[i].options.length < 2)) state[i].options = ['',''];
+            render();
+        } else if (role === 'qreq'){ state[i].required = t.checked; }
+    });
+    wrap.addEventListener('click', function(e){
+        var btn = e.target.closest('button[data-role]'); if(!btn) return;
+        var role = btn.dataset.role, i = +btn.dataset.i;
+        if (role === 'rm') state.splice(i,1);
+        else if (role === 'up' && i>0){ var a=state[i-1]; state[i-1]=state[i]; state[i]=a; }
+        else if (role === 'down' && i<state.length-1){ var b=state[i+1]; state[i+1]=state[i]; state[i]=b; }
+        else if (role === 'addopt'){ state[i].options = state[i].options||[]; state[i].options.push(''); }
+        else if (role === 'rmopt'){ state[i].options.splice(+btn.dataset.oi,1); }
+        else return;
+        render();
+    });
+
+    var addBtn = document.getElementById('addQ');
+    if (addBtn) addBtn.addEventListener('click', function(){
+        state.push({text:'', type:'bool', required:true, options:[]});
+        render();
+        var last = wrap.querySelector('.qcard:last-child .qtext'); if(last) last.focus();
+    });
+
+    document.getElementById('surveyForm').addEventListener('submit', function(){
+        // Drop blank options before submit.
+        var out = state.map(function(q){
+            var o = {text:q.text, type:q.type, required:!!q.required, options:[]};
+            if (CHOICE[q.type]) o.options = (q.options||[]).filter(function(x){ return (x||'').trim(); });
+            return o;
+        });
+        document.getElementById('questions_json').value = JSON.stringify(out);
+    });
+
+    render();
+})();
+</script>
+{% endblock %}
