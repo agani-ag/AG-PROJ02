@@ -1531,6 +1531,8 @@ def inventory_transaction_report(request):
     date_to = request.GET.get('to', '')
     sort_by = request.GET.get('sort', 'stock_desc')
     hide_zero = request.GET.get('hide_zero', '1')
+    # When checked, value the stock at the Purchase Rate instead of the sale price.
+    use_purchase = request.GET.get('purchase_rate', '0') == '1'
 
     valid_types = ['all', 'purchase', 'production', 'return', 'sales', 'other']
     if txn_type not in valid_types:
@@ -1597,11 +1599,18 @@ def inventory_transaction_report(request):
             gst = log.product.product_gst_percentage if log.product.product_gst_percentage is not None else 0
             price = log.product.product_rate_with_gst if log.product.product_rate_with_gst is not None else 0
             sale_price = price * (1 - discount / 100) * (1 + gst / 100)
+            purchase_rate = log.product.product_purchase_rate if log.product.product_purchase_rate is not None else 0
+            # Purchase-rate mode: fall back to the sale price when a product has no
+            # purchase rate set (0), so it isn't valued at zero.
+            if use_purchase and purchase_rate > 0:
+                effective_price = purchase_rate
+            else:
+                effective_price = sale_price
             product_totals[pid] = {
                 'product_id': pid,
                 'model_no': log.product.model_no,
                 'name': log.product.product_name or '-',
-                'price': sale_price,
+                'price': effective_price,
                 'quantity': 0,
             }
         product_totals[pid]['quantity'] += abs(log.change)
@@ -1652,6 +1661,8 @@ def inventory_transaction_report(request):
         'date_to': date_to,
         'sort_by': sort_by,
         'hide_zero': hide_zero,
+        'use_purchase': '1' if use_purchase else '0',
+        'price_label': 'Purchase Rate' if use_purchase else 'Price',
         'report_date': today,
     }
 

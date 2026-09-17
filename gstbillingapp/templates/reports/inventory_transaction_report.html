@@ -84,6 +84,12 @@
             Only Positive
         </label>
 
+        <label class="itr-chk" for="usePurchase">
+            <input type="hidden" name="purchase_rate" value="0">
+            <input type="checkbox" id="usePurchase" name="purchase_rate" value="1" {% if use_purchase == '1' %}checked{% endif %} onchange="document.getElementById('filterForm').submit()">
+            Purchase Rate
+        </label>
+
         <a href="{% url 'inventory_transaction_report' %}" class="gbtn"><i class="fas fa-rotate-left"></i> Reset</a>
     </form>
 
@@ -115,7 +121,7 @@
                 <th>Model No</th>
                 <th>Product Name</th>
                 <th class="r">Current Stock</th>
-                <th class="r">Price (&#8377;)</th>
+                <th class="r">{{ price_label }} (&#8377;)</th>
                 <th class="r">Total Amount (&#8377;)</th>
             </tr></thead>
             <tbody>
