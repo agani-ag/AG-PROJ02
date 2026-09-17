@@ -1,0 +1,28 @@
+{% extends "m/base.html" %}
+{% block title %}Orders{% endblock %}
+{% block heading %}Orders{% endblock %}
+{% block content %}
+
+{% if rows %}
+{% include "m/_searchbar.html" with target="#ord-list" empty="#ord-empty" placeholder="Search number or customer…" %}
+<div class="list" id="ord-list">
+    {% for o in rows %}
+    <a class="row" href="{% url 'm_order_detail' o.id %}" style="color:inherit" data-s="qt-{{ o.quotation_number }} {{ o.quotation_number }} {{ o.quotation_customer.customer_name|default:'n/a'|lower }} {{ o.get_status_display|lower }}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-amber"><svg class="i"><use href="#ic-cart"/></svg></span>
+            <span style="min-width:0"><span class="b">QT-{{ o.quotation_number }} · {{ o.quotation_customer.customer_name|default:"N/A" }}</span><div class="sub">{{ o.quotation_date|date:"d M Y" }} · {{ o.order_source_label }}</div></span>
+        </span>
+        {% if o.status == "CONVERTED" %}<span class="badge b-green">Invoiced</span>
+        {% elif o.status == "DRAFT" %}<span class="badge b-grey">Draft</span>
+        {% elif o.status == "PENDING" %}<span class="badge b-amber">Pending approval</span>
+        {% else %}<span class="badge b-blue">{{ o.get_status_display }}</span>{% endif %}
+    </a>
+    {% endfor %}
+</div>
+<div class="empty" id="ord-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-cart"/></svg><div>No orders yet.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="orders" %}{% endblock %}

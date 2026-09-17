@@ -1,122 +1,84 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}{% if expense_tracker_form.instance.pk %}Edit{% else %}Add{% endif %} expense · GSTSync{% endblock %}
+
 {% block includecss %}
-<!-- Include Choices.js CSS -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
-<!-- Include Choices.js JS -->
-<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
+
 {% block content %}
+<div class="gs gs-pad">
+<form method="POST" class="gform">
+    {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'expense_tracker' %}">Expenses</a> › {% if expense_tracker_form.instance.pk %}Edit{% else %}New{% endif %}</div>
+                <h1 class="disp">{% if expense_tracker_form.instance.pk %}Edit expense{% else %}Add expense{% endif %}</h1>
+            </div>
+        </div>
 
-<h2>Edit Expense</h2>
-<form method="POST">
-	{% csrf_token %}
-	<table class="table">
-		<tbody class="two-col-form">
-			<tr>
-				<th scope="row" class="text-right">Date:</th>
-				<th>
-					<input type="datetime-local" name="date" value="{{ form.date.value|date:'Y-m-d\TH:i' }}" required>
-				</th>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Category:</th>
-				<td>
-					<select id="categorySelect" style="width: 200px;" onchange="toggleCategoryTextbox()">
-						{% for category in categories %}
-							<option value="{{ category }}" {% if expense_tracker_form.category.value == category %}selected{% endif %}>{{ category }}</option>
-						{% endfor %}
-						<option value="">Other (Please specify)</option>
-					</select>
-				</td>
-			</tr>
-			<tr id="customCategoryRow" style="display: none;">
-				<th scope="row" class="text-right">Custom Category:</th>
-				<td>
-					<input type="text" id="customCategory" style="width: 200px;" placeholder="Enter custom category" />
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Amount:</th>
-				<td class="form-input-td">{{expense_tracker_form.amount}}</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Reference:</th>
-				<td>
-					<select id="referenceSelect" style="width: 200px;" onchange="toggleReferenceTextbox()">
-						{% for reference in references %}
-							<option value="{{ reference }}" {% if expense_tracker_form.reference.value == reference %}selected{% endif %}>{{ reference }}</option>
-						{% endfor %}
-						<option value="">Other (Please specify)</option>
-					</select>
-				</td>
-			</tr>
-			<tr id="customReferenceRow" style="display: none;">
-				<th scope="row" class="text-right">Custom Reference:</th>
-				<td>
-					<input type="text" id="customReference" style="width: 200px;" placeholder="Enter custom reference" />
-				</td>
-			</tr>
-			<tr>
-				<th scope="row" class="text-right">Notes:</th>
-				<td class="form-input-td">{{expense_tracker_form.notes}}</td>
-			</tr>
-		</tbody>
-	</table>
+        <div class="section open">
+            <div class="sh"><span class="si p"><i class="fas fa-receipt"></i></span>
+                <div><h3 class="disp">Expense details</h3><div class="sd">Date, amount &amp; category</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label for="expDate">Date</label><input type="datetime-local" id="expDate" name="date" class="control" value="{{ expense_tracker_form.date.value|date:'Y-m-d\TH:i' }}" required></div>
+                <div class="field"><label for="id_amount">Amount</label>{{ expense_tracker_form.amount }}</div>
 
-	<div class="form-group text-right">
-		<button type="submit" class="btn btn-primary"><i class="fas fa-save"></i></button>
+                <div class="field">
+                    <label for="categorySelect">Category</label>
+                    <select id="categorySelect" name="category" class="control" onchange="toggleCategoryTextbox()">
+                        {% for category in categories %}<option value="{{ category }}" {% if expense_tracker_form.category.value == category %}selected{% endif %}>{{ category }}</option>{% endfor %}
+                        <option value="">Other (please specify)</option>
+                    </select>
+                </div>
+                <div class="field" id="customCategoryRow" style="display:none">
+                    <label for="customCategory">Custom category</label>
+                    <input type="text" id="customCategory" class="control" placeholder="Enter custom category">
+                </div>
+
+                <div class="field">
+                    <label for="referenceSelect">Reference</label>
+                    <select id="referenceSelect" name="reference" class="control" onchange="toggleReferenceTextbox()">
+                        {% for reference in references %}<option value="{{ reference }}" {% if expense_tracker_form.reference.value == reference %}selected{% endif %}>{{ reference }}</option>{% endfor %}
+                        <option value="">Other (please specify)</option>
+                    </select>
+                </div>
+                <div class="field" id="customReferenceRow" style="display:none">
+                    <label for="customReference">Custom reference</label>
+                    <input type="text" id="customReference" class="control" placeholder="Enter custom reference">
+                </div>
+
+                <div class="field full"><label for="id_notes">Notes</label>{{ expense_tracker_form.notes }}</div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">{% if expense_tracker_form.instance.pk %}Editing expense{% else %}New expense · not saved{% endif %}</div>
+        <div class="end">
+            <a class="gbtn" href="{% url 'expense_tracker' %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> {% if expense_tracker_form.instance.pk %}Save changes{% else %}Save expense{% endif %}</button>
+        </div>
+    </div></div>
 </form>
-		<a class="btn btn-danger" href="{% url 'expense_tracker' %}"><i class="fas fa-cancel"></i></a>
-	</div>
+</div>
 
 <script>
 function toggleCategoryTextbox() {
-    var categorySelect = document.getElementById('categorySelect');
-    var customCategoryRow = document.getElementById('customCategoryRow');
-    var customCategoryInput = document.getElementById('customCategory');
-    
-    // Show or hide the custom category input field based on selection
-    if (categorySelect.value === "") {
-        customCategoryRow.style.display = 'table-row';
-		customCategoryInput.required = true;
-		customCategoryInput.setAttribute('name', 'category');
-		categorySelect.removeAttribute('name');
-    } else {
-        customCategoryRow.style.display = 'none';
-        // Ensure that the custom category input is cleared if it's hidden
-        customCategoryInput.value = '';
-		customCategoryInput.required = false;
-		categorySelect.setAttribute('name', 'category');
-		customCategoryInput.removeAttribute('name');
-    }
+    var s = document.getElementById('categorySelect'), row = document.getElementById('customCategoryRow'), inp = document.getElementById('customCategory');
+    if (s.value === "") { row.style.display=''; inp.required=true; inp.setAttribute('name','category'); s.removeAttribute('name'); }
+    else { row.style.display='none'; inp.value=''; inp.required=false; s.setAttribute('name','category'); inp.removeAttribute('name'); }
 }
-
 function toggleReferenceTextbox() {
-    var referenceSelect = document.getElementById('referenceSelect');
-    var customReferenceRow = document.getElementById('customReferenceRow');
-    var customReferenceInput = document.getElementById('customReference');
-    
-    // Show or hide the custom category input field based on selection
-    if (referenceSelect.value === "") {
-        customReferenceRow.style.display = 'table-row';
-		customReferenceInput.required = true;
-		customReferenceInput.setAttribute('name', 'reference');
-		referenceSelect.removeAttribute('name');
-    } else {
-        customReferenceRow.style.display = 'none';
-        // Ensure that the custom category input is cleared if it's hidden
-        customReferenceInput.value = '';
-		customReferenceInput.required = false;
-		referenceSelect.setAttribute('name', 'reference');
-		customReferenceInput.removeAttribute('name');
-    }
+    var s = document.getElementById('referenceSelect'), row = document.getElementById('customReferenceRow'), inp = document.getElementById('customReference');
+    if (s.value === "") { row.style.display=''; inp.required=true; inp.setAttribute('name','reference'); s.removeAttribute('name'); }
+    else { row.style.display='none'; inp.value=''; inp.required=false; s.setAttribute('name','reference'); inp.removeAttribute('name'); }
 }
-
-// Trigger toggleCategoryTextbox on page load to ensure it works with the current selection
-document.addEventListener('DOMContentLoaded', function() {
-    toggleCategoryTextbox();
-	toggleReferenceTextbox();
-});
+document.addEventListener('DOMContentLoaded', function(){ toggleCategoryTextbox(); toggleReferenceTextbox(); });
 </script>
 {% endblock %}

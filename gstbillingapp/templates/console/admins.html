@@ -1,0 +1,60 @@
+{% extends "console/base.html" %}
+{% block title %}Admins{% endblock %}
+{% block nav_adm %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1 class="disp">Platform admins</h1>
+    <div class="sub">Operators of GSTSync — not businesses, and never shown in the business list</div>
+  </div>
+</div>
+
+<div class="tablecard ctable">
+  <div class="tbl-scroll">
+  <table class="gt ct">
+    <thead><tr>
+      <th>Admin</th><th>Created</th><th>Last sign-in</th><th>From</th><th>Status</th>
+    </tr></thead>
+    <tbody>
+    {% for a in admins %}
+      <tr>
+        <td class="hd">
+          <div class="prim">
+            <span class="pi"><svg class="gico"><use href="#i-shield"/></svg></span>
+            <div>
+              <div class="nm">{{ a.full_name|default:a.username }}
+                {% if a.pk == me.pk %}<span class="gbadge blue" style="margin-left:5px">you</span>{% endif %}</div>
+              <div class="mn">{{ a.username }}</div>
+            </div>
+          </div>
+        </td>
+        <td class="mut" data-l="Created">{{ a.created_at|date:"d M Y" }}</td>
+        <td class="mut" data-l="Last sign-in">{{ a.last_login_at|date:"d M Y H:i"|default:"never" }}</td>
+        <td class="mut" data-l="From" style="font-size:12.5px">{{ a.last_login_ip|default:"—" }}</td>
+        <td data-l="Status">
+          {% if a.is_active %}<span class="gbadge ok">Active</span>
+          {% else %}<span class="gbadge out">Revoked</span>{% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="emptycell"><div class="empty">
+        <div class="ei"><svg class="gico"><use href="#i-shield"/></svg></div>
+        <h3>No admins</h3>
+        <p>Create one from the server.</p>
+      </div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="hint">
+  <svg class="gico"><use href="#i-alert"/></svg>
+  <div>Admins are created from the server with
+    <code>python manage.py create_platform_admin &lt;username&gt;</code>, which generates the
+    password and prints it once — deliberately not from this screen, so console access
+    always requires server access. Change your own from
+    <a href="{% url 'console_change_password' %}">Password</a>.</div>
+</div>
+{% endblock %}

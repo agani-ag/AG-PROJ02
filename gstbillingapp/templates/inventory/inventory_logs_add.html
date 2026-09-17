@@ -1,62 +1,51 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}Update inventory · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
-<h2>Update Inventory</h2>
-<hr>
-
-<div class="row">
-    <div class="col">
-        <h5>Model No: <b>{{ inventory.product }}</b></h5>
-        <h5>Product: <b>{{ inventory.product.product_name }}</b></h5>
-        <h4>Current Stock: <b>
-            {% if inventory.current_stock > 0 %}
-                <span class="text-success">{{ inventory.current_stock }}</span>
-            {% else %}
-                <span class="text-danger">{{ inventory.current_stock }}</span>
-            {% endif %}
-        </b></h4>
-        <h5>Design: <b>{{ inventory.product.product_hsn }}</b></h5>
-    </div>
-
-    <div class="col text-right">
-        <form method="POST" class="d-inline">
-            {% csrf_token %}
-            <table class="table">
-                <tbody class="two-col-form">
-                    <tr>
-                        <th scope="row" class="text-right">Date & Time:</th>
-                        <td class="form-input-td">{{ form.date }}</td>
-                    </tr>
-                    <tr>
-                        <th scope="row" class="text-right">Change in stock:</th>
-                        <td class="form-input-td">{{ form.change }}</td>
-                    </tr>
-                    <tr>
-                        <th scope="row" class="text-right">Change Type:</th>
-                        <td class="form-input-td">{{ form.change_type }}</td>
-                    </tr>
-                    <tr>
-                        <th scope="row" class="text-right">Associated Invoice Number:</th>
-                        <td class="form-input-td"><input type="text" name="invoice_no"></td>
-                    </tr>
-                    <tr>
-                        <th scope="row" class="text-right">Description:</th>
-                        <td class="form-input-td">{{ form.description }}</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <!-- Buttons side by side -->
-            <div class="d-flex justify-content-end gap-2">
-                <button type="submit" class="btn btn-primary" title="Save Logs">
-                    <i class="fas fa-save"></i>
-                </button>&nbsp;
-                <a href="{% url 'inventory_logs' inventory.id %}" class="btn btn-warning" title="Back To Inventory Logs">
-                    <i class="fas fa-reply"></i>
-                </a>
+<div class="gs gs-pad">
+<form method="POST" class="gform">
+    {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'inventory_logs' inventory.id %}">{{ inventory.product.product_name|default:inventory.product }}</a> › New entry</div>
+                <h1 class="disp">Update inventory</h1>
+                <div class="sub">Model {{ inventory.product }} · Current stock:
+                    {% if inventory.current_stock > 0 %}<span style="color:var(--green)">{{ inventory.current_stock }}</span>
+                    {% else %}<span style="color:var(--red)">{{ inventory.current_stock }}</span>{% endif %}
+                </div>
             </div>
-        </form>
+        </div>
+
+        <div class="section open">
+            <div class="sh"><span class="si o"><i class="fas fa-boxes-stacked"></i></span>
+                <div><h3 class="disp">Stock entry</h3><div class="sd">Add a stock change</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Date &amp; Time</label>{{ form.date }}</div>
+                <div class="field"><label>Change in stock</label>{{ form.change }}</div>
+                <div class="field"><label>Change Type</label>{{ form.change_type }}</div>
+                <div class="field"><label>Associated Invoice Number</label><input type="text" name="invoice_no"></div>
+                <div class="field full"><label>Description</label>{{ form.description }}</div>
+            </div></div>
+        </div>
     </div>
+
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">New entry · not saved</div>
+        <div class="end">
+            <a class="gbtn" href="{% url 'inventory_logs' inventory.id %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> Save entry</button>
+        </div>
+    </div></div>
+</form>
 </div>
 {% endblock %}

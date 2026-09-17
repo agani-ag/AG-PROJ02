@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="screen-header">
+    <h2>Division Category Sales</h2>
+    <h5>Sales by Product Division Category (Amount Without GST)</h5>
+</div>
+
+<style>
+    .print-meta {
+        display: none;
+    }
+    .print-header, .print-footer {
+        display: none;
+    }
+    @media print {
+        body, .container, .content, .page-content, .table, .table th, .table td, strong, div {
+            color: #000 !important;
+            background: #fff !important;
+            box-shadow: none !important;
+        }
+        .screen-header {
+            display: none !important;
+        }
+        form, .btn, select, input, label {
+            display: none !important;
+        }
+        .print-meta {
+            display: none !important;
+        }
+        .print-header, .print-footer {
+            display: block !important;
+            color: #000 !important;
+            background: #fff !important;
+        }
+        #chart_div {
+            margin-top: 0 !important;
+        }
+        #chart_div svg {
+            filter: grayscale(100%) contrast(1.2) !important;
+        }
+        #chart_div text {
+            fill: #000 !important;
+        }
+        .table {
+            border-color: #000 !important;
+        }
+        .table th, .table td {
+            border-color: #000 !important;
+        }
+    }
+</style>
+
+<div class="print-header" style="display:none;">
+    <h1 style="margin:0;padding:0;font-size:1.2rem;">Division Category Sales</h1>
+    <p style="margin:4px 0 0;font-size:.9rem;">Date Range: {{ from_date }} to {{ to_date }} | Customer: {{ selected_customer_name }}</p>
+</div>
+<form method="GET" id="yearForm" style="margin-bottom: 15px; display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap;">
+    <div>
+        <label>From Date:</label>
+        <input type="date" name="from_date" value="{{ from_date }}" class="form-control" style="width: 180px; display: inline-block; margin-left: 10px;" onchange="this.form.submit()" />
+    </div>
+    <div>
+        <label>To Date:</label>
+        <input type="date" name="to_date" value="{{ to_date }}" class="form-control" style="width: 180px; display: inline-block; margin-left: 10px;" onchange="this.form.submit()" />
+    </div>
+    <div>
+        <label>Select Customer:</label>
+        <select name="customer_id" class="form-control" style="width: 300px; display: inline-block; margin-left: 10px;" onchange="this.form.submit()">
+            <option value="all" {% if selected_customer_id == 'all' %}selected{% endif %}>All Customers</option>
+            {% for customer in customers %}
+                <option value="{{ customer.id }}" {% if selected_customer_id|stringformat:"s" == customer.id|stringformat:"s" %}selected{% endif %}>{{ customer.customer_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <button type="button" class="btn btn-secondary" onclick="window.print()" style="margin-left: 10px;">Print</button>
+    </div>
+</form>
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 15px;">
+    <div style="flex: 1; min-width: 220px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+        <strong>Date Range</strong>
+        <div>{{ from_date }} to {{ to_date }}</div>
+    </div>
+    <div style="flex: 1; min-width: 220px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+        <strong>Total Sales (Without GST)</strong>
+        <div style="font-size: 24px; margin-top: 5px; color: #1b9e77;">₹ {{ total_sales|floatformat:2 }}</div>
+    </div>
+    <div style="flex: 1; min-width: 220px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+        <strong>Total Categories</strong>
+        <div style="font-size: 24px; margin-top: 5px; color: #667eea;">{{ chart_data|length }}</div>
+    </div>
+</div>
+
+<div id="chart_div" style="width: 100%; height: 480px;"></div>
+
+{% if chart_data %}
+    <div style="margin-top: 20px;">
+        <h5>Category Breakdown</h5>
+        <table class="table table-sm table-bordered">
+            <thead>
+                <tr>
+                    <th>Division Category</th>
+                    <th class="text-right">Amount Without GST</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in chart_data %}
+                    <tr>
+                        <td>{{ row.category }}</td>
+                        <td class="text-right">₹ {{ row.sales|floatformat:2 }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div style="margin-top: 20px; padding: 20px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; color: #856404;">
+        No invoice data found for the selected date range.
+    </div>
+{% endif %}
+
+{% endblock %}
+
+{% block includejs %}
+<script src="https://www.gstatic.com/charts/loader.js"></script>
+<script>
+google.charts.load('current', {'packages':['corechart']});
+google.charts.setOnLoadCallback(drawChart);
+
+function drawChart() {
+    var data = new google.visualization.DataTable();
+    data.addColumn('string', 'Division Category');
+    data.addColumn('number', 'Amount Without GST');
+    data.addColumn({ type: 'string', role: 'style' });
+
+    var colors = ['#1b9e77', '#f39c12', '#3498db', '#8e44ad', '#e74c3c', '#16a085', '#d35400', '#2c3e50'];
+    data.addRows([
+        {% for row in chart_data %}
+            ['{{ row.category|escapejs }}', {{ row.sales }}, colors[{{ forloop.counter0 }} % colors.length ]]{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]);
+
+    var formatter = new google.visualization.NumberFormat({
+        prefix: '₹ ',
+        groupingSymbol: ',',
+        fractionDigits: 2
+    });
+    formatter.format(data, 1);
+
+    var options = {
+        title: 'Division Category Sales (Without GST)',
+        subtitle: '{{ from_date }} to {{ to_date }}',
+        height: 480,
+        legend: { position: 'none' },
+        hAxis: {
+            format: '₹ #,###',
+            viewWindow: { min: 0 }
+        },
+        vAxis: {
+            textStyle: { fontSize: 12 }
+        },
+        bar: { groupWidth: '70%' }
+    };
+
+    var chart = new google.visualization.BarChart(document.getElementById('chart_div'));
+    chart.draw(data, options);
+}
+</script>
+{% endblock %}

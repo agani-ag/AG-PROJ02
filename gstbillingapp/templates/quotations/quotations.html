@@ -1,80 +1,44 @@
 {% extends "base.html" %}
 {% load static %}
+{% load money %}
 
 {% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Quotations</h1><div class="sub">Total: <span id="total-quotation-amount" style="color:var(--brand);font-weight:600">&#8377; {{ total_quotation_amount|inrs }}</span></div></div>
+        <div class="actions d-print-none">
+            <a href="{% url 'quotations' %}" class="gbtn" title="Clear filters"><i class="fas fa-times"></i> Clear</a>
+            <button id="printFilters" type="button" class="gbtn" onclick="printQuotations();" title="Print"><i class="fas fa-print"></i></button>
+            <a href="{% url 'quotation_create' %}" class="gbtn gbtn-primary" title="New Quotation"><i class="fas fa-plus"></i> New</a>
+        </div>
+    </div>
 
-	<h2>Quotations</h2>
+    <form method="get" class="toolbar" id="filterForm">
+        <div class="search"><i class="fas fa-search"></i>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search number or customer…">
+        </div>
+        <select name="quotation_type" id="quotationTypeFilter" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="all" {% if quotation_type == 'all' %}selected{% endif %}>All Types</option>
+            <option value="gst" {% if quotation_type == 'gst' %}selected{% endif %}>GST</option>
+            <option value="non_gst" {% if quotation_type == 'non_gst' %}selected{% endif %}>Non-GST</option>
+        </select>
+        <select name="customer_id" id="customerFilter" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="">All Customers</option>
+            {% for customer in customers %}<option value="{{ customer.id }}" {% if customer_id == customer.id|stringformat:'s' %}selected{% endif %}>{{ customer.customer_name }}</option>{% endfor %}
+        </select>
+        <select name="date_filter" id="dateFilter" class="selctl" onchange="onDateFilterChange()">
+            <option value="all" {% if date_filter == 'all' %}selected{% endif %}>All Time</option>
+            <option value="today" {% if date_filter == 'today' %}selected{% endif %}>Today</option>
+            <option value="week" {% if date_filter == 'week' %}selected{% endif %}>This Week</option>
+            <option value="month" {% if date_filter == 'month' %}selected{% endif %}>This Month</option>
+            <option value="custom" {% if date_filter == 'custom' %}selected{% endif %}>Custom</option>
+        </select>
+        <input type="date" name="start_date" id="startDate" value="{{ start_date }}" class="selctl" style="padding:9px 12px;{% if date_filter != 'custom' %}display:none{% endif %}" onchange="maybeSubmitDates()">
+        <input type="date" name="end_date" id="endDate" value="{{ end_date }}" class="selctl" style="padding:9px 12px;{% if date_filter != 'custom' %}display:none{% endif %}" onchange="maybeSubmitDates()">
+        <button type="submit" class="gbtn"><i class="fas fa-filter"></i> Apply</button>
+    </form>
 
-	<!-- Filter Options Row -->
-	<div class="row mb-3 align-items-end">
-		<div class="col-md-2">
-			<label for="quotationTypeFilter" class="mb-1"><small><strong>Type:</strong></small></label>
-			<select id="quotationTypeFilter" class="form-control form-control-sm">
-				<option value="all">All Types</option>
-				<option value="gst" selected>GST</option>
-				<option value="non_gst">Non-GST</option>
-			</select>
-		</div>
-		<div class="col-md-2">
-			<label for="statusFilter" class="mb-1"><small><strong>Status:</strong></small></label>
-			<select id="statusFilter" class="form-control form-control-sm">
-				<option value="all">All Status</option>
-				<option value="draft">Draft</option>
-				<option value="approved">Approved</option>
-				<option value="processing">Processing</option>
-				<option value="packed">Packed</option>
-				<option value="shipped">Shipped</option>
-				<option value="out_for_delivery">Out for Delivery</option>
-				<option value="delivered">Delivered</option>
-				<option value="converted">Received by Customer</option>
-			</select>
-		</div>
-		<div class="col-md-2">
-			<label for="customerFilter" class="mb-1"><small><strong>Customer:</strong></small></label>
-			<select id="customerFilter" class="form-control form-control-sm">
-				<option value="">All Customers</option>
-				{% for customer in customers %}
-				<option value="{{ customer.id }}">{{ customer.customer_name }}</option>
-				{% endfor %}
-			</select>
-		</div>
-		<div class="col-md-2">
-			<label for="dateFilter" class="mb-1"><small><strong>Date:</strong></small></label>
-			<select id="dateFilter" class="form-control form-control-sm">
-				<option value="all">All Time</option>
-				<option value="today">Today</option>
-				<option value="week">This Week</option>
-				<option value="month">This Month</option>
-				<option value="custom">Custom</option>
-			</select>
-		</div>
-		<div class="col-md-1" id="startDateWrapper" style="display:none;">
-			<label for="startDate" class="mb-1"><small><strong>From:</strong></small></label>
-			<input type="date" id="startDate" class="form-control form-control-sm">
-		</div>
-		<div class="col-md-1" id="endDateWrapper" style="display:none;">
-			<label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
-			<input type="date" id="endDate" class="form-control form-control-sm">
-		</div>
-		<div class="col-md-1">
-			<button id="clearFilters" class="btn btn-secondary btn-sm btn-block">
-				<i class="fas fa-times"></i> Clear
-			</button>
-		</div>
-		<div class="col-md-3">
-			<div class="card shadow-sm border-primary">
-				<div class="card-body p-2 text-center">
-					<small class="text-muted d-block" style="font-size: 0.75rem;">TOTAL AMOUNT</small>
-					<div id="total-quotation-amount" class="font-weight-bold text-primary" style="font-size: 1.3rem;">
-						<i class="fas fa-spinner fa-spin"></i>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-
-<hr>
-
+    <div class="tablecard" style="padding:10px 14px">
 	<table class="table table-bordered" id="quotation-table">
 		<thead class="thead-dark">
 			<tr>
@@ -87,179 +51,169 @@
 			</tr>
 		</thead>
 		<tbody>
-			<!-- Data loaded via AJAX -->
+			{% for r in rows %}
+			<tr>
+				<td>{{ r.quotation_number|safe }}</td>
+				<td>{{ r.quotation_date }}</td>
+				<td>{{ r.customer|safe }}</td>
+				<td>{{ r.quotation_amount }}</td>
+				<td>{{ r.status|safe }}</td>
+				<td>{{ r.actions|safe }}</td>
+			</tr>
+			{% empty %}
+			<tr><td colspan="6" class="text-center text-muted" style="padding:24px">No quotations match this filter.</td></tr>
+			{% endfor %}
 		</tbody>
 	</table>
-
+    {% include "gs/_pager.html" %}
+    </div>
+</div>
 {% endblock %}
 
 
 {% block includejs %}
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script type="text/javascript">
 
-	$(document).ready( function () {
-		// Set default filter
-		$('#quotationTypeFilter').val('gst');
-
-		var table = $('#quotation-table').DataTable({
-			"processing": true,
-			"serverSide": true,
-			"ajax": {
-				"url": "/quotations/ajax/",
-				"type": "GET",
-				"data": function(d) {
-					d.quotation_type = $('#quotationTypeFilter').val() || 'all';
-					d.status_filter = $('#statusFilter').val() || 'all';
-					d.customer_id = $('#customerFilter').val() || '';
-					d.date_filter = $('#dateFilter').val() || 'all';
-					d.start_date = $('#startDate').val() || '';
-					d.end_date = $('#endDate').val() || '';
-					console.log('Sending request data:', d);
-				},
-				"error": function(xhr, error, code) {
-					console.error('AJAX Error:', {
-						status: xhr.status,
-						statusText: xhr.statusText,
-						responseText: xhr.responseText,
-						error: error,
-						code: code
-					});
-					alert('Error loading data. Check console for details.');
-				},
-				"dataSrc": function(json) {
-					console.log('Received data:', json);
-					if (json.error) {
-						alert('Server error: ' + json.error);
-						return [];
-					}
-					return json.data;
-				}
-			},
-			"columns": [
-				{ "data": "quotation_number", "orderable": true },
-				{ "data": "quotation_date", "orderable": true },
-				{ "data": "customer", "orderable": true },
-				{ "data": "quotation_amount", "orderable": false },
-				{ "data": "status", "orderable": true },
-				{ "data": "actions", "orderable": false }
-			],
-			"order": [[1, "desc"]],
-			"pageLength": 15,
-			"lengthMenu": [[10, 15, 25, 50, 100], [10, 15, 25, 50, 100]],
-			"searching": true,
-			"info": true
-		});
-
-	// Show total quotation amount
-	table.on('xhr', function(e, settings, json) {
-		if (json && typeof json.total_quotation_amount !== 'undefined') {
-			$('#total-quotation-amount').html('<strong>₹ ' + json.total_quotation_amount.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</strong>');
+	function onDateFilterChange() {
+		var v = document.getElementById('dateFilter').value;
+		if (v === 'custom') {
+			document.getElementById('startDate').style.display = '';
+			document.getElementById('endDate').style.display = '';
+		} else {
+			document.getElementById('filterForm').submit();
 		}
-	});
-		
-		// Show/hide custom date range inputs
-		$('#dateFilter').on('change', function() {
-			if ($(this).val() === 'custom') {
-				$('#startDateWrapper').show();
-				$('#endDateWrapper').show();
-			} else {
-				$('#startDateWrapper').hide();
-				$('#endDateWrapper').hide();
-				table.ajax.reload();
+	}
+	function maybeSubmitDates() {
+		if (document.getElementById('dateFilter').value === 'custom'
+			&& document.getElementById('startDate').value
+			&& document.getElementById('endDate').value) {
+			document.getElementById('filterForm').submit();
+		}
+	}
+	function _stripHtml(s){ var d = document.createElement('div'); d.innerHTML = s || ''; return (d.textContent || '').trim(); }
+
+// Report-level print that fetches all records from the server-side API
+function printQuotations() {
+	function selText(id) {
+		var el = document.getElementById(id);
+		if (!el) return '';
+		return el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '';
+	}
+	function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+
+	var params = {
+		quotation_type: val('quotationTypeFilter') || 'all',
+		customer_id: val('customerFilter') || '',
+		date_filter: val('dateFilter') || 'all',
+		start_date: val('startDate') || '',
+		end_date: val('endDate') || ''
+	};
+	var qs = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
+	(async function(){
+		try {
+			var allRows = [];
+			var batch = 500;
+			var start = 0;
+			while (true) {
+				var pagedQs = qs + '&start=' + start + '&length=' + batch;
+				var resp = await fetch('/quotations/ajax/?' + pagedQs);
+				var json = await resp.json();
+				if (json.error) { alert('Error: ' + json.error); return; }
+				var rows = json.data || [];
+				allRows = allRows.concat(rows);
+				if (rows.length < batch) break;
+				start += batch;
 			}
-		});
 
-		// Auto-reload when custom date inputs change
-		$('#startDate, #endDate').on('change', function() {
-			if ($('#dateFilter').val() === 'custom' && $('#startDate').val() && $('#endDate').val()) {
-				table.ajax.reload();
+			var rows = allRows;
+			var title = 'Quotations';
+			var typeText = selText('quotationTypeFilter');
+			var customerText = selText('customerFilter') || 'All Customers';
+			var dateText = selText('dateFilter');
+			var totalEl = document.getElementById('total-quotation-amount');
+			var total = totalEl ? totalEl.textContent : '';
+			var win = window.open('', '_blank');
+			var css = '';
+			css += '<style>';
+			css += 'body{font-family: Arial, Helvetica, sans-serif; margin:12px;}';
+			css += '.print-header{border-bottom:1px solid #333;padding-bottom:8px;margin-bottom:12px;}';
+			css += '.print-header h1{margin:0;font-size:18px;}';
+			css += '.print-meta{font-size:12px;color:#333;margin-top:6px;}';
+			css += 'table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px;}';
+			css += 'th,td{border:1px solid #ccc;padding:6px;text-align:left;}';
+			css += 'th{background:#f5f5f5;}';
+			css += '@media print{@page{size:A4 portrait;margin:8mm;}body{margin:0;padding:6mm;}}';
+			css += '</style>';
+			win.document.write('<html><head><title>'+title+'</title>'+css+'</head><body>');
+			var header = '';
+			header += '<div style="text-align:center; margin-bottom:20px;">';
+			header += '<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>';
+			header += '<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>';
+			header += '<p style="margin:2px 0; color:#666; font-size:13px;">Phone: {{ request.user.userprofile.business_phone|escapejs }}'
+				+ '{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}'
+				+ '{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}'
+				+ '</p>';
+			header += '<hr style="margin:10px 0;">';
+			header += '<h4 style="margin:0;">' + title + '</h4>';
+			header += '<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">';
+			header += '<span><strong>Type:</strong> ' + typeText + '</span>';
+			header += '<span><strong>Customer:</strong> ' + customerText + '</span>';
+			header += '<span><strong>Date:</strong> ' + dateText + '</span>';
+			header += '<span><strong>Total:</strong> ' + total + '</span>';
+			header += '</div>';
+			header += '<hr style="margin-top:10px;">';
+			header += '</div>';
+			win.document.write(header);
+			win.document.write('<table><thead><tr><th>Quotation Number</th><th>Date</th><th>Customer</th><th style="text-align:right">Amount</th><th>Status</th></tr></thead><tbody>');
+			for(var i=0;i<rows.length;i++){
+				var r = rows[i];
+				win.document.write('<tr>');
+				win.document.write('<td>'+_stripHtml(r.quotation_number)+'</td>');
+				win.document.write('<td>'+(r.quotation_date||'')+'</td>');
+				win.document.write('<td>'+_stripHtml(r.customer)+'</td>');
+				win.document.write('<td style="text-align:right">'+(r.quotation_amount||'')+'</td>');
+				win.document.write('<td>'+_stripHtml(r.status)+'</td>');
+				win.document.write('</tr>');
 			}
-		});
+			win.document.write('</tbody></table>');
+			win.document.write('</body></html>');
+			win.document.close();
+			win.focus();
+			setTimeout(function(){ win.print(); win.close(); }, 250);
+		} catch(err) {
+			console.error(err);
+			alert('Unable to fetch records for printing. See console for details.');
+		}
+	})();
+}
 
-		// Clear filters button
-		$('#clearFilters').on('click', function() {
-			$('#quotationTypeFilter').val('all');
-			$('#statusFilter').val('all');
-			$('#customerFilter').val('');
-			$('#dateFilter').val('all');
-			$('#startDate').val('');
-			$('#endDate').val('');
-			$('#startDateWrapper').hide();
-			$('#endDateWrapper').hide();
-			table.ajax.reload();
-		});
-
-		// Auto-reload on filter changes
-		$('#quotationTypeFilter, #statusFilter, #customerFilter').on('change', function() {
-			table.ajax.reload();
-		});
-	});
-
-	function convertToInvoice(quotationId) {
+	// Approve a pending mobile order — moves it into the fulfilment pipeline so it can
+	// then be tracked and converted to an invoice from the viewer.
+	function approveQuotation(quotationId) {
 		Swal.fire({
-			title: 'Convert to Invoice?',
-			text: "This will create an invoice and update inventory & books. This action cannot be undone.",
+			title: 'Approve this order?',
+			text: "It will move out of Pending and can then be processed and converted to an invoice.",
 			icon: 'question',
 			showCancelButton: true,
 			confirmButtonColor: '#28a745',
 			cancelButtonColor: '#6c757d',
-			confirmButtonText: 'Yes, Convert it!'
+			confirmButtonText: 'Yes, approve'
 		}).then((result) => {
-			if (result.isConfirmed) {
-				// Show loading
-				Swal.fire({
-					title: 'Processing...',
-					text: 'Converting quotation to invoice',
-					allowOutsideClick: false,
-					allowEscapeKey: false,
-					didOpen: () => {
-						Swal.showLoading();
-					}
-				});
-
-				// Make AJAX request
-				fetch(`/quotation/convert/${quotationId}`, {
-					method: 'POST',
-					headers: {
-						'X-CSRFToken': '{{ csrf_token }}',
-						'Content-Type': 'application/json'
-					}
-				})
-				.then(response => response.json())
-				.then(data => {
-					if (data.success) {
-						Swal.fire({
-							icon: 'success',
-							title: 'Success!',
-							text: data.message,
-							showCancelButton: true,
-							confirmButtonText: 'View Invoice',
-							cancelButtonText: 'Stay Here'
-						}).then((result) => {
-							if (result.isConfirmed) {
-							window.location.href = `/invoice/${data.invoice_id}/`;
-							} else {
-								$('#quotation-table').DataTable().ajax.reload();
-							}
-						});
-					} else {
-						Swal.fire({
-							icon: 'error',
-							title: 'Error',
-							text: data.message
-						});
-					}
-				})
-				.catch(error => {
-					Swal.fire({
-						icon: 'error',
-						title: 'Error',
-						text: 'An error occurred while converting'
-					});
-					console.error('Error:', error);
-				});
-			}
+			if (!result.isConfirmed) return;
+			fetch(`/quotation/approve/${quotationId}`, {
+				method: 'POST',
+				headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json' }
+			})
+			.then(r => r.json())
+			.then(data => {
+				if (data.success) {
+					Swal.fire({ icon: 'success', title: 'Approved', text: data.message, timer: 1800 })
+						.then(() => location.reload());
+				} else {
+					Swal.fire({ icon: 'error', title: 'Error', text: data.message });
+				}
+			})
+			.catch(() => Swal.fire({ icon: 'error', title: 'Error', text: 'An error occurred while approving' }));
 		});
 	}
 
@@ -290,7 +244,7 @@
 							text: 'Quotation has been deleted.',
 							timer: 2000
 						}).then(() => {
-							$('#quotation-table').DataTable().ajax.reload();
+							location.reload();
 						});
 					} else {
 						Swal.fire({
@@ -311,6 +265,6 @@
 			}
 		});
 	}
-	
+
 </script>
 {% endblock %}

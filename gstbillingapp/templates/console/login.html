@@ -1,0 +1,59 @@
+{% extends "console/base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block extracss %}
+<style>
+  .lwrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+  .lcard{width:100%;max-width:380px}
+  .lhead{text-align:center;margin-bottom:20px}
+  .lhead .mark{width:46px;height:46px;border-radius:14px;color:#fff;margin:0 auto 12px;
+    background:linear-gradient(135deg,#2563eb,#4f46e5);display:flex;align-items:center;justify-content:center;
+    box-shadow:0 10px 24px -10px rgba(37,99,235,.8)}
+  .lhead .mark .gico{width:24px;height:24px}
+  .lhead h1{font-family:"Space Grotesk",sans-serif;font-size:21px;font-weight:700;margin:0;color:#0f172a}
+  .lhead .sub{font-size:13px;color:#5b6472;margin-top:3px}
+  .lfoot{text-align:center;font-size:12.5px;color:#97a1b0;margin-top:16px;line-height:1.6}
+  .lfoot a{color:#2563eb;font-weight:600}
+</style>
+{% endblock %}
+{% block content %}
+<div class="lwrap">
+  <div class="lcard">
+    <div class="lhead">
+      <div class="mark"><svg class="gico"><use href="#i-shield"/></svg></div>
+      <h1 class="disp">GSTSync Console</h1>
+      <div class="sub">Operator access only</div>
+    </div>
+
+    <div class="section open">
+      <div class="body">
+        {% if error %}
+          <div class="cmsg bad" style="margin-bottom:16px">
+            <svg class="gico"><use href="#i-alert"/></svg><div>{{ error }}</div>
+          </div>
+        {% endif %}
+        <form method="post">
+          {% csrf_token %}
+          <div class="field" style="margin-bottom:14px">
+            <label for="u">Username</label>
+            <input id="u" class="control" type="text" name="username" autofocus
+                   autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="p">Password</label>
+            <input id="p" class="control" type="password" name="password"
+                   autocomplete="current-password" required>
+          </div>
+          <button class="gbtn gbtn-primary" style="width:100%;justify-content:center;margin-top:20px">
+            Sign in
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <p class="lfoot">
+      This is not the business login.<br>
+      Business owners sign in at <a href="/login">/login</a>.
+    </p>
+  </div>
+</div>
+{% endblock %}

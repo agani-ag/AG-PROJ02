@@ -1,0 +1,75 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block title %}{{ c.customer_name }}{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_customers' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Customers</a>{% endblock %}
+{% block heading %}{{ c.customer_name }}{% endblock %}
+{% block bizsel %}{% if brand_nav|length > 1 %}
+<div class="bizsel" id="bizsel">
+    {% for b in brand_nav %}<a href="{% url brand_url b.cust_id %}?biz={{ b.id }}" class="{% if b.active %}on{% endif %}">{{ b.name }}</a>{% endfor %}
+</div>
+{% endif %}{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <div class="muted sm">{% if outstanding %}Amount due{% else %}Balance{% endif %}</div>
+    <div class="kpi" style="color:{% if outstanding %}var(--red){% else %}var(--green){% endif %}">
+        {% if outstanding %}&#8377; {{ outstanding|inr }}{% elif balance > 0 %}&#8377; {{ balance|inr }} adv{% else %}No dues{% endif %}
+    </div>
+    {% if c.customer_phone %}
+    <div class="between mt" style="gap:10px">
+        <a class="btn btn-sm" href="tel:{{ c.customer_phone }}" style="flex:1"><svg class="i"><use href="#ic-phone"/></svg> Call</a>
+        <button class="btn btn-sm btn-green" style="flex:1" onclick="remind()"><svg class="i" style="stroke:#fff"><use href="#ic-message"/></svg> Remind</button>
+    </div>
+    {% endif %}
+    <div class="between mt" style="gap:10px">
+        <a class="btn btn-sm btn-soft-teal" style="flex:1" href="{% url 'm_employee_customer_map' c.id %}"><svg class="i"><use href="#ic-pin"/></svg> {% if c.customer_latitude and c.customer_longitude %}Open map{% else %}Set location{% endif %}</a>
+        {% if app_share %}<button class="btn btn-sm btn-soft-purple" style="flex:1" onclick="shareApp()"><svg class="i"><use href="#ic-message"/></svg> Share SyncUp</button>{% endif %}
+    </div>
+    <a class="btn btn-acc mt" href="{% url 'm_order' %}?customer={{ c.id }}"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> New order</a>
+</div>
+
+<div class="panel">
+    <div class="b" style="margin-bottom:10px">Record a payment</div>
+    <input class="field" id="pay-amt" type="number" inputmode="decimal" placeholder="Amount received" min="1">
+    <input class="field" id="pay-note" placeholder="Note (optional)">
+    <button class="btn btn-acc" onclick="pay()"><svg class="i" style="stroke:#fff"><use href="#ic-check"/></svg> Save payment</button>
+</div>
+
+{% if logs %}
+<div class="sec"><h2 class="t" style="font-size:15px">Recent entries</h2></div>
+<div data-mpaged="{% url 'm_employee_customer_ledger' c.id %}" data-mpaged-list="#led-list" data-mpaged-offset="{{ logs|length }}">
+    <div class="filt">
+        <button class="on" data-t="all">All</button>
+        <button data-t="1">Purchased</button>
+        <button data-t="0">Paid</button>
+        <button data-t="2">Returned</button>
+        <button data-t="3">Others</button>
+    </div>
+    <div class="list" id="led-list">
+        {% include "m/_ledger_rows.html" with logs=logs %}
+    </div>
+    <div class="empty" data-mpaged-empty style="display:none"><svg class="i"><use href="#ic-book"/></svg><div>No entries of this type.</div></div>
+    <button class="btn" data-mpaged-more style="{% if not has_more %}display:none;{% endif %}margin-bottom:14px">Load more</button>
+    <div class="ledtotal" data-mpaged-total style="display:none"><span class="l">Total</span><span class="v">&#8377; 0</span></div>
+</div>
+{% endif %}
+
+<script>
+async function pay(){
+    var a=parseFloat(document.getElementById('pay-amt').value);
+    if(!a||a<=0){M.toast('Enter a valid amount');return;}
+    var n=document.getElementById('pay-note').value;
+    var r=await M.post("{% url 'm_employee_record_payment' c.id %}",{amount:a,note:n});
+    if(r.ok){
+        // Pending (employee) or saved (admin) — reload either way so the entry shows
+        // in Recent entries (pending ones are badged "Pending approval").
+        M.toast(r.pending ? 'Recorded — pending admin approval' : 'Payment saved');
+        setTimeout(()=>location.reload(), 800);
+    } else { M.toast(r.message||'Failed'); }
+}
+function shareApp(){M.wa("{{ c.customer_phone|escapejs }}","{{ app_share|escapejs }}");}
+function remind(){M.sms("{{ c.customer_phone|escapejs }}","Dear {{ c.customer_name|escapejs }}, our records show an outstanding balance of {{ outstanding|inr }}. Kindly arrange payment. Thank you.");}
+</script>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="customers" %}{% endblock %}

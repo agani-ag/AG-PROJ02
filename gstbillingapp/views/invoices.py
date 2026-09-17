@@ -1,32 +1,39 @@
 # Django imports
 from django.contrib import messages
-from django.db.models import Max, Sum
+from django.core.paginator import Paginator
+from django.db.models import Max, Sum, Q
+from django.db import transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 
 # Models
-from ..models import Customer
-from ..models import Invoice
-from ..models import UserProfile
-from ..models import Book
-from ..models import BookLog
-from ..models import Quotation
+from ..models import (
+    Customer, Product, Invoice,
+    UserProfile, Book, BookLog, Quotation, Employee, EmployeePosting
+)
 
 # Utility functions
 from ..utils import invoice_data_validator
 from ..utils import invoice_data_processor
+from ..utils import apply_invoice_round_off
+from ..templatetags.money import format_inr_smart
 from ..utils import update_products_from_invoice
 from ..utils import update_inventory
 from ..utils import add_customer_book
 from ..utils import auto_deduct_book_from_invoice
 from ..utils import remove_inventory_entries_for_invoice
+from ..utils import remove_book_entries_for_invoice
+from ..utils import recompute_invoice_data
+from ..utils import find_matching_customer
+from ..utils import json_compact
 
 # Third-party libraries
 import json
 import datetime
 import num2words
+import html
 
 
 # ================= Invoice, products and customers =============================
@@ -70,9 +77,17 @@ def invoice_create(request):
         else:
             is_gst = True
         
+        # A GST invoice needs the customer's GSTIN. Rather than rejecting, fall back to
+        # a non-GST invoice — but the number submitted with the form came from the GST
+        # series, so it has to be re-drawn from the non-GST series below.
+        auto_downgraded_to_non_gst = False
         if is_gst and invoice_data['customer-gst'].strip() == '':
-            messages.warning(request, "GST Invoice requires Customer GST Number.")
-            return render(request, 'invoices/invoice_create.html', context)
+            is_gst = False
+            auto_downgraded_to_non_gst = True
+            messages.info(
+                request,
+                "Customer has no GST Number — this was created as a NON-GST invoice."
+            )
 
         validation_error = invoice_data_validator(invoice_data)
         if validation_error:
@@ -80,27 +95,22 @@ def invoice_create(request):
             return render(request, 'invoices/invoice_create.html', context)
 
         invoice_data_processed = invoice_data_processor(invoice_data)
+        # Round the grand total to the nearest rupee (new invoices only). Done here, not in
+        # invoice_data_processor, because that helper is shared with quotation_create.
+        apply_invoice_round_off(invoice_data_processed)
         # save customer
+        # Prefer the hidden customer-id (set when a customer is picked from the list);
+        # otherwise fall back to a name (+ phone) match. The fallback used to require an
+        # exact name+address+phone+GST match, which failed for non-GST customers whose
+        # GST is stored NULL against the form's empty '' — wrongly forcing 'Add Customer'.
         customer = None
+        customer_id = invoice_data.get('customer-id')
+        if customer_id and customer_id.isdigit():
+            customer = Customer.objects.filter(user=request.user, id=int(customer_id)).first()
+        else:
+            customer = find_matching_customer(request.user, invoice_data)
 
-        try:
-            customer = Customer.objects.get(user=request.user,
-                        customer_name=invoice_data['customer-name'],
-                        customer_address=invoice_data['customer-address'],
-                        customer_phone=invoice_data['customer-phone'],
-                        customer_gst=invoice_data['customer-gst'])
-        except:
-            pass
-        
         if not customer:
-            # customer = Customer(user=request.user,
-            #     customer_name=invoice_data['customer-name'],
-            #     customer_address=invoice_data['customer-address'],
-            #     customer_phone=invoice_data['customer-phone'],
-            #     customer_gst=invoice_data['customer-gst'])
-            # # create customer book
-            # customer.save()
-            # add_customer_book(customer)
             messages.warning(request, "Customer does not exist. Please add the customer first.")
             return redirect('customer_add')
 
@@ -109,9 +119,18 @@ def invoice_create(request):
 
 
         # save invoice
-        invoice_data_processed_json = json.dumps(invoice_data_processed)
+        invoice_data_processed_json = json_compact(invoice_data_processed)
+
+        invoice_number = int(invoice_data['invoice-number'])
+        if auto_downgraded_to_non_gst:
+            # The posted number belongs to the GST series; take the next non-GST one.
+            max_non_gst = Invoice.objects.filter(
+                user=request.user, is_gst=False
+            ).aggregate(Max('invoice_number'))['invoice_number__max']
+            invoice_number = (max_non_gst or 0) + 1
+
         new_invoice = Invoice(user=request.user,
-            invoice_number=int(invoice_data['invoice-number']),
+            invoice_number=invoice_number,
             invoice_date=datetime.datetime.strptime(invoice_data['invoice-date'], '%Y-%m-%d'),
             invoice_customer=customer, invoice_json=invoice_data_processed_json, is_gst= is_gst)
         new_invoice.save()
@@ -123,12 +142,182 @@ def invoice_create(request):
     return render(request, 'invoices/invoice_create.html', context)
 
 
+def _filtered_invoices(request, search_value=''):
+    """Shared filter for the Invoices list + its print/ajax feed.
+    Mirrors the invoices_ajax filters; returns (queryset, filter_context)."""
+    from datetime import timedelta
+    from django.utils import timezone
+
+    invoice_type = request.GET.get('invoice_type', 'all')
+    date_filter = request.GET.get('date_filter', 'all')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
+    customer_id = request.GET.get('customer_id', '')
+
+    qs = Invoice.objects.filter(user=request.user).select_related('invoice_customer')
+
+    if customer_id and customer_id.isdigit():
+        qs = qs.filter(invoice_customer__id=int(customer_id))
+
+    if invoice_type == 'gst':
+        qs = qs.filter(is_gst=True)
+    elif invoice_type == 'non_gst':
+        qs = qs.filter(is_gst=False)
+    elif invoice_type == 'not_pushed':
+        qs = qs.filter(books_reflected=False)
+    elif invoice_type == 'missing_in_books':
+        existing_invoice_ids = set(BookLog.objects.filter(
+            parent_book__user=request.user, associated_invoice__isnull=False
+        ).values_list('associated_invoice_id', flat=True))
+        qs = qs.filter(books_reflected=True).exclude(id__in=existing_invoice_ids)
+
+    if date_filter and date_filter != 'all':
+        if date_filter == 'today':
+            qs = qs.filter(invoice_date=timezone.now().date())
+        elif date_filter == 'week':
+            week_start = timezone.now().date() - timedelta(days=timezone.now().weekday())
+            qs = qs.filter(invoice_date__gte=week_start)
+        elif date_filter == 'month':
+            qs = qs.filter(invoice_date__gte=timezone.now().date().replace(day=1))
+        elif date_filter == 'custom' and start_date and end_date:
+            try:
+                qs = qs.filter(invoice_date__gte=start_date, invoice_date__lte=end_date)
+            except Exception:
+                pass
+
+    if search_value:
+        qs = qs.filter(
+            Q(invoice_number__icontains=search_value) |
+            Q(invoice_customer__customer_name__icontains=search_value)
+        )
+
+    return qs, {
+        'invoice_type': invoice_type, 'customer_id': customer_id,
+        'date_filter': date_filter, 'start_date': start_date, 'end_date': end_date,
+    }
+
+
+def _invoices_total_amount(queryset):
+    """Sum of invoice_total_amt_with_gst across the whole (unpaginated) queryset."""
+    total = 0.0
+    for invoice_json_str in queryset.values_list('invoice_json', flat=True):
+        try:
+            total += float(json.loads(invoice_json_str).get('invoice_total_amt_with_gst', 0))
+        except Exception:
+            pass
+    return total
+
+
+def _invoice_row_dict(invoice, request, invoice_type):
+    """Build one invoices-table row (shared by the native list + the ajax/print feed)."""
+    # Invoice number
+    if invoice.is_gst:
+        invoice_num = str(invoice.invoice_number)
+    else:
+        invoice_num = f'<span class="text-danger font-weight-bold">INV-{invoice.invoice_number}</span>'
+
+    # Customer
+    if invoice.invoice_customer:
+        customer_html = f'<a href="/books/{invoice.invoice_customer.id}" style="text-decoration: none;color: black;" title="View Books">{invoice.invoice_customer.customer_name}</a>'
+    else:
+        customer_html = '<span class="text-danger">N/A</span>'
+
+    # Invoice Amount (from invoice_json)
+    try:
+        invoice_json = json.loads(invoice.invoice_json)
+        invoice_amount = float(invoice_json.get('invoice_total_amt_with_gst', 0))
+    except Exception:
+        invoice_json = {}
+        invoice_amount = 0.0
+
+    # Division Category Totals
+    totals_by_category = {}
+    amount_without_gst = 0.0
+    for item in invoice_json.get('items', []):
+        category = (
+            item.get('product_division_category')
+            or item.get('division_category')
+            or ''
+        )
+        if not category:
+            model = item.get('invoice_model_no')
+            if model:
+                product = Product.objects.filter(user=request.user, model_no=model).first()
+                if product:
+                    category = product.product_division_category
+        category = category.strip().upper() if category else "UNSPECIFIED"
+        try:
+            amount = float(item.get("invoice_amt_without_gst") or 0)
+        except Exception:
+            qty = float(item.get("invoice_qty") or 1)
+            rate = float(item.get("invoice_rate_without_gst") or 0)
+            amount = qty * rate
+        totals_by_category[category] = totals_by_category.get(category, 0) + amount
+        amount_without_gst += amount
+
+    # Actions
+    actions_html = '<div class="btn-group" role="group">'
+    actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-primary btn-sm btn-curve" title="View Invoice"><i class="fa fa-eye"></i></a>'
+    if invoice.invoice_customer:
+        category_json = html.escape(json.dumps(totals_by_category))
+        actions_html += f'''
+                <button type="button" class="btn btn-orange btn-sm btn-curve"
+                    data-category="{category_json}" data-total="{amount_without_gst}"
+                    onclick="dc_invoice_map(this)" title="Division Category"><i class="fa fa-snowflake"></i></button>
+        '''
+    if invoice_type in ['not_pushed', 'missing_in_books']:
+        button_title = 'Push to Books' if invoice_type == 'not_pushed' else 'Fix & Push to Books'
+        actions_html += f'<button type="button" onclick="pushToBooks({invoice.id})" class="btn btn-success btn-sm btn-curve" title="{button_title}"><i class="fa fa-book"></i></button>'
+
+    customer_info = invoice.invoice_customer.customer_name if invoice.invoice_customer else "N/A"
+    _del_label = f"{invoice.invoice_number}, for {customer_info}".replace("\\", "\\\\").replace("'", "\\'")
+    actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" onclick="openInvoiceDelete({invoice.id}, \'{_del_label}\')" title="Delete Invoice"><i class="fa fa-trash"></i></button>'
+    actions_html += '</div>'
+
+    return {
+        'invoice_number': invoice_num,
+        'invoice_date': invoice.invoice_date.strftime('%b %d, %Y'),
+        'customer': customer_html,
+        'invoice_amount': f"₹ {format_inr_smart(invoice_amount)}",
+        'actions': actions_html,
+    }
+
+
 @login_required
 def invoices(request):
-    context = {}
-    # Get all customers for dropdown filter
-    customers = Customer.objects.filter(user=request.user).order_by('customer_name')
-    context['customers'] = customers
+    # Default the Type filter to "All Types" when first opened.
+    qs, fctx = _filtered_invoices(request, search_value=request.GET.get('q', '').strip())
+    qs = qs.order_by('-invoice_date', '-id')
+
+    total_invoice_amount = _invoices_total_amount(qs)
+
+    # Sort by Invoice Amount (parsed from invoice_json) is a Python sort over the whole
+    # filtered set; the default date sort keeps the efficient DB-paginated path.
+    sort = request.GET.get('sort')
+    if sort in ('amount', '-amount'):
+        def _amt(inv):
+            try:
+                return float(json.loads(inv.invoice_json).get('invoice_total_amt_with_gst', 0))
+            except Exception:
+                return 0.0
+        ordered = sorted(qs, key=_amt, reverse=(sort == '-amount'))
+        paginator = Paginator(ordered, 25)
+    else:
+        paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    rows = [_invoice_row_dict(inv, request, fctx['invoice_type']) for inv in page_obj]
+
+    params = request.GET.copy()
+    params.pop('page', None)
+
+    context = dict(fctx)
+    context['customers'] = Customer.objects.filter(user=request.user).order_by('customer_name')
+    context['rows'] = rows
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
+    context['q'] = request.GET.get('q', '').strip()
+    context['total_invoice_amount'] = total_invoice_amount
     return render(request, 'invoices/invoices.html', context)
 
 @login_required
@@ -236,51 +425,8 @@ def invoices_ajax(request):
         # Pagination - apply after total calculation
         queryset = queryset[start:start + length]
         
-        # Prepare data for current page
-        data = []
-        for invoice in queryset:
-            # Invoice number
-            if invoice.is_gst:
-                invoice_num = str(invoice.invoice_number)
-            else:
-                invoice_num = f'<span class="text-danger font-weight-bold">INV-{invoice.invoice_number}</span>'
-
-            # Customer
-            if invoice.invoice_customer:
-                customer_html = f'<a href="/books/{invoice.invoice_customer.id}" style="text-decoration: none;color: black;" title="View Books">{invoice.invoice_customer.customer_name}</a>'
-            else:
-                customer_html = '<span class="text-danger">N/A</span>'
-
-            # Invoice Amount (from invoice_json)
-            try:
-                invoice_json = json.loads(invoice.invoice_json)
-                invoice_amount = float(invoice_json.get('invoice_total_amt_with_gst', 0))
-            except Exception:
-                invoice_amount = 0.0
-
-            # Actions
-            actions_html = '<div class="btn-group" role="group">'
-            actions_html += f'<button type="button" onclick="popup_invoice({invoice.id})" class="btn btn-primary btn-sm btn-curve" title="Preview Invoice"><i class="fa fa-eye"></i></button>'
-            actions_html += f'<a href="/invoice/{invoice.id}" class="btn btn-warning btn-sm btn-curve" title="View Invoice"><i class="fa fa-external-link-square"></i></a>'
-            if invoice.invoice_customer:
-                actions_html += f'<a href="/customer/edit/{invoice.invoice_customer.id}" class="btn btn-orange btn-sm btn-curve" title="Edit Customer"><i class="fa fa-user"></i></a>'
-            
-            # Add push/fix button for not_pushed or missing_in_books filters
-            if invoice_type in ['not_pushed', 'missing_in_books']:
-                button_title = 'Push to Books' if invoice_type == 'not_pushed' else 'Fix & Push to Books'
-                actions_html += f'<button type="button" onclick="pushToBooks({invoice.id})" class="btn btn-success btn-sm btn-curve" title="{button_title}"><i class="fa fa-book"></i></button>'
-
-            customer_info = invoice.invoice_customer.customer_name if invoice.invoice_customer else "N/A"
-            actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" data-toggle="modal" data-target="#invoiceDeleteModal" data-invoice-id="{invoice.id}" data-invoice-number="{invoice.invoice_number}, for {customer_info}" title="Delete Invoice"><i class="fa fa-trash"></i></button>'
-            actions_html += '</div>'
-
-            data.append({
-                'invoice_number': invoice_num,
-                'invoice_date': invoice.invoice_date.strftime('%b %d, %Y'),
-                'customer': customer_html,
-                'invoice_amount': f"₹ {invoice_amount:,.2f}",
-                'actions': actions_html
-            })
+        # Prepare data for current page (shared row-builder — same output as the native list)
+        data = [_invoice_row_dict(invoice, request, invoice_type) for invoice in queryset]
 
         return JsonResponse({
             'draw': draw,
@@ -310,7 +456,139 @@ def invoice_viewer(request, invoice_id):
     context['total_in_words'] = num2words.num2words(int(context['invoice_data']['invoice_total_amt_with_gst']), lang='en_IN').title()
     context['user_profile'] = user_profile
     context['nav_hide'] = request.GET.get('nav') or ''
+
+    # Invoice → employee attribution (local Employee model). The picker only shows
+    # when this business actually has active staff to credit.
+    context['assigned_employee'] = invoice_obj.assigned_employee
+    # Anyone posted to this business (own or shared-in) can be credited.
+    context['has_employees'] = EmployeePosting.objects.filter(
+        business=request.user, is_active=True).exists()
+
+    # Debug JSON editor: ?debug=1 / ?debug=true. Absent → normal view, no change.
+    debug_mode = str(request.GET.get('debug', '')).lower() in ('1', 'true', 'yes')
+    context['debug_mode'] = debug_mode
+    if debug_mode:
+        # Pretty-print for the editor; the backup (original) may not exist yet.
+        context['invoice_json_pretty'] = json.dumps(context['invoice_data'], indent=2, ensure_ascii=False)
+        context['has_backup'] = bool(invoice_obj.invoice_json_backup)
+
     return render(request, 'invoices/invoice_printer.html', context)
+
+
+@login_required
+def invoice_json_save(request, invoice_id):
+    """
+    Debug JSON editor save. Validates + recomputes totals from the edited items,
+    keeps the ORIGINAL as a one-time backup, optionally re-reflects inventory/books
+    (replacing this invoice's existing entries, never duplicating). All-or-nothing:
+    any failure rolls back the JSON change too, so document / stock / books can
+    never drift apart.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+
+    invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
+
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'message': 'Malformed request'}, status=400)
+
+    raw_json = payload.get('json')
+    reflect = bool(payload.get('reflect', False))
+
+    # 1. Parse the edited JSON.
+    try:
+        invoice_data = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+    except (ValueError, TypeError):
+        return JsonResponse({'success': False, 'message': 'Edited content is not valid JSON.'}, status=400)
+
+    # 2. Structural check + 3. recompute totals from items.
+    try:
+        invoice_data = recompute_invoice_data(invoice_data)
+    except ValueError as err:
+        return JsonResponse({'success': False, 'message': str(err)}, status=400)
+
+    try:
+        with transaction.atomic():
+            # 4. Backup the ORIGINAL once, then never overwrite it.
+            if not invoice_obj.invoice_json_backup:
+                invoice_obj.invoice_json_backup = invoice_obj.invoice_json
+
+            # 5. Save the recomputed JSON.
+            invoice_obj.invoice_json = json_compact(invoice_data)
+            invoice_obj.save()
+
+            # 6. Optionally replace this invoice's stock/ledger entries.
+            if reflect:
+                if invoice_obj.inventory_reflected:
+                    remove_inventory_entries_for_invoice(invoice_obj, request.user)
+                    update_inventory(invoice_obj, request)
+                if invoice_obj.books_reflected:
+                    remove_book_entries_for_invoice(invoice_obj)
+                    auto_deduct_book_from_invoice(invoice_obj)
+    except Product.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Re-reflect failed: an edited line no longer matches a product '
+                       '(model no / name / HSN / GST%). Nothing was saved.',
+        }, status=400)
+    except Exception as err:
+        return JsonResponse({'success': False, 'message': f'Save failed: {err}. Nothing was saved.'}, status=400)
+
+    totals = {
+        'taxable': invoice_data['invoice_total_amt_without_gst'],
+        'sgst': invoice_data['invoice_total_amt_sgst'],
+        'cgst': invoice_data['invoice_total_amt_cgst'],
+        'igst': invoice_data['invoice_total_amt_igst'],
+        'grand_total': invoice_data['invoice_total_amt_with_gst'],
+    }
+    return JsonResponse({
+        'success': True,
+        'message': 'Saved.' + (' Inventory & books re-reflected.' if reflect else ''),
+        'reflected': reflect,
+        'totals': totals,
+    })
+
+
+@login_required
+def invoice_json_restore(request, invoice_id):
+    """Restore the ORIGINAL invoice_json from the backup. Optionally re-reflect so
+    stock/ledger resync to the original after edited values were reflected."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
+
+    invoice_obj = get_object_or_404(Invoice, user=request.user, id=invoice_id)
+
+    if not invoice_obj.invoice_json_backup:
+        return JsonResponse({'success': False, 'message': 'No original backup to restore.'}, status=400)
+
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        payload = {}
+    reflect = bool(payload.get('reflect', False))
+
+    try:
+        with transaction.atomic():
+            invoice_obj.invoice_json = invoice_obj.invoice_json_backup
+            invoice_obj.save()
+            if reflect:
+                if invoice_obj.inventory_reflected:
+                    remove_inventory_entries_for_invoice(invoice_obj, request.user)
+                    update_inventory(invoice_obj, request)
+                if invoice_obj.books_reflected:
+                    remove_book_entries_for_invoice(invoice_obj)
+                    auto_deduct_book_from_invoice(invoice_obj)
+    except Product.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'Restore re-reflect failed: original line no longer matches a product. Nothing was changed.',
+        }, status=400)
+    except Exception as err:
+        return JsonResponse({'success': False, 'message': f'Restore failed: {err}. Nothing was changed.'}, status=400)
+
+    return JsonResponse({'success': True, 'message': 'Original restored.' + (' Re-reflected.' if reflect else '')})
 
 
 @login_required
@@ -402,7 +680,8 @@ def invoice_delete(request):
                 booklog_obj = get_object_or_404(BookLog,associated_invoice=invoice_obj)
                 book = get_object_or_404(Book,user=request.user,id=booklog_obj.parent_book.id)
             except:
-                messages.warning(request, f'Error Invoice #{invoice_obj.invoice_number} deletion from books')
+                messages.warning(request, f'Missing Invoice #{invoice_obj.invoice_number} on books, safely removed invoice.')
+                invoice_obj.delete()
                 return redirect('invoices')
             booklog_obj.delete()
             new_total = BookLog.objects.filter(parent_book=book).aggregate(Sum('change'))['change__sum']
@@ -443,7 +722,7 @@ def invoice_push_to_books(request, invoice_id):
             
             # Push to books
             auto_deduct_book_from_invoice(invoice)
-            
+
             # Update the flag
             invoice.books_reflected = True
             invoice.save()
@@ -481,3 +760,61 @@ def customerInvoiceFilter(request):
         })
 
     return JsonResponse(data, safe=False)
+
+
+@login_required
+def invoice_assign_employee(request, invoice_id):
+    """
+    Credit an invoice to one of this business's own staff (local Employee model).
+
+    GET  → the active employees to choose from + who (if anyone) is already assigned.
+    POST → {employee_id} assigns; a blank employee_id clears the assignment.
+
+    Replaces the old external-project proxy: attribution now lives in this database.
+    """
+    from django.utils import timezone
+
+    invoice = get_object_or_404(Invoice, user=request.user, id=invoice_id)
+
+    if request.method == 'GET':
+        # Everyone posted to this business — own staff AND shared-in employees, flagged.
+        postings = (EmployeePosting.objects.filter(business=request.user, is_active=True)
+                    .select_related('employee').order_by('employee__name'))
+        employees = [{'id': p.employee_id, 'name': p.employee.name, 'shared': not p.is_home}
+                     for p in postings]
+        current = None
+        if invoice.assigned_employee_id:
+            current = {'id': invoice.assigned_employee_id, 'name': invoice.assigned_employee.name}
+        return JsonResponse({'employees': employees, 'current': current})
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed.'}, status=405)
+
+    try:
+        emp_id = (json.loads(request.body) or {}).get('employee_id')
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Malformed request.'}, status=400)
+
+    # Blank clears the assignment.
+    if not emp_id:
+        invoice.assigned_employee = None
+        invoice.assigned_employee_at = None
+        invoice.save(update_fields=['assigned_employee', 'assigned_employee_at'])
+        return JsonResponse({'ok': True, 'cleared': True})
+
+    try:
+        employee = (Employee.objects.filter(
+            id=emp_id, postings__business=request.user, postings__is_active=True)
+            .distinct().get())
+    except (Employee.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({'error': 'Employee not found.'}, status=400)
+
+    was_assigned = invoice.assigned_employee_id is not None
+    invoice.assigned_employee = employee
+    invoice.assigned_employee_at = timezone.now()
+    invoice.save(update_fields=['assigned_employee', 'assigned_employee_at'])
+    return JsonResponse({
+        'ok': True,
+        'reassigned': was_assigned,
+        'employee': {'id': employee.id, 'name': employee.name},
+    })

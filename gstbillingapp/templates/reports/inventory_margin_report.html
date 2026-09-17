@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+{% load money %}
+
+{% block title %}Inventory Margin Report · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* Filter controls */
+.gs .imr-filters{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
+.gs .imr-filters label{font-weight:600;font-size:13px;color:var(--soft);white-space:nowrap}
+.gs .imr-filters select{font-weight:600;font-size:13px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.gs .imr-filters select:focus{border-color:var(--brand);outline:none;box-shadow:0 0 0 2px var(--bluebg)}
+.gs .imr-check{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:13px;color:var(--soft);cursor:pointer}
+.gs .imr-check input{width:17px;height:17px;cursor:pointer;accent-color:var(--brand)}
+/* Positive / negative money */
+.gs .num.pos{color:var(--green)} .gs .num.neg{color:var(--red)}
+/* Total row */
+.gs table.gt tr.total-row td{font-weight:700;background:var(--wash);border-top:2px solid var(--line2)}
+.gs table.gt td.rk{font-family:var(--disp);font-weight:700;color:var(--faint);text-align:center;width:44px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Inventory</div>
+            <h1 class="disp">Inventory Margin Report</h1>
+            <div class="sub">Per-product profit from sale rate vs purchase rate, valued on current stock — as of {{ report_date|date:"d M Y" }}</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'inventory_dashboard' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Back to Inventory</a>
+            <button type="button" class="gbtn" onclick="printReport()"><i class="fas fa-print"></i> Print</button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="statgrid">
+        <div class="stat"><span class="si s"><i class="fas fa-boxes-stacked"></i></span>
+            <div><div class="sv">{{ total_products }}</div><div class="sk">Products</div></div></div>
+        <div class="stat"><span class="si b"><i class="fas fa-tags"></i></span>
+            <div><div class="sv">&#8377; {{ total_stock_value|inrs }}</div><div class="sk">Stock Value (Sale)</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-cart-shopping"></i></span>
+            <div><div class="sv">&#8377; {{ total_purchase_value|inrs }}</div><div class="sk">Stock Value (Purchase)</div></div></div>
+        <div class="stat"><span class="si {% if total_profit >= 0 %}g{% else %}r{% endif %}"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ total_profit|inrs }}</div><div class="sk">Total Profit</div></div></div>
+        <div class="stat"><span class="si {% if avg_margin >= 0 %}v{% else %}r{% endif %}"><i class="fas fa-percent"></i></span>
+            <div><div class="sv">{{ avg_margin }}%</div><div class="sk">Avg Margin</div></div></div>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="imr-filters" id="filterForm">
+        <label for="sortSelect"><i class="fas fa-sort"></i> Sort</label>
+        <select id="sortSelect" name="sort" onchange="document.getElementById('filterForm').submit()">
+            <option value="profit_total_desc" {% if sort_by == 'profit_total_desc' %}selected{% endif %}>Total Profit (High-Low)</option>
+            <option value="profit_total_asc" {% if sort_by == 'profit_total_asc' %}selected{% endif %}>Total Profit (Low-High)</option>
+            <option value="profit_unit_desc" {% if sort_by == 'profit_unit_desc' %}selected{% endif %}>Profit/Unit (High-Low)</option>
+            <option value="profit_unit_asc" {% if sort_by == 'profit_unit_asc' %}selected{% endif %}>Profit/Unit (Low-High)</option>
+            <option value="margin_desc" {% if sort_by == 'margin_desc' %}selected{% endif %}>Margin % (High-Low)</option>
+            <option value="margin_asc" {% if sort_by == 'margin_asc' %}selected{% endif %}>Margin % (Low-High)</option>
+            <option value="stock_desc" {% if sort_by == 'stock_desc' %}selected{% endif %}>Stock (High-Low)</option>
+            <option value="stock_asc" {% if sort_by == 'stock_asc' %}selected{% endif %}>Stock (Low-High)</option>
+            <option value="sale_rate_desc" {% if sort_by == 'sale_rate_desc' %}selected{% endif %}>Sale Rate (High-Low)</option>
+            <option value="sale_rate_asc" {% if sort_by == 'sale_rate_asc' %}selected{% endif %}>Sale Rate (Low-High)</option>
+            <option value="purchase_rate_desc" {% if sort_by == 'purchase_rate_desc' %}selected{% endif %}>Purchase Rate (High-Low)</option>
+            <option value="purchase_rate_asc" {% if sort_by == 'purchase_rate_asc' %}selected{% endif %}>Purchase Rate (Low-High)</option>
+            <option value="model_no_asc" {% if sort_by == 'model_no_asc' %}selected{% endif %}>Model No (A-Z)</option>
+            <option value="model_no_desc" {% if sort_by == 'model_no_desc' %}selected{% endif %}>Model No (Z-A)</option>
+            <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>Name (A-Z)</option>
+            <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>Name (Z-A)</option>
+        </select>
+
+        <input type="hidden" name="hide_zero" value="0">
+        <label class="imr-check" for="hideZero">
+            <input type="checkbox" id="hideZero" name="hide_zero" value="1" {% if hide_zero == '1' %}checked{% endif %} onchange="document.getElementById('filterForm').submit()">
+            Only Positive Stock
+        </label>
+
+        <a href="{% url 'inventory_margin_report' %}" class="gbtn"><i class="fas fa-rotate-left"></i> Reset</a>
+    </form>
+
+    <div class="rsec"><i class="fas fa-table"></i> Product Profit Analysis</div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="txnTable">
+            <thead><tr>
+                <th class="rk">#</th>
+                <th>Model No</th>
+                <th>Product Name</th>
+                <th class="r">Stock</th>
+                <th class="r">Purchase Rate</th>
+                <th class="r">Sale Rate</th>
+                <th class="r">Profit/Unit</th>
+                <th class="r">Margin</th>
+                <th class="r">Total Profit</th>
+            </tr></thead>
+            <tbody>
+                {% for p in product_rows %}
+                <tr>
+                    <td class="rk">{{ forloop.counter }}</td>
+                    <td><strong>{{ p.model_no }}</strong></td>
+                    <td><div class="prim"><span class="pi">{{ p.name|initials }}</span><span class="nm">{{ p.name }}</span></div></td>
+                    <td class="r"><span class="num">{{ p.current_stock|intcomma }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ p.purchase_rate|inrs }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ p.sale_rate|inrs }}</span></td>
+                    <td class="r {% if p.profit_unit >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
+                        <span class="num {% if p.profit_unit >= 0 %}pos{% else %}neg{% endif %}">&#8377; {{ p.profit_unit|inrs }}</span>
+                    </td>
+                    <td class="r">
+                        <span class="gbadge {% if p.margin >= 0 %}ok{% else %}out{% endif %}">{{ p.margin }}%</span>
+                    </td>
+                    <td class="r {% if p.profit_total >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
+                        <span class="num {% if p.profit_total >= 0 %}pos{% else %}neg{% endif %}">&#8377; {{ p.profit_total|inrs }}</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="9"><div class="empty">
+                    <div class="ei"><i class="fas fa-inbox fa-lg"></i></div>
+                    <h3>No products found</h3>
+                    <p>No products match the current filter.</p>
+                </div></td></tr>
+                {% endfor %}
+
+                {% if product_rows %}
+                <tr class="total-row">
+                    <td></td>
+                    <td colspan="7"><strong>TOTAL ({{ total_products }} products)</strong></td>
+                    <td class="r {% if total_profit >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
+                        <span class="num {% if total_profit >= 0 %}pos{% else %}neg{% endif %}">&#8377; {{ total_profit|inrs }}</span>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+function printReport() {
+    var table = document.getElementById('txnTable');
+    if (!table) return;
+    var clone = table.cloneNode(true);
+
+    var bizName   = '{{ user_profile.business_title|escapejs }}';
+    var bizAddr   = '{{ user_profile.business_address|escapejs }}';
+    var bizPhone  = '{{ user_profile.business_phone|escapejs }}';
+    var bizGst    = '{{ user_profile.business_gst|escapejs }}';
+    var rptDate   = '{{ report_date|date:"d M Y" }}';
+
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>Inventory Margin Report</title>');
+    win.document.write('<style>');
+    win.document.write('@page{size:A4 landscape;margin:10mm;}');
+    win.document.write('body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:10px;color:#333;}');
+    win.document.write('.print-header{text-align:center;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px;}');
+    win.document.write('.print-header h1{margin:0 0 2px;font-size:1.4rem;text-transform:uppercase;letter-spacing:.04em;}');
+    win.document.write('.print-header .addr{margin:0;font-size:.82rem;color:#555;}');
+    win.document.write('.print-header .contact{margin:4px 0 0;font-size:.82rem;color:#555;}');
+    win.document.write('.sub-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:.85rem;}');
+    win.document.write('table{width:100%;border-collapse:collapse;font-size:.82rem;}');
+    win.document.write('th,td{border:1px solid #aaa;padding:5px 8px;}');
+    win.document.write('th{background:#343a40;color:#fff;font-size:.75rem;text-transform:uppercase;}');
+    win.document.write('td:first-child{text-align:center;width:35px;}');
+    win.document.write('tr:nth-child(even){background:#f9f9f9;}');
+    win.document.write('.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
+    win.document.write('.pi{display:none;}');
+    win.document.write('.font-weight-bold{font-weight:700;}');
+    win.document.write('.profit-positive{color:#28a745;}.profit-negative{color:#dc3545;}');
+    win.document.write('.print-footer{text-align:center;margin-top:20px;font-size:.72rem;color:#999;border-top:1px solid #ccc;padding-top:6px;}');
+    win.document.write('@media print{@page{size:A4 landscape;margin:10mm;}body{margin:0;padding:8px;}}');
+    win.document.write('</style></head><body>');
+
+    win.document.write('<div class="print-header">');
+    win.document.write('<h1>' + bizName + '</h1>');
+    if (bizAddr) win.document.write('<p class="addr">' + bizAddr + '</p>');
+    var contactParts = [];
+    if (bizPhone) contactParts.push('Phone: ' + bizPhone);
+    if (bizGst) contactParts.push('GST: ' + bizGst);
+    if (contactParts.length) win.document.write('<p class="contact">' + contactParts.join('  |  ') + '</p>');
+    win.document.write('</div>');
+
+    win.document.write('<div class="sub-header">');
+    win.document.write('<div><strong>Inventory Margin Report</strong></div>');
+    win.document.write('<div>Date: <strong>' + rptDate + '</strong></div>');
+    win.document.write('</div>');
+
+    win.document.write(clone.outerHTML);
+
+    win.document.write('<div class="print-footer">This is a computer-generated report. &mdash; ' + bizName + '</div>');
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 300);
+}
+</script>
+{% endblock %}

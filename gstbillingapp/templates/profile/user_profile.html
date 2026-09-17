@@ -1,123 +1,332 @@
 {% extends "base.html" %}
-
 {% load static %}
 
+{% block title %}Business Profile · GSTSync{% endblock %}
+
+{% block includecss %}
+<style>
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);overflow:hidden;margin-bottom:16px}
+.pcard-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--wash)}
+.pcard-head .pchip{width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+.pcard-head .pchip.b{background:var(--bluebg);color:var(--brand)} .pcard-head .pchip.g{background:var(--greenbg);color:var(--green)} .pcard-head .pchip.o{background:var(--amberbg);color:var(--amber)}
+.pcard-head h3{font-family:var(--disp);font-size:15px;font-weight:700;margin:0;color:var(--ink)}
+.pcard-head .sd{font-size:12px;color:var(--faint)}
+.pcard-body{padding:6px 18px 14px}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
+.pgrid .pf{padding:11px 0;border-bottom:1px solid var(--line2)}
+.pgrid .pf.full{grid-column:1/-1}
+.pgrid .pl{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin-bottom:3px}
+.pgrid .pv{font-size:14px;color:var(--ink);font-weight:500;word-break:break-word}
+.pgrid .pv.mono{font-family:var(--disp);letter-spacing:.3px}
+.pgrid .pv .na{color:var(--faint);font-weight:400}
+@media (max-width:640px){.pgrid{grid-template-columns:1fr}}
+/* Devices & activity */
+.dev-list{display:flex;flex-direction:column}
+.dev-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line2)}
+.dev-row:last-child{border-bottom:0}
+.dev-dot{width:10px;height:10px;border-radius:50%;flex:none;background:#cbd5e1;box-shadow:0 0 0 3px #f1f5f9}
+.dev-dot.on{background:#16a34a;box-shadow:0 0 0 3px #dcfce7}
+.dev-main{min-width:0;flex:1}
+.dev-name{font-size:14px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dev-you{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--brand);background:var(--bluebg);padding:2px 7px;border-radius:999px}
+.dev-ua{font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.dev-meta{text-align:right;flex:none}
+.dev-status{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+.dev-status.on{color:var(--green)} .dev-status.off{color:var(--faint)}
+.dev-seen{font-size:12px;color:var(--ink2,#475569);margin-top:2px}
+.dev-first{font-size:11px;color:var(--faint)}
+@media (max-width:520px){.dev-ua{max-width:150px}}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="row">
-        <div class="col-12 col-md-8 mx-auto">
-            <!-- Profile Card -->
-            <div class="card shadow-lg">
-                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">Business Profile</h4>
-					<div>
-						<a href="{% url 'user_profile_edit' %}" class="btn btn-light btn-sm"><b><i class="fas fa-pen-to-square"></i></b></a>
-                    	<a href="{% url 'logout_view' %}" class="btn btn-light btn-sm"><b><i class="fas fa-right-from-bracket"></i></b></a>
-                    	<a href="{% url 'download_sqlite' %}" class="btn btn-light btn-sm"><b><i class="fas fa-download"></i></b></a>
-					</div>
+<div class="gs gs-pad">
+    <div class="formwrap">
+
+        <div class="page-head">
+            <div>
+                <div class="eyebrow">Settings › Profile</div>
+                <h1 class="disp">Business Profile</h1>
+                <div class="sub">{{ user_profile.business_brand|default:user_profile.business_title }}</div>
+            </div>
+            <div class="actions">
+                <a href="{% url 'user_profile_edit' %}" class="gbtn"><i class="fas fa-pen-to-square"></i> Edit</a>
+                <button type="button" class="gbtn" onclick="changePassword()"><i class="fas fa-key"></i> Change password</button>
+                <a href="{% url 'download_sqlite' %}" class="gbtn"><i class="fas fa-download"></i> Backup</a>
+                <a href="{% url 'logout_view' %}" class="gbtn gbtn-danger"><i class="fas fa-right-from-bracket"></i> Logout</a>
+            </div>
+        </div>
+
+        <!-- Business details -->
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip b"><i class="fas fa-building"></i></span>
+                <div><h3>Business details</h3><div class="sd">Identity, contact &amp; tax</div></div></div>
+            <div class="pcard-body"><div class="pgrid">
+                <div class="pf"><div class="pl">Name</div><div class="pv">{{ user_profile.business_title|default:"—" }}</div></div>
+                <div class="pf"><div class="pl">Brand</div><div class="pv">{% if user_profile.business_brand %}{{ user_profile.business_brand }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf full"><div class="pl">Address</div><div class="pv">{% if user_profile.business_address %}{{ user_profile.business_address }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf"><div class="pl">Email</div><div class="pv">{% if user_profile.business_email %}{{ user_profile.business_email }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf"><div class="pl">Phone</div><div class="pv">{% if user_profile.business_phone %}{{ user_profile.business_phone }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf"><div class="pl">GST Number</div><div class="pv mono">{% if user_profile.business_gst %}{{ user_profile.business_gst }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+                <div class="pf"><div class="pl">Location</div><div class="pv mono">{% if user_profile.business_latitude and user_profile.business_longitude %}{{ user_profile.business_latitude }}, {{ user_profile.business_longitude }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
+            </div></div>
+        </div>
+
+        <!-- Bank & payments -->
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip g"><i class="fas fa-landmark"></i></span>
+                <div><h3>Bank &amp; payments</h3><div class="sd">Account &amp; UPI collection</div></div></div>
+            <div class="pcard-body">
+                <style>
+                    /* Bank on the left, the SyncUp app on the right; stacked on narrow screens. */
+                    .pbank{display:grid;grid-template-columns:1fr;gap:20px}
+                    @media(min-width:900px){.pbank.two{grid-template-columns:1fr 1fr}.pbank.two .papp{border-left:1px solid var(--line);padding-left:22px}}
+                </style>
+                <div class="pbank{% if SYNCUP_APP.url %} two{% endif %}">
+                <div>
+                <div class="pgrid">
+                    <div class="pf full"><div class="pl">Bank Detail</div><div class="pv">{% if user_profile.bankdetails %}{{ user_profile.bankdetails }}{% else %}<span class="na">Not set</span>{% endif %}</div></div>
                 </div>
-                <div class="card-body">
-                    <table class="table table-bordered table-striped">
-                        <tbody>
-                            <tr>
-                                <th scope="row" class="text-right" style="min-width: 150px;">Name:</th>
-                                <td>{{ user_profile.business_title }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Address:</th>
-                                <td>{% if user_profile.business_address %}{{ user_profile.business_address }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Email:</th>
-                                <td>{% if user_profile.business_email %}{{ user_profile.business_email }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Phone:</th>
-                                <td>{% if user_profile.business_phone %}{{ user_profile.business_phone }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">GST:</th>
-                                <td>{% if user_profile.business_gst %}{{ user_profile.business_gst }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Brand:</th>
-                                <td>{% if user_profile.business_brand %}{{ user_profile.business_brand }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">UserID:</th>
-                                <td style="color: green;">{{ user_profile.business_uid }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Latitude:</th>
-                                <td>{% if user_profile.business_latitude %}{{ user_profile.business_latitude }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Longitude:</th>
-                                <td>{% if user_profile.business_longitude %}{{ user_profile.business_longitude }}{% else %}<span style="color:red;">N/A</span>{% endif %}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="text-right">Bank Detail:</th>
-                                <td>
-                                    {% if user_profile.bankdetails %}
-                                        {{ user_profile.bankdetails }}
-                                    {% else %}
-                                        <span style="color:red;">N/A</span>
-                                    {% endif %}
-                                    <!-- UPI QR Code -->
-                                    {% if user_profile.bankdetails.upi_id %}
-                                        <br>
-                                        <div id="upi_qr" style="margin-top: 10px;" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}"></div>
-                                        <strong>UPI ID:</strong> {{ user_profile.bankdetails.upi_id }}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% if user_profile.business_latitude and user_profile.business_longitude %}
-                            <tr>
-                                <th colspan="2">
-                                    <div id="map" style="height: 250px;width: 100%;"></div>
-                                </th>
-                            </tr>
-                            {% endif %}
-                            </tr>
-                        </tbody>
-                    </table>
+                {% if user_profile.bankdetails.upi_id %}
+                <div style="display:flex;gap:18px;align-items:center;margin-top:14px;flex-wrap:wrap">
+                    <div id="upi_qr" data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}" title="Click to enlarge" style="background:#fff;padding:8px;border:1px solid var(--line);border-radius:12px;line-height:0;cursor:zoom-in"></div>
+                    <div><div class="pl">UPI ID</div><div class="pv mono">{{ user_profile.bankdetails.upi_id }}</div><div class="mut" style="font-size:11.5px;margin-top:3px">Click the code to enlarge &amp; scan to pay this business</div></div>
+                </div>
+                {% endif %}
+                </div>
+                {% if SYNCUP_APP.url %}
+                <div class="papp">
+                    <div class="pl">SyncUp app</div>
+                    <div style="display:flex;gap:18px;align-items:center;margin-top:8px;flex-wrap:wrap">
+                        <div data-qr="{{ SYNCUP_APP.business }}" data-qr-size="116" title="Scan to open SyncUp on Google Play" style="background:#fff;padding:8px;border:1px solid var(--line);border-radius:12px;line-height:0"></div>
+                        <div>
+                            <div class="pv">Your customers and staff use <b>SyncUp</b> on their phones.</div>
+                            <div class="mut" style="font-size:11.5px;margin-top:3px">Scan the code to open it on Google Play.</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+                                {% if SYNCUP_APP.badge %}
+                                <a href="{{ SYNCUP_APP.business }}" target="_blank" rel="noopener"><img src="{{ SYNCUP_APP.badge }}" alt="Get it on Google Play" style="height:40px;width:auto"></a>
+                                {% else %}
+                                <a class="gbtn" href="{{ SYNCUP_APP.business }}" target="_blank" rel="noopener"><i class="fas fa-mobile-screen-button"></i> Open in Google Play</a>
+                                {% endif %}
+                                {% if SYNCUP_APP.share_wa %}<a class="gbtn" href="{{ SYNCUP_APP.share_wa }}" target="_blank" rel="noopener"><i class="fas fa-share-nodes"></i> Share on WhatsApp</a>{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if SYNCUP_APP.badge %}<div class="mut" style="font-size:10.5px;margin-top:10px">Google Play and the Google Play logo are trademarks of Google LLC.</div>{% endif %}
+                </div>
+                {% endif %}
                 </div>
             </div>
         </div>
+
+        <!-- Telegram login notifications (only when we've allowed them for this business) -->
+        {% if login_alerts %}
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip b"><i class="fab fa-telegram"></i></span>
+                <div><h3>Login notifications</h3>
+                    <div class="sd">A Telegram message when someone signs in to your business</div></div></div>
+            <div class="pcard-body">
+                <form method="post" action="{% url 'telegram_login_alerts' %}">
+                    {% csrf_token %}
+                    <div class="pl" style="margin-bottom:6px">Tell me about</div>
+                    <label class="small" style="display:block;margin:0 0 6px">
+                        <input type="checkbox" name="desktop" value="1" {% if login_alerts.desktop %}checked{% endif %}>
+                        <b>Desktop</b> — you signing in to GSTSync on a computer</label>
+                    <label class="small" style="display:block;margin:0 0 14px">
+                        <input type="checkbox" name="mobile" value="1" {% if login_alerts.mobile %}checked{% endif %}>
+                        <b>Mobile</b> — your customers and employees opening the SyncUp app</label>
+
+                    <div class="pl" style="margin-bottom:6px">Send it to</div>
+                    {% for c in login_alerts.chats %}
+                    <label class="small" style="display:block;margin:0 0 6px">
+                        <input type="checkbox" name="chats" value="{{ c.id }}" {% if c.on %}checked{% endif %}> {{ c.name }}</label>
+                    {% empty %}
+                    <div class="mut" style="font-size:12.5px">No Telegram group is set up for you yet — ask us to add one.</div>
+                    {% endfor %}
+
+                    <div class="mut" style="font-size:11.5px;margin:10px 0 12px">
+                        Each message says who signed in, at what time and on what device. Opening
+                        the app counts once per visit, and your own console sign-ins are never sent.
+                    </div>
+                    <button class="gbtn gbtn-primary" type="submit"><i class="fas fa-check"></i> Save</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Location map -->
+        {% if user_profile.business_latitude and user_profile.business_longitude %}
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip o"><i class="fas fa-location-dot"></i></span>
+                <div><h3>Location</h3><div class="sd">Registered business location</div></div></div>
+            <div id="map" style="height:380px"></div>
+        </div>
+        {% endif %}
+
+        <!-- Devices & activity -->
+        <div class="pcard">
+            <div class="pcard-head"><span class="pchip b"><i class="fas fa-desktop"></i></span>
+                <div><h3>Devices &amp; activity</h3>
+                    <div class="sd"><b id="dev-online-count">{{ devices_online }}</b> online now ·
+                        <span id="dev-total-count">{{ devices|length }}</span> known device{{ devices|length|pluralize }}</div></div></div>
+            <div class="pcard-body">
+                <div id="device-list" class="dev-list">
+                    {% for d in devices %}
+                    <div class="dev-row">
+                        <span class="dev-dot {% if d.online %}on{% endif %}"></span>
+                        <div class="dev-main">
+                            <div class="dev-name">{{ d.name }}{% if d.token == this_device_token %} <span class="dev-you">This device</span>{% endif %}</div>
+                            <div class="dev-ua">{{ d.user_agent|default:"Unknown user agent" }}</div>
+                        </div>
+                        <div class="dev-meta">
+                            <span class="dev-status {% if d.online %}on{% else %}off{% endif %}">{% if d.online %}Online{% else %}Offline{% endif %}</span>
+                            <div class="dev-seen">{% if d.online %}Active now{% else %}Last seen {{ d.last_seen }}{% endif %}</div>
+                            <div class="dev-first">Since {{ d.first_seen }}</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="mut">No device activity recorded yet.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 {% endblock %}
+
 {% block includejs %}
+<script>
+// Change password — new password only (the user is already signed in). Session is
+// kept alive server-side, so no re-login is needed.
+function changePassword(){
+  Swal.fire({
+    title: 'Change password',
+    html: '<input id="np" type="password" class="swal2-input" placeholder="New password" autocomplete="new-password">'
+        + '<input id="cp" type="password" class="swal2-input" placeholder="Confirm new password" autocomplete="new-password">'
+        + '<label style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:10px;font-size:13.5px;color:#475569;cursor:pointer">'
+        + '<input type="checkbox" id="showpw" style="width:16px;height:16px;cursor:pointer"> Show password</label>',
+    focusConfirm: false, showCancelButton: true, confirmButtonText: 'Update password', confirmButtonColor: '#2563eb',
+    didOpen: function(){
+      var box = document.getElementById('showpw');
+      box.addEventListener('change', function(){
+        var t = box.checked ? 'text' : 'password';
+        document.getElementById('np').type = t;
+        document.getElementById('cp').type = t;
+      });
+    },
+    preConfirm: function(){
+      var np = document.getElementById('np').value;
+      var cp = document.getElementById('cp').value;
+      if(!np || np.length < 4){ Swal.showValidationMessage('Password must be at least 4 characters'); return false; }
+      if(np !== cp){ Swal.showValidationMessage('The two passwords do not match'); return false; }
+      return {np: np, cp: cp};
+    }
+  }).then(function(r){
+    if(!r.isConfirmed) return;
+    var csrf = (document.querySelector('meta[name=csrf-token]')||{}).content || '';
+    var body = new URLSearchParams();
+    body.set('new_password', r.value.np); body.set('confirm_password', r.value.cp);
+    fetch("{% url 'change_password' %}", {method:'POST', headers:{'X-CSRFToken': csrf, 'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString()})
+      .then(function(res){ return res.json().then(function(d){ return {ok: res.ok, d: d}; }); })
+      .then(function(o){
+        if(o.ok){ Swal.fire('Done', o.d.message || 'Password updated.', 'success'); }
+        else { Swal.fire('Could not update', o.d.error || 'Please try again.', 'error'); }
+      })
+      .catch(function(){ Swal.fire('Error', 'Could not update password. Please try again.', 'error'); });
+  });
+}
+</script>
+{% if user_profile.business_latitude and user_profile.business_longitude %}
 <script>
     var latitude = {{ user_profile.business_latitude }};
     var longitude = {{ user_profile.business_longitude }};
-    var name = "{{ user_profile.business_title }}";
-
-    var map = L.map('map').setView([latitude, longitude], 20);
-
-    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: '&copy; <a href="https://www.esri.com/en-us/arcgis/about-arcgis/overview">Esri</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    });
-
-    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    });
-
-    satelliteLayer.addTo(map);
-
-    L.marker([latitude, longitude]).addTo(map)
-        .bindTooltip(name, {permanent: true, offset: [0, -15], direction: 'top'})
-        .openPopup();
+    var map = L.map('map').setView([latitude, longitude], 13);
+    gstMapLayers(map);
+    L.marker([latitude, longitude]).addTo(map);
+    let locateControl = L.control({ position: 'topleft' });
+    locateControl.onAdd = function(map) {
+        let div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+        div.style.cssText = 'background:#fff;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center';
+        div.title = "Business location"; div.innerHTML = '📍';
+        div.onclick = function(e) { e.stopPropagation(); map.setView([latitude, longitude], 15, { animate: true }); };
+        return div;
+    };
+    locateControl.addTo(map);
+    setTimeout(function(){ map.invalidateSize(); }, 200);
 </script>
+{% endif %}
+{% if user_profile.bankdetails.upi_id %}
 <script>
-    const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
-    const qr = new QRCodeStyling({
-        width: 100,
-        height: 100,
-        data: upiQR,
-        dotsOptions: { color: "#000", type: "rounded" }
-    });
+    (function(){
+        var el = document.getElementById("upi_qr");
+        if (!el) return;
+        var data = el.getAttribute("data-upi_id");
+        var upiId = "{{ user_profile.bankdetails.upi_id|escapejs }}";
+        var qr = new QRCodeStyling({ width: 116, height: 116, data: data, dotsOptions: { color: "#0f172a", type: "rounded" } });
+        qr.append(el);
+        el.addEventListener("click", function(){
+            Swal.fire({
+                width: 380,
+                html: '<div style="font-family:var(--disp,inherit);font-weight:700;font-size:16px;margin-bottom:12px;color:#0f172a">Scan to pay</div>'
+                    + '<div id="upi_qr_big" style="display:flex;justify-content:center;line-height:0"></div>'
+                    + '<div style="margin-top:14px;font-size:14px;color:#334155;word-break:break-all">' + upiId + '</div>'
+                    + '<div style="font-size:12px;color:#94a3b8;margin-top:4px">Open any UPI app and scan this code</div>',
+                showConfirmButton: false, showCloseButton: true,
+                didOpen: function(){
+                    var big = new QRCodeStyling({ width: 300, height: 300, data: data, dotsOptions: { color: "#0f172a", type: "rounded" } });
+                    big.append(document.getElementById("upi_qr_big"));
+                }
+            });
+        });
+    })();
+</script>
+{% endif %}
 
-    qr.append(document.getElementById("upi_qr"));
+<script>
+// Live-refresh the Devices & activity list (online/offline + last seen).
+(function(){
+  var listEl = document.getElementById('device-list');
+  if(!listEl) return;
+  var LIST_URL = "{% url 'presence_list' %}";
+  var csrf = (document.querySelector('meta[name=csrf-token]')||{}).content || '';
+  var myTok = '';
+  try { myTok = localStorage.getItem('gs_device_id') || ''; } catch(e){}
+
+  function esc(s){ var d=document.createElement('div'); d.textContent = (s==null?'':s); return d.innerHTML; }
+
+  function rowHtml(d){
+    var you = (d.token && d.token === myTok) ? ' <span class="dev-you">This device</span>' : '';
+    var seen = d.online ? 'Active now' : ('Last seen ' + esc(d.last_seen));
+    return '<div class="dev-row">'
+      + '<span class="dev-dot '+(d.online?'on':'')+'"></span>'
+      + '<div class="dev-main"><div class="dev-name">'+esc(d.name)+you+'</div>'
+      + '<div class="dev-ua">'+esc(d.user_agent||'Unknown user agent')+'</div></div>'
+      + '<div class="dev-meta"><span class="dev-status '+(d.online?'on':'off')+'">'+(d.online?'Online':'Offline')+'</span>'
+      + '<div class="dev-seen">'+seen+'</div>'
+      + '<div class="dev-first">Since '+esc(d.first_seen)+'</div></div>'
+      + '</div>';
+  }
+
+  function refresh(){
+    fetch(LIST_URL, {method:'POST', headers:{'X-CSRFToken': csrf, 'Content-Type':'application/x-www-form-urlencoded'}, body:''})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(!d || !d.devices) return;
+        var oc = document.getElementById('dev-online-count'); if(oc) oc.textContent = d.count;
+        var tc = document.getElementById('dev-total-count'); if(tc) tc.textContent = d.devices.length;
+        listEl.innerHTML = d.devices.length ? d.devices.map(rowHtml).join('')
+          : '<div class="mut">No device activity recorded yet.</div>';
+      }).catch(function(){});
+  }
+
+  setTimeout(refresh, 1500);   // corrects "This device" + freshens shortly after load
+  setInterval(refresh, 20000);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') refresh(); });
+})();
 </script>
 {% endblock %}
+
+{% block head_libs %}{% include "partials/libs/leaflet_head.html" %}{% endblock %}
+
+{% block body_libs %}{% include "partials/libs/leaflet_body.html" %}{% include "partials/libs/qr_body.html" %}{% if SYNCUP_APP.url %}{% include "partials/app_qr.html" %}{% endif %}{% endblock %}

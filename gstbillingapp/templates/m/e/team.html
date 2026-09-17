@@ -1,0 +1,30 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Team{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Manage</a>{% endblock %}
+{% block heading %}Team{% endblock %}
+{% block content %}
+
+{% if rows %}
+<div class="list">
+    {% for r in rows %}
+    <a class="row" href="{% url 'm_manage_team_member' r.id %}" style="color:inherit">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-user"/></svg></span>
+            <span style="min-width:0">
+                <span class="b">{{ r.name }}</span>
+                <div class="sub">
+                    {% if r.is_admin %}Admin{% else %}Staff{% endif %}{% if not r.is_home %} · Shared{% endif %}{% if r.salary %} · ₹ {{ r.salary }}/mo{% endif %}
+                </div>
+            </span>
+        </span>
+        {% if r.eligible %}<span class="badge b-green">Payroll</span>{% else %}<span class="badge b-grey">No payroll</span>{% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-people"/></svg><div>No staff yet. Add employees on the desktop.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

@@ -1,0 +1,9 @@
+{% for r in rows %}
+<div class="row">
+    <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+        <span class="ico ic-{{ r.color }}"><svg class="i"><use href="#ic-book"/></svg></span>
+        <span style="min-width:0"><span class="b">{{ r.vendor }}</span><div class="sub">{{ r.type }} · {{ r.date|date:"d M Y" }}{% if r.reference %} · {{ r.reference }}{% endif %}</div></span>
+    </span>
+    <span class="right" style="white-space:nowrap"><div class="b tabnum">&#8377; {{ r.amount }}</div><span class="badge b-{{ r.color }}">{{ r.type }}</span></span>
+</div>
+{% endfor %}

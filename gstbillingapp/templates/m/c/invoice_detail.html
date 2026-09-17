@@ -1,0 +1,57 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block title %}Invoice{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_customer_invoices' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Invoices</a>{% endblock %}
+{% block heading %}Invoice {% if inv.is_gst %}#{{ inv.invoice_number }}{% else %}INV-{{ inv.invoice_number }}{% endif %}{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <div class="between">
+        <div style="min-width:0">
+            <div class="b" style="font-size:16px">{{ profile.business_title|default:"" }}</div>
+            <div class="sub">{{ inv.invoice_date|date:"d M Y" }}</div>
+        </div>
+        <div class="right" style="flex:none">
+            <div class="sub">Total</div>
+            <div class="b" style="font-size:18px;white-space:nowrap">&#8377; {{ d.invoice_total_amt_with_gst|inr }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="list">
+    {% for it in d.items %}
+    <div class="row">
+        <span class="lbl" style="min-width:0">
+            <span style="min-width:0">
+                <span class="b">{% firstof it.invoice_product it.invoice_model_no "Item" %}</span>
+                <div class="sub">{% if it.invoice_model_no %}{{ it.invoice_model_no }} · {% endif %}Qty {{ it.invoice_qty }}</div>
+            </span>
+        </span>
+        <span class="b tabnum" style="white-space:nowrap">&#8377; {{ it.invoice_amt_with_gst|inr }}</span>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="panel">
+    <div class="between sm"><span class="muted">Taxable</span><span class="tabnum">&#8377; {{ d.invoice_total_amt_without_gst|inr }}</span></div>
+    {% if d.igstcheck %}
+    <div class="between sm mt"><span class="muted">IGST</span><span class="tabnum">&#8377; {{ d.invoice_total_amt_igst|inr }}</span></div>
+    {% else %}
+    <div class="between sm mt"><span class="muted">CGST</span><span class="tabnum">&#8377; {{ d.invoice_total_amt_cgst|inr }}</span></div>
+    <div class="between sm mt"><span class="muted">SGST</span><span class="tabnum">&#8377; {{ d.invoice_total_amt_sgst|inr }}</span></div>
+    {% endif %}
+    <div class="between mt" style="border-top:1px solid var(--line);padding-top:10px">
+        <span class="b">Grand total</span><span class="b tabnum" style="font-size:17px">&#8377; {{ d.invoice_total_amt_with_gst|inr }}</span>
+    </div>
+</div>
+
+{% if profile.business_phone %}
+<button class="btn btn-green" onclick="shareInv()"><svg class="i" style="stroke:#fff"><use href="#ic-message"/></svg> Message</button>
+<script>
+function shareInv(){ M.sms("{{ profile.business_phone|escapejs }}",
+    "Regarding Invoice {% if inv.is_gst %}#{{ inv.invoice_number }}{% else %}INV-{{ inv.invoice_number }}{% endif %} dated {{ inv.invoice_date|date:'d-m-Y' }}, total {{ d.invoice_total_amt_with_gst|inr }} — {{ profile.business_brand|default:profile.business_title|escapejs }}."); }
+</script>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_customer.html" with active="invoices" %}{% endblock %}

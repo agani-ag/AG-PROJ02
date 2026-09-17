@@ -1,181 +1,1717 @@
-from django.http import HttpResponse
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import mm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from datetime import date, timedelta
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Sum, Count, Avg, F, Q, Case, When, FloatField, Min, Max
+from django.db.models.functions import ExtractMonth, ExtractYear
+from datetime import date, datetime, timedelta
 import json
 import calendar
 
-from ..models import UserProfile, Customer, Invoice
+from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
 
-
-from django.http import HttpResponse
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import (
-    SimpleDocTemplate, Table, TableStyle,
-    Paragraph, Spacer
+from ..models import (
+    UserProfile, Customer, Invoice, Book, BookLog,
+    Product, ProductCategory, Inventory, InventoryLog
 )
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.units import mm
-
-from ..models import Book, BookLog, Customer, UserProfile
+from ..templatetags.money import format_inr_smart
 
 
-def sales_report_pdf(request):
+@login_required
+def bi_dashboard(request):
+    """Business Cockpit — a simple, plain-language snapshot of Customers & Products.
+
+    KPIs + auto-insights only (no charts). Every number links to the detailed report.
+    """
     user = request.user
-    user_profile = UserProfile.objects.get(user=user)
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
 
-    customers = Customer.objects.filter(user=user).order_by("customer_name")
+    # ----- Period selector (kept deliberately simple) -----
+    period = request.GET.get('period', 'month')
+    if period == 'year':
+        start = today.replace(month=1, day=1)
+        period_label = 'This year'
+    elif period == 'all':
+        start = None
+        period_label = 'All time'
+    else:
+        period = 'month'
+        start = today.replace(day=1)
+        period_label = 'This month'
 
-    elements = []
-    styles = getSampleStyleSheet()
+    # ============================ CUSTOMERS ============================
+    invoices = Invoice.objects.filter(user=user).select_related('invoice_customer')
+    period_invoices = invoices.filter(invoice_date__gte=start) if start else invoices
 
-    title_style = ParagraphStyle(
-        "Title", parent=styles["Heading1"],
-        alignment=1, fontSize=16
-    )
+    total_revenue = 0.0
+    orders = 0
+    cust_rev = {}            # customer_id -> {name, revenue, orders, id}
+    active_customer_ids = set()
+    for inv in period_invoices:
+        try:
+            data = json.loads(inv.invoice_json)
+            amt = abs(float(data.get('invoice_total_amt_with_gst', 0) or data.get('grand_total', 0) or 0))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            amt = 0
+        total_revenue += amt
+        orders += 1
+        cid = inv.invoice_customer_id
+        if cid:
+            active_customer_ids.add(cid)
+            e = cust_rev.setdefault(cid, {
+                'id': cid,
+                'name': inv.invoice_customer.customer_name if inv.invoice_customer else 'Unknown',
+                'revenue': 0.0, 'orders': 0,
+            })
+            e['revenue'] += amt
+            e['orders'] += 1
+    avg_order_value = round(total_revenue / orders, 2) if orders else 0
 
-    subtitle_style = ParagraphStyle(
-        "Sub", parent=styles["Normal"],
-        alignment=1, fontSize=10
-    )
+    # First & last invoice date per customer (one query each) -> new & quiet customers
+    first_dates = {r['invoice_customer']: r['first'] for r in
+                   invoices.exclude(invoice_customer__isnull=True)
+                           .values('invoice_customer').annotate(first=Min('invoice_date'))}
+    last_dates = {r['invoice_customer']: r['last'] for r in
+                  invoices.exclude(invoice_customer__isnull=True)
+                          .values('invoice_customer').annotate(last=Max('invoice_date'))}
+    new_customers = 0
+    if start:
+        new_customers = sum(1 for cid in active_customer_ids
+                            if first_dates.get(cid) and first_dates[cid] >= start)
+    quiet_cutoff = today - timedelta(days=90)
+    quiet_customers = sum(1 for cid, d in last_dates.items() if d and d < quiet_cutoff)
 
-    # ---------------- RESPONSE ---------------- #
-    response = HttpResponse(content_type="application/pdf")
-    response["Content-Disposition"] = 'attachment; filename="sales_report_till_now.pdf"'
+    # Outstanding now + payments in period (ledger)
+    books = Book.objects.filter(user=user).select_related('customer')
+    collected = 0.0
+    total_outstanding = 0.0
+    owe = []
+    for book in books:
+        logs = list(BookLog.objects.filter(parent_book=book, is_active=True))
+        purchased = sum(abs(l.change) for l in logs if l.change_type == 1)
+        paid = sum(abs(l.change) for l in logs if l.change_type == 0)
+        returned = sum(abs(l.change) for l in logs if l.change_type == 2)
+        other = sum(abs(l.change) for l in logs if l.change_type == 3)
+        outstanding = purchased - (paid + returned + other)
+        if outstanding > 0 and book.customer:
+            total_outstanding += outstanding
+            owe.append({'name': book.customer.customer_name, 'amount': round(outstanding, 2),
+                        'id': book.customer_id, 'book_id': book.id})
+        for l in logs:
+            if l.change_type == 0 and l.date:
+                d = l.date.date() if hasattr(l.date, 'date') else l.date
+                if start is None or d >= start:
+                    collected += abs(l.change)
 
-    doc = SimpleDocTemplate(
-        response,
-        pagesize=A4,
-        rightMargin=15 * mm,
-        leftMargin=15 * mm,
-        topMargin=20 * mm,
-        bottomMargin=20 * mm
-    )
+    top_customers = sorted(cust_rev.values(), key=lambda x: x['revenue'], reverse=True)[:5]
+    top_owe = sorted(owe, key=lambda x: x['amount'], reverse=True)[:5]
+    total_customers = Customer.objects.filter(user=user).count()
 
-    # ---------------- HEADER ---------------- #
-    elements.append(Paragraph(user_profile.business_title, title_style))
-    elements.append(Paragraph(user_profile.business_address, subtitle_style))
-    elements.append(
-        Paragraph(
-            f"Phone: {user_profile.business_phone} | GST: {user_profile.business_gst}",
-            subtitle_style
+    # ============================ PRODUCTS ============================
+    sales_logs = InventoryLog.objects.filter(user=user, change_type=4).select_related('product')
+    if start:
+        sales_logs = sales_logs.filter(date__date__gte=start)
+
+    prod = {}
+    for log in sales_logs:
+        p = log.product
+        if not p:
+            continue
+        qty = abs(log.change)
+        discount = p.product_discount or 0
+        gst = p.product_gst_percentage or 0
+        price = p.product_rate_with_gst or 0
+        sale_price = price * (1 - discount / 100) * (1 + gst / 100)
+        cost = p.product_purchase_rate or 0
+        e = prod.setdefault(p.id, {
+            'id': p.id, 'name': p.product_name or p.model_no, 'model': p.model_no,
+            'qty': 0, 'revenue': 0.0, 'cost': 0.0,
+        })
+        e['qty'] += qty
+        e['revenue'] += qty * sale_price
+        e['cost'] += qty * cost
+    for e in prod.values():
+        e['revenue'] = round(e['revenue'], 2)
+        e['profit'] = round(e['revenue'] - e['cost'], 2)
+
+    products_sold = list(prod.values())
+    top_products_rev = sorted(products_sold, key=lambda x: x['revenue'], reverse=True)[:5]
+    top_products_qty = sorted(products_sold, key=lambda x: x['qty'], reverse=True)[:5]
+    below_cost = [e for e in products_sold if e['profit'] < 0]
+    units_sold = sum(e['qty'] for e in products_sold)
+
+    # Low / out of stock (uses each product's alert level)
+    low_stock_list = []
+    for inv in Inventory.objects.filter(user=user).select_related('product'):
+        if inv.current_stock <= 0 or (inv.alert_level and inv.current_stock <= inv.alert_level):
+            low_stock_list.append({
+                'id': inv.id, 'name': (inv.product.product_name or inv.product.model_no) if inv.product else '—',
+                'stock': inv.current_stock, 'alert': inv.alert_level,
+            })
+    low_stock_list.sort(key=lambda x: x['stock'])
+
+    # ============================ INSIGHTS ============================
+    insights = []
+    if total_outstanding > 0:
+        insights.append({'tone': 'r', 'icon': 'fa-hand-holding-dollar',
+                         'text': '₹ %s is owed to you by %d customer%s' % (
+                             format_inr_smart(total_outstanding), len(owe), '' if len(owe) == 1 else 's'),
+                         'url': 'overdue_report'})
+    if quiet_customers > 0:
+        insights.append({'tone': 'a', 'icon': 'fa-moon',
+                         'text': '%d customer%s went quiet (no order in 90+ days)' % (
+                             quiet_customers, '' if quiet_customers == 1 else 's'),
+                         'url': 'customer_analysis'})
+    if low_stock_list:
+        insights.append({'tone': 'a', 'icon': 'fa-boxes-stacked',
+                         'text': '%d product%s low on stock or out of stock' % (
+                             len(low_stock_list), '' if len(low_stock_list) == 1 else 's'),
+                         'url': 'inventory'})
+    if below_cost:
+        insights.append({'tone': 'r', 'icon': 'fa-arrow-trend-down',
+                         'text': '%d product%s sold below cost %s' % (
+                             len(below_cost), '' if len(below_cost) == 1 else 's', period_label.lower()),
+                         'url': 'inventory_margin_report'})
+    if new_customers > 0:
+        insights.append({'tone': 'g', 'icon': 'fa-user-plus',
+                         'text': '%d new customer%s %s' % (
+                             new_customers, '' if new_customers == 1 else 's', period_label.lower()),
+                         'url': 'customers'})
+
+    context = {
+        'user_profile': user_profile,
+        'report_date': today,
+        'period': period,
+        'period_label': period_label,
+        # Pulse
+        'total_revenue': round(total_revenue, 2),
+        'collected': round(collected, 2),
+        'total_outstanding': round(total_outstanding, 2),
+        'orders': orders,
+        # Customers
+        'total_customers': total_customers,
+        'active_customers': len(active_customer_ids),
+        'new_customers': new_customers,
+        'avg_order_value': avg_order_value,
+        'top_customers': top_customers,
+        'top_owe': top_owe,
+        # Products
+        'products_sold_count': len(products_sold),
+        'units_sold': units_sold,
+        'low_stock_count': len(low_stock_list),
+        'below_cost_count': len(below_cost),
+        'top_products_rev': top_products_rev,
+        'top_products_qty': top_products_qty,
+        'low_stock_list': low_stock_list[:5],
+        # Insights
+        'insights': insights,
+    }
+    return render(request, 'reports/bi_dashboard.html', context)
+
+
+@login_required
+def inventory_dashboard(request):
+    """Product & Inventory Intelligence Dashboard view"""
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+
+    products = Product.objects.filter(user=user)
+    categories = ProductCategory.objects.filter(user=user)
+    inventories = Inventory.objects.filter(user=user).select_related('product', 'product__product_category')
+    inv_logs = InventoryLog.objects.filter(user=user).select_related('product')
+
+    # ---- 1. Inventory KPIs ----
+    total_products = products.count()
+    total_stock_value = 0.0
+    low_stock_count = 0
+    out_of_stock_count = 0
+    healthy_stock_count = 0
+    warning_stock_count = 0
+    critical_stock_count = 0
+    total_stock_units = 0
+
+    for inv in inventories:
+        rate = inv.product.product_rate_with_gst if inv.product else 0
+        total_stock_value += inv.current_stock * rate
+        total_stock_units += max(inv.current_stock, 0)
+
+        if inv.current_stock <= 0:
+            out_of_stock_count += 1
+            critical_stock_count += 1
+        elif inv.alert_level > 0 and inv.current_stock <= inv.alert_level:
+            low_stock_count += 1
+            if inv.current_stock <= inv.alert_level * 0.5:
+                critical_stock_count += 1
+            else:
+                warning_stock_count += 1
+        else:
+            healthy_stock_count += 1
+
+    # ---- 2. Product Category Analysis ----
+    total_categories = categories.count()
+    parent_categories = categories.filter(parent_category__isnull=True).count()
+    sub_categories = categories.filter(parent_category__isnull=False).count()
+
+    # Category breakdown
+    category_breakdown = []
+    all_cats = categories.all()
+    for cat in all_cats:
+        cat_products = products.filter(product_category=cat)
+        cat_count = cat_products.count()
+        if cat_count == 0:
+            continue
+        cat_stock = 0
+        cat_value = 0.0
+        cat_low = 0
+        for cp in cat_products:
+            inv_item = inventories.filter(product=cp).first()
+            if inv_item:
+                cat_stock += max(inv_item.current_stock, 0)
+                cat_value += inv_item.current_stock * cp.product_rate_with_gst
+                if inv_item.current_stock <= 0 or (inv_item.alert_level > 0 and inv_item.current_stock <= inv_item.alert_level):
+                    cat_low += 1
+
+        if cat_low > cat_count * 0.5:
+            health = "Critical"
+        elif cat_low > 0:
+            health = "Warning"
+        else:
+            health = "Healthy"
+
+        category_breakdown.append({
+            'name': cat.get_full_path(),
+            'product_count': cat_count,
+            'total_stock': cat_stock,
+            'stock_value': round(cat_value, 2),
+            'health': health,
+        })
+    category_breakdown.sort(key=lambda x: x['stock_value'], reverse=True)
+
+    # ---- 3. Low Stock Products ----
+    low_stock_products = []
+    for inv in inventories:
+        if not inv.product:
+            continue
+        if inv.current_stock <= 0:
+            status = "Out of Stock"
+        elif inv.alert_level > 0 and inv.current_stock <= inv.alert_level:
+            if inv.current_stock <= inv.alert_level * 0.5:
+                status = "Critical"
+            else:
+                status = "Warning"
+        else:
+            continue  # healthy, skip
+
+        deficit = inv.alert_level - inv.current_stock if inv.alert_level > 0 else abs(inv.current_stock)
+        low_stock_products.append({
+            'name': inv.product.model_no,
+            'category': inv.product.product_category.get_full_path() if inv.product.product_category else '-',
+            'current_stock': inv.current_stock,
+            'alert_level': inv.alert_level,
+            'deficit': deficit,
+            'status': status,
+        })
+    low_stock_products.sort(key=lambda x: x['current_stock'])
+
+    # ---- 4. Product Performance ----
+    # Aggregate from InventoryLog
+    # change_type: 0=Other, 1=Purchase, 2=Production, 3=Return, 4=Sales
+    product_sales = {}  # product_id -> {sold, returned, purchased, produced, name, category, current_stock}
+    for log in inv_logs:
+        if not log.product:
+            continue
+        pid = log.product.id
+        if pid not in product_sales:
+            inv_item = inventories.filter(product=log.product).first()
+            product_sales[pid] = {
+                'name': log.product.model_no,
+                'category': log.product.product_category.get_full_path() if log.product.product_category else '-',
+                'current_stock': inv_item.current_stock if inv_item else 0,
+                'sold': 0,
+                'returned': 0,
+                'purchased': 0,
+                'produced': 0,
+            }
+        change = abs(log.change)
+        if log.change_type == 4:  # Sales
+            product_sales[pid]['sold'] += change
+        elif log.change_type == 3:  # Return
+            product_sales[pid]['returned'] += change
+        elif log.change_type == 1:  # Purchase
+            product_sales[pid]['purchased'] += change
+        elif log.change_type == 2:  # Production
+            product_sales[pid]['produced'] += change
+
+    # Top selling products
+    top_selling_products = sorted(
+        [{
+            'name': v['name'],
+            'category': v['category'],
+            'units_sold': v['sold'],
+            'units_returned': v['returned'],
+            'net_sales': v['sold'] - v['returned'],
+            'current_stock': v['current_stock'],
+        } for v in product_sales.values()],
+        key=lambda x: x['units_sold'],
+        reverse=True
+    )[:10]
+
+    total_units_sold = sum(v['sold'] for v in product_sales.values())
+    total_stock_movements = inv_logs.count()
+
+    # Top selling and most returned product names
+    top_selling_product = top_selling_products[0]['name'] if top_selling_products else 'N/A'
+    most_returned_list = sorted(product_sales.values(), key=lambda x: x['returned'], reverse=True)
+    most_returned_product = most_returned_list[0]['name'] if most_returned_list and most_returned_list[0]['returned'] > 0 else 'N/A'
+
+    # ---- 5. Stock Movement Trends ----
+    total_purchased_units = sum(v['purchased'] for v in product_sales.values())
+    total_produced_units = sum(v['produced'] for v in product_sales.values())
+    total_sold_units = sum(v['sold'] for v in product_sales.values())
+    total_returned_units = sum(v['returned'] for v in product_sales.values())
+
+    # Monthly stock movement
+    monthly_stock_trend = []
+    monthly_data = (
+        inv_logs
+        .annotate(month=ExtractMonth('date'), year=ExtractYear('date'))
+        .values('year', 'month')
+        .annotate(
+            purchased=Sum(Case(
+                When(change_type=1, then=F('change')),
+                default=0, output_field=FloatField()
+            )),
+            produced=Sum(Case(
+                When(change_type=2, then=F('change')),
+                default=0, output_field=FloatField()
+            )),
+            sold=Sum(Case(
+                When(change_type=4, then=F('change')),
+                default=0, output_field=FloatField()
+            )),
+            returned=Sum(Case(
+                When(change_type=3, then=F('change')),
+                default=0, output_field=FloatField()
+            )),
         )
+        .order_by('year', 'month')
     )
-    elements.append(Spacer(1, 8))
-    elements.append(Paragraph("Sales Report (Till Now)", subtitle_style))
-    elements.append(Spacer(1, 15))
+    for row in monthly_data:
+        if not row['month']:
+            continue
+        month_name = f"{calendar.month_abbr[row['month']]} {row['year']}"
+        purchased = abs(int(row['purchased'] or 0))
+        produced = abs(int(row['produced'] or 0))
+        sold = abs(int(row['sold'] or 0))
+        returned = abs(int(row['returned'] or 0))
+        net_change = purchased + produced + returned - sold
+        monthly_stock_trend.append({
+            'name': month_name,
+            'purchased': purchased,
+            'produced': produced,
+            'sold': sold,
+            'returned': returned,
+            'net_change': net_change,
+        })
 
-    # ---------------- TOTALS ---------------- #
-    grand_paid = 0.0
-    grand_purchased = 0.0
-    grand_returned = 0.0
-    grand_other = 0.0
+    # ---- 6. Product Valuation ----
+    products_with_rate = products.filter(product_rate_with_gst__gt=0)
+    if products_with_rate.exists():
+        highest_val = products_with_rate.order_by('-product_rate_with_gst').first()
+        highest_value_product = highest_val.model_no if highest_val else 'N/A'
+        highest_value_rate = highest_val.product_rate_with_gst if highest_val else 0
+        agg = products_with_rate.aggregate(
+            avg_rate=Avg('product_rate_with_gst'),
+            avg_gst=Avg('product_gst_percentage'),
+            avg_discount=Avg('product_discount'),
+        )
+        avg_product_rate = round(agg['avg_rate'] or 0, 2)
+        avg_gst_percentage = round(agg['avg_gst'] or 0, 1)
+        avg_discount = round(agg['avg_discount'] or 0, 1)
+    else:
+        highest_value_product = 'N/A'
+        highest_value_rate = 0
+        avg_product_rate = 0
+        avg_gst_percentage = 0
+        avg_discount = 0
 
-    # ---------------- PER CUSTOMER ---------------- #
-    for customer in customers:
-        book = Book.objects.filter(user=user, customer=customer).first()
-        if not book:
+    context = {
+        'user_profile': user_profile,
+        # Inventory KPIs
+        'total_products': total_products,
+        'total_stock_value': round(total_stock_value, 2),
+        'low_stock_count': low_stock_count,
+        'out_of_stock_count': out_of_stock_count,
+        # Category Analysis
+        'total_categories': total_categories,
+        'parent_categories': parent_categories,
+        'sub_categories': sub_categories,
+        'category_breakdown': category_breakdown,
+        # Inventory Health
+        'healthy_stock_count': healthy_stock_count,
+        'warning_stock_count': warning_stock_count,
+        'critical_stock_count': critical_stock_count,
+        'total_stock_units': total_stock_units,
+        'low_stock_products': low_stock_products,
+        # Product Performance
+        'top_selling_product': top_selling_product,
+        'most_returned_product': most_returned_product,
+        'total_units_sold': total_units_sold,
+        'total_stock_movements': total_stock_movements,
+        'top_selling_products': top_selling_products,
+        # Stock Movement Trends
+        'total_purchased_units': total_purchased_units,
+        'total_produced_units': total_produced_units,
+        'total_sold_units': total_sold_units,
+        'total_returned_units': total_returned_units,
+        'monthly_stock_trend': monthly_stock_trend,
+        # Product Valuation
+        'highest_value_product': highest_value_product,
+        'highest_value_rate': highest_value_rate,
+        'avg_product_rate': avg_product_rate,
+        'avg_gst_percentage': avg_gst_percentage,
+        'avg_discount': avg_discount,
+    }
+
+    return render(request, 'reports/inventory_dashboard.html', context)
+
+
+@login_required
+def ar_aging_report(request):
+    """
+    Accounts Receivable (AR) Aging Report
+    Outstanding receivables grouped by aging buckets (0-15, 15-30, ... up to 435-450 days)
+    Customer-wise exposure with outstanding amounts in each bucket.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # Define aging buckets (label, min_days, max_days)
+    aging_buckets = []
+    step = 15
+    for start in range(0, 450, step):
+        end = start + step
+        aging_buckets.append({
+            'label': f'{start}-{end}',
+            'min_days': start,
+            'max_days': end,
+        })
+
+    books = Book.objects.filter(user=user).select_related('customer')
+
+    # Summary KPIs
+    total_outstanding = 0.0
+    total_overdue = 0.0   # > 30 days
+    total_customers_with_outstanding = 0
+    total_critical_overdue = 0.0  # > 90 days
+    bucket_totals = [0.0] * len(aging_buckets)
+
+    customer_rows = []
+
+    for book in books:
+        if not book.customer:
             continue
 
-        logs = BookLog.objects.filter(parent_book=book, is_active=True)
+        logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
 
-        paid = purchased = returned = other = 0.0
-
+        # Calculate total purchased and total settled
+        total_purchased = 0.0
+        total_settled = 0.0
         for log in logs:
-            if log.change_type == 0:
-                paid += log.change
-            elif log.change_type == 1:
-                purchased += log.change
-            elif log.change_type == 2:
-                returned += log.change
-            elif log.change_type == 3:
-                other += log.change
+            if log.change_type == 1:  # Purchased
+                total_purchased += abs(log.change)
+            elif log.change_type in [0, 2, 3]:  # Paid, Returned, Other
+                total_settled += abs(log.change)
 
-        balance = abs(purchased) - (abs(paid) + abs(returned) + abs(other))
+        outstanding = total_purchased - total_settled
+        if outstanding <= 0.01:
+            continue  # No outstanding for this customer
 
-        grand_paid += abs(paid)
-        grand_purchased += abs(purchased)
-        grand_returned += abs(returned)
-        grand_other += abs(other)
+        total_outstanding += outstanding
+        total_customers_with_outstanding += 1
 
-        # ---------- CUSTOMER TABLE ---------- #
-        customer_table = Table(
-            [
-                ["Customer", customer.customer_name],
-                ["Paid", f"{paid:.2f}"],
-                ["Purchased", f"{purchased:.2f}"],
-                ["Returned", f"{returned:.2f}"],
-                ["Other", f"{other:.2f}"],
-                ["Balance", f"{balance:.2f}"],
-            ],
-            colWidths=[50 * mm, 120 * mm]
+        # Distribute outstanding across aging buckets based on invoice dates
+        # Collect purchase logs with their ages
+        purchase_entries = []
+        for log in logs:
+            if log.change_type == 1 and log.date:  # Purchased Items
+                age_days = (today - log.date.date()).days
+                purchase_entries.append({
+                    'amount': abs(log.change),
+                    'age_days': max(age_days, 0),
+                })
+
+        # FIFO: payments settle oldest invoices first
+        # Sort oldest first, then apply settlements to oldest purchases
+        purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
+
+        remaining_to_settle = total_settled
+        bucket_amounts = [0.0] * len(aging_buckets)
+
+        for entry in purchase_entries:
+            if remaining_to_settle >= entry['amount']:
+                # This purchase is fully paid off
+                remaining_to_settle -= entry['amount']
+                continue
+            elif remaining_to_settle > 0:
+                # Partially paid — only the unpaid portion goes into bucket
+                unpaid = entry['amount'] - remaining_to_settle
+                remaining_to_settle = 0
+            else:
+                # Fully unpaid
+                unpaid = entry['amount']
+
+            # Place unpaid amount in the correct aging bucket
+            for i, bucket in enumerate(aging_buckets):
+                if bucket['min_days'] <= entry['age_days'] < bucket['max_days']:
+                    bucket_amounts[i] += unpaid
+                    break
+            else:
+                # Beyond 450 days, put in last bucket
+                bucket_amounts[-1] += unpaid
+
+        # Update totals
+        for i in range(len(aging_buckets)):
+            bucket_totals[i] += bucket_amounts[i]
+
+        # Overdue = anything beyond 90 days
+        overdue_amount = sum(bucket_amounts[6:])  # from 90-105 onwards
+        total_overdue += overdue_amount
+
+        # Critical = beyond 90 days
+        critical_amount = sum(bucket_amounts[6:])  # from 90-120 onwards
+        total_critical_overdue += critical_amount
+
+        # Determine max age bucket for risk level
+        max_bucket_idx = 0
+        for i in range(len(bucket_amounts) - 1, -1, -1):
+            if bucket_amounts[i] > 0:
+                max_bucket_idx = i
+                break
+
+        if max_bucket_idx >= 6:  # 90+ days
+            risk_level = "High"
+        elif max_bucket_idx >= 2:  # 30-89 days
+            risk_level = "Medium"
+        else:
+            risk_level = "Low"
+
+        customer_rows.append({
+            'book_id': book.id,
+            'name': book.customer.customer_name,
+            'phone': book.customer.customer_phone or '-',
+            'total_outstanding': round(outstanding, 2),
+            'bucket_amounts': [round(b, 2) for b in bucket_amounts],
+            'risk_level': risk_level,
+            'overdue_amount': round(overdue_amount, 2),
+        })
+
+    # Sort by total outstanding descending
+    customer_rows.sort(key=lambda x: x['total_outstanding'], reverse=True)
+
+    # Risk distribution
+    high_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'High')
+    medium_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'Medium')
+    low_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'Low')
+
+    context = {
+        'user_profile': user_profile,
+        'aging_buckets': aging_buckets,
+        'customer_rows': customer_rows,
+        'bucket_totals': [round(b, 2) for b in bucket_totals],
+        'total_outstanding': round(total_outstanding, 2),
+        'total_overdue': round(total_overdue, 2),
+        'total_critical_overdue': round(total_critical_overdue, 2),
+        'total_customers_with_outstanding': total_customers_with_outstanding,
+        'high_risk_count': high_risk_count,
+        'medium_risk_count': medium_risk_count,
+        'low_risk_count': low_risk_count,
+        'report_date': today,
+    }
+
+    return render(request, 'reports/ar_aging_report.html', context)
+
+
+@login_required
+def credit_aging_report(request):
+    """
+    Credit Aging Report
+    Credit limit utilization, overdue beyond allowed credit period,
+    aging buckets 0-15, 15-30, ... up to 435-450 days.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # Default credit limit & credit period (change these values as needed)
+    DEFAULT_CREDIT_LIMIT = 50000.0
+    DEFAULT_CREDIT_PERIOD_DAYS = 90  # Days allowed for payment
+
+    # Aging buckets
+    aging_buckets = []
+    step = 15
+    for start in range(0, 450, step):
+        end = start + step
+        aging_buckets.append({
+            'label': f'{start}-{end}',
+            'min_days': start,
+            'max_days': end,
+        })
+
+    books = Book.objects.filter(user=user).select_related('customer')
+
+    # KPIs
+    total_credit_limit = 0.0
+    total_utilized = 0.0
+    total_overdue_beyond_credit = 0.0
+    total_bad_debt_risk = 0.0  # Outstanding > 180 days
+    total_customers = 0
+    bucket_totals = [0.0] * len(aging_buckets)
+
+    customer_rows = []
+
+    for book in books:
+        if not book.customer:
+            continue
+
+        logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
+
+        total_purchased = 0.0
+        total_settled = 0.0
+        for log in logs:
+            if log.change_type == 1:
+                total_purchased += abs(log.change)
+            elif log.change_type in [0, 2, 3]:
+                total_settled += abs(log.change)
+
+        outstanding = total_purchased - total_settled
+        if outstanding <= 0.01 and total_purchased <= 0:
+            continue
+
+        total_customers += 1
+        credit_limit = DEFAULT_CREDIT_LIMIT
+        total_credit_limit += credit_limit
+
+        utilized = max(outstanding, 0)
+        total_utilized += utilized
+
+        utilization_pct = round((utilized / credit_limit * 100), 1) if credit_limit > 0 else 0
+
+        # Collect purchase entries with age
+        purchase_entries = []
+        for log in logs:
+            if log.change_type == 1 and log.date:
+                age_days = (today - log.date.date()).days
+                purchase_entries.append({
+                    'amount': abs(log.change),
+                    'age_days': max(age_days, 0),
+                })
+
+        # FIFO: payments settle oldest invoices first
+        purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
+
+        remaining_to_settle = total_settled
+        bucket_amounts = [0.0] * len(aging_buckets)
+        unpaid_entries = []  # Track entries that still have unpaid amounts
+
+        for entry in purchase_entries:
+            if remaining_to_settle >= entry['amount']:
+                remaining_to_settle -= entry['amount']
+                continue
+            elif remaining_to_settle > 0:
+                unpaid = entry['amount'] - remaining_to_settle
+                remaining_to_settle = 0
+            else:
+                unpaid = entry['amount']
+
+            unpaid_entries.append({'amount': unpaid, 'age_days': entry['age_days']})
+
+            for i, bucket in enumerate(aging_buckets):
+                if bucket['min_days'] <= entry['age_days'] < bucket['max_days']:
+                    bucket_amounts[i] += unpaid
+                    break
+            else:
+                bucket_amounts[-1] += unpaid
+
+        for i in range(len(aging_buckets)):
+            bucket_totals[i] += bucket_amounts[i]
+
+        # Overdue = outstanding beyond credit period
+        overdue_bucket_idx = DEFAULT_CREDIT_PERIOD_DAYS // step
+        overdue_beyond_credit = sum(bucket_amounts[overdue_bucket_idx:])
+        total_overdue_beyond_credit += overdue_beyond_credit
+
+        # Bad debt risk = outstanding > 2x credit period
+        bad_debt_bucket_idx = (DEFAULT_CREDIT_PERIOD_DAYS * 2) // step
+        bad_debt_amount = sum(bucket_amounts[bad_debt_bucket_idx:])
+        total_bad_debt_risk += bad_debt_amount
+
+        # Find max age of any unpaid outstanding entry
+        max_age_days = 0
+        for entry in unpaid_entries:
+            if entry['age_days'] > max_age_days:
+                max_age_days = entry['age_days']
+
+        # Credit status
+        if utilization_pct > 100:
+            credit_status = "Over Limit"
+        elif utilization_pct > 80:
+            credit_status = "Near Limit"
+        elif utilization_pct > 50:
+            credit_status = "Moderate"
+        else:
+            credit_status = "Healthy"
+
+        # Risk assessment based on aging + utilization
+        if bad_debt_amount > 0 or max_age_days > (DEFAULT_CREDIT_PERIOD_DAYS * 2):
+            risk_level = "Critical"
+        elif overdue_beyond_credit > 0 and utilization_pct > 80:
+            risk_level = "High"
+        elif overdue_beyond_credit > 0:
+            risk_level = "Medium"
+        else:
+            risk_level = "Low"
+
+        # Payment behavior - avg days to pay
+        payment_entries = []
+        for log in logs:
+            if log.change_type == 0 and log.date:  # Paid
+                payment_entries.append(log.date.date())
+
+        avg_payment_days = 0
+        if payment_entries and purchase_entries:
+            first_purchase = min(e['age_days'] for e in purchase_entries) if purchase_entries else 0
+            avg_payment_days = max_age_days // 2 if max_age_days > 0 else 0
+
+        customer_rows.append({
+            'book_id': book.id,
+            'name': book.customer.customer_name,
+            'phone': book.customer.customer_phone or '-',
+            'credit_limit': round(credit_limit, 2),
+            'total_outstanding': round(max(outstanding, 0), 2),
+            'utilization_pct': utilization_pct,
+            'credit_status': credit_status,
+            'overdue_beyond_credit': round(overdue_beyond_credit, 2),
+            'bad_debt_amount': round(bad_debt_amount, 2),
+            'max_age_days': max_age_days,
+            'avg_payment_days': avg_payment_days,
+            'risk_level': risk_level,
+            'bucket_amounts': [round(b, 2) for b in bucket_amounts],
+        })
+
+    customer_rows.sort(key=lambda x: x['total_outstanding'], reverse=True)
+
+    # Risk counts
+    critical_count = sum(1 for c in customer_rows if c['risk_level'] == 'Critical')
+    high_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'High')
+    medium_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'Medium')
+    low_risk_count = sum(1 for c in customer_rows if c['risk_level'] == 'Low')
+
+    # Utilization summary
+    avg_utilization = round(total_utilized / total_credit_limit * 100, 1) if total_credit_limit > 0 else 0
+    over_limit_count = sum(1 for c in customer_rows if c['credit_status'] == 'Over Limit')
+
+    context = {
+        'user_profile': user_profile,
+        'aging_buckets': aging_buckets,
+        'customer_rows': customer_rows,
+        'bucket_totals': [round(b, 2) for b in bucket_totals],
+        'total_credit_limit': round(total_credit_limit, 2),
+        'total_utilized': round(total_utilized, 2),
+        'avg_utilization': avg_utilization,
+        'total_overdue_beyond_credit': round(total_overdue_beyond_credit, 2),
+        'total_bad_debt_risk': round(total_bad_debt_risk, 2),
+        'total_customers': total_customers,
+        'over_limit_count': over_limit_count,
+        'critical_count': critical_count,
+        'high_risk_count': high_risk_count,
+        'medium_risk_count': medium_risk_count,
+        'low_risk_count': low_risk_count,
+        'report_date': today,
+        'default_credit_limit': DEFAULT_CREDIT_LIMIT,
+        'default_credit_period': DEFAULT_CREDIT_PERIOD_DAYS,
+    }
+
+    return render(request, 'reports/credit_aging_report.html', context)
+
+
+# =============================================================================
+# Overdue Report (Simple)
+# =============================================================================
+@login_required
+def overdue_report(request):
+    """
+    Simple Overdue Report — shows customers with outstanding amounts
+    older than the selected overdue threshold (days).
+    Uses FIFO: payments settle oldest invoices first.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # Overdue day options: 15, 30, 45, ... 450
+    day_options = list(range(15, 465, 15))
+
+    # Get selected days from query param (default 90)
+    selected_days = request.GET.get('days', '90')
+    try:
+        selected_days = int(selected_days)
+        if selected_days not in day_options:
+            selected_days = 90
+    except (ValueError, TypeError):
+        selected_days = 90
+
+    books = Book.objects.filter(user=user).select_related('customer')
+
+    customer_rows = []
+    total_overdue = 0.0
+
+    for book in books:
+        if not book.customer:
+            continue
+
+        logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
+
+        total_purchased = 0.0
+        total_settled = 0.0
+        for log in logs:
+            if log.change_type == 1:  # Purchased
+                total_purchased += abs(log.change)
+            elif log.change_type in [0, 2, 3]:  # Paid, Returned, Other
+                total_settled += abs(log.change)
+
+        outstanding = total_purchased - total_settled
+        if outstanding <= 0.01:
+            continue
+
+        # Collect purchase entries with age
+        purchase_entries = []
+        for log in logs:
+            if log.change_type == 1 and log.date:
+                age_days = (today - log.date.date()).days
+                purchase_entries.append({
+                    'amount': abs(log.change),
+                    'age_days': max(age_days, 0),
+                })
+
+        # FIFO: settle oldest first, find unpaid amounts
+        purchase_entries.sort(key=lambda x: x['age_days'], reverse=True)
+        remaining_to_settle = total_settled
+        overdue_amount = 0.0
+
+        for entry in purchase_entries:
+            if remaining_to_settle >= entry['amount']:
+                remaining_to_settle -= entry['amount']
+                continue
+            elif remaining_to_settle > 0:
+                unpaid = entry['amount'] - remaining_to_settle
+                remaining_to_settle = 0
+            else:
+                unpaid = entry['amount']
+
+            # Only count if this entry's age exceeds the threshold
+            if entry['age_days'] >= selected_days:
+                overdue_amount += unpaid
+
+        if overdue_amount <= 0:
+            continue
+
+        total_overdue += overdue_amount
+
+        customer_rows.append({
+            'book_id': book.id,
+            'name': book.customer.customer_name,
+            'phone': book.customer.customer_phone or '-',
+            'overdue_amount': round(overdue_amount, 2),
+        })
+
+    # Sort by overdue amount descending
+    customer_rows.sort(key=lambda x: x['overdue_amount'], reverse=True)
+
+    context = {
+        'user_profile': user_profile,
+        'customer_rows': customer_rows,
+        'total_overdue': round(total_overdue, 2),
+        'selected_days': selected_days,
+        'day_options': day_options,
+        'total_customers': len(customer_rows),
+        'report_date': today,
+    }
+
+    return render(request, 'reports/overdue_report.html', context)
+
+
+def customer_analysis(request):
+    """
+    Comprehensive Customer Intelligence & Analysis Dashboard.
+    Uses RFM (Recency, Frequency, Monetary) framework enhanced with
+    payment behavior scoring to rank every customer on a 0-100 Health Score.
+    """
+    import statistics
+
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    customers = Customer.objects.filter(user=user).order_by('customer_name')
+    books = Book.objects.filter(user=user).select_related('customer')
+    invoices = Invoice.objects.filter(user=user).select_related('invoice_customer')
+
+    # ---- Build per-customer invoice map ----
+    customer_invoices = {}  # customer_id -> list of invoice dicts
+    for inv in invoices:
+        if not inv.invoice_customer_id:
+            continue
+        cid = inv.invoice_customer_id
+        try:
+            inv_data = json.loads(inv.invoice_json)
+            amount = float(inv_data.get('invoice_total_amt_with_gst', 0) or inv_data.get('grand_total', 0) or 0)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            amount = 0
+        customer_invoices.setdefault(cid, []).append({
+            'date': inv.invoice_date,
+            'amount': abs(amount),
+        })
+
+    # ---- Analyse each customer ----
+    customer_rows = []
+    all_monetary = []  # for percentile calc
+    all_frequency_rate = []  # invoices per month
+
+    for customer in customers:
+        book = books.filter(customer=customer).first()
+
+        # -- Invoice metrics --
+        inv_list = customer_invoices.get(customer.id, [])
+        inv_list_sorted = sorted(inv_list, key=lambda x: x['date']) if inv_list else []
+        invoice_count = len(inv_list_sorted)
+        total_invoice_value = sum(i['amount'] for i in inv_list_sorted)
+
+        if inv_list_sorted:
+            first_invoice_date = inv_list_sorted[0]['date']
+            last_invoice_date = inv_list_sorted[-1]['date']
+            days_since_last = (today - last_invoice_date).days
+            customer_lifetime_days = max((today - first_invoice_date).days, 1)
+            customer_lifetime_months = max(customer_lifetime_days / 30.0, 1)
+        else:
+            first_invoice_date = None
+            last_invoice_date = None
+            days_since_last = 9999
+            customer_lifetime_days = 0
+            customer_lifetime_months = 1
+
+        invoices_per_month = round(invoice_count / customer_lifetime_months, 2) if customer_lifetime_months > 0 else 0
+
+        # avg invoice value
+        avg_invoice_value = round(total_invoice_value / invoice_count, 2) if invoice_count > 0 else 0
+
+        # -- Invoice gaps for consistency --
+        gaps = []
+        for i in range(1, len(inv_list_sorted)):
+            gap = (inv_list_sorted[i]['date'] - inv_list_sorted[i - 1]['date']).days
+            gaps.append(gap)
+        avg_gap = round(statistics.mean(gaps), 1) if gaps else 0
+        gap_std = round(statistics.stdev(gaps), 1) if len(gaps) >= 2 else 0
+
+        # -- Frequency pattern --
+        if invoice_count <= 1:
+            frequency_pattern = 'One-Time'
+        elif avg_gap <= 10:
+            frequency_pattern = 'Weekly'
+        elif avg_gap <= 18:
+            frequency_pattern = 'Bi-Weekly'
+        elif avg_gap <= 45:
+            frequency_pattern = 'Monthly'
+        elif avg_gap <= 120:
+            frequency_pattern = 'Quarterly'
+        else:
+            frequency_pattern = 'Sporadic'
+
+        # -- Activity status --
+        if invoice_count == 0:
+            activity_status = 'No Invoices'
+        elif days_since_last <= 30:
+            activity_status = 'Active'
+        elif days_since_last <= 90:
+            activity_status = 'Semi-Active'
+        elif days_since_last <= 180:
+            activity_status = 'Dormant'
+        else:
+            activity_status = 'Inactive'
+
+        # -- Invoice trend (last 90 days vs prior 90 days) --
+        cutoff_recent = today - timedelta(days=90)
+        cutoff_prior = today - timedelta(days=180)
+        recent_invoices = [i for i in inv_list_sorted if i['date'] >= cutoff_recent]
+        prior_invoices = [i for i in inv_list_sorted if cutoff_prior <= i['date'] < cutoff_recent]
+        recent_count = len(recent_invoices)
+        prior_count = len(prior_invoices)
+        recent_value = sum(i['amount'] for i in recent_invoices)
+        prior_value = sum(i['amount'] for i in prior_invoices)
+
+        if recent_count > prior_count:
+            invoice_trend = 'Growing'
+        elif recent_count == prior_count:
+            invoice_trend = 'Stable'
+        else:
+            invoice_trend = 'Declining'
+
+        if invoice_count <= 1:
+            invoice_trend = 'New/One-Time'
+
+        # -- Book / Payment metrics --
+        total_purchased = 0
+        total_paid = 0
+        total_returned = 0
+        total_other = 0
+        total_pending = 0
+        outstanding = 0
+        payment_dates = []  # (purchase_date, payment_date) pairs for speed calc
+
+        if book:
+            logs = BookLog.objects.filter(parent_book=book, is_active=True).order_by('date')
+            for log in logs:
+                amt = abs(log.change)
+                if log.change_type == 1:
+                    total_purchased += amt
+                elif log.change_type == 0:
+                    total_paid += amt
+                    if log.date:
+                        payment_dates.append(log.date)
+                elif log.change_type == 2:
+                    total_returned += amt
+                elif log.change_type == 3:
+                    total_other += amt
+                elif log.change_type == 4:
+                    total_pending += amt
+
+            outstanding = total_purchased - (total_paid + total_returned + total_other)
+            outstanding = max(outstanding, 0)
+
+        # Payment ratio
+        payment_ratio = round((total_paid + total_returned + total_other) / total_purchased * 100, 1) if total_purchased > 0 else 100
+        outstanding_ratio = round(outstanding / total_purchased * 100, 1) if total_purchased > 0 else 0
+
+        # -- Payment behavior label --
+        if outstanding_ratio <= 5:
+            payment_behavior = 'Excellent'
+        elif outstanding_ratio <= 15:
+            payment_behavior = 'Good'
+        elif outstanding_ratio <= 35:
+            payment_behavior = 'Fair'
+        elif outstanding_ratio <= 60:
+            payment_behavior = 'Poor'
+        else:
+            payment_behavior = 'Critical'
+
+        # =============================================
+        # HEALTH SCORE CALCULATION (0 – 100)
+        # =============================================
+
+        # 1. Recency Score (0-25)
+        if days_since_last <= 7:
+            recency_score = 25
+        elif days_since_last <= 15:
+            recency_score = 22
+        elif days_since_last <= 30:
+            recency_score = 18
+        elif days_since_last <= 60:
+            recency_score = 12
+        elif days_since_last <= 90:
+            recency_score = 6
+        elif days_since_last <= 180:
+            recency_score = 2
+        else:
+            recency_score = 0
+
+        # 2. Frequency Score (0-25) — based on invoices/month
+        if invoices_per_month >= 4:
+            frequency_score = 25
+        elif invoices_per_month >= 2:
+            frequency_score = 22
+        elif invoices_per_month >= 1:
+            frequency_score = 18
+        elif invoices_per_month >= 0.5:
+            frequency_score = 13
+        elif invoices_per_month >= 0.25:
+            frequency_score = 8
+        elif invoice_count >= 1:
+            frequency_score = 3
+        else:
+            frequency_score = 0
+
+        # 3. Monetary Score (0-25) — computed later via percentile
+        monetary_raw = total_invoice_value  # placeholder, scored after loop
+
+        # 4. Payment Score (0-25)
+        if total_purchased == 0:
+            payment_score = 12  # neutral, no data
+        else:
+            # Base: payment ratio contribution (0-15)
+            payment_score = min(round(payment_ratio / 100 * 15), 15)
+            # Bonus: low outstanding (0-5)
+            if outstanding_ratio <= 5:
+                payment_score += 5
+            elif outstanding_ratio <= 15:
+                payment_score += 3
+            elif outstanding_ratio <= 35:
+                payment_score += 1
+            # Bonus: consistency — low gap std deviation (0-5)
+            if gap_std <= 5 and invoice_count >= 3:
+                payment_score += 5
+            elif gap_std <= 15 and invoice_count >= 3:
+                payment_score += 3
+            elif gap_std <= 30 and invoice_count >= 2:
+                payment_score += 1
+
+        payment_score = min(payment_score, 25)
+
+        all_monetary.append(monetary_raw)
+        all_frequency_rate.append(invoices_per_month)
+
+        customer_rows.append({
+            'id': customer.id,
+            'book_id': book.id if book else None,
+            'name': customer.customer_name,
+            'phone': customer.customer_phone or '',
+            # Invoice metrics
+            'invoice_count': invoice_count,
+            'total_invoice_value': round(total_invoice_value, 2),
+            'avg_invoice_value': avg_invoice_value,
+            'first_invoice': first_invoice_date,
+            'last_invoice': last_invoice_date,
+            'days_since_last': days_since_last if days_since_last != 9999 else None,
+            'invoices_per_month': invoices_per_month,
+            'avg_gap_days': avg_gap,
+            'gap_std': gap_std,
+            'frequency_pattern': frequency_pattern,
+            'activity_status': activity_status,
+            'invoice_trend': invoice_trend,
+            'recent_count': recent_count,
+            'prior_count': prior_count,
+            'recent_value': round(recent_value, 2),
+            'prior_value': round(prior_value, 2),
+            # Payment metrics
+            'total_purchased': round(total_purchased, 2),
+            'total_paid': round(total_paid, 2),
+            'total_returned': round(total_returned, 2),
+            'outstanding': round(outstanding, 2),
+            'payment_ratio': payment_ratio,
+            'outstanding_ratio': outstanding_ratio,
+            'payment_behavior': payment_behavior,
+            # Scores
+            'recency_score': recency_score,
+            'frequency_score': frequency_score,
+            'monetary_raw': monetary_raw,
+            'payment_score': payment_score,
+            # Will be set after percentile calc:
+            'monetary_score': 0,
+            'health_score': 0,
+            'segment': '',
+            'rank': 0,
+        })
+
+    # ---- Compute Monetary Score via percentile ----
+    sorted_monetary = sorted(all_monetary)
+    for row in customer_rows:
+        if not sorted_monetary or row['monetary_raw'] == 0:
+            row['monetary_score'] = 0
+        else:
+            # percentile rank
+            rank_pos = sorted_monetary.index(row['monetary_raw'])
+            percentile = rank_pos / len(sorted_monetary) * 100
+            if percentile >= 90:
+                row['monetary_score'] = 25
+            elif percentile >= 75:
+                row['monetary_score'] = 21
+            elif percentile >= 50:
+                row['monetary_score'] = 16
+            elif percentile >= 25:
+                row['monetary_score'] = 10
+            elif row['monetary_raw'] > 0:
+                row['monetary_score'] = 4
+            else:
+                row['monetary_score'] = 0
+
+        # Total Health Score
+        row['health_score'] = (
+            row['recency_score'] +
+            row['frequency_score'] +
+            row['monetary_score'] +
+            row['payment_score']
         )
 
-        customer_table.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-            ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
-        ]))
+        # Segment assignment
+        hs = row['health_score']
+        if hs >= 80:
+            row['segment'] = 'Star'
+        elif hs >= 60:
+            row['segment'] = 'Loyal'
+        elif hs >= 40:
+            row['segment'] = 'Promising'
+        elif hs >= 20:
+            row['segment'] = 'At Risk'
+        else:
+            row['segment'] = 'Critical'
 
-        elements.append(customer_table)
-        elements.append(Spacer(1, 15))
+    # ---- Rank customers by health score desc ----
+    customer_rows.sort(key=lambda x: x['health_score'], reverse=True)
+    for idx, row in enumerate(customer_rows, 1):
+        row['rank'] = idx
 
-        # ---------- SIGNATURE (PER CUSTOMER) ---------- #
-        sign_table = Table(
-            [
-                ["Customer Signature", "Authorized Signature"],
-                ["", ""],
-                ["_______________________", "_______________________"]
-            ],
-            colWidths=[85 * mm, 85 * mm]
-        )
+    # ---- Summary KPIs ----
+    total_customers = len(customer_rows)
+    active_count = sum(1 for c in customer_rows if c['activity_status'] == 'Active')
+    semi_active_count = sum(1 for c in customer_rows if c['activity_status'] == 'Semi-Active')
+    dormant_count = sum(1 for c in customer_rows if c['activity_status'] == 'Dormant')
+    inactive_count = sum(1 for c in customer_rows if c['activity_status'] in ('Inactive', 'No Invoices'))
+    one_timer_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'One-Time')
 
-        sign_table.setStyle(TableStyle([
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("TOPPADDING", (0, 1), (-1, 1), 20),
-            ("BOTTOMPADDING", (0, 1), (-1, 1), 20),
-            ("GRID", (0, 0), (-1, -1), 0, colors.white),
-        ]))
+    star_count = sum(1 for c in customer_rows if c['segment'] == 'Star')
+    loyal_count = sum(1 for c in customer_rows if c['segment'] == 'Loyal')
+    promising_count = sum(1 for c in customer_rows if c['segment'] == 'Promising')
+    at_risk_count = sum(1 for c in customer_rows if c['segment'] == 'At Risk')
+    critical_count = sum(1 for c in customer_rows if c['segment'] == 'Critical')
 
-        elements.append(sign_table)
-        elements.append(Spacer(1, 25))
+    # Frequency pattern counts
+    weekly_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Weekly')
+    biweekly_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Bi-Weekly')
+    monthly_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Monthly')
+    quarterly_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Quarterly')
+    sporadic_count = sum(1 for c in customer_rows if c['frequency_pattern'] == 'Sporadic')
 
-    # ---------------- GRAND TOTAL ---------------- #
-    grand_balance = abs(grand_purchased) - (abs(grand_paid) + abs(grand_returned) + abs(grand_other))
+    # Payment behavior counts
+    excellent_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Excellent')
+    good_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Good')
+    fair_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Fair')
+    poor_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Poor')
+    critical_pmt = sum(1 for c in customer_rows if c['payment_behavior'] == 'Critical')
 
-    total_table = Table(
-        [
-            ["GRAND TOTAL PAID", f"{grand_paid:.2f}"],
-            ["GRAND TOTAL PURCHASED", f"{grand_purchased:.2f}"],
-            ["GRAND TOTAL RETURNED", f"{grand_returned:.2f}"],
-            ["GRAND TOTAL OTHER", f"{grand_other:.2f}"],
-            ["FINAL BALANCE", f"{grand_balance:.2f}"],
-        ],
-        colWidths=[80 * mm, 90 * mm]
-    )
+    # Trend counts
+    growing_count = sum(1 for c in customer_rows if c['invoice_trend'] == 'Growing')
+    stable_count = sum(1 for c in customer_rows if c['invoice_trend'] == 'Stable')
+    declining_count = sum(1 for c in customer_rows if c['invoice_trend'] == 'Declining')
 
-    total_table.setStyle(TableStyle([
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-        ("BACKGROUND", (0, -1), (-1, -1), colors.lightyellow),
-        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-    ]))
+    avg_health = round(statistics.mean([c['health_score'] for c in customer_rows]), 1) if customer_rows else 0
+    total_outstanding = sum(c['outstanding'] for c in customer_rows)
+    total_revenue = sum(c['total_invoice_value'] for c in customer_rows)
 
-    elements.append(total_table)
+    # Plain-language roll-ups for the simplified page
+    best_count = star_count + loyal_count            # your strongest customers
+    attention_count = at_risk_count + critical_count  # need attention
+    owe_count = sum(1 for c in customer_rows if c['outstanding'] > 0)
+    quiet_count = inactive_count                      # inactive / no recent orders
 
-    # ---------------- FOOTER ---------------- #
-    def page_number(canvas, doc):
-        canvas.setFont("Helvetica", 9)
-        canvas.drawCentredString(A4[0] / 2, 10 * mm, f"Page {canvas.getPageNumber()}")
+    # Top 10 & Bottom 10
+    top_10 = customer_rows[:10]
+    bottom_10 = list(reversed(customer_rows[-10:])) if len(customer_rows) >= 10 else list(reversed(customer_rows))
 
-    doc.build(elements, onFirstPage=page_number, onLaterPages=page_number)
+    context = {
+        'user_profile': user_profile,
+        'report_date': today,
+        'customer_rows': customer_rows,
+        'total_customers': total_customers,
+        # Activity
+        'active_count': active_count,
+        'semi_active_count': semi_active_count,
+        'dormant_count': dormant_count,
+        'inactive_count': inactive_count,
+        'one_timer_count': one_timer_count,
+        # Segments
+        'star_count': star_count,
+        'loyal_count': loyal_count,
+        'promising_count': promising_count,
+        'at_risk_count': at_risk_count,
+        'critical_count': critical_count,
+        # Frequency
+        'weekly_count': weekly_count,
+        'biweekly_count': biweekly_count,
+        'monthly_count': monthly_count,
+        'quarterly_count': quarterly_count,
+        'sporadic_count': sporadic_count,
+        # Payment
+        'excellent_pmt': excellent_pmt,
+        'good_pmt': good_pmt,
+        'fair_pmt': fair_pmt,
+        'poor_pmt': poor_pmt,
+        'critical_pmt': critical_pmt,
+        # Trends
+        'growing_count': growing_count,
+        'stable_count': stable_count,
+        'declining_count': declining_count,
+        # Summary
+        'avg_health': avg_health,
+        'total_outstanding': round(total_outstanding, 2),
+        'total_revenue': round(total_revenue, 2),
+        # Plain-language roll-ups
+        'best_count': best_count,
+        'attention_count': attention_count,
+        'owe_count': owe_count,
+        'quiet_count': quiet_count,
+        # Top / Bottom
+        'top_10': top_10,
+        'bottom_10': bottom_10,
+    }
 
-    return response
+    return render(request, 'reports/customer_analysis.html', context)
+
+
+# =============================================================================
+# Transaction Report (Customer-wise)
+# =============================================================================
+@login_required
+def transaction_report(request):
+    """
+    Transaction Report — Customer Name & Amount filtered by transaction type
+    (Purchased, Paid, Returned, Others) with custom date range.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # --- Parse filters ---
+    txn_type = request.GET.get('type', 'purchased')  # purchased, paid, returned, others
+    date_from = request.GET.get('from', '')
+    date_to = request.GET.get('to', '')
+
+    # Validate txn_type
+    valid_types = ['purchased', 'paid', 'returned', 'others']
+    if txn_type not in valid_types:
+        txn_type = 'purchased'
+
+    # Parse dates
+    try:
+        start_date = datetime.strptime(date_from, '%Y-%m-%d').date() if date_from else None
+    except ValueError:
+        start_date = None
+
+    try:
+        end_date = datetime.strptime(date_to, '%Y-%m-%d').date() if date_to else None
+    except ValueError:
+        end_date = None
+
+    # Map txn_type to BookLog change_type
+    type_map = {
+        'purchased': [1],
+        'paid': [0],
+        'returned': [2],
+        'others': [3],
+    }
+    change_types = type_map.get(txn_type, [1])
+
+    type_labels = {
+        'purchased': 'Purchases',
+        'paid': 'Payments',
+        'returned': 'Returns',
+        'others': 'Others',
+    }
+
+    # --- Query ---
+    books = Book.objects.filter(user=user).select_related('customer')
+
+    customer_rows = []
+    grand_total = 0.0
+
+    for book in books:
+        if not book.customer:
+            continue
+
+        log_filter = Q(parent_book=book, is_active=True, change_type__in=change_types)
+        if start_date:
+            log_filter &= Q(date__date__gte=start_date)
+        if end_date:
+            log_filter &= Q(date__date__lte=end_date)
+
+        logs = BookLog.objects.filter(log_filter)
+        total_amount = sum(abs(log.change) for log in logs)
+
+        if total_amount <= 0:
+            continue
+
+        grand_total += total_amount
+
+        customer_rows.append({
+            'book_id': book.id,
+            'name': book.customer.customer_name,
+            'phone': book.customer.customer_phone or '-',
+            'amount': round(total_amount, 2),
+        })
+
+    customer_rows.sort(key=lambda x: x['amount'], reverse=True)
+
+    context = {
+        'user_profile': user_profile,
+        'customer_rows': customer_rows,
+        'grand_total': round(grand_total, 2),
+        'total_customers': len(customer_rows),
+        'txn_type': txn_type,
+        'type_label': type_labels.get(txn_type, 'All Transactions'),
+        'date_from': date_from,
+        'date_to': date_to,
+        'report_date': today,
+    }
+
+    return render(request, 'reports/transaction_report.html', context)
+
+
+# =============================================================================
+# Inventory Transaction Report (Product-wise)
+# =============================================================================
+@login_required
+def inventory_transaction_report(request):
+    """
+    Inventory Transaction Report — Product Name & Quantity filtered by
+    inventory log type (Purchase, Production, Return, Sales, Other)
+    with custom date range.
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # --- Parse filters ---
+    txn_type = request.GET.get('type', 'all')
+    date_from = request.GET.get('from', '')
+    date_to = request.GET.get('to', '')
+    sort_by = request.GET.get('sort', 'stock_desc')
+    hide_zero = request.GET.get('hide_zero', '1')
+
+    valid_types = ['all', 'purchase', 'production', 'return', 'sales', 'other']
+    if txn_type not in valid_types:
+        txn_type = 'all'
+
+    valid_sorts = [
+        'model_no_asc', 'model_no_desc',
+        'name_asc', 'name_desc',
+        'stock_asc', 'stock_desc',
+        'price_asc', 'price_desc',
+        'amount_asc', 'amount_desc',
+    ]
+    if sort_by not in valid_sorts:
+        sort_by = 'stock_desc'
+
+    # Parse dates
+    try:
+        start_date = datetime.strptime(date_from, '%Y-%m-%d').date() if date_from else None
+    except ValueError:
+        start_date = None
+
+    try:
+        end_date = datetime.strptime(date_to, '%Y-%m-%d').date() if date_to else None
+    except ValueError:
+        end_date = None
+
+    # Map txn_type to InventoryLog change_type
+    type_map = {
+        'all': [0, 1, 2, 3, 4],
+        'other': [0],
+        'purchase': [1],
+        'production': [2],
+        'return': [3],
+        'sales': [4],
+    }
+    change_types = type_map.get(txn_type, [0, 1, 2, 3, 4])
+
+    type_labels = {
+        'all': 'All Transactions',
+        'purchase': 'Purchases',
+        'production': 'Production',
+        'return': 'Returns',
+        'sales': 'Sales',
+        'other': 'Others',
+    }
+
+    # --- Query ---
+    log_filter = Q(user=user, change_type__in=change_types)
+    if start_date:
+        log_filter &= Q(date__date__gte=start_date)
+    if end_date:
+        log_filter &= Q(date__date__lte=end_date)
+
+    logs = InventoryLog.objects.filter(log_filter).select_related('product')
+
+    # Aggregate per product
+    product_totals = {}
+    for log in logs:
+        if not log.product:
+            continue
+        pid = log.product.id
+        if pid not in product_totals:
+            discount = log.product.product_discount if log.product.product_discount is not None else 0
+            gst = log.product.product_gst_percentage if log.product.product_gst_percentage is not None else 0
+            price = log.product.product_rate_with_gst if log.product.product_rate_with_gst is not None else 0
+            sale_price = price * (1 - discount / 100) * (1 + gst / 100)
+            product_totals[pid] = {
+                'product_id': pid,
+                'model_no': log.product.model_no,
+                'name': log.product.product_name or '-',
+                'price': sale_price,
+                'quantity': 0,
+            }
+        product_totals[pid]['quantity'] += abs(log.change)
+
+    product_rows = [v for v in product_totals.values() if v['quantity'] > 0]
+
+    grand_total = sum(r['quantity'] for r in product_rows)
+
+    # Get current stock for each product in the results
+    inventory_map = {}
+    if product_rows:
+        product_ids = [r['product_id'] for r in product_rows]
+        inventories = Inventory.objects.filter(user=user, product_id__in=product_ids)
+        for inv in inventories:
+            inventory_map[inv.product_id] = inv.current_stock
+
+    for row in product_rows:
+        row['current_stock'] = inventory_map.get(row['product_id'], 0)
+        row['total_amount'] = round(row['current_stock'] * row['price'], 2)
+
+    # Filter out zero/negative stock if checkbox enabled
+    if hide_zero == '1':
+        product_rows = [r for r in product_rows if r['current_stock'] > 0]
+
+    grand_total_amount = round(sum(r['total_amount'] for r in product_rows), 2)
+
+    # --- Sort ---
+    sort_key_map = {
+        'model_no': 'model_no',
+        'name': 'name',
+        'stock': 'current_stock',
+        'price': 'price',
+        'amount': 'total_amount',
+    }
+    sort_field, sort_dir = sort_by.rsplit('_', 1)
+    key_name = sort_key_map.get(sort_field, 'quantity')
+    product_rows.sort(key=lambda x: x[key_name], reverse=(sort_dir == 'desc'))
+
+    context = {
+        'user_profile': user_profile,
+        'product_rows': product_rows,
+        'grand_total': grand_total,
+        'grand_total_amount': grand_total_amount,
+        'total_products': len(product_rows),
+        'txn_type': txn_type,
+        'type_label': type_labels.get(txn_type, 'All Transactions'),
+        'date_from': date_from,
+        'date_to': date_to,
+        'sort_by': sort_by,
+        'hide_zero': hide_zero,
+        'report_date': today,
+    }
+
+    return render(request, 'reports/inventory_transaction_report.html', context)
+
+
+# =============================================================================
+# Inventory Margin Report (Product-wise)
+# =============================================================================
+@login_required
+def inventory_margin_report(request):
+    """
+    Inventory Margin Report — Per-product profit analysis based on
+    Sale Rate vs Purchase Rate with current stock valuation.
+
+    Sale Rate = (product_rate_with_gst - discount%) + GST%
+    Profit/Unit = Sale Rate - product_purchase_rate
+    Total Profit = Profit/Unit * current_stock
+    """
+    user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    today = date.today()
+
+    # --- Parse filters ---
+    sort_by = request.GET.get('sort', 'profit_total_desc')
+    hide_zero = request.GET.get('hide_zero', '1')
+
+    valid_sorts = [
+        'model_no_asc', 'model_no_desc',
+        'name_asc', 'name_desc',
+        'stock_asc', 'stock_desc',
+        'purchase_rate_asc', 'purchase_rate_desc',
+        'sale_rate_asc', 'sale_rate_desc',
+        'profit_unit_asc', 'profit_unit_desc',
+        'profit_total_asc', 'profit_total_desc',
+        'margin_asc', 'margin_desc',
+    ]
+    if sort_by not in valid_sorts:
+        sort_by = 'profit_total_desc'
+
+    # --- Query all products with inventory ---
+    products = Product.objects.filter(user=user).select_related('product_category')
+    inventories = Inventory.objects.filter(user=user).select_related('product')
+    inventory_map = {inv.product_id: inv.current_stock for inv in inventories}
+
+    product_rows = []
+    for product in products:
+        current_stock = inventory_map.get(product.id, 0)
+
+        # Sale Rate calculation:
+        # discounted_price = product_rate_with_gst * (1 - discount/100)
+        # sale_rate = discounted_price * (1 + gst/100)
+        rate = product.product_rate_with_gst or 0
+        discount = product.product_discount or 0
+        gst = product.product_gst_percentage or 0
+        purchase_rate = product.product_purchase_rate or 0
+
+        discounted_price = rate * (1 - discount / 100)
+        sale_rate = round(discounted_price * (1 + gst / 100), 2)
+
+        profit_unit = round(sale_rate - purchase_rate, 2)
+        profit_total = round(profit_unit * current_stock, 2)
+        margin = round((profit_unit / sale_rate) * 100, 1) if sale_rate > 0 else 0
+
+        product_rows.append({
+            'product_id': product.id,
+            'model_no': product.model_no,
+            'name': product.product_name or '-',
+            'current_stock': current_stock,
+            'purchase_rate': round(purchase_rate, 2),
+            'sale_rate': sale_rate,
+            'profit_unit': profit_unit,
+            'profit_total': profit_total,
+            'margin': margin,
+        })
+
+    # Filter out zero/negative stock if checkbox enabled
+    if hide_zero == '1':
+        product_rows = [r for r in product_rows if r['current_stock'] > 0]
+
+    # --- KPIs ---
+    total_products = len(product_rows)
+    total_stock_value = round(sum(r['sale_rate'] * r['current_stock'] for r in product_rows), 2)
+    total_purchase_value = round(sum(r['purchase_rate'] * r['current_stock'] for r in product_rows), 2)
+    total_profit = round(sum(r['profit_total'] for r in product_rows), 2)
+    avg_margin = round(sum(r['margin'] for r in product_rows) / total_products, 1) if total_products > 0 else 0
+
+    # --- Sort ---
+    sort_key_map = {
+        'model_no': 'model_no',
+        'name': 'name',
+        'stock': 'current_stock',
+        'purchase_rate': 'purchase_rate',
+        'sale_rate': 'sale_rate',
+        'profit_unit': 'profit_unit',
+        'profit_total': 'profit_total',
+        'margin': 'margin',
+    }
+    sort_field, sort_dir = sort_by.rsplit('_', 1)
+    key_name = sort_key_map.get(sort_field, 'profit_total')
+    product_rows.sort(key=lambda x: x[key_name], reverse=(sort_dir == 'desc'))
+
+    context = {
+        'user_profile': user_profile,
+        'product_rows': product_rows,
+        'total_products': total_products,
+        'total_stock_value': total_stock_value,
+        'total_purchase_value': total_purchase_value,
+        'total_profit': total_profit,
+        'avg_margin': avg_margin,
+        'sort_by': sort_by,
+        'hide_zero': hide_zero,
+        'report_date': today,
+    }
+
+    return render(request, 'reports/inventory_margin_report.html', context)
 

@@ -1,5 +1,9 @@
 # Django imports
-from django.http import JsonResponse
+import csv
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -7,7 +11,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 # Models
 from ..models import (
     Product, UserProfile,
-    ProductCategory
+    ProductCategory, DEFAULT_PRODUCT_COLOURS
 )
 # Utility functions
 from ..utils import (
@@ -20,13 +24,64 @@ from ..forms import ProductForm
 import json
 
 # ================= Product Views ==============================
+_PRODUCT_SORTS = {
+    'model': 'model_no', '-model': '-model_no',
+    'name': 'product_name', '-name': '-product_name',
+    'mrp': 'product_rate_with_gst', '-mrp': '-product_rate_with_gst',
+    'new': '-id', 'old': 'id',
+}
+
+
+def _filtered_products(request):
+    """The user's products, filtered by ?q / ?cat and ordered by ?sort — shared by the
+    list page and the CSV export so both see exactly the same rows."""
+    qs = Product.objects.filter(user=request.user).select_related(
+        'product_category', 'product_category__parent_category'
+    )
+    q = (request.GET.get('q') or '').strip()
+    cat = (request.GET.get('cat') or '').strip()
+    sort = request.GET.get('sort') or 'new'
+    if q:
+        qs = qs.filter(Q(model_no__icontains=q) | Q(product_name__icontains=q))
+    if cat.isdigit():
+        qs = qs.filter(product_category_id=int(cat))
+    return qs.order_by(_PRODUCT_SORTS.get(sort, '-id')), q, cat, sort
+
+
 @login_required
 def products(request):
-    context = {}
-    context['products'] = Product.objects.filter(user=request.user).select_related(
-        'product_category', 'product_category__parent_category'
-    ).order_by('-id')
+    qs, q, cat, sort = _filtered_products(request)
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    context = {
+        'products': page_obj,
+        'page_obj': page_obj,
+        'total_count': paginator.count,
+        'q': q, 'cat': cat, 'sort': sort,
+        'querystring': params.urlencode(),
+        'categories': ProductCategory.objects.filter(user=request.user).order_by('category_name'),
+    }
     return render(request, 'products/products.html', context)
+
+
+@login_required
+def products_export(request):
+    """Server-side CSV of the full filtered product set (opens in Excel) — replaces the
+    old client-side DataTables Excel/PDF export, so no heavy JS ships on the list page."""
+    qs, _q, _cat, _sort = _filtered_products(request)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="products.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Model No', 'Product Name', 'Category', 'MRP', 'Discount %', 'GST %'])
+    for p in qs:
+        cat_name = p.product_category.category_name if p.product_category else ''
+        writer.writerow([
+            p.model_no, p.product_name or '', cat_name,
+            p.product_rate_with_gst, p.product_discount, p.product_gst_percentage,
+        ])
+    return response
 
 
 @login_required
@@ -49,6 +104,16 @@ def product_edit(request, product_id):
 @login_required
 def product_add(request):
     if request.method == "POST":
+        # Check for duplicate model_no for the same user
+        if Product.objects.filter(user=request.user, model_no=request.POST.get('model_no').upper()).exists():
+            context = {}
+            messages.warning(request, "Model No already exists. Please use a different Model No.")
+            context['product_form'] = ProductForm(request.POST, user=request.user)
+            context['product_category_list'] = ProductCategory.objects.filter(
+                user=request.user, parent_category__isnull=False
+            ).select_related('parent_category').values('id', 'category_name', 'parent_category__category_name')
+            return render(request, 'products/product_edit.html', context)
+        # Save new product
         product_form = ProductForm(request.POST, user=request.user)
         if product_form.is_valid():
             new_product = product_form.save(commit=False)
@@ -77,45 +142,17 @@ def product_delete(request):
 @login_required
 def productsjson(request):
     products = list(Product.objects.filter(user=request.user).values())
+    # Annotate each product with its current stock (kept in the separate Inventory
+    # model) so the invoice/quotation screen can warn when a line exceeds stock.
+    # Additive only — existing consumers ignore the extra key.
+    from ..models import Inventory
+    stock_map = dict(
+        Inventory.objects.filter(user=request.user, product__isnull=False)
+        .values_list('product_id', 'current_stock')
+    )
+    for product in products:
+        product['current_stock'] = stock_map.get(product['id'])
     return JsonResponse(products, safe=False)
-
-
-@csrf_exempt
-def product_api_add(request):
-    if request.method == "POST":
-        business_uid = request.GET.get('business_uid', None)
-        if not business_uid:
-            return JsonResponse({'status': 'error', 'message': 'Business UID is required.'})
-        user_profile = get_object_or_404(UserProfile, business_uid=business_uid)
-        if user_profile:
-            user = user_profile.user
-        data = request.body.decode('utf-8')
-        data = json.loads(data)
-        inserted_count = 0
-        not_inserted_count = 0
-        for item in data:
-            if item.get('model_no') == "" or item.get('model_no') is None:
-                not_inserted_count += 1
-            elif Product.objects.filter(user=user, model_no=item.get('model_no').upper()).exists():
-                not_inserted_count += 1
-            else:
-                product = Product(
-                    user=user,
-                    model_no=item.get('model_no'),
-                    product_name=item.get('product_name') or '',
-                    product_hsn=item.get('product_hsn') or '',
-                    product_discount=item.get('product_discount') or 0,
-                    product_gst_percentage=item.get('product_gst_percentage') or 18,
-                    product_rate_with_gst=item.get('product_rate_with_gst') or 0
-                )
-                product.save()
-                create_inventory(product)
-                product_stock = item.get('product_stock') or 0
-                if int(product_stock) > 0:
-                    add_stock_to_inventory(product, int(product_stock), "Initial stock", user)
-                inserted_count += 1
-        return JsonResponse({'status': 'success', 'message': f'{inserted_count} Products added successfully.\n{not_inserted_count} Products not added.\nTotal {len(data)} items.'})
-    return JsonResponse({'status': 'error', 'message': 'Use POST method to add products.'})
 
 # ================= Product Category Views ===========================
 @login_required
@@ -280,10 +317,14 @@ def products_aggrid(request):
             'product_discount': product.product_discount,
             'product_gst_percentage': product.product_gst_percentage,
             'product_rate_with_gst': product.product_rate_with_gst,
+            'product_purchase_rate': product.product_purchase_rate,
             'product_category_id': product.product_category.id if product.product_category else None,
             'product_category_name': product.product_category.get_full_path() if product.product_category else '',
             'parent_category': product.product_category.parent_category.category_name if product.product_category and product.product_category.parent_category else '',
             'child_category': product.product_category.category_name if product.product_category else '',
+            'product_division_category': product.product_division_category or '',
+            'product_model_category': product.product_model_category or '',
+            'product_colour': product.product_colour or '',
             'current_stock': current_stock,
             'alert_level': alert_level
         })
@@ -298,11 +339,33 @@ def products_aggrid(request):
             'child': category.category_name
         })
     
+    # Distinct free-text values for the select-editor columns.
+    def _distinct(field):
+        return list(
+            Product.objects.filter(user=request.user)
+            .exclude(**{field + '__isnull': True})
+            .exclude(**{field: ''})
+            .values_list(field, flat=True)
+            .distinct().order_by(field)
+        )
+
+    divisions = _distinct('product_division_category')
+    model_categories = _distinct('product_model_category')
+    # Colour seeds WHITE/GREY/BLACK, then the business's own distinct colours.
+    colours = list(DEFAULT_PRODUCT_COLOURS)
+    for c in _distinct('product_colour'):
+        if c not in colours:
+            colours.append(c)
+
     context['products_json'] = json.dumps(products_data)
     context['categories_json'] = json.dumps(categories_data)
+    context['divisions_json'] = json.dumps(divisions)
+    context['model_categories_json'] = json.dumps(model_categories)
+    context['colours_json'] = json.dumps(colours)
     context['products_count'] = len(products_data)
-    
+
     return render(request, 'products/products_aggrid.html', context)
+
 
 
 @csrf_exempt
@@ -350,6 +413,9 @@ def product_aggrid_update(request):
             if 'product_rate_with_gst' in data and data['product_rate_with_gst'] is not None:
                 product.product_rate_with_gst = float(data['product_rate_with_gst'])
             
+            if 'product_purchase_rate' in data and data['product_purchase_rate'] is not None:
+                product.product_purchase_rate = float(data['product_purchase_rate'])
+            
             if 'product_category_id' in data:
                 if data['product_category_id']:
                     category = ProductCategory.objects.get(
@@ -358,7 +424,17 @@ def product_aggrid_update(request):
                     product.product_category = category
                 else:
                     product.product_category = None
-            
+
+            if 'product_division_category' in data:
+                # Free-text field â€” store whatever was selected/typed (blank allowed)
+                product.product_division_category = (data['product_division_category'] or '').strip()
+
+            if 'product_model_category' in data:
+                product.product_model_category = (data['product_model_category'] or '').strip()
+
+            if 'product_colour' in data:
+                product.product_colour = (data['product_colour'] or '').strip()
+
             product.save()
             
             # Handle inventory updates

@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% load static %}
+{% load money %}
+
+{% block title %}Transaction Report · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* Transaction Report — filter bar */
+.tr-filter{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:18px}
+.tr-filter label{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--soft)}
+.tr-filter .selctl,
+.tr-filter input[type="date"]{padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-weight:500;color:var(--ink);background:#fff;font-family:var(--sans);outline:none;transition:.15s}
+.tr-filter input[type="date"]{cursor:pointer}
+.tr-filter .selctl:focus,
+.tr-filter input[type="date"]:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.tr-totrow td{font-family:var(--disp);font-weight:700;color:var(--ink);background:var(--wash);border-top:2px solid var(--line)!important}
+.gs table.gt td.rk{font-family:var(--disp);font-weight:700;color:var(--faint);text-align:center;width:44px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Transactions</div>
+            <h1 class="disp">Transaction Report</h1>
+            <div class="sub">Customer amounts by transaction type — as of {{ report_date|date:"d M Y" }}</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'bi_dashboard' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Back to BI</a>
+            <button type="button" class="gbtn" onclick="printReport()"><i class="fas fa-print"></i> Print</button>
+        </div>
+    </div>
+
+    <!-- Filter bar -->
+    <form method="get" class="tr-filter" id="filterForm">
+        <label for="typeSelect"><i class="fas fa-filter"></i> Type</label>
+        <select id="typeSelect" name="type" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="purchased" {% if txn_type == 'purchased' %}selected{% endif %}>Purchases</option>
+            <option value="paid" {% if txn_type == 'paid' %}selected{% endif %}>Payments</option>
+            <option value="returned" {% if txn_type == 'returned' %}selected{% endif %}>Returns</option>
+            <option value="others" {% if txn_type == 'others' %}selected{% endif %}>Others</option>
+        </select>
+
+        <label for="dateFrom"><i class="fas fa-calendar"></i> From</label>
+        <input type="date" id="dateFrom" name="from" value="{{ date_from }}" onchange="document.getElementById('filterForm').submit()">
+
+        <label for="dateTo">To</label>
+        <input type="date" id="dateTo" name="to" value="{{ date_to }}" onchange="document.getElementById('filterForm').submit()">
+
+        <a href="{% url 'transaction_report' %}" class="gbtn"><i class="fas fa-rotate-left"></i> Reset</a>
+    </form>
+
+    <!-- KPI cards -->
+    <div class="statgrid">
+        <div class="stat">
+            <span class="si b"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ grand_total|inrs }}</div><div class="sk">Total amount</div></div>
+        </div>
+        <div class="stat">
+            <span class="si v"><i class="fas fa-users"></i></span>
+            <div><div class="sv">{{ total_customers }}</div><div class="sk">Customers</div></div>
+        </div>
+        <div class="stat">
+            <span class="si g"><i class="fas fa-exchange-alt"></i></span>
+            <div><div class="sv">{{ type_label }}</div><div class="sk">Transaction type</div></div>
+        </div>
+    </div>
+
+    <div class="rsec"><i class="fas fa-table"></i> {{ type_label }}
+        {% if date_from and date_to %}<span class="mut" style="font-weight:500;font-size:12.5px">· {{ date_from }} to {{ date_to }}</span>
+        {% elif date_from %}<span class="mut" style="font-weight:500;font-size:12.5px">· From {{ date_from }}</span>
+        {% elif date_to %}<span class="mut" style="font-weight:500;font-size:12.5px">· Up to {{ date_to }}</span>{% endif %}
+    </div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="txnTable">
+            <thead><tr>
+                <th class="rk">#</th>
+                <th>Customer Name</th>
+                <th>Phone</th>
+                <th class="r">Amount (&#8377;)</th>
+            </tr></thead>
+            <tbody>
+                {% for c in customer_rows %}
+                <tr>
+                    <td class="rk">{{ forloop.counter }}</td>
+                    <td>
+                        <div class="prim"><span class="pi">{{ c.name|initials }}</span>
+                            <a href="{% url 'book_logs' c.book_id %}" class="nm" style="color:var(--ink)">{{ c.name }}</a></div>
+                    </td>
+                    <td><span class="mut">{{ c.phone }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ c.amount|inrs }}</span></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4"><div class="empty">
+                    <div class="ei"><i class="fas fa-inbox fa-lg"></i></div>
+                    <h3>No transactions found</h3>
+                    <p>No transactions match the selected filters.</p>
+                </div></td></tr>
+                {% endfor %}
+
+                {% if customer_rows %}
+                <tr class="tr-totrow">
+                    <td></td>
+                    <td colspan="2">TOTAL ({{ total_customers }} customers)</td>
+                    <td class="r"><span class="num">&#8377; {{ grand_total|inrs }}</span></td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+function printReport() {
+    var table = document.getElementById('txnTable');
+    if (!table) return;
+    var clone = table.cloneNode(true);
+
+    /* Business details from Django context */
+    var bizName   = '{{ user_profile.business_title|escapejs }}';
+    var bizAddr   = '{{ user_profile.business_address|escapejs }}';
+    var bizPhone  = '{{ user_profile.business_phone|escapejs }}';
+    var bizGst    = '{{ user_profile.business_gst|escapejs }}';
+    var rptDate   = '{{ report_date|date:"d M Y" }}';
+    var typeLabel = '{{ type_label|escapejs }}';
+    var dateFrom  = '{{ date_from|escapejs }}';
+    var dateTo    = '{{ date_to|escapejs }}';
+
+    var dateRange = '';
+    if (dateFrom && dateTo) dateRange = dateFrom + '  to  ' + dateTo;
+    else if (dateFrom) dateRange = 'From ' + dateFrom;
+    else if (dateTo) dateRange = 'Up to ' + dateTo;
+    else dateRange = 'All Time';
+
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>Transaction Report</title>');
+    win.document.write('<style>');
+    win.document.write('@page{size:A4 portrait;margin:12mm;}');
+    win.document.write('body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:10px;color:#333;}');
+    /* Header */
+    win.document.write('.print-header{text-align:center;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px;}');
+    win.document.write('.print-header h1{margin:0 0 2px;font-size:1.4rem;text-transform:uppercase;letter-spacing:.04em;}');
+    win.document.write('.print-header .addr{margin:0;font-size:.82rem;color:#555;}');
+    win.document.write('.print-header .contact{margin:4px 0 0;font-size:.82rem;color:#555;}');
+    /* Sub header */
+    win.document.write('.sub-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:.85rem;}');
+    win.document.write('.sub-header .badge{display:inline-block;padding:3px 12px;border-radius:4px;background:#007bff;color:#fff;font-weight:700;font-size:.82rem;}');
+    /* Table */
+    win.document.write('table{width:100%;border-collapse:collapse;font-size:.85rem;}');
+    win.document.write('th,td{border:1px solid #aaa;padding:6px 10px;}');
+    win.document.write('th{background:#343a40;color:#fff;font-size:.78rem;text-transform:uppercase;}');
+    win.document.write('td:first-child{text-align:center;width:40px;}');
+    win.document.write('td:last-child,th:last-child{text-align:right;}');
+    win.document.write('tr:nth-child(even){background:#f9f9f9;}');
+    win.document.write('.tr-totrow td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
+    /* Footer */
+    win.document.write('.print-footer{text-align:center;margin-top:20px;font-size:.72rem;color:#999;border-top:1px solid #ccc;padding-top:6px;}');
+    win.document.write('@media print{@page{size:A4 portrait;margin:12mm;}body{margin:0;padding:8px;}}');
+    win.document.write('</style></head><body>');
+
+    /* === Header === */
+    win.document.write('<div class="print-header">');
+    win.document.write('<h1>' + bizName + '</h1>');
+    if (bizAddr) win.document.write('<p class="addr">' + bizAddr + '</p>');
+    var contactParts = [];
+    if (bizPhone) contactParts.push('Phone: ' + bizPhone);
+    if (bizGst) contactParts.push('GST: ' + bizGst);
+    if (contactParts.length) win.document.write('<p class="contact">' + contactParts.join('  |  ') + '</p>');
+    win.document.write('</div>');
+
+    /* === Sub Header === */
+    win.document.write('<div class="sub-header">');
+    win.document.write('<div><strong>Transaction Report</strong> &mdash; <span class="badge">' + typeLabel + '</span></div>');
+    win.document.write('<div>Period: <strong>' + dateRange + '</strong> &nbsp;|&nbsp; Date: <strong>' + rptDate + '</strong></div>');
+    win.document.write('</div>');
+
+    /* === Table === */
+    win.document.write(clone.outerHTML);
+
+    /* === Footer === */
+    win.document.write('<div class="print-footer">This is a computer-generated report. &mdash; ' + bizName + '</div>');
+
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 300);
+}
+</script>
+{% endblock %}

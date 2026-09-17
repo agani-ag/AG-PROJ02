@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+{% load money %}
+
+{% block title %}Credit Aging Report · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* Utilization bar */
+.gs .util-cell{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.gs .util-pct{font-size:12px;font-weight:600;color:var(--soft);min-width:42px;text-align:right;font-variant-numeric:tabular-nums}
+.gs .util-bar{height:7px;border-radius:4px;background:var(--line2);overflow:hidden;width:70px;flex:none}
+.gs .util-fill{height:100%;border-radius:4px}
+.gs .uf-r{background:var(--red)} .gs .uf-a{background:var(--amber)}
+.gs .uf-b{background:var(--brand)} .gs .uf-g{background:var(--green)}
+/* Aging table cell tints + totals */
+.gs table.gt td.bucket-highlight{background:rgba(245,158,11,.08)}
+.gs table.gt td.bucket-danger{background:rgba(220,38,38,.08)}
+.gs table.gt tr.total-row td{font-weight:700;background:var(--wash)!important;border-top:2px solid var(--line);color:var(--ink)}
+.gs table.gt td.age{color:var(--soft);font-variant-numeric:tabular-nums}
+.gs table.gt td.od{color:var(--red);font-weight:600}
+/* Sticky first two cols on the wide aging table */
+.gs #creditAgingTable th.sticky-col,.gs #creditAgingTable td.sticky-col{position:sticky;left:0;background:var(--card);z-index:2}
+.gs #creditAgingTable th.sticky-col-2,.gs #creditAgingTable td.sticky-col-2{position:sticky;left:44px;background:var(--card);z-index:2;border-right:1px solid var(--line)}
+.gs #creditAgingTable thead th.sticky-col,.gs #creditAgingTable thead th.sticky-col-2{background:var(--wash);z-index:3}
+.gs #creditAgingTable tr.total-row td.sticky-col,.gs #creditAgingTable tr.total-row td.sticky-col-2{background:var(--wash)}
+.gs #creditAgingTable tbody tr:hover td.sticky-col,.gs #creditAgingTable tbody tr:hover td.sticky-col-2{background:#f9fbff}
+.gs .rnote{font-size:12px;color:var(--soft);margin:2px 2px 12px}
+.gs .rnote i{color:var(--brand)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Aging</div>
+            <h1 class="disp">Credit Aging Report</h1>
+            <div class="sub">Credit limit utilization, overdue analysis &amp; bad debt risk — as of {{ report_date|date:"d M Y" }}</div>
+        </div>
+        <div class="actions">
+            <button type="button" class="gbtn" onclick="printTable('creditUtilTable','Credit Limit Utilization')"><i class="fas fa-print"></i> Print</button>
+        </div>
+    </div>
+
+    <!-- ==================== CREDIT OVERVIEW KPIs ==================== -->
+    <div class="statgrid">
+        <div class="stat"><span class="si b"><i class="fas fa-university"></i></span>
+            <div><div class="sv">&#8377; {{ total_credit_limit|default:0|inrs }}</div><div class="sk">Total Credit Limit</div><div class="ss">&#8377; {{ default_credit_limit|inrs }} per customer</div></div></div>
+        <div class="stat"><span class="si r"><i class="fas fa-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ total_utilized|default:0|inrs }}</div><div class="sk">Total Utilized</div><div class="ss">{{ avg_utilization|default:0 }}% avg utilization</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-clock"></i></span>
+            <div><div class="sv">&#8377; {{ total_overdue_beyond_credit|default:0|inrs }}</div><div class="sk">Overdue ({{ default_credit_period }}+ days)</div><div class="ss">Beyond credit period</div></div></div>
+        <div class="stat"><span class="si v"><i class="fas fa-skull-crossbones"></i></span>
+            <div><div class="sv">&#8377; {{ total_bad_debt_risk|default:0|inrs }}</div><div class="sk">Bad Debt Risk (180+)</div><div class="ss">Potential write-off</div></div></div>
+    </div>
+
+    <!-- ==================== CREDIT UTILIZATION TABLE ==================== -->
+    <div class="rsec"><i class="fas fa-chart-bar"></i> Credit Limit Utilization</div>
+    <div class="rnote"><i class="fas fa-info-circle"></i> Default credit limit: &#8377; {{ default_credit_limit|inrs }} &nbsp;|&nbsp; Credit period: {{ default_credit_period }} days</div>
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="creditUtilTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Customer</th>
+                    <th class="r">Credit Limit</th>
+                    <th class="r">Outstanding</th>
+                    <th class="r">Utilization</th>
+                    <th class="r">Overdue</th>
+                    <th class="r">Bad Debt Risk</th>
+                    <th class="r">Max Age</th>
+                    <th>Credit Status</th>
+                    <th>Risk</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customer_rows %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                            <div>
+                                <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a>
+                                <div class="mn">{{ customer.phone }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="r"><span class="num">&#8377; {{ customer.credit_limit|inrs }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ customer.total_outstanding|inrs }}</span></td>
+                    <td class="r">
+                        <div class="util-cell">
+                            <span class="util-pct">{{ customer.utilization_pct }}%</span>
+                            <div class="util-bar">
+                                <div class="util-fill {% if customer.utilization_pct > 100 %}uf-r{% elif customer.utilization_pct > 80 %}uf-a{% elif customer.utilization_pct > 50 %}uf-b{% else %}uf-g{% endif %}"
+                                     style="width: {% if customer.utilization_pct > 100 %}100{% else %}{{ customer.utilization_pct }}{% endif %}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="r {% if customer.overdue_beyond_credit > 0 %}od{% endif %}">
+                        {% if customer.overdue_beyond_credit > 0 %}<span class="num">&#8377; {{ customer.overdue_beyond_credit|inrs }}</span>{% else %}-{% endif %}
+                    </td>
+                    <td class="r {% if customer.bad_debt_amount > 0 %}od{% endif %}">
+                        {% if customer.bad_debt_amount > 0 %}<span class="num">&#8377; {{ customer.bad_debt_amount|inrs }}</span>{% else %}-{% endif %}
+                    </td>
+                    <td class="r age">{{ customer.max_age_days }} days</td>
+                    <td>
+                        {% if customer.credit_status == "Over Limit" %}
+                            <span class="gbadge out">Over Limit</span>
+                        {% elif customer.credit_status == "Near Limit" %}
+                            <span class="gbadge low">Near Limit</span>
+                        {% elif customer.credit_status == "Moderate" %}
+                            <span class="gbadge blue">Moderate</span>
+                        {% else %}
+                            <span class="gbadge ok">Healthy</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if customer.risk_level == "Critical" %}
+                            <span class="gbadge out">Critical</span>
+                        {% elif customer.risk_level == "High" %}
+                            <span class="gbadge out">High</span>
+                        {% elif customer.risk_level == "Medium" %}
+                            <span class="gbadge low">Medium</span>
+                        {% else %}
+                            <span class="gbadge ok">Low</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10"><div class="empty">
+                        <div class="ei"><i class="fas fa-credit-card fa-lg"></i></div>
+                        <h3>No credit data available</h3>
+                        <p>Once customers have outstanding balances, their credit utilization appears here.</p>
+                    </div></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <!-- ==================== CREDIT AGING BREAKDOWN TABLE ==================== -->
+    <div class="rsec" style="margin-top:26px"><i class="fas fa-table"></i> Credit Aging Breakdown (Days)</div>
+    <div class="rnote" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <span><i class="fas fa-info-circle"></i> Outstanding distributed across aging buckets. Scroll horizontally to view all buckets.</span>
+        <button type="button" class="gbtn" onclick="printTable('creditAgingTable','Credit Aging Breakdown')"><i class="fas fa-print"></i> Print</button>
+    </div>
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="creditAgingTable">
+            <thead>
+                <tr>
+                    <th class="sticky-col">#</th>
+                    <th class="sticky-col-2">Customer</th>
+                    <th class="r">Total O/S</th>
+                    {% for bucket in aging_buckets %}
+                    <th class="r">{{ bucket.label }}</th>
+                    {% endfor %}
+                    <th class="r">Overdue</th>
+                    <th>Risk</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customer_rows %}
+                <tr>
+                    <td class="sticky-col">{{ forloop.counter }}</td>
+                    <td class="sticky-col-2">
+                        <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                            <div>
+                                <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a>
+                                <div class="mn">{{ customer.phone }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="r"><span class="num">&#8377; {{ customer.total_outstanding|inrs }}</span></td>
+                    {% for amount in customer.bucket_amounts %}
+                    <td class="r {% if forloop.counter0 >= 12 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
+                        {% if amount > 0 %}<span class="num">&#8377; {{ amount|inrs }}</span>{% else %}-{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="r od">
+                        {% if customer.overdue_beyond_credit > 0 %}<span class="num">&#8377; {{ customer.overdue_beyond_credit|inrs }}</span>{% else %}-{% endif %}
+                    </td>
+                    <td>
+                        {% if customer.risk_level == "Critical" %}
+                            <span class="gbadge out">Critical</span>
+                        {% elif customer.risk_level == "High" %}
+                            <span class="gbadge out">High</span>
+                        {% elif customer.risk_level == "Medium" %}
+                            <span class="gbadge low">Medium</span>
+                        {% else %}
+                            <span class="gbadge ok">Low</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{{ aging_buckets|length|add:5 }}"><div class="empty">
+                        <div class="ei"><i class="fas fa-table fa-lg"></i></div>
+                        <h3>No credit aging data available</h3>
+                        <p>Aging buckets populate once there is unpaid outstanding to distribute.</p>
+                    </div></td>
+                </tr>
+                {% endfor %}
+
+                {% if customer_rows %}
+                <!-- Totals Row -->
+                <tr class="total-row">
+                    <td class="sticky-col"></td>
+                    <td class="sticky-col-2">TOTAL</td>
+                    <td class="r"><span class="num">&#8377; {{ total_utilized|inrs }}</span></td>
+                    {% for total in bucket_totals %}
+                    <td class="r {% if forloop.counter0 >= 12 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
+                        {% if total > 0 %}<span class="num">&#8377; {{ total|inrs }}</span>{% else %}-{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="r od"><span class="num">&#8377; {{ total_overdue_beyond_credit|inrs }}</span></td>
+                    <td></td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+var _rptDate = '{{ report_date|date:"d M Y" }}';
+function printTable(tableId, title) {
+    var reportDate = _rptDate;
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var clone = table.cloneNode(true);
+    // Remove sticky positioning for print
+    clone.querySelectorAll('.sticky-col, .sticky-col-2').forEach(function(el) {
+        el.style.position = 'static';
+    });
+
+    /* --- Shared CSS --- */
+    var css = '';
+    css += '@page{size:A4 landscape;margin:6mm;}';
+    css += 'body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:6px;color:#333;}';
+    css += '.print-header{text-align:center;margin-bottom:6px;}';
+    css += '.print-header h2{margin:0 0 2px;font-size:1rem;}';
+    css += '.print-header p{margin:0;font-size:.7rem;color:#666;}';
+    css += '.page-section{page-break-after:always;}';
+    css += '.page-section:last-child{page-break-after:auto;}';
+    css += '.chunk-title{font-size:.75rem;font-weight:700;margin:6px 0 4px;color:#495057;}';
+    css += 'table{width:100%;border-collapse:collapse;font-size:.7rem;}';
+    css += 'th,td{border:1px solid #aaa;padding:3px 5px;text-align:right;white-space:nowrap;}';
+    css += 'th{background:#343a40;color:#fff;font-size:.65rem;text-transform:uppercase;}';
+    css += 'td:nth-child(2){text-align:left;}';
+    css += 'th:nth-child(2){text-align:left;}';
+    css += 'tr:nth-child(even){background:#f9f9f9;}';
+    css += '.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}';
+    css += '.gbadge{padding:1px 4px;border-radius:3px;font-size:.55rem;font-weight:600;}';
+    css += '.gbadge.out{background:#dc3545;color:#fff;}';
+    css += '.gbadge.low{background:#ffc107;color:#333;}';
+    css += '.gbadge.ok{background:#28a745;color:#fff;}';
+    css += '.gbadge.blue{background:#007bff;color:#fff;}';
+    css += '.od{color:#dc3545;}';
+    css += '.mn{color:#999;font-size:.55rem;}';
+    css += '.num{font-weight:700;}';
+    css += '.pi{display:none;}';
+    css += '@media print{@page{size:A4 landscape;margin:6mm;}body{margin:0;padding:4px;}}';
+
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>' + title + '</title>');
+    win.document.write('<style>' + css + '</style></head><body>');
+
+    /* --- Detect wide aging table and split into multi-page chunks --- */
+    var headerRow = clone.querySelector('thead tr');
+    var totalCols = headerRow ? headerRow.children.length : 0;
+
+    // creditAgingTable layout: [#, Customer, Total O/S, ...30 buckets..., Risk]
+    // We treat first 3 as frozen, last 1 (Risk) as frozen, middle ones are bucket cols
+    var FROZEN_LEFT = 3;  // #, Customer, Total O/S
+    var FROZEN_RIGHT = 2; // Overdue, Risk
+    var bucketCount = totalCols - FROZEN_LEFT - FROZEN_RIGHT;
+
+    if (tableId === 'creditAgingTable' && bucketCount > 12) {
+        /* ===== MULTI-PAGE CHUNKED PRINT ===== */
+        var COLS_PER_PAGE = 10;
+        var totalPages = Math.ceil(bucketCount / COLS_PER_PAGE);
+        var allRows = clone.querySelectorAll('tbody tr');
+
+        for (var pg = 0; pg < totalPages; pg++) {
+            var startBkt = pg * COLS_PER_PAGE;
+            var endBkt = Math.min(startBkt + COLS_PER_PAGE, bucketCount);
+            var startLabel = headerRow.children[FROZEN_LEFT + startBkt].textContent.trim().split('-')[0];
+            var endLabel = headerRow.children[FROZEN_LEFT + endBkt - 1].textContent.trim().split('-')[1] || headerRow.children[FROZEN_LEFT + endBkt - 1].textContent.trim();
+            var isLastPage = (pg === totalPages - 1);
+
+            win.document.write('<div class="page-section">');
+            if (pg === 0) {
+                win.document.write('<div class="print-header">');
+                win.document.write('<h2>' + title + '</h2>');
+                win.document.write('<p>Report Date: ' + reportDate + '</p>');
+                win.document.write('</div>');
+            }
+            win.document.write('<p class="chunk-title">Aging Days: ' + startLabel + ' – ' + endLabel + ' &nbsp;&bull;&nbsp; Page ' + (pg + 1) + ' of ' + totalPages + '</p>');
+
+            /* Build chunk table */
+            win.document.write('<table><thead><tr>');
+            // Frozen left headers
+            for (var f = 0; f < FROZEN_LEFT; f++) {
+                win.document.write('<th>' + headerRow.children[f].innerHTML + '</th>');
+            }
+            // Bucket headers for this chunk
+            for (var b = startBkt; b < endBkt; b++) {
+                win.document.write('<th>' + headerRow.children[FROZEN_LEFT + b].innerHTML + '</th>');
+            }
+            // Overdue + Risk columns on last page
+            if (isLastPage) {
+                for (var r = 0; r < FROZEN_RIGHT; r++) {
+                    win.document.write('<th>' + headerRow.children[totalCols - FROZEN_RIGHT + r].innerHTML + '</th>');
+                }
+            }
+            win.document.write('</tr></thead><tbody>');
+
+            // Data rows
+            allRows.forEach(function(row) {
+                var cells = row.children;
+                var trClass = row.classList.contains('total-row') ? ' class="total-row"' : '';
+                win.document.write('<tr' + trClass + '>');
+                // Frozen left cells
+                for (var f = 0; f < FROZEN_LEFT; f++) {
+                    win.document.write('<td>' + cells[f].innerHTML + '</td>');
+                }
+                // Bucket cells for this chunk
+                for (var b = startBkt; b < endBkt; b++) {
+                    var cell = cells[FROZEN_LEFT + b];
+                    var cls = cell ? cell.className : '';
+                    win.document.write('<td class="' + cls + '">' + (cell ? cell.innerHTML : '-') + '</td>');
+                }
+                // Overdue + Risk columns on last page
+                if (isLastPage) {
+                    for (var r = 0; r < FROZEN_RIGHT; r++) {
+                        var rCell = cells[totalCols - FROZEN_RIGHT + r];
+                        win.document.write('<td>' + (rCell ? rCell.innerHTML : '') + '</td>');
+                    }
+                }
+                win.document.write('</tr>');
+            });
+
+            win.document.write('</tbody></table></div>');
+        }
+    } else {
+        /* ===== NORMAL PRINT (Credit Utilization table or small tables) ===== */
+        win.document.write('<div class="print-header">');
+        win.document.write('<h2>' + title + '</h2>');
+        win.document.write('<p>Report Date: ' + reportDate + '</p>');
+        win.document.write('</div>');
+        win.document.write(clone.outerHTML);
+    }
+
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 400);
+}
+</script>
+{% endblock %}

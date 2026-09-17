@@ -1,54 +1,62 @@
 {% extends "base.html" %}
-
 {% load static %}
+{% load money %}
+{% block title %}Books · GSTSync{% endblock %}
 
-
-
-{% block content %}
-<div class="row">
-	<div class="col">
-		<h2>Book</h2>
-	</div>
-</div>
-
-<table class="table table-hover font-weight-bold" id="book-table">
-	<thead class="thead-dark">
-		<tr>
-			<th>Customer</th>
-			<th>Current Balance</th>
-			<th>Last Transaction</th>
-		</tr>
-	</thead>
-	<tbody class="two-col-form">
-		{% for book in book_list %}
-		<tr onclick="window.location='{% url 'book_logs' book.id %}';">
-			<td><a href="{% url 'book_logs' book.id %}">{{book.customer.customer_name}}</a></td>
-			<td>{% if book.current_balance > 0 %}
-                <span class="text-success">{{ book.current_balance|floatformat:2 }}</span>
-            {% else %}
-                <span class="text-danger">{{ book.current_balance|floatformat:2 }}</span>
-            {% endif %}
-			</td>
-			<td>{{book.last_log}}</td>
-		</tr>
-		{% endfor %}
-	</tbody>
-</table>
-
-
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
 
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">Books</h1><div class="sub">{{ total_count }} customer ledger{{ total_count|pluralize }}</div></div>
+        <div class="actions">
+            <a href="{% url 'books_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-arrow-down"></i> Export</a>
+            <a href="{% url 'book_logs_full' %}" class="gbtn"><i class="fas fa-clock-rotate-left"></i> All logs</a>
+        </div>
+    </div>
 
-{% block includejs %}
-<script type="text/javascript">
+    <form method="get" class="toolbar">
+        <div class="search"><i class="fas fa-magnifying-glass gico"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search customer…" autocomplete="off"></div>
+    </form>
 
-$(document).ready( function () {
-	$('#book-table').DataTable({
-		"order": [],
-		"columnDefs": [],
-		"paging": true
-	});
-});
-
-</script>
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Customer</th>{% sort_th 'balance' 'Current Balance' 'r' %}<th>Last Transaction</th><th class="r">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for book in book_list %}
+                <tr>
+                    <td><a href="{% url 'book_logs' book.id %}" style="display:block"><div class="prim"><span class="pi"><i class="fas fa-book"></i></span><div class="nm">{{ book.customer.customer_name }}</div></div></a></td>
+                    <td class="r num">
+                        {% if book.current_balance >= -10 and book.current_balance <= 10 %}<span style="color:var(--amber)">{{ book.current_balance|inrs }}</span>
+                        {% elif book.current_balance > 0 %}<span style="color:var(--green)">{{ book.current_balance|inrs }}</span>
+                        {% else %}<span style="color:var(--red)">{{ book.current_balance|inrs }}</span>{% endif %}
+                    </td>
+                    <td class="mut">{{ book.last_log|default:"—" }}</td>
+                    <td class="r"><div class="rowacts">
+                        <a href="{% url 'book_logs' book.id %}" class="gbtn gbtn-icon" title="Ledger"><i class="fas fa-file-lines"></i></a>
+                    </div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4"><div class="empty">
+                    <div class="ei"><i class="fas fa-book fa-lg"></i></div>
+                    <h3>No books found</h3>
+                    <p>{% if q %}Try a different search.{% else %}Customer ledgers appear here.{% endif %}</p>
+                    {% if q %}<a href="{% url 'books' %}" class="gbtn">Clear search</a>{% endif %}
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
+</div>
 {% endblock %}

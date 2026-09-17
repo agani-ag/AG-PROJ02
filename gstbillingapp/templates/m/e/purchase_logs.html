@@ -1,0 +1,38 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Purchase logs{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Manage</a>{% endblock %}
+{% block heading %}Purchase logs{% endblock %}
+{% block content %}
+
+<a class="btn btn-acc" href="{% url 'm_manage_purchase_new' %}" style="margin-bottom:14px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> Add purchase entry</a>
+<div class="stats">
+    <div class="stat c-red"><div class="chip"><svg class="i"><use href="#ic-cart"/></svg></div><p class="l">Purchased</p><div class="v">&#8377; {{ purchased }}</div></div>
+    <div class="stat c-green"><div class="chip"><svg class="i"><use href="#ic-check"/></svg></div><p class="l">Paid</p><div class="v">&#8377; {{ paid }}</div></div>
+    <div class="stat c-amber"><div class="chip"><svg class="i"><use href="#ic-reply"/></svg></div><p class="l">Returned</p><div class="v">&#8377; {{ returned }}</div></div>
+    <div class="stat c-blue"><div class="chip"><svg class="i"><use href="#ic-box"/></svg></div><p class="l">Others</p><div class="v">&#8377; {{ others }}</div></div>
+</div>
+<div class="panel between"><span class="muted">{% if excess %}Excess paid{% else %}Outstanding{% endif %}</span><span class="b" style="font-size:18px;color:{% if excess %}var(--green){% else %}var(--red){% endif %}">&#8377; {{ outstanding }}</span></div>
+
+<div data-mpaged="{% url 'm_manage_purchases_data' %}" data-mpaged-list="#pl-list" data-mpaged-offset="{{ rows|length }}">
+    <div style="position:relative;margin-bottom:12px">
+        <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+        <input class="field" data-mpaged-search placeholder="Search vendor, reference…" autocomplete="off" style="margin:0;padding-left:42px">
+    </div>
+    <div class="filt">
+        <button class="on" data-t="all">All</button>
+        <button data-t="1">Purchase</button>
+        <button data-t="0">Paid</button>
+        <button data-t="2">Return</button>
+        <button data-t="3">Other</button>
+    </div>
+    <div class="list" id="pl-list">
+        {% include "m/e/_purchase_rows.html" with rows=rows %}
+    </div>
+    <div class="empty" data-mpaged-empty {% if rows %}style="display:none"{% endif %}><svg class="i"><use href="#ic-book"/></svg><div>No purchase logs.</div></div>
+    <button class="btn" data-mpaged-more style="{% if not has_more %}display:none;{% endif %}margin-bottom:14px">Load more</button>
+    <div class="ledtotal" data-mpaged-total style="display:none"><span class="l">Total</span><span class="v">&#8377; 0</span></div>
+</div>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

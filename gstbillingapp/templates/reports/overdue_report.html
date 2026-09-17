@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% load static %}
+{% load money %}
+
+{% block title %}Overdue Report · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* ===== Overdue Report ===== */
+.od-control{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);padding:13px 16px;margin-bottom:18px}
+.od-control label{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:var(--ink);margin:0}
+.od-control label i{color:var(--red)}
+.od-control select{font-family:var(--disp);font-weight:700;font-size:13px;padding:7px 12px;border-radius:10px;border:1px solid var(--redbg);color:var(--red);background:#fff;cursor:pointer}
+.od-control .hint{font-size:12.5px;color:var(--soft)}
+.od-control .hint strong{color:var(--red)}
+.gs table.gt tr.total-row td{font-family:var(--disp);font-weight:700;background:var(--wash);border-top:2px solid var(--line);color:var(--ink)}
+.gs table.gt td.rk{font-family:var(--disp);font-weight:700;color:var(--faint);text-align:center;width:44px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Overdue</div>
+            <h1 class="disp">Overdue Report</h1>
+            <div class="sub">Customers with outstanding older than {{ selected_days }} days — as of {{ report_date|date:"d M Y" }}</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'bi_dashboard' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Back to BI</a>
+            <button type="button" class="gbtn" onclick="printTable('overdueTable','Overdue Report ({{ selected_days }}+ Days)')"><i class="fas fa-print"></i> Print</button>
+            {% include "partials/telegram_report.html" with report="overdue" %}
+        </div>
+    </div>
+
+    <!-- Overdue threshold selector -->
+    <div class="od-control">
+        <label for="daysSelect"><i class="fas fa-calendar-alt"></i> Overdue Threshold:</label>
+        <select id="daysSelect" onchange="window.location.href='?days='+this.value">
+            {% for d in day_options %}
+            <option value="{{ d }}" {% if d == selected_days %}selected{% endif %}>{{ d }} Days</option>
+            {% endfor %}
+        </select>
+        <span class="hint">Showing outstanding older than <strong>{{ selected_days }} days</strong></span>
+    </div>
+
+    <!-- KPIs -->
+    <div class="statgrid">
+        <div class="stat"><span class="si r"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ total_overdue|inrs }}</div><div class="sk">Total Overdue</div><div class="ss">{{ selected_days }}+ days</div></div></div>
+        <div class="stat"><span class="si b"><i class="fas fa-users"></i></span>
+            <div><div class="sv">{{ total_customers }}</div><div class="sk">Customers with Overdue</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-scale-balanced"></i></span>
+            <div><div class="sv">{% if total_customers > 0 %}&#8377; {{ total_overdue|inrs }}{% else %}&#8377; 0{% endif %}</div><div class="sk">Avg Overdue / Customer</div></div></div>
+        <div class="stat"><span class="si {% if total_customers > 0 %}r{% else %}g{% endif %}"><i class="fas {% if total_customers > 0 %}fa-exclamation-circle{% else %}fa-check-circle{% endif %}"></i></span>
+            <div><div class="sv">{% if total_customers > 0 %}Action Required{% else %}All Clear{% endif %}</div><div class="sk">Status</div></div></div>
+    </div>
+
+    <!-- Table -->
+    <div class="rsec"><i class="fas fa-table"></i> Customers Overdue Beyond {{ selected_days }} Days</div>
+    <div class="tablecard">
+        <div class="tbl-scroll">
+            <table class="gt" id="overdueTable">
+                <thead>
+                    <tr>
+                        <th class="rk">#</th>
+                        <th>Customer Name</th>
+                        <th class="r">Overdue Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customer_rows %}
+                    <tr>
+                        <td class="rk">{{ forloop.counter }}</td>
+                        <td>
+                            <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                                <div>
+                                    <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a>
+                                    <div class="mn">{{ customer.phone }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="r"><span class="num" style="color:var(--red)">&#8377; {{ customer.overdue_amount|inrs }}</span></td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3">
+                            <div class="empty">
+                                <div class="ei"><i class="fas fa-check-circle fa-lg"></i></div>
+                                <h3>All clear</h3>
+                                <p>No customers have overdue amounts beyond {{ selected_days }} days.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    {% if customer_rows %}
+                    <tr class="total-row">
+                        <td></td>
+                        <td>TOTAL ({{ total_customers }} customers)</td>
+                        <td class="r"><span class="num" style="color:var(--red)">&#8377; {{ total_overdue|inrs }}</span></td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+var _rptDate = '{{ report_date|date:"d M Y" }}';
+function printTable(tableId, title) {
+    var reportDate = _rptDate;
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var clone = table.cloneNode(true);
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>' + title + '</title>');
+    win.document.write('<style>');
+    win.document.write('@page{size:A4 portrait;margin:10mm;}');
+    win.document.write('body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:10px;color:#333;}');
+    win.document.write('.print-header{text-align:center;margin-bottom:14px;}');
+    win.document.write('.print-header h2{margin:0 0 4px;font-size:1.2rem;}');
+    win.document.write('.print-header p{margin:0;font-size:.8rem;color:#666;}');
+    win.document.write('table{width:100%;border-collapse:collapse;font-size:.85rem;}');
+    win.document.write('th,td{border:1px solid #aaa;padding:6px 10px;}');
+    win.document.write('th{background:#343a40;color:#fff;font-size:.8rem;text-transform:uppercase;}');
+    win.document.write('td:first-child{text-align:center;width:50px;}');
+    win.document.write('td:last-child{text-align:right;}');
+    win.document.write('th:last-child{text-align:right;}');
+    win.document.write('tr:nth-child(even){background:#f9f9f9;}');
+    win.document.write('.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
+    win.document.write('.text-danger{color:#dc3545;}');
+    win.document.write('.text-muted{color:#999;font-size:.7rem;}');
+    win.document.write('.font-weight-bold{font-weight:700;}');
+    win.document.write('@media print{@page{size:A4 portrait;margin:10mm;}body{margin:0;padding:8px;}}');
+    win.document.write('</style></head><body>');
+    win.document.write('<div class="print-header">');
+    win.document.write('<h2>' + title + '</h2>');
+    win.document.write('<p>Report Date: ' + reportDate + '</p>');
+    win.document.write('</div>');
+    win.document.write(clone.outerHTML);
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 300);
+}
+</script>
+{% endblock %}

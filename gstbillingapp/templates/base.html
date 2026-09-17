@@ -8,9 +8,17 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>
         {% block title %}
-            GST Sync
+            GSTSync
         {% endblock %}
     </title>
+
+    {% comment %}Brand icon, identical across the desktop app, the mobile app and the
+    console so every tab is recognisably GSTSync. Uses {% comment %} rather than {# #},
+    which is single-line only and would render into the page.{% endcomment %}
+    <link rel="icon" type="image/svg+xml" href="{% static 'gstbillingapp/images/favicon.svg' %}?v={{ ASSET_VER }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'gstbillingapp/images/favicon-32.png' %}?v={{ ASSET_VER }}">
+    <link rel="icon" type="image/x-icon" href="{% static 'gstbillingapp/images/favicon.ico' %}?v={{ ASSET_VER }}">
+    <link rel="apple-touch-icon" href="{% static 'gstbillingapp/images/apple-touch-icon.png' %}?v={{ ASSET_VER }}">
 
     {% block metatags %}
     {% endblock %}
@@ -24,31 +32,34 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{% static 'gstbillingapp/main.css' %}" id="main-css">
 
-    <!-- DataTables CSS  -->
-    <link rel="stylesheet" href="{% static 'gstbillingapp/DataTables/jquery.dataTables.min.css' %}" id="datatables-css">
-    <link rel="stylesheet" href="{% static 'gstbillingapp/DataTables/dataTables.bootstrap4.min.css' %}" id="datatables-bootstrap-css">
+    <!-- DataTables removed — list pages now use native server pagination + the .gstable enhancer -->
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- GSTSync design system (global, so the navbar + every page share it) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+    <!-- Per-page library CSS (Leaflet / AG-Grid / Tingle) — only the pages that use them opt in. -->
+    {% block head_libs %}{% endblock %}
     {% block includecss %}
     {% endblock %}
 </head>
 
 <body>
 
-    <div class="container">
-        <!-- Content here -->
-        {% if user.is_authenticated %}
-            {% if not nav_hide %}
-                {% include "navbar.html" %}
-            {% endif %}
+    <!-- Navbar at body level so it spans full width edge-to-edge, like the invoice printer. -->
+    {% if user.is_authenticated %}
+        {% if not nav_hide %}
+            {% include "navbar.html" %}
         {% endif %}
+    {% endif %}
 
+    <div class="container-fluid px-4 pt-3">
         {% if error_message %}
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
                 <strong><i class="fas fa-times-circle"></i> Error!</strong> {{ error_message }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <button type="button" class="close" onclick="this.closest('.alert').remove()" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -57,7 +68,7 @@
         {% if success_message %}
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 <strong><i class="fas fa-check-circle"></i> Success!</strong> {{ success_message }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <button type="button" class="close" onclick="this.closest('.alert').remove()" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -65,7 +76,9 @@
 
         {% if messages %}
             {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert" style="margin-top: 20px; margin-bottom: 20px;">
+                <div class="alert 
+                        {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags }}{% endif %}
+                            alert-dismissible fade show" role="alert" style="margin-top: 20px; margin-bottom: 20px;">
                     <strong>
                         {% if message.tags == 'warning' %}
                             <i class="fas fa-exclamation-triangle"></i> Warning!
@@ -78,7 +91,7 @@
                         {% endif %}
                     </strong>
                     {{ message }}
-                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <button type="button" class="close" onclick="this.closest('.alert').remove()" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
@@ -99,31 +112,75 @@
     <script src="{% static 'gstbillingapp/bootstrap-4.4.1-dist/js/bootstrap.min.js' %}" id="bootstrap-js"></script>
     <script src="{% static 'gstbillingapp/DataTables/jquery.dataTables.min.js' %}" id="datatables-js"></script> -->
     
-    <!-- ONLINE MODE -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.datatables.net/1.12.1/js/jquery.dataTables.min.js"></script>
-    <!-- AG GRID SCRIPTS -->
-    <link href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.2.1/styles/ag-grid.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.2.1/styles/ag-theme-alpine.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.2.1/dist/ag-grid-community.min.noStyle.js"></script>
-    <!-- SweetAlert2 -->
+    <!-- ONLINE MODE — jQuery + DataTables dropped globally.
+         The three invoice/quotation form pages that still use main.js load jQuery locally. -->
+    <!-- Vanilla modal helper (.gmodal) — replaces the Bootstrap modal JS -->
+    <script>
+    function gOpenModal(id){ var m=document.getElementById(id); if(m) m.classList.add('show'); }
+    function gCloseModal(ref){ var m = (ref && ref.closest) ? ref.closest('.gmodal') : document.getElementById(ref); if(m) m.classList.remove('show'); }
+    document.addEventListener('click', function(e){
+        if(e.target.classList && e.target.classList.contains('gmodal')) e.target.classList.remove('show');
+        var c = e.target.closest && e.target.closest('[data-gclose]');
+        if(c){ var m = c.closest('.gmodal'); if(m) m.classList.remove('show'); }
+    });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape') document.querySelectorAll('.gmodal.show').forEach(function(m){ m.classList.remove('show'); }); });
+    </script>
+    <!-- Vanilla table enhancer (.gstable) — replaces jQuery DataTables on list pages -->
+    <script src="{% static 'gstbillingapp/gstable.js' %}?v={{ ASSET_VER }}"></script>
+    <!-- Live search: auto-submits any GET toolbar with a name="q" box as you type -->
+    <script src="{% static 'gstbillingapp/js/gsearch.js' %}?v={{ ASSET_VER }}"></script>
+    <!-- SweetAlert2 (used across the app) -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- Buttons -->
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap4.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <!-- QR Code Styling JS -->
-    <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
+    <!-- AG GRID full-screen support: a toggle is auto-added to every grid on the page (no-op when a page has no grid) -->
+    <style>
+        .grid-fs-btn{position:absolute;top:6px;right:6px;z-index:20;border:0;border-radius:6px;padding:6px 9px;
+            background:rgba(52,58,64,.85);color:#fff;cursor:pointer;font-size:13px;line-height:1;
+            box-shadow:0 1px 4px rgba(0,0,0,.25);transition:background .15s}
+        .grid-fs-btn:hover{background:#343a40}
+        [class*="ag-theme-"]:fullscreen{width:100vw !important;height:100vh !important;background:#fff;padding:8px}
+        [class*="ag-theme-"]:-webkit-full-screen{width:100vw !important;height:100vh !important;background:#fff;padding:8px}
+    </style>
+    <script>
+    (function(){
+        function attach(){
+            document.querySelectorAll('[class*="ag-theme-"]').forEach(function(grid){
+                if(grid.dataset.fsReady) return;
+                // Only real grid containers ag-Grid has actually rendered into.
+                if(!grid.querySelector('.ag-root-wrapper')) return;
+                grid.dataset.fsReady='1';
+                if(getComputedStyle(grid).position==='static') grid.style.position='relative';
+                var btn=document.createElement('button');
+                btn.type='button'; btn.className='grid-fs-btn'; btn.title='Toggle full screen';
+                btn.innerHTML='<i class="fas fa-expand"></i>';
+                btn.addEventListener('click',function(e){
+                    e.preventDefault(); e.stopPropagation();
+                    var on=document.fullscreenElement||document.webkitFullscreenElement;
+                    if(on){ (document.exitFullscreen||document.webkitExitFullscreen).call(document); }
+                    else{ (grid.requestFullscreen||grid.webkitRequestFullscreen).call(grid); }
+                });
+                grid.appendChild(btn);
+            });
+        }
+        function onFsChange(){
+            var on=document.fullscreenElement||document.webkitFullscreenElement;
+            document.querySelectorAll('.grid-fs-btn i').forEach(function(i){
+                i.className=on?'fas fa-compress':'fas fa-expand';
+            });
+            // Nudge ag-Grid to recompute its viewport for the new size.
+            setTimeout(function(){ window.dispatchEvent(new Event('resize')); },60);
+        }
+        document.addEventListener('fullscreenchange',onFsChange);
+        document.addEventListener('webkitfullscreenchange',onFsChange);
+        // Grids initialise after their page scripts run; poll briefly to catch them all.
+        window.addEventListener('load',function(){
+            var tries=0, t=setInterval(function(){ attach(); if(++tries>12) clearInterval(t); },400);
+        });
+    })();
+    </script>
+    <!-- Per-page heavy libraries (DataTables export stack / Leaflet / AG-Grid / QR / Tingle).
+         Only the pages that use them opt in via the body_libs block — see templates/partials/libs/. -->
+    {% block body_libs %}{% endblock %}
+
     {% block includejs %}
     {% endblock %}
 

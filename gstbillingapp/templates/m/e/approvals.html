@@ -1,0 +1,51 @@
+{% extends "m/base.html" %}
+{% block title %}Approvals{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_home' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Home</a>{% endblock %}
+{% block heading %}Pending Approvals{% endblock %}
+{% block subhead %}<div class="sub">Payments recorded by staff, awaiting your approval</div>{% endblock %}
+{% block content %}
+
+{% if rows %}
+<div class="list" id="appr-list">
+    {% for r in rows %}
+    <div class="row" data-id="{{ r.id }}" style="display:block;padding:14px 16px">
+        <div class="between">
+            <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+                <span class="ico ic-green"><svg class="i"><use href="#ic-wallet"/></svg></span>
+                <span style="min-width:0"><span class="b">{{ r.customer }}</span><div class="sub">by {{ r.by }} · {{ r.date|date:"d M Y" }}</div></span>
+            </span>
+            <span class="b tabnum" style="color:var(--green);white-space:nowrap">&#8377; {{ r.amount }}</span>
+        </div>
+        {% if r.note %}<div class="sub" style="margin:6px 0 0 43px">{{ r.note }}</div>{% endif %}
+        <div style="display:flex;gap:10px;margin-top:12px">
+            <button class="btn btn-green" style="flex:1;padding:11px" onclick="act(this,{{ r.id }},'approve')"><svg class="i" style="stroke:#fff;width:17px;height:17px"><use href="#ic-check"/></svg> Approve</button>
+            <button class="btn" style="flex:1;padding:11px;background:var(--redbg);color:var(--red);box-shadow:none" onclick="act(this,{{ r.id }},'reject')">Reject</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+<div class="empty" id="appr-empty" style="display:none"><svg class="i"><use href="#ic-check"/></svg><div>All caught up — nothing pending.</div></div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-check"/></svg><div>All caught up — nothing pending.</div></div>
+{% endif %}
+
+<script>
+async function act(btn, id, action){
+    var rowDiv = btn.closest('[data-id]');
+    rowDiv.querySelectorAll('button').forEach(function(b){ b.disabled = true; });
+    var r = await M.post('/m/employee/approvals/' + id + '/act', { action: action });
+    if(r.ok){
+        M.toast(action === 'approve' ? 'Approved' : 'Rejected');
+        rowDiv.remove();
+        var list = document.getElementById('appr-list');
+        if(list && !list.querySelector('[data-id]')){
+            var e = document.getElementById('appr-empty'); if(e) e.style.display = 'block';
+        }
+    } else {
+        M.toast(r.message || 'Failed');
+        rowDiv.querySelectorAll('button').forEach(function(b){ b.disabled = false; });
+    }
+}
+</script>
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Cheques{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Manage</a>{% endblock %}
+{% block heading %}Cheques{% endblock %}
+{% block includecss %}
+.seg{display:flex;gap:4px;background:var(--card);border-radius:14px;padding:4px;box-shadow:var(--sh);margin-bottom:12px}
+.seg a{flex:1;text-align:center;padding:10px 8px;border-radius:10px;font-size:14px;font-weight:700;color:var(--soft)}
+.seg a.on{background:var(--acc);color:#fff}
+{% endblock %}
+{% block content %}
+
+<a class="btn btn-acc" href="{% url 'm_manage_cheque_new' %}" style="margin-bottom:14px"><svg class="i" style="stroke:#fff"><use href="#ic-plus"/></svg> Add cheque</a>
+<div class="panel between"><span class="muted">Outstanding · {{ open_count }} open</span><span class="b" style="font-size:18px;color:var(--amber)">&#8377; {{ outstanding }}</span></div>
+
+{% if future_count %}
+<div class="seg">
+    <a href="?when=future" class="{% if when == 'future' %}on{% endif %}">Future · {{ future_count }}</a>
+    <a href="?when=past" class="{% if when == 'past' %}on{% endif %}">Past{% if past_count %} · {{ past_count }}{% endif %}</a>
+</div>
+{% endif %}
+
+{% if rows %}
+{% include "m/_searchbar.html" with target="#chq-list" empty="#chq-empty" placeholder="Search number or payee…" %}
+<div class="list" id="chq-list">
+    {% for ch in rows %}
+    <div class="row" data-s="{{ ch.number|lower }} {{ ch.payee|default:''|lower }} {{ ch.status_label|lower }}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico {% if ch.bounced %}ic-red{% elif ch.open %}ic-amber{% else %}ic-green{% endif %}"><svg class="i"><use href="#ic-book"/></svg></span>
+            <span style="min-width:0"><span class="b">{{ ch.number }}</span><div class="sub">{{ ch.payee|default:"—" }}{% if ch.bank %} · {{ ch.bank }}{% endif %} · {{ ch.clearance_date|date:"d M Y" }}</div></span>
+        </span>
+        <span class="right" style="white-space:nowrap">
+            {% if ch.amount %}<div class="b tabnum">&#8377; {{ ch.amount }}</div>{% endif %}
+            <span class="badge {% if ch.bounced %}b-red{% elif ch.open %}b-amber{% else %}b-green{% endif %}">{{ ch.status_label }}</span>
+        </span>
+    </div>
+    {% endfor %}
+</div>
+<div class="empty" id="chq-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-book"/></svg><div>No {{ when }} cheques.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

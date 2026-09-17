@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% load money %}
+{% load static %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><a href="{% url 'employees' %}">Employees</a> › Attendance &amp; Salary</div>
+            <h1 class="disp">{{ employee.name }}</h1>
+        </div>
+        <div class="actions">
+            <a href="{% url 'employee_incentives' posting.id %}" class="gbtn"><i class="fas fa-gift"></i> Incentives</a>
+            <a href="{% url 'employees' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Employees</a>
+        </div>
+    </div>
+
+{% if not_eligible %}
+<div class="alert alert-info text-center py-5">
+    <i class="fas fa-info-circle fa-2x mb-2"></i>
+    <h5 class="mb-2">{{ employee.name }} is not on attendance &amp; salary.</h5>
+    <p class="text-muted mb-3">Turn on <strong>Attendance &amp; salary</strong> for this employee to track their calendar and monthly pay.</p>
+    <a href="{% url 'employee_edit' posting.id %}" class="btn btn-primary btn-curve"><i class="fas fa-pen-to-square"></i> Enable it</a>
+    <a href="{% url 'employees' %}" class="btn btn-outline-secondary btn-curve">Back</a>
+</div>
+{% else %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="?year={{ prev.year }}&month={{ prev.month }}" class="btn btn-outline-secondary btn-curve"><i class="fas fa-chevron-left"></i></a>
+    <h3 class="mb-0">{{ month_name }} {{ year }}</h3>
+    <a href="?year={{ next.year }}&month={{ next.month }}" class="btn btn-outline-secondary btn-curve"><i class="fas fa-chevron-right"></i></a>
+</div>
+
+{% if not posting.salary %}
+<div class="alert alert-warning">No base salary set for this posting. <a href="{% url 'employee_edit' posting.id %}">Set it</a> to calculate the salary.</div>
+{% endif %}
+
+<div class="row">
+    <!-- Calendar -->
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-end mb-2 flex-wrap" style="gap:8px">
+            <form method="POST" class="form-inline" style="gap:8px">
+                {% csrf_token %}
+                <div class="form-group mb-0">
+                    <label class="mr-1 mb-0"><small><b>Base ₹</b></small></label>
+                    <input type="number" min="0" step="0.01" name="base_salary" class="form-control form-control-sm" style="width:110px" value="{{ record.base_salary }}" title="Base salary for this month — pre-filled from the profile; change it to back-fill an old month at its own salary.">
+                </div>
+                <div class="form-group mb-0 mx-2">
+                    <label class="mr-1 mb-0"><small class="text-danger">Advances ₹</small></label>
+                    <input type="number" min="0" step="0.01" name="advances" class="form-control form-control-sm" style="width:100px" value="{{ record.advances }}">
+                </div>
+                <div class="form-group mb-0 mx-2">
+                    <label class="mr-1 mb-0"><small class="text-success">Bonus ₹</small></label>
+                    <input type="number" min="0" step="0.01" name="bonus" class="form-control form-control-sm" style="width:100px" value="{{ record.bonus }}">
+                </div>
+                <button type="submit" class="btn btn-dark btn-sm btn-curve"><i class="fas fa-save"></i> Save</button>
+            </form>
+            <div class="d-flex" style="gap:8px">
+                <button class="btn btn-success btn-sm btn-curve" onclick="markAllPresent()"><i class="fas fa-check-double"></i> Mark all present</button>
+                <button id="selToggle" class="btn btn-outline-primary btn-sm btn-curve" onclick="toggleSelectMode()"><i class="fas fa-object-group"></i> Select multiple</button>
+            </div>
+        </div>
+
+        <!-- Bulk action bar (multi-select) -->
+        <div id="bulkBar" class="alert alert-light border d-flex align-items-center flex-wrap" style="display:none !important;gap:8px;padding:8px 12px">
+            <span class="font-weight-bold mr-2"><span id="selCount">0 selected</span></span>
+            <button class="btn btn-success btn-sm btn-curve" onclick="bulkApply(0)"><i class="fas fa-check"></i> Present</button>
+            <button class="btn btn-warning btn-sm btn-curve" onclick="bulkApply(2)"><i class="fas fa-adjust"></i> Half</button>
+            <button class="btn btn-info btn-sm btn-curve" onclick="bulkApply(3)"><i class="fas fa-plane"></i> Leave</button>
+            <button class="btn btn-danger btn-sm btn-curve" onclick="bulkApply(1)"><i class="fas fa-times"></i> Absent</button>
+            <button class="btn btn-outline-secondary btn-sm btn-curve" onclick="bulkApply(-1)"><i class="fas fa-eraser"></i> Clear</button>
+        </div>
+        <table class="table table-bordered text-center att-cal mb-1">
+            <thead class="thead-dark"><tr><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+            <tbody>
+                {% for week in weeks %}
+                <tr>
+                    {% for cell in week %}
+                        {% if cell %}
+                        <td class="att-cell {% if cell.status is not None %}status-{{ cell.status }}{% else %}unmarked{% endif %}" data-date="{{ cell.date }}" onclick="cellClick(this)" style="cursor:pointer;height:70px;vertical-align:top">
+                            <div class="font-weight-bold">{{ cell.day }}</div>
+                            <small class="lbl">{% if cell.status is not None %}{{ cell.status_label }}{% else %}Absent{% endif %}</small>
+                        </td>
+                        {% else %}<td class="bg-white"></td>{% endif %}
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p class="text-muted"><small><strong>Working day = every day except Leave.</strong> A <strong>blank / unmarked</strong> day counts as <strong class="text-danger">Absent (unpaid)</strong>; mark weekly-offs &amp; holidays as <strong class="text-info">Leave</strong> to exclude them. Salary = base × (Present + ½·Half) ÷ working days.</small></p>
+    </div>
+
+    <!-- Salary summary -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-dark text-white">Salary — {{ month_name }} {{ year }}</div>
+            <div class="card-body">
+                <table class="table table-sm mb-2">
+                    <tr><td>Base salary</td><td class="text-right" colspan="2">₹ {{ record.base_salary|inrs }}</td></tr>
+                    <tr><td>Working days</td><td class="text-right" colspan="2">{{ record.total_days }} <span class="text-muted">(₹ {{ amounts.per_day|inrs }}/day)</span></td></tr>
+                    <tr class="text-success"><td>Present</td><td class="text-right">{{ counts.present }}</td><td class="text-right">₹ {{ amounts.present|inrs }}</td></tr>
+                    <tr class="text-warning"><td>Half-day</td><td class="text-right">{{ counts.half }}</td><td class="text-right">₹ {{ amounts.half|inrs }}</td></tr>
+                    <tr class="text-danger"><td>Absent + blank</td><td class="text-right">{{ counts.absent }} + {{ counts.unmarked }}</td><td class="text-right">− ₹ {{ amounts.unpaid|inrs }}</td></tr>
+                    <tr class="text-muted"><td>Leave (excluded)</td><td class="text-right">{{ counts.leave }}</td><td class="text-right">—</td></tr>
+                    <tr class="font-weight-bold border-top"><td>Earned ({{ record.paid_units }} of {{ record.total_days }} days)</td><td class="text-right" colspan="2">₹ {{ amounts.earned|inrs }}</td></tr>
+                    <tr class="text-danger"><td>Advances</td><td class="text-right" colspan="2">− ₹ {{ record.advances|inrs }}</td></tr>
+                    <tr class="text-success"><td>Bonus</td><td class="text-right" colspan="2">+ ₹ {{ record.bonus|inrs }}</td></tr>
+                </table>
+                <div class="alert alert-success d-flex justify-content-between align-items-center mb-0">
+                    <span>Net salary</span><h3 class="mb-0">₹ {{ record.calculated_salary|inrs }}</h3>
+                </div>
+            </div>
+        </div>
+        {% if history %}
+        <div class="card mt-3">
+            <div class="card-header bg-secondary text-white">Recent months</div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>Month</th><th class="text-right">Paid</th><th class="text-right">Net</th></tr></thead>
+                    <tbody>
+                        {% for r in history %}
+                        <tr><td>{{ r.month }}/{{ r.year }}</td><td class="text-right">{{ r.paid_units }}</td><td class="text-right font-weight-bold">₹ {{ r.calculated_salary|inrs }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<style>
+.att-cell.status-0{background:#d4edda}   /* present (green) */
+.att-cell.status-1{background:#f8d7da}   /* absent (red) */
+.att-cell.status-2{background:#fff3cd}   /* half (amber) */
+.att-cell.status-3{background:#d1ecf1}   /* leave (blue) */
+.att-cell.unmarked{background:#fdeaea}   /* blank = absent (faint red) */
+.att-cell.unmarked .lbl{color:#c0392b;opacity:.7}
+.att-cell .lbl{font-size:11px;font-weight:600}
+.att-cell.selected{outline:3px solid #007bff;outline-offset:-3px}
+#selToggle.active{background:#007bff;color:#fff}
+</style>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+const MARK_URL = "{% url 'attendance_mark' posting.id %}";
+const MARK_ALL_URL = "{% url 'attendance_mark_all' posting.id %}?year={{ year }}&month={{ month }}";
+const BULK_URL = "{% url 'attendance_mark_bulk' posting.id %}";
+const CSRF = "{{ csrf_token }}";
+
+// ---- Multi-select ----
+let selectMode = false;
+const selected = new Set();
+function cellClick(td){
+    if(selectMode){
+        var d = td.getAttribute('data-date');
+        if(selected.has(d)){ selected.delete(d); td.classList.remove('selected'); }
+        else { selected.add(d); td.classList.add('selected'); }
+        document.getElementById('selCount').textContent = selected.size + ' selected';
+    } else { pickStatus(td); }
+}
+function toggleSelectMode(){
+    selectMode = !selectMode;
+    selected.clear();
+    document.querySelectorAll('.att-cell.selected').forEach(td => td.classList.remove('selected'));
+    var btn = document.getElementById('selToggle');
+    btn.classList.toggle('active', selectMode);
+    btn.innerHTML = selectMode ? '<i class="fas fa-times"></i> Cancel select' : '<i class="fas fa-object-group"></i> Select multiple';
+    document.getElementById('bulkBar').style.setProperty('display', selectMode ? 'flex' : 'none', 'important');
+    document.getElementById('selCount').textContent = '0 selected';
+}
+function bulkApply(status){
+    if(!selected.size){ Swal.fire('', 'Click days to select them first.', 'info'); return; }
+    fetch(BULK_URL, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF}, body: JSON.stringify({dates: Array.from(selected), status: status})})
+    .then(r=>r.json()).then(d=>{ if(d.ok){ location.reload(); } else { Swal.fire('Error', d.message||'Failed', 'error'); } })
+    .catch(()=>Swal.fire('Error','Network error','error'));
+}
+
+function pickStatus(td){
+    var date = td.getAttribute('data-date');
+    Swal.fire({
+        title: date, showConfirmButton: false, showCloseButton: true,
+        html: '<div class="d-flex flex-column" style="gap:8px">' +
+            '<button class="btn btn-success btn-curve" onclick="setStatus(\''+date+'\',0)"><i class="fas fa-check"></i> Present</button>' +
+            '<button class="btn btn-danger btn-curve" onclick="setStatus(\''+date+'\',1)"><i class="fas fa-times"></i> Absent</button>' +
+            '<button class="btn btn-warning btn-curve" onclick="setStatus(\''+date+'\',2)"><i class="fas fa-adjust"></i> Half-day</button>' +
+            '<button class="btn btn-info btn-curve" onclick="setStatus(\''+date+'\',3)"><i class="fas fa-plane"></i> Leave</button>' +
+            '<button class="btn btn-outline-secondary btn-curve" onclick="setStatus(\''+date+'\',-1)"><i class="fas fa-eraser"></i> Clear (blank = absent)</button>' +
+            '</div>'
+    });
+}
+function setStatus(date, status){
+    fetch(MARK_URL, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF}, body: JSON.stringify({date:date, status:status})})
+    .then(r=>r.json()).then(d=>{ if(d.ok){ Swal.close(); setTimeout(()=>location.reload(), 120); } else { Swal.fire('Error', d.message||'Failed', 'error'); } })
+    .catch(()=>Swal.fire('Error','Network error','error'));
+}
+function markAllPresent(){
+    Swal.fire({title:'Mark all days present?', text:'{{ month_name }} {{ year }} — you can then change the exceptions.', icon:'question', showCancelButton:true, confirmButtonText:'Yes, mark all'})
+    .then(res=>{ if(res.isConfirmed){
+        fetch(MARK_ALL_URL, {method:'POST', headers:{'X-CSRFToken':CSRF}})
+        .then(r=>r.json()).then(d=>{ if(d.ok){ location.reload(); } });
+    }});
+}
+</script>
+{% endblock %}

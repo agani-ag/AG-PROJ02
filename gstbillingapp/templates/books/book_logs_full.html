@@ -2,360 +2,169 @@
 {% load tz %}
 {% load humanize %}
 {% load static %}
+{% load money %}
 
 {% block content %}
-<h2>All Book Details</h2>
-<hr>
+<div class="gs">
+    <div class="page-head">
+        <div><h1 class="disp">All Book Details</h1><div class="sub">Every customer ledger entry</div></div>
+        <div class="actions">
+            <a href="{% url 'book_logs_full_export' %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-csv"></i> Export CSV</a>
+            <button type="button" class="gbtn" onclick="toggleDesc()"><i class="fas fa-align-left"></i> Description</button>
+            <a href="#" class="gbtn" onclick="recalculate();return false;"><i class="fas fa-sync-alt"></i> Recalculate</a>
+            <a href="{% url 'book_logs_full_add' %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add entry</a>
+        </div>
+    </div>
 
-<!-- Summary Cards Row -->
-<div class="row mb-3">
-    <div class="col-md-3">
-        <div class="card bg-danger text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-receipt"></i> Total Sales</h6>
-                <h3>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma }}</h3>
-            </div>
-        </div>
+    <div class="gstats">
+        <div class="gstat red"><div class="gk"><span class="dot"></span> Total Sales</div><div class="gv">&#8377; {{ total_purchased|default:0|inrs }}</div></div>
+        <div class="gstat green"><div class="gk"><span class="dot"></span> Total Paid</div><div class="gv">&#8377; {{ total_paid|default:0|inrs }}</div></div>
+        <div class="gstat amber"><div class="gk"><span class="dot"></span> Total Returned</div><div class="gv">&#8377; {{ total_returned|default:0|inrs }}</div></div>
+        <div class="gstat blue"><div class="gk"><span class="dot"></span> Total Others</div><div class="gv">&#8377; {{ total_others|default:0|inrs }}</div></div>
     </div>
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-circle-check"></i> Total Paid</h6>
-                <h3>₹ {{ total_paid | default:0 | floatformat:2 | intcomma }}</h3>
-            </div>
+
+    <div style="margin:6px 2px 14px"><strong>Total Balance :
+        {% if total_balance > 0 %}<span style="color:var(--red)">&#8377; {{ total_balance|default:0|inrs }}</span>
+        {% else %}<span style="color:var(--green)">&#8377; {{ total_balance|default:0|inrs }}</span>{% endif %}
+    </strong> <span class="mut" id="balanceWord">{{ total_balance_word }}</span></div>
+
+    <form method="get" class="toolbar" id="filterForm">
+        <div class="search"><i class="fas fa-search"></i>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search description or customer…">
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-orange text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-reply"></i> Total Returned</h6>
-                <h3>₹ {{ total_returned | default:0 | floatformat:2 | intcomma }}</h3>
-            </div>
+        <select name="change_type" class="selctl" onchange="document.getElementById('filterForm').submit()">
+            <option value="all" {% if change_type == 'all' %}selected{% endif %}>All Types</option>
+            <option value="0" {% if change_type == '0' %}selected{% endif %}>Paid</option>
+            <option value="1" {% if change_type == '1' %}selected{% endif %}>Sales</option>
+            <option value="2" {% if change_type == '2' %}selected{% endif %}>Returned</option>
+            <option value="3" {% if change_type == '3' %}selected{% endif %}>Others</option>
+        </select>
+        <select name="date_filter" class="selctl" id="dateFilter" onchange="onDateFilterChange()">
+            <option value="all" {% if date_filter == 'all' %}selected{% endif %}>All Time</option>
+            <option value="today" {% if date_filter == 'today' %}selected{% endif %}>Today</option>
+            <option value="week" {% if date_filter == 'week' %}selected{% endif %}>This Week</option>
+            <option value="month" {% if date_filter == 'month' %}selected{% endif %}>This Month</option>
+            <option value="custom" {% if date_filter == 'custom' %}selected{% endif %}>Custom</option>
+        </select>
+        <input type="date" name="start_date" id="startDate" value="{{ start_date }}" class="selctl" style="padding:9px 12px;{% if date_filter != 'custom' %}display:none{% endif %}" onchange="maybeSubmitDates()">
+        <input type="date" name="end_date" id="endDate" value="{{ end_date }}" class="selctl" style="padding:9px 12px;{% if date_filter != 'custom' %}display:none{% endif %}" onchange="maybeSubmitDates()">
+        <button type="submit" class="gbtn"><i class="fas fa-filter"></i> Apply</button>
+        <a href="{% url 'book_logs_full' %}" class="gbtn">Clear</a>
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt hide-desc" id="inventory-logs-table">
+            <thead>
+                <tr>
+                    <th>Date</th><th>Type</th><th class="r">Change</th>
+                    <th class="desc-col">Description</th><th>Customer</th><th class="r">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in page_obj %}
+                <tr class="{% if item.is_active and item.change_type == 0 %}rt-green{% elif item.is_active and item.change_type == 1 %}rt-red{% elif item.is_active and item.change_type == 2 %}rt-amber{% elif item.is_active and item.change_type == 3 %}rt-blue{% else %}rt-grey{% endif %}">
+                    <td>
+                        <div style="font-weight:600;color:var(--ink)">{{ item.date|localtime|date:"M d, Y" }}</div>
+                        <div class="mut" style="font-size:11.5px">{{ item.date|localtime|date:"h:i A" }}</div>
+                    </td>
+                    <td><span class="gbadge {% if item.change_type == 0 %}ok{% elif item.change_type == 1 %}out{% elif item.change_type == 2 %}low{% elif item.change_type == 3 %}blue{% else %}grey{% endif %}">{{ item.get_change_type_display }}</span></td>
+                    <td class="r"><span class="num" style="{% if item.change < 0 %}color:var(--red){% elif item.change > 0 %}color:var(--green){% else %}color:var(--faint){% endif %}">{{ item.change|inrs }}</span></td>
+                    <td class="desc-col mut">{{ item.description }}</td>
+                    <td class="customer-name"><a href="{% url 'book_logs' item.parent_book.id %}" style="font-weight:600;color:var(--ink)">{{ item.parent_book.customer.customer_name }}</a></td>
+                    <td class="r">
+                        <div class="rowacts">
+                            {% if item.associated_invoice %}<a href="{% url 'invoice_viewer' item.associated_invoice.id %}" class="gbtn gbtn-icon" title="View invoice"><i class="fas fa-file-invoice"></i></a>{% endif %}
+                            {% if item.change_type != 1 and item.change_type != 2 %}<a href="{% url 'book_logs_del' item.id %}" class="gbtn gbtn-icon del" title="Delete"><i class="fas fa-trash"></i></a>
+                            {% elif not item.associated_invoice and item.change_type == 1 %}<a href="{% url 'book_logs_del' item.id %}" class="gbtn gbtn-icon del" title="Delete"><i class="fas fa-trash"></i></a>{% endif %}
+                            {% if not item.is_active %}<span class="gbtn gbtn-icon gadd" onclick="markAsActive({{ item.id }},{{ item.change }})" title="Reactivate"><i class="fas fa-arrow-up"></i></span>{% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" style="text-align:center;padding:40px 20px;color:var(--soft)">No book logs match this filter.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
         </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card bg-violet text-white">
-            <div class="card-body">
-                <h6 class="card-title"><i class="fas fa-recycle"></i> Total Others</h6>
-                <h3>₹ {{ total_others | default:0 | floatformat:2 | intcomma }}</h3>
-            </div>
-        </div>
+        {% include "gs/_pager.html" %}
     </div>
 </div>
-
-<!-- Action Buttons Row -->
-<div class="row mb-3 align-items-end">
-    <div class="col-md-3">
-        <strong>Total Balance :
-            {% if total_balance > 0 %}
-                <span class="text-danger">₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</span>
-            {% else %}
-                <span class="text-success">₹ {{ total_balance | default:0 | floatformat:2 | intcomma }}</span>
-            {% endif %}
-        </strong><br>
-        <span class="font-weight-bold" id="balanceWord">{{ total_balance_word }}</span>
-    </div>
-    <div class="col-md-9">
-        <div class="row align-items-end">
-            <div class="col-md-2">
-                <label for="changeTypeFilter" class="mb-1"><small><strong>Type:</strong></small></label>
-                <select id="changeTypeFilter" class="form-control form-control-sm">
-                    <option value="all">All Types</option>
-                    <option value="0">Paid</option>
-                    <option value="1">Sales</option>
-                    <option value="2">Returned</option>
-                    <option value="3">Others</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label for="dateFilter" class="mb-1"><small><strong>Date:</strong></small></label>
-                <select id="dateFilter" class="form-control form-control-sm">
-                    <option value="all">All Time</option>
-                    <option value="today">Today</option>
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                    <option value="custom">Custom</option>
-                </select>
-            </div>
-            <div class="col-md-3" id="startDateWrapper" style="display:none;">
-                <label for="startDate" class="mb-1"><small><strong>From:</strong></small></label>
-                <input type="date" id="startDate" class="form-control form-control-sm">
-            </div>
-            <div class="col-md-3" id="endDateWrapper" style="display:none;">
-                <label for="endDate" class="mb-1"><small><strong>To:</strong></small></label>
-                <input type="date" id="endDate" class="form-control form-control-sm">
-            </div>
-            <div class="col-md-2">
-                <button id="clearFilters" class="btn btn-secondary btn-sm btn-block">
-                    <i class="fas fa-times"></i> Clear
-                </button>
-            </div>
-            <div class="col-md-1 text-right">
-                <a href="{% url 'book_logs_full_add' %}" class="btn btn-primary btn-sm btn-curve btn-block">
-                    <i class="fas fa-plus"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<hr>
-
-<!-- Book Logs Table -->
-<table class="table table-hover font-weight-bold" id="inventory-logs-table">
-    <thead class="thead-dark align-middle">
-        <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th class="text-center">Change</th>
-            <th>Description</th>
-            <th>Customer</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        <!-- Data loaded via AJAX -->
-    </tbody>
-</table>
 
 <style>
-#inventory-logs-table tbody tr td {
-    vertical-align: middle;
-}
-
-.customer-name {
-    min-width: 150px; /* minimum width */
-    max-width: 250px; /* maximum width */
-    white-space: normal; /* allow text to wrap */
-    word-wrap: break-word; /* break long words if needed */
-}
+#inventory-logs-table td{vertical-align:middle}
+#inventory-logs-table .customer-name{min-width:150px;max-width:280px;white-space:normal;word-wrap:break-word}
+#inventory-logs-table.hide-desc .desc-col{display:none}
+#inventory-logs-table .gbadge{white-space:nowrap}
+/* Subtle left-accent per row type (replaces the old full-row colour flood). */
+#inventory-logs-table tbody td:first-child{border-left:3px solid transparent}
+#inventory-logs-table tbody tr.rt-red   td:first-child{border-left-color:var(--red)}
+#inventory-logs-table tbody tr.rt-green td:first-child{border-left-color:var(--green)}
+#inventory-logs-table tbody tr.rt-amber td:first-child{border-left-color:var(--amber)}
+#inventory-logs-table tbody tr.rt-blue  td:first-child{border-left-color:var(--brand)}
+#inventory-logs-table tbody tr.rt-grey  td:first-child{border-left-color:#cbd5e1}
 </style>
-
 {% endblock %}
 
 {% block includejs %}
 <script type="text/javascript">
-$(document).ready(function() {
-    var table = $('#inventory-logs-table').DataTable({
-        "processing": true,
-        "serverSide": true,
-        "ajax": {
-            "url": "{% url 'book_logs_full_ajax' %}",
-            "type": "GET",
-            "data": function(d) {
-                d.change_type = $('#changeTypeFilter').val() || 'all';
-                d.date_filter = $('#dateFilter').val() || 'all';
-                d.start_date = $('#startDate').val() || '';
-                d.end_date = $('#endDate').val() || '';
-                console.log('Sending data:', d);
-            },
-            "error": function(xhr, error, code) {
-                console.error('AJAX Error Details:', {
-                    status: xhr.status,
-                    statusText: xhr.statusText,
-                    responseText: xhr.responseText,
-                    error: error,
-                    code: code
-                });
-                var errorMsg = 'Error loading data: ';
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    errorMsg += xhr.responseJSON.error;
-                } else if (xhr.responseText) {
-                    errorMsg += xhr.responseText;
-                } else {
-                    errorMsg += xhr.status + ' ' + xhr.statusText;
-                }
-                alert(errorMsg + '\n\nCheck browser console for more details.');
-            },
-            "dataSrc": function(json) {
-                console.log('Received data:', json);
-                if (json.error) {
-                    alert('Server error: ' + json.error);
-                    return [];
-                }
-                // Update summary cards if totals are provided
-                if (json.totals) {
-                    updateSummaryCards(json.totals);
-                }
-                return json.data;
-            }
-        },
-        "columns": [
-            { "data": "date", "orderable": true },
-            { "data": "type", "orderable": true },
-            { "data": "change", "orderable": true, "className": "text-center font-weight-bold" },
-            { "data": "description", "orderable": true, "visible": false },
-            { "data": "customer", "orderable": true, "className": "customer-name" },
-            { "data": "actions", "orderable": false, "className": "text-center" }
-        ],
-        "order": [[0, "desc"]],
-        "pageLength": 15,
-        "lengthMenu": [[10, 15, 25, 50, 100, 200], [10, 15, 25, 50, 100, 200]],
-        "searching": true,
-        "info": true,
-        "createdRow": function(row, data, dataIndex) {
-            if (data.DT_RowClass) {
-                $(row).addClass(data.DT_RowClass);
-            }
-        },
-        dom: 'Blfrtip',
-        buttons: [
-            {
-                extend: 'excelHtml5',
-                text: '<i class="fas fa-file-excel"></i> Excel',
-                className: 'btn btn-success btn-sm btn-curve',
-                exportOptions: {
-                    columns: [0, 1, 2, 3, 4]
-                }
-            },
-            {
-                extend: 'pdfHtml5',
-                text: '<i class="fas fa-file-pdf"></i> PDF',
-                className: 'btn btn-danger btn-sm btn-curve',
-                exportOptions: {
-                    columns: [0, 1, 2, 3, 4]
-                }
-            },
-            {
-                extend: 'print',
-                text: '<i class="fas fa-print"></i> Print',
-                className: 'btn btn-warning btn-sm btn-curve',
-                title: '',
-                exportOptions: {
-                    columns: [0, 1, 2, 3, 4]
-                },
-                customize: function(win) {
-                    $(win.document.body).prepend(`
-                        <div id="customHeader" style="text-align:center; margin-bottom:20px;">
-                            <h2 style="margin:0;">All Book Logs Report</h2>
-                            <table style="width:50%; margin:0 auto; border-collapse: collapse;" border="1">
-                            <tr><td>Total Purchased</td><td>₹ {{ total_purchased | default:0 | floatformat:2 | intcomma  }}</td></tr>
-                            <tr><td>Total Paid</td><td>₹ {{ total_paid | default:0 | floatformat:2 | intcomma  }}</td></tr>
-                            <tr><td>Total Returned</td><td>₹ {{ total_returned | default:0 | floatformat:2 | intcomma  }}</td></tr>
-                            <tr><td>Total Others</td><td>₹ {{ total_others | default:0 | floatformat:2 | intcomma  }}</td></tr>
-                            <tr><td>Total Balance</td><td>₹ {{ total_balance | default:0 | floatformat:2 | intcomma  }}</td></tr>
-                            </table>
-                            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-                            <hr style="border:1px solid #000;">
-                        </div>
-                    `);
-
-                    const css = `
-                        <style>
-                            @media print {
-                                body { counter-reset: page; }
-                                table { font-size: inherit; width: 100%; }
-                            }
-                        </style>
-                    `;
-                    $(win.document.head).append(css);
-                }
-            },
-            {
-                text: 'Description',
-                className: 'btn btn-info btn-sm btn-curve',
-                action: function(e, dt, node, config) {
-                    let col = dt.column(3);
-                    col.visible(!col.visible());
-                }
-            }
-        ]
-    });
-
-    // Show/hide custom date range inputs
-    $('#dateFilter').on('change', function() {
-        if ($(this).val() === 'custom') {
-            $('#startDateWrapper').show();
-            $('#endDateWrapper').show();
-        } else {
-            $('#startDateWrapper').hide();
-            $('#endDateWrapper').hide();
-            table.ajax.reload();
-        }
-    });
-
-    // Auto-reload when custom date inputs change
-    $('#startDate, #endDate').on('change', function() {
-        if ($('#dateFilter').val() === 'custom' && $('#startDate').val() && $('#endDate').val()) {
-            table.ajax.reload();
-        }
-    });
-
-    // Clear filters button
-    $('#clearFilters').on('click', function() {
-        $('#changeTypeFilter').val('all');
-        $('#dateFilter').val('all');
-        $('#startDate').val('');
-        $('#endDate').val('');
-        $('#startDateWrapper').hide();
-        $('#endDateWrapper').hide();
-        table.ajax.reload();
-    });
-
-    // Auto-reload on change for type filter
-    $('#changeTypeFilter').on('change', function() {
-        table.ajax.reload();
-    });
-    
-    // Function to update summary cards
-    function updateSummaryCards(totals) {
-        // Format numbers with commas
-        const formatNumber = (num) => {
-            return new Intl.NumberFormat('en-IN', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).format(num);
-        };
-        
-        // Update card values
-        $('.card.bg-danger h3').text('₹ ' + formatNumber(totals.total_purchased));
-        $('.card.bg-success h3').text('₹ ' + formatNumber(totals.total_paid));
-        $('.card.bg-orange h3').text('₹ ' + formatNumber(totals.total_returned));
-        $('.card.bg-violet h3').text('₹ ' + formatNumber(totals.total_others));
-        
-        // Update total balance
-        const balanceSpan = totals.total_balance > 0 ? 
-            '<span class="text-danger">₹ ' + formatNumber(totals.total_balance) + '</span>' :
-            '<span class="text-success">₹ ' + formatNumber(totals.total_balance) + '</span>';
-        
-        $('.col-md-3 strong').html('Total Balance : ' + balanceSpan);
-        $('#balanceWord').text(totals.total_balance_word);
+function toggleDesc() {
+    document.getElementById('inventory-logs-table').classList.toggle('hide-desc');
+}
+function onDateFilterChange() {
+    var v = document.getElementById('dateFilter').value;
+    if (v === 'custom') {
+        document.getElementById('startDate').style.display = '';
+        document.getElementById('endDate').style.display = '';
+    } else {
+        document.getElementById('filterForm').submit();
     }
-});
+}
+function maybeSubmitDates() {
+    if (document.getElementById('dateFilter').value === 'custom'
+        && document.getElementById('startDate').value
+        && document.getElementById('endDate').value) {
+        document.getElementById('filterForm').submit();
+    }
+}
 
-// Example SweetAlert usage for marking as active
+// Mark a reversed/inactive log back to active
 function markAsActive(booklogId, change) {
     Swal.fire({
         title: 'Mark as Active?',
-        text: "This will mark the book log as active. Updates "+ change,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Yes, Update it!'
+        text: "This will mark the book log as active. Updates " + change,
+        icon: 'warning', showCancelButton: true,
+        confirmButtonColor: '#3085d6', cancelButtonColor: '#d33', confirmButtonText: 'Yes, Update it!'
     }).then((result) => {
         if (result.isConfirmed) {
-            $.ajax({
-                url: '/books/api/active',
-                method: 'GET',
-                data: { booklog: booklogId, change: change },
-                success: function(response) {
-                    Swal.fire(
-                        'Marked!',
-                        response.message,
-                        'success'
-                    ).then(() => {
-                        location.reload();
-                    });
-                },
-                error: function() {
-                    Swal.fire(
-                        'Error!',
-                        'There was an error marking the book log as active.',
-                        'error'
-                    );
-                }
-            });
+            fetch('/books/api/active', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: new URLSearchParams({ booklog: booklogId, change: change })
+            })
+                .then(response => response.json())
+                .then(response => { Swal.fire('Marked!', response.message, 'success').then(() => { location.reload(); }); })
+                .catch(() => { Swal.fire('Error!', 'There was an error marking the book log as active.', 'error'); });
+        }
+    });
+}
+
+// Recalculate balances across all books
+function recalculate() {
+    Swal.fire({
+        title: 'Recalculate Balance',
+        text: "This will recalculate the current balance based on all active book logs.",
+        icon: 'info', showCancelButton: true,
+        confirmButtonColor: '#3085d6', cancelButtonColor: '#d33', confirmButtonText: 'Yes, Recalculate!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch('/books/api/recalculate-all', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            })
+                .then(response => response.json())
+                .then(response => { Swal.fire('Recalculated!', response.message, 'success').then(() => { location.reload(); }); })
+                .catch(() => { Swal.fire('Error!', 'There was an error recalculating the balance.', 'error'); });
         }
     });
 }

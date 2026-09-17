@@ -1,0 +1,13 @@
+{% comment %}Results for the unmapped row page's "Find a mapped customer" search. Rendered
+inside the full page, and on its own (?partial=find) for the live search.{% endcomment %}
+{% if pq %}
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+  {% for p in found %}
+    <form method="post" action="{% url 'console_party_add' p.id %}">{% csrf_token %}
+      <input type="hidden" name="customer_ids" value="{{ customer.id }}">
+      <button class="gbtn">Add to {{ p.name }}</button></form>
+  {% empty %}
+    <span class="mut" style="font-size:13px">No mapped customer matches “{{ pq }}”.</span>
+  {% endfor %}
+  </div>
+{% endif %}

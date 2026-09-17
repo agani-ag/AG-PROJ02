@@ -1,55 +1,51 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}Update book · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
-<h2>Update Book</h2>
-<hr>
+<div class="gs gs-pad">
+<form method="POST" class="gform">
+    {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'book_logs' book.id %}">{{ book.customer.customer_name }}</a> › New entry</div>
+                <h1 class="disp">Update book</h1>
+                <div class="sub">Current balance:
+                    {% if book.current_balance > 0 %}<span style="color:var(--green)">{{ book.current_balance|floatformat:2 }}</span>
+                    {% else %}<span style="color:var(--red)">{{ book.current_balance|floatformat:2 }}</span>{% endif %}
+                </div>
+            </div>
+        </div>
 
-<div class="row">
-	<div class="col">
-		<h3>Customer: <span class="text-primary">{{book.customer.customer_name}}</span></h3>
-		<h3>Current Balance: {% if book.current_balance > 0 %}<span class="text-success">{{ book.current_balance|floatformat:2 }}</span>{% else %}<span class="text-danger">{{ book.current_balance|floatformat:2 }}</span>{% endif %}</h3>
-	</div>
-	
-	<div class="col text-right">
-		<form method="POST">
-			{% csrf_token %}
-			<table class="table">
-			<tbody class="two-col-form">
-				<tr>
-					<th scope="row" class="text-right">Date & Time:</th>
-					<td class="form-input-td customer_search_area">
-						<input type="datetime-local" value="{%now "Y-m-d H:i:s"%}" name="date">
-					</td>
-				</tr>
-				<tr>
-					<th scope="row" class="text-right">Change in balance:</th>
-					<td class="form-input-td">{{form.change}}</td>
-				</tr>
-				<tr>
-					<th scope="row" class="text-right">Change Type:</th>
-					<td class="form-input-td">{{form.change_type}}</td>
-				</tr>
-				<tr>
-					<th scope="row" class="text-right">Associated Invoice Number:</th>
-					<td class="form-input-td"><input type="text" name="invoice_no"></ins></td>
-				</tr>
-				<tr>
-					<th scope="row" class="text-right">Description:</th>
-					<td class="form-input-td">{{form.description}}</td>
-				</tr>
-			</tbody>
-			</table>
+        <div class="section open">
+            <div class="sh"><span class="si b"><i class="fas fa-book"></i></span>
+                <div><h3 class="disp">Ledger entry</h3><div class="sd">Add a balance change</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Date &amp; Time</label><input type="datetime-local" name="date" value="{% now 'Y-m-d H:i:s' %}"></div>
+                <div class="field"><label>Change in balance</label>{{ form.change }}</div>
+                <div class="field"><label>Change Type</label>{{ form.change_type }}</div>
+                <div class="field"><label>Associated Invoice Number</label><input type="text" name="invoice_no"></div>
+                <div class="field full"><label>Description</label>{{ form.description }}</div>
+            </div></div>
+        </div>
+    </div>
 
-			<div class="d-flex justify-content-end gap-2">
-				<button type="submit" class="btn btn-primary">
-					<i class="fas fa-save"></i>
-                </button>&nbsp;
-				<a href="{% url 'book_logs' book.id %}" class="btn btn-warning">
-					<i class="fas fa-reply"></i>
-				</a>
-			</div>
-		</form>
-	</div>
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">New entry · not saved</div>
+        <div class="end">
+            <a class="gbtn" href="{% url 'book_logs' book.id %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> Save entry</button>
+        </div>
+    </div></div>
+</form>
 </div>
 {% endblock %}

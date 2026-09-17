@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Overdue Purchases{% endblock %}
 
@@ -56,25 +57,29 @@
         font-size: 14px;
     }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-6">
-        <h2>Purchases - Overdue</h2>
-        <p class="font-weight-bold text-danger" id="overdue_amount"></p>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <h1 class="disp">Purchases · Overdue</h1>
+            <div class="sub"><span class="c-red" id="overdue_amount" style="color:var(--red);font-weight:600"></span></div>
         </div>
-    <div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;">
-        <a href="{% url 'purchases_logs' %}" class="btn btn-success btn-sm btn-curve" title="View Purchases Logs">
-            Purchases Logs <i class="fas fa-arrow-right"></i> 
-        </a>
+        <div class="actions">
+            <select id="purchaseFilter" onchange="updateLink()" class="selctl">
+                <option value="">All Vendors</option>
+                {% for v in vendor %}<option value="{{ v }}" {% if request.GET.vendor == v %}selected{% endif %}>{{ v }}</option>{% endfor %}
+            </select>
+            <a href="{% url 'purchases_logs' %}" class="gbtn">Purchases Logs <i class="fas fa-arrow-right"></i></a>
+        </div>
     </div>
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <div id="overdueGrid" class="ag-theme-alpine"></div>
-            </div>
-        </div>
+    <div class="tablecard" style="padding:12px">
+        <div id="overdueGrid" class="ag-theme-alpine"></div>
     </div>
 </div>
 {% endblock %}
@@ -82,6 +87,9 @@
 {% block includejs %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+    // Get vendor parameter from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const vendor = urlParams.get('vendor');
 
     const columnDefs = [
         {
@@ -175,7 +183,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     gridOptions.api.showLoadingOverlay();
 
-    fetch("{% url 'purchases_logs_overdue_api' %}")
+    // Prepare API URL
+    let apiUrl = "{% url 'purchases_logs_overdue_api' %}";
+    if (vendor) {
+        apiUrl += `?vendor=${vendor}`;
+    }
+
+    fetch(apiUrl)
         .then(res => res.json())
         .then(data => {
             gridOptions.api.setRowData(data);
@@ -210,6 +224,7 @@ function viewPurchase(data) {
         html: `
             <table class="table table-borderless" style="text-align:left">
                 <tr><th>Date:</th><td>${data.date || '-'}</td></tr>
+                <tr><th>Vendor:</th><td>${data.vendor || '-'}</td></tr>
                 <tr><th>Category:</th><td>${data.category || '-'}</td></tr>
                 <tr><th>Reference:</th><td>${data.reference || '-'}</td></tr>
                 <tr><th>Amount:</th><td>
@@ -237,5 +252,28 @@ function viewPurchase(data) {
         }
     });
 }
+
+function updateLink() {
+    const select = document.getElementById('purchaseFilter');
+    const vendor = select.value;
+
+    // Build URL for current page with vendor param
+    const baseUrl = window.location.pathname; // e.g., /purchases_logs/overdue
+    const params = new URLSearchParams(window.location.search);
+
+    if (vendor) {
+        params.set('vendor', vendor); // add/update vendor param
+    } else {
+        params.delete('vendor'); // remove if "All Vendors" is selected
+    }
+
+    // Reload page with new query string
+    window.location.href = `${baseUrl}?${params.toString()}`;
+}
+
 </script>
 {% endblock %}
+
+{% block head_libs %}{% include "partials/libs/aggrid_head.html" %}{% endblock %}
+
+{% block body_libs %}{% include "partials/libs/aggrid_body.html" %}{% endblock %}

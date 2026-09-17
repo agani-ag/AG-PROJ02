@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% load tz %}
+{% load static %}
+{% load humanize %}
+{% load money %}
+{% block title %}Vendor Purchases Logs{% endblock %}
+{% block includecss %}
+<style>
+	/* Fix Tingle z-index over Bootstrap & DataTables */
+	.tingle-modal {
+		z-index: 20000 !important;
+	}
+	.tingle-modal-box {
+		z-index: 20001 !important;
+	}
+	/* Soft blur overlay */
+	.tingle-modal.tingle-blur .tingle-modal-overlay {
+		background: rgba(255,255,255,0);       /* fully transparent overlay */
+		backdrop-filter: blur(2px);            /* softer blur */
+		-webkit-backdrop-filter: blur(2px);    /* Safari support */
+		transition: backdrop-filter 0.3s ease;
+	}
+	.tingle-modal.tingle-blur.tingle-open .tingle-modal-overlay {
+		backdrop-filter: blur(2px) brightness(1.05);
+		-webkit-backdrop-filter: blur(2px) brightness(1.05);
+	}
+	.custom-tingle .tingle-modal-box {
+	max-width: 420px;
+	}
+	.custom-tingle input,
+	.custom-tingle select {
+		width: 100%;
+		padding: 8px;
+		margin-bottom: 10px;
+		box-sizing: border-box;
+	}
+	.custom-tingle label {
+		font-weight: 600;
+		margin-top: 8px;
+		display: block;
+	}
+	.custom-tingle button[type="submit"] {
+		width: 100%;
+		padding: 10px;
+		background: #2563eb;
+		color: white;
+		border: none;
+		border-radius: 4px;
+	}
+</style>
+{% endblock %}
+{% block content %}
+<div class="gs">
+	<h1 class="disp" style="font-size:22px;margin:0 0 12px">Vendor Details</h1>
+		<div class="row">
+			<div class="col-md-6">
+				<h4>Vendor: <span class="text-primary">{{vendor.vendor_name}}</span></h4>
+				<p class="font-weight-bold">
+					<span>Current Balance:</span>
+					{% if total_balance > 0 %} 
+						<span class="text-danger"><a href="?filter=balance" class="text-danger">
+					{% else %}	
+						<span class="text-success"><a href="?filter=balance" class="text-success">
+					{% endif %}
+						₹ {{ total_balance | default:0 | inrs }} </a></span>
+					<span>({{ total_balance_word }})</span>
+					{% if balance_status %}
+						/ "<span class="text-violet"><i class="fas fa-exclamation-triangle text-danger"></i> {{ balance_status }}</span>"
+					{% endif %}
+				</p>
+			</div>
+			<div class="col-md-6 text-right" style="display: flex; align-items: center; justify-content: flex-end;gap: 8px;">
+				<button id="openPurchaseModal" class="gbtn gbtn-primary" title="Add New Purchase"><i class="fas fa-plus"></i> New purchase</button>
+				<a href="{% url 'purchases_logs_overdue' %}?vendor={{ vendor.vendor_name }}" class="gbtn" title="View Overdue Purchases"><i class="fas fa-exclamation-triangle"></i> Overdue</a>
+			</div>
+		</div>
+		
+		<!-- Summary Cards Row -->
+		<div class="gstats">
+			<a href="?filter=purchased" class="gstat red"><div class="gk"><span class="dot"></span> Total Purchased</div><div class="gv">&#8377; {{ total_purchased|default:0|inrs }}</div></a>
+			<a href="?filter=paid" class="gstat green"><div class="gk"><span class="dot"></span> Total Paid</div><div class="gv">&#8377; {{ total_paid|default:0|inrs }}</div></a>
+			<a href="?filter=returned" class="gstat amber"><div class="gk"><span class="dot"></span> Total Returned</div><div class="gv">&#8377; {{ total_returned|default:0|inrs }}</div></a>
+			<a href="?filter=others" class="gstat blue"><div class="gk"><span class="dot"></span> Total Others</div><div class="gv">&#8377; {{ total_others|default:0|inrs }}</div></a>
+		</div>
+
+	<div class="tablecard">
+	<table class="gt" id="purchase-table">
+		<thead>
+			<tr>
+				<th>Date</th>
+				<th>Type</th>
+				<th class="r">Amount</th>
+				<th>Category</th>
+				<th>Reference</th>
+				<th class="r" data-noexport data-nosort>Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for purchase in purchases %}
+			<tr class="{% if purchase.change_type == 0 %}rt-green{% elif purchase.change_type == 1 %}rt-red{% elif purchase.change_type == 2 %}rt-amber{% else %}rt-cyan{% endif %}">
+				<td data-order="{{ purchase.date|date:'U' }}">
+					<div style="font-weight:600;color:var(--ink)">{{ purchase.date|localtime|date:"M d, Y" }}</div>
+					<div class="mut" style="font-size:11.5px">{{ purchase.date|localtime|date:"h:i A" }} · {{ purchase.date|naturaltime }}</div>
+				</td>
+				<td><span class="gbadge {% if purchase.change_type == 0 %}ok{% elif purchase.change_type == 1 %}out{% elif purchase.change_type == 2 %}low{% else %}blue{% endif %}">{{ purchase.get_change_type_display }}</span></td>
+				<td class="r" data-order="{{ purchase.change|default:0 }}">{% if purchase.change %}<span class="num" style="{% if purchase.change < 0 %}color:var(--red){% elif purchase.change > 0 %}color:var(--green){% else %}color:var(--faint){% endif %}">&#8377; {{ purchase.change|inrs }}</span>{% else %}<span class="mut">N/A</span>{% endif %}</td>
+				<td>{% if purchase.category %}{{ purchase.category }}{% else %}<span class="mut">N/A</span>{% endif %}</td>
+				<td>{% if purchase.reference %}{{ purchase.reference }}{% else %}<span class="mut">N/A</span>{% endif %}</td>
+				<td class="r">
+					<div class="rowacts">
+						<a href="{% url 'purchases_logs_delete' purchase.id %}?vendor={{ vendor.id }}" class="gbtn gbtn-icon del" title="Delete purchase"><i class="fas fa-trash"></i></a>
+					</div>
+				</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+	</div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script type="text/template" id="purchaseFormTemplate">
+  <form id="purchaseForm">
+    {% csrf_token %}
+
+    <label>Date</label>
+    <input type="date" name="date" value="{{ today|date:'Y-m-d' }}" required>
+
+    <label>Change Type</label>
+    <select name="change_type">
+      <option value="0">Paid</option>
+      <option value="1">Purchase</option>
+      <option value="2">Return</option>
+      <option value="3">Other</option>
+    </select>
+
+    <label>Amount</label>
+    <input type="number" name="change" required>
+
+    <input type="hidden" name="vendor" value="{{ vendor.id }}">
+
+    <label>Reference</label>
+    <input type="text" name="reference1" placeholder="Enter reference">
+    <select name="reference2">
+	  <option value="">-- Select Reference --</option>
+	  {% for ref in references %}
+		<option value="{{ ref }}">{{ ref }}</option>
+	  {% endfor %}
+	</select>
+
+    <label>Category</label>
+    <input type="text" name="category1" placeholder="Enter category">
+	<select name="category2">
+	  <option value="">-- Select Category --</option>
+	  {% for category in categories %}
+		<option value="{{ category }}">{{ category }}</option>
+	  {% endfor %}
+	</select>
+
+    <button type="submit" style="margin-top:10px;">Save</button>
+
+    <div id="formErrors" style="color:red;margin-top:10px;"></div>
+  </form>
+</script>
+<script type="text/javascript">
+	document.addEventListener('DOMContentLoaded', function () {
+		GSTable.enhance('#purchase-table', {
+			pageSize: 25, search: true, sort: true,
+			exportCsv: true, print: true,
+			searchPlaceholder: 'Search purchases…',
+			exportName: 'vendor-purchases-{{ vendor.vendor_name|escapejs }}',
+			printTitle: 'Vendor Purchase Logs - {{ vendor.vendor_name|escapejs }}',
+			printHeadHtml: '<div style="text-align:center; margin-bottom:20px;">' +
+				'<h2 style="margin:0;">{{ request.user.userprofile.business_title|escapejs }}</h2>' +
+				'<p style="margin:4px 0; color:#666; font-size:13px;">{{ request.user.userprofile.business_address|escapejs }}</p>' +
+				'<p style="margin:2px 0; color:#666; font-size:13px;">' +
+					'Phone: {{ request.user.userprofile.business_phone|escapejs }}' +
+					'{% if request.user.userprofile.business_gst %} | GSTIN: {{ request.user.userprofile.business_gst|escapejs }}{% endif %}' +
+					'{% if request.user.userprofile.business_brand %} | Brand: {{ request.user.userprofile.business_brand|escapejs }}{% endif %}' +
+				'</p>' +
+				'<hr style="margin:10px 0;">' +
+				'<h4 style="margin:0;">Vendor Purchase Logs - {{ vendor.vendor_name|escapejs }}</h4>' +
+				'<div style="display:flex; justify-content:center; gap:30px; margin-top:10px; font-size:14px;">' +
+					'<span style="color:#dc3545;"><strong>Total Sales:</strong> &#8377; {{ total_purchased|default:0|inrs }}</span>' +
+					'<span style="color:#28a745;"><strong>Total Paid:</strong> &#8377; {{ total_paid|default:0|inrs }}</span>' +
+					'<span style="color:#fd7e14;"><strong>Returned:</strong> &#8377; {{ total_returned|default:0|inrs }}</span>' +
+					'<span><strong>Balance:</strong> &#8377; {{ total_balance|default:0|inrs }}</span>' +
+				'</div>' +
+				'<hr style="margin-top:10px;">' +
+			'</div>'
+		});
+	});
+
+/* Create modal */
+const modal = new tingle.modal({
+  footer: false,
+  stickyFooter: false,
+  closeMethods: ['overlay', 'button', 'escape'],
+  closeLabel: "Close",
+  cssClass: ['custom-tingle', 'tingle-blur'],
+});
+
+/* Open modal */
+document.getElementById("openPurchaseModal").addEventListener("click", () => {
+  modal.setContent(
+    document.getElementById("purchaseFormTemplate").innerHTML
+  );
+  modal.open();
+
+  attachFormHandler();
+});
+
+/* Attach form submit AFTER modal opens */
+function attachFormHandler() {
+  const form = document.getElementById("purchaseForm");
+  const errorsDiv = document.getElementById("formErrors");
+
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    errorsDiv.innerHTML = "";
+
+    const formData = new FormData(form);
+
+    fetch("{% url 'purchases_logs_add_api' %}", {
+      method: "POST",
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": form.querySelector('[name=csrfmiddlewaretoken]').value
+      },
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        modal.close();
+  		location.reload(); // simplest & reliable
+      } else {
+        for (const field in data.errors) {
+          const p = document.createElement("p");
+          p.innerText = `${field}: ${data.errors[field].join(", ")}`;
+          errorsDiv.appendChild(p);
+        }
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      errorsDiv.innerText = "Something went wrong.";
+    });
+  };
+}
+</script>
+{% endblock %}
+
+{% block head_libs %}{% include "partials/libs/tingle_head.html" %}{% endblock %}
+
+{% block body_libs %}{% include "partials/libs/tingle_body.html" %}{% endblock %}

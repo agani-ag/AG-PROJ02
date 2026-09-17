@@ -1,0 +1,33 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block bizsel %}{% endblock %}
+{% block title %}Vendors{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Manage</a>{% endblock %}
+{% block heading %}Vendors{% endblock %}
+{% block subhead %}<div class="sub">{{ count }} vendor{{ count|pluralize }}</div>{% endblock %}
+{% block content %}
+
+{% if payable != "0" %}<div class="panel between"><span class="muted">Total payable</span><span class="b" style="font-size:18px;color:var(--red)">&#8377; {{ payable }}</span></div>{% endif %}
+
+{% if rows %}
+{% include "m/_searchbar.html" with target="#v-list" empty="#v-empty" placeholder="Search vendor…" %}
+<div class="list" id="v-list">
+    {% for v in rows %}
+    <a class="row" href="{% url 'm_manage_vendor' v.id %}" style="color:inherit" data-s="{{ v.name|lower }} {{ v.phone|default:'' }}">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+            <span class="ico ic-blue"><svg class="i"><use href="#ic-building"/></svg></span>
+            <span style="min-width:0"><span class="b">{{ v.name }}</span>{% if v.phone %}<div class="sub">{{ v.phone }}</div>{% endif %}</span>
+        </span>
+        {% if v.balance > 0 %}<span class="badge b-red">&#8377; {{ v.balance|inrs }}</span>
+        {% elif v.balance < 0 %}<span class="badge b-green">Adv ₹ {{ v.balance|inrs|cut:"-" }}</span>
+        {% else %}<span class="badge b-grey">Settled</span>{% endif %}
+    </a>
+    {% endfor %}
+</div>
+<div class="empty" id="v-empty" style="display:none"><svg class="i"><use href="#ic-search"/></svg><div>No matches.</div></div>
+{% else %}
+<div class="empty"><svg class="i"><use href="#ic-building"/></svg><div>No vendors yet. Add them on the desktop.</div></div>
+{% endif %}
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

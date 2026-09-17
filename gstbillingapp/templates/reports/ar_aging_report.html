@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+{% load money %}
+
+{% block title %}Accounts Receivable Aging Report · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* AR Aging — page-scoped tweaks (sticky first columns + bucket tints) */
+.gs .ar-note{font-size:12px;color:var(--soft);margin:-6px 2px 12px;display:flex;align-items:flex-start;gap:7px}
+.gs .ar-note i{color:var(--brand);margin-top:2px}
+
+.gs #arAgingTable{min-width:1600px}
+.gs #arAgingTable thead th{text-align:right}
+.gs #arAgingTable thead th.l{text-align:left}
+.gs #arAgingTable tbody td{white-space:nowrap}
+
+.gs #arAgingTable .sticky-col{position:sticky;left:0;z-index:2;background:var(--card);min-width:46px;text-align:center}
+.gs #arAgingTable .sticky-col-2{position:sticky;left:46px;z-index:2;background:var(--card);min-width:180px;border-right:1px solid var(--line)}
+.gs #arAgingTable thead .sticky-col,
+.gs #arAgingTable thead .sticky-col-2{z-index:3;background:var(--wash)}
+.gs #arAgingTable tbody tr:hover .sticky-col,
+.gs #arAgingTable tbody tr:hover .sticky-col-2{background:#f9fbff}
+
+.gs #arAgingTable .bucket-highlight{background:var(--amberbg)}
+.gs #arAgingTable .bucket-danger{background:var(--redbg)}
+
+.gs #arAgingTable .total-row td{font-weight:700;background:#eef4ff;border-top:2px solid var(--line)}
+.gs #arAgingTable .total-row .sticky-col,
+.gs #arAgingTable .total-row .sticky-col-2{background:#eef4ff}
+.gs #arAgingTable .total-row .bucket-highlight{background:#f5edda}
+.gs #arAgingTable .total-row .bucket-danger{background:#f6e2e8}
+
+.gs .prim .mn2{font-size:11.5px;color:var(--faint);margin-top:1px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Aging</div>
+            <h1 class="disp">Accounts Receivable Aging</h1>
+            <div class="sub">Outstanding receivables grouped by aging buckets — as of {{ report_date|date:"d M Y" }}</div>
+        </div>
+        <div class="actions">
+            <button type="button" class="gbtn" onclick="printTable('arAgingTable','AR Aging Breakdown')"><i class="fas fa-print"></i> Print aging</button>
+            <button type="button" class="gbtn" onclick="printTable('arCollectionTable','Collection Priority (Top 15)')"><i class="fas fa-print"></i> Print priority</button>
+        </div>
+    </div>
+
+    <!-- ==================== SUMMARY KPIs ==================== -->
+    <div class="statgrid">
+        <div class="stat"><span class="si r"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ total_outstanding|default:0|inrs }}</div><div class="sk">Total Outstanding</div><div class="ss">All pending receivables</div></div></div>
+        <div class="stat"><span class="si a"><i class="fas fa-clock"></i></span>
+            <div><div class="sv">&#8377; {{ total_overdue|default:0|inrs }}</div><div class="sk">Total Overdue (30+ days)</div><div class="ss">Past due date</div></div></div>
+        <div class="stat"><span class="si b"><i class="fas fa-users"></i></span>
+            <div><div class="sv">{{ total_customers_with_outstanding|default:0|intcomma }}</div><div class="sk">Customers with Outstanding</div><div class="ss">Active debtors</div></div></div>
+        <div class="stat"><span class="si v"><i class="fas fa-triangle-exclamation"></i></span>
+            <div><div class="sv">&#8377; {{ total_critical_overdue|default:0|inrs }}</div><div class="sk">Critical (90+ days)</div><div class="ss">High risk amount</div></div></div>
+    </div>
+
+    <!-- ==================== AR AGING TABLE ==================== -->
+    <div class="rsec"><i class="fas fa-table"></i> Customer-wise Aging Breakdown</div>
+    <div class="ar-note"><i class="fas fa-circle-info"></i>
+        <span>Amounts are allocated to aging buckets using FIFO (oldest outstanding first). Scroll horizontally to view all buckets.</span></div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="arAgingTable">
+            <thead>
+                <tr>
+                    <th class="sticky-col l">#</th>
+                    <th class="sticky-col-2 l">Customer</th>
+                    <th class="r">Total O/S</th>
+                    {% for bucket in aging_buckets %}
+                    <th class="r">{{ bucket.label }}</th>
+                    {% endfor %}
+                    <th class="r">Overdue</th>
+                    <th class="r">Risk</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customer_rows %}
+                <tr>
+                    <td class="sticky-col">{{ forloop.counter }}</td>
+                    <td class="sticky-col-2">
+                        <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                            <div>
+                                <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a>
+                                <div class="mn2">{{ customer.phone }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="r"><span class="num">&#8377; {{ customer.total_outstanding|inrs }}</span></td>
+                    {% for amount in customer.bucket_amounts %}
+                    <td class="r {% if forloop.counter0 >= 6 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
+                        {% if amount > 0 %}<span class="num">&#8377; {{ amount|inrs }}</span>{% else %}<span class="mut">-</span>{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="r">
+                        {% if customer.overdue_amount > 0 %}<span class="num" style="color:#e11d48">&#8377; {{ customer.overdue_amount|inrs }}</span>{% else %}<span class="mut">-</span>{% endif %}
+                    </td>
+                    <td class="r">
+                        {% if customer.risk_level == "High" %}
+                            <span class="gbadge out">High</span>
+                        {% elif customer.risk_level == "Medium" %}
+                            <span class="gbadge low">Medium</span>
+                        {% else %}
+                            <span class="gbadge ok">Low</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{{ aging_buckets|length|add:5 }}"><div class="empty">
+                        <div class="ei"><i class="fas fa-file-invoice-dollar fa-lg"></i></div>
+                        <h3>No outstanding receivables found</h3>
+                        <p>Once customers have pending balances, their aging breakdown appears here.</p>
+                    </div></td>
+                </tr>
+                {% endfor %}
+
+                {% if customer_rows %}
+                <!-- Totals Row -->
+                <tr class="total-row">
+                    <td class="sticky-col"></td>
+                    <td class="sticky-col-2">TOTAL</td>
+                    <td class="r"><span class="num">&#8377; {{ total_outstanding|inrs }}</span></td>
+                    {% for total in bucket_totals %}
+                    <td class="r {% if forloop.counter0 >= 6 %}bucket-danger{% elif forloop.counter0 >= 2 %}bucket-highlight{% endif %}">
+                        {% if total > 0 %}<span class="num">&#8377; {{ total|inrs }}</span>{% else %}<span class="mut">-</span>{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="r"><span class="num" style="color:#e11d48">&#8377; {{ total_overdue|inrs }}</span></td>
+                    <td class="r"></td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <!-- ==================== COLLECTION PRIORITY ==================== -->
+    <div class="rsec"><i class="fas fa-sort-amount-down"></i> Collection Priority (Top 15)</div>
+    <div class="ar-note"><i class="fas fa-circle-info"></i>
+        <span>Customers sorted by overdue amount for follow-up.</span></div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="arCollectionTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th class="r">Total Outstanding</th>
+                    <th class="r">Overdue Amount</th>
+                    <th>Risk Level</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customer_rows|slice:":15" %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <div class="prim"><span class="pi">{{ customer.name|initials }}</span>
+                            <a class="nm" href="{% url 'book_logs' customer.book_id %}" style="color:var(--ink)">{{ customer.name }}</a></div>
+                    </td>
+                    <td>{{ customer.phone }}</td>
+                    <td class="r"><span class="num">&#8377; {{ customer.total_outstanding|inrs }}</span></td>
+                    <td class="r"><span class="num" style="color:#e11d48">&#8377; {{ customer.overdue_amount|inrs }}</span></td>
+                    <td>
+                        {% if customer.risk_level == "High" %}
+                            <span class="gbadge out">High</span>
+                        {% elif customer.risk_level == "Medium" %}
+                            <span class="gbadge low">Medium</span>
+                        {% else %}
+                            <span class="gbadge ok">Low</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6"><div class="empty">
+                        <div class="ei"><i class="fas fa-sort-amount-down fa-lg"></i></div>
+                        <h3>No data available</h3>
+                    </div></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+var _rptDate = '{{ report_date|date:"d M Y" }}';
+function printTable(tableId, title) {
+    var reportDate = _rptDate;
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var clone = table.cloneNode(true);
+    clone.querySelectorAll('.sticky-col, .sticky-col-2').forEach(function(el) {
+        el.style.position = 'static';
+    });
+
+    /* --- Shared CSS --- */
+    var css = '';
+    css += '@page{size:A4 landscape;margin:6mm;}';
+    css += 'body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:6px;color:#333;}';
+    css += '.print-header{text-align:center;margin-bottom:6px;}';
+    css += '.print-header h2{margin:0 0 2px;font-size:1rem;}';
+    css += '.print-header p{margin:0;font-size:.7rem;color:#666;}';
+    css += '.page-section{page-break-after:always;}';
+    css += '.page-section:last-child{page-break-after:auto;}';
+    css += '.chunk-title{font-size:.75rem;font-weight:700;margin:6px 0 4px;color:#495057;}';
+    css += 'table{width:100%;border-collapse:collapse;font-size:.7rem;}';
+    css += 'th,td{border:1px solid #aaa;padding:3px 5px;text-align:right;white-space:nowrap;}';
+    css += 'th{background:#0f172a;color:#fff;font-size:.65rem;text-transform:uppercase;}';
+    css += 'td:nth-child(2){text-align:left;}';
+    css += 'th:nth-child(2){text-align:left;}';
+    css += 'tr:nth-child(even){background:#f9f9f9;}';
+    css += '.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}';
+    css += '.prim{display:block;}';
+    css += '.prim .pi{display:none;}';
+    css += '.prim .nm{font-weight:600;}';
+    css += '.mn2{color:#999;font-size:.55rem;}';
+    css += '.gbadge{padding:1px 6px;border-radius:999px;font-size:.55rem;font-weight:700;}';
+    css += '.gbadge.out{background:#ffe4ea;color:#e11d48;}';
+    css += '.gbadge.low{background:#fff3e0;color:#b45309;}';
+    css += '.gbadge.ok{background:#e7f8ec;color:#16a34a;}';
+    css += '.num{font-weight:600;}';
+    css += '.mut{color:#999;}';
+    css += '@media print{@page{size:A4 landscape;margin:6mm;}body{margin:0;padding:4px;}}';
+
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>' + title + '</title>');
+    win.document.write('<style>' + css + '</style></head><body>');
+
+    /* --- Detect wide aging table and split into multi-page chunks --- */
+    var headerRow = clone.querySelector('thead tr');
+    var totalCols = headerRow ? headerRow.children.length : 0;
+
+    // arAgingTable layout: [#, Customer, Total O/S, ...30 buckets..., Overdue, Risk]
+    var FROZEN_LEFT = 3;  // #, Customer, Total O/S
+    var FROZEN_RIGHT = 2; // Overdue, Risk
+    var bucketCount = totalCols - FROZEN_LEFT - FROZEN_RIGHT;
+
+    if (tableId === 'arAgingTable' && bucketCount > 12) {
+        /* ===== MULTI-PAGE CHUNKED PRINT ===== */
+        var COLS_PER_PAGE = 10;
+        var totalPages = Math.ceil(bucketCount / COLS_PER_PAGE);
+        var allRows = clone.querySelectorAll('tbody tr');
+
+        for (var pg = 0; pg < totalPages; pg++) {
+            var startBkt = pg * COLS_PER_PAGE;
+            var endBkt = Math.min(startBkt + COLS_PER_PAGE, bucketCount);
+            var startLabel = headerRow.children[FROZEN_LEFT + startBkt].textContent.trim().split('-')[0];
+            var endLabel = headerRow.children[FROZEN_LEFT + endBkt - 1].textContent.trim().split('-')[1] || headerRow.children[FROZEN_LEFT + endBkt - 1].textContent.trim();
+            var isLastPage = (pg === totalPages - 1);
+
+            win.document.write('<div class="page-section">');
+            if (pg === 0) {
+                win.document.write('<div class="print-header">');
+                win.document.write('<h2>' + title + '</h2>');
+                win.document.write('<p>Report Date: ' + reportDate + '</p>');
+                win.document.write('</div>');
+            }
+            win.document.write('<p class="chunk-title">Aging Days: ' + startLabel + ' – ' + endLabel + ' &nbsp;&bull;&nbsp; Page ' + (pg + 1) + ' of ' + totalPages + '</p>');
+
+            /* Build chunk table */
+            win.document.write('<table><thead><tr>');
+            // Frozen left headers
+            for (var f = 0; f < FROZEN_LEFT; f++) {
+                win.document.write('<th>' + headerRow.children[f].innerHTML + '</th>');
+            }
+            // Bucket headers for this chunk
+            for (var b = startBkt; b < endBkt; b++) {
+                win.document.write('<th>' + headerRow.children[FROZEN_LEFT + b].innerHTML + '</th>');
+            }
+            // Overdue + Risk columns on last page
+            if (isLastPage) {
+                for (var r = 0; r < FROZEN_RIGHT; r++) {
+                    win.document.write('<th>' + headerRow.children[totalCols - FROZEN_RIGHT + r].innerHTML + '</th>');
+                }
+            }
+            win.document.write('</tr></thead><tbody>');
+
+            // Data rows
+            allRows.forEach(function(row) {
+                var cells = row.children;
+                var trClass = row.classList.contains('total-row') ? ' class="total-row"' : '';
+                win.document.write('<tr' + trClass + '>');
+                // Frozen left cells
+                for (var f = 0; f < FROZEN_LEFT; f++) {
+                    win.document.write('<td>' + cells[f].innerHTML + '</td>');
+                }
+                // Bucket cells for this chunk
+                for (var b = startBkt; b < endBkt; b++) {
+                    var cell = cells[FROZEN_LEFT + b];
+                    var cls = cell ? cell.className : '';
+                    win.document.write('<td class="' + cls + '">' + (cell ? cell.innerHTML : '-') + '</td>');
+                }
+                // Overdue + Risk columns on last page
+                if (isLastPage) {
+                    for (var r = 0; r < FROZEN_RIGHT; r++) {
+                        var rCell = cells[totalCols - FROZEN_RIGHT + r];
+                        win.document.write('<td>' + (rCell ? rCell.innerHTML : '') + '</td>');
+                    }
+                }
+                win.document.write('</tr>');
+            });
+
+            win.document.write('</tbody></table></div>');
+        }
+    } else {
+        /* ===== NORMAL PRINT (Collection Priority or small tables) ===== */
+        win.document.write('<div class="print-header">');
+        win.document.write('<h2>' + title + '</h2>');
+        win.document.write('<p>Report Date: ' + reportDate + '</p>');
+        win.document.write('</div>');
+        win.document.write(clone.outerHTML);
+    }
+
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 400);
+}
+</script>
+{% endblock %}

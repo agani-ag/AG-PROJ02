@@ -1,0 +1,18 @@
+{% comment %}Results for the Party page's "Add rows" search. Rendered inside the full page,
+and on its own (?partial=add) when the live search swaps it in without a reload.{% endcomment %}
+{% if aq %}
+  <form method="post" action="{% url 'console_party_add' party.id %}" style="margin-top:10px">
+    {% csrf_token %}
+    {% for r in found %}
+      <div><label class="gtoggle" style="margin-top:6px"><input type="checkbox" name="customer_ids" value="{{ r.customer.id }}">
+        <b>{{ r.brand }}</b> · {{ r.customer.customer_name }} · {{ r.customer.customer_phone|default:"no phone" }}{% if r.customer.customer_gst %} · {{ r.customer.customer_gst }}{% endif %}
+        {% if r.party %}<span class="gbadge blue">In {{ r.party.name }} — moves here</span>{% endif %}</label></div>
+    {% empty %}
+      <p class="mut" style="font-size:13px;margin:4px 0 0">No other customer row matches “{{ aq }}”.</p>
+    {% endfor %}
+    {% if found|length >= 25 %}<p class="mut" style="font-size:12.5px;margin:8px 0 0">Showing the first 25 — keep typing to narrow it down.</p>{% endif %}
+    {% if found %}<button class="gbtn" style="margin-top:12px">Add ticked rows</button>{% endif %}
+  </form>
+{% else %}
+  <p class="mut" style="font-size:12.5px;margin:8px 0 0">Start typing — matching rows from every business appear here. Tick the ones that are this customer, then add them.</p>
+{% endif %}

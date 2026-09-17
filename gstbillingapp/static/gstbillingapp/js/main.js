@@ -9,9 +9,38 @@ function add_invoice_item_row() {
     $('#invoice-form-items-table-body >tr:last').clone(true).insertAfter('#invoice-form-items-table-body >tr:last');
     $('#invoice-form-items-table-body >tr:last input').val('');
 
-    $('#invoice-form-items-table-body >tr:last td')[0].innerHTML = invoice_item_row_counter
+    // Update the Sl No — keep the delete control if the row has one (.slno-num);
+    // otherwise fall back to writing the whole cell (quotation pages without it).
+    var $sltd = $('#invoice-form-items-table-body >tr:last td').eq(0);
+    var $slnum = $sltd.find('.slno-num');
+    if ($slnum.length) { $slnum.text(invoice_item_row_counter); }
+    else { $sltd[0].innerHTML = invoice_item_row_counter; }
     update_amounts($('#invoice-form-items-table-body input[name=invoice-qty]:last'));
     update_amounts($('#invoice-form-items-table-body input[name=invoice-discount]:last'));
+}
+
+// DELETE INVOICE ROW ====================================================
+function delete_invoice_item_row(btn) {
+    var $rows = $('#invoice-form-items-table-body > tr');
+    var $row = $(btn).closest('tr');
+    if ($rows.length <= 1) {
+        // Always keep at least one row — clear it instead of removing.
+        $row.find('input').val('');
+        update_amounts($row.find('input[name=invoice-qty]'));
+        return;
+    }
+    $row.remove();
+    // Renumber the remaining rows so Sl No stays 1..N.
+    $('#invoice-form-items-table-body > tr').each(function (i) {
+        var $n = $(this).find('.slno-num');
+        if ($n.length) { $n.text(i + 1); }
+        else { $(this).find('td').eq(0).text(i + 1); }
+    });
+    update_invoice_totals();
+    // Nudge the invoice-create page's live item alerts / credit badge to recompute
+    // (they listen for native input/change events on the table body).
+    var firstQty = document.querySelector('#invoice-form-items-table-body input[name=invoice-qty]');
+    if (firstQty) firstQty.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 function setup_invoice_rows() {
@@ -146,22 +175,83 @@ function update_amounts(element){
 // CUSTOMER SEARCH ========================================================
 
 function customer_result_to_domstr(result) {
-    var domstr = "<div class='customer-search-result' data-customer='" + JSON.stringify(result) + "'>"+
-    "<div>"+ result['customer_name'] + "</div>" +
-    "<div>"+ result['customer_address'] + "</div>" +
-    "<div>"+ result['customer_phone'] + "</div>" +
-    "<div>"+ result['customer_gst'] + "</div>" +
-    "</div>";
-     return domstr;
+    var $dom = $("<div>", { class: 'customer-search-result' }).data('customer', result);
+    $dom.append($("<div>", { class: 'sr-title' }).text(result['customer_name'] || '—'));
+    if (result['customer_address']) $dom.append($("<div>", { class: 'sr-sub' }).text(result['customer_address']));
+    var meta = [];
+    if (result['customer_phone']) meta.push('📱 ' + result['customer_phone']);
+    if (result['customer_gst']) meta.push('GST ' + result['customer_gst']);
+    if (meta.length) $dom.append($("<div>", { class: 'sr-meta' }).text(meta.join('   ·   ')));
+    return $dom;
 }
 
 function customer_result_click() {
     console.log("UPDATE THE FORM WITH SEARCH RESULT");
-    customer_data_json = JSON.parse($(this).attr('data-customer'));
+    var customer_data_json = $(this).data('customer');
     $('#customer-name-input').val(customer_data_json['customer_name']);
     $('#customer-address-input').val(customer_data_json['customer_address']);
     $('#customer-phone-input').val(customer_data_json['customer_phone']);
     $('#customer-gst-input').val(customer_data_json['customer_gst']);
+    $('#customer-id-input').val(customer_data_json['id']);
+    sync_nongst_with_customer_gst();
+}
+
+// NON-GST AUTO-TOGGLE ====================================================
+// A GST invoice/quotation requires the customer's GSTIN (the server enforces this
+// and downgrades otherwise). When the selected customer has no GST number, tick
+// Non-GST and lock it, so the form shows up front what will actually be created.
+function sync_nongst_with_customer_gst() {
+    var check = document.getElementById('nongstcheck');
+    var gst_input = document.getElementById('customer-gst-input');
+    if (!check || !gst_input) return;
+
+    var has_gst = (gst_input.value || '').trim() !== '';
+
+    if (!has_gst) {
+        if (!check.checked) {
+            check.checked = true;
+            // Native event, so the page's own listener runs and swaps the number
+            // over to the non-GST series.
+            check.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        check.disabled = true;
+
+        // A disabled checkbox is never submitted, so mirror it in a hidden field
+        // to keep the POST honest.
+        if (!document.getElementById('nongstcheck-forced')) {
+            var hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'nongstcheck';
+            hidden.id = 'nongstcheck-forced';
+            hidden.value = 'on';
+            check.parentNode.appendChild(hidden);
+        }
+        if (!document.getElementById('nongstcheck-hint')) {
+            var hint = document.createElement('small');
+            hint.id = 'nongstcheck-hint';
+            hint.className = 'd-block text-muted';
+            // hint.textContent = 'Customer has no GST No — Non-GST is required.';
+            check.parentNode.appendChild(hint);
+        }
+        return;
+    }
+
+    // Customer does have a GSTIN. Release the lock, and undo the forced tick — but
+    // only if we were the ones who set it, never a Non-GST the user chose himself.
+    var forced = document.getElementById('nongstcheck-forced');
+    var hint_el = document.getElementById('nongstcheck-hint');
+    if (hint_el) hint_el.remove();
+
+    if (forced) {
+        forced.remove();
+        check.disabled = false;
+        if (check.checked) {
+            check.checked = false;
+            check.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    } else {
+        check.disabled = false;
+    }
 }
 
 function initialize_fuse_customers_search_bar() {
@@ -185,6 +275,11 @@ function initialize_fuse_customers_search_bar() {
         var val = input.val();
         update_customer_search_bar(val);
     });
+
+    // The GST box can also be typed into or cleared by hand, so re-check on every
+    // edit, and once on load for the empty initial form.
+    $('#customer-gst-input').on('input change', sync_nongst_with_customer_gst);
+    sync_nongst_with_customer_gst();
 }
 
 function update_customer_search_bar(search_string){
@@ -228,27 +323,33 @@ function initialize_fuse_customers () {
 var selected_item_input;
 
 function product_result_to_domstr(result) {
-    var domstr = "<div class='product-search-result' data-product='" + JSON.stringify(result) + "'>"+
-    "<h5>"+ result['model_no'] + "</h5>" +
-    "<div>"+ result['product_name'] + " | " + result['product_hsn'] + " | " + result['product_gst_percentage'] + "%" +
-    " | " + result['product_discount'] + "%" +
-    "</div>";
-     return domstr;
+    var $dom = $("<div>", { class: 'product-search-result' }).data('product', result);
+    $dom.append($("<div>", { class: 'sr-title' }).text(result['model_no'] || '—'));
+    if (result['product_name']) $dom.append($("<div>", { class: 'sr-sub' }).text(result['product_name']));
+    var meta = [];
+    if (result['product_hsn']) meta.push('HSN ' + result['product_hsn']);
+    if (result['product_gst_percentage'] !== undefined && result['product_gst_percentage'] !== '') meta.push('GST ' + result['product_gst_percentage'] + '%');
+    if (result['product_discount']) meta.push('Disc ' + result['product_discount'] + '%');
+    if (meta.length) $dom.append($("<div>", { class: 'sr-meta' }).text(meta.join('   ·   ')));
+    return $dom;
 }
 
 function product_result_click() {
     console.log("UPDATE THE FORM WITH SEARCH RESULT");
-    product_data_json = JSON.parse($(this).attr('data-product'));
+    var product_data_json = $(this).data('product');
     selected_item_input.val(product_data_json['model_no']);
     selected_item_input.parent().parent().find('input[name=invoice-product]').val(product_data_json['product_name']);    
     selected_item_input.parent().parent().find('input[name=invoice-hsn]').val(product_data_json['product_hsn']);    
     selected_item_input.parent().parent().find('input[name=invoice-rate-with-gst]').val(product_data_json['product_rate_with_gst']);    
     selected_item_input.parent().parent().find('input[name=invoice-gst-percentage]').val(product_data_json['product_gst_percentage']);   
-    selected_item_input.parent().parent().find('input[name=invoice-discount]').val(product_data_json['product_discount']);   
+    selected_item_input.parent().parent().find('input[name=invoice-discount]').val(product_data_json['product_discount']);
 
-    // $('#customer-address-input').val(customer_data_json['customer_address']);
-    // $('#customer-phone-input').val(customer_data_json['customer_phone']);
-    // $('#customer-gst-input').val(customer_data_json['customer_gst']);
+    // Always default the quantity to 1 on product select (unless a positive qty is
+    // already typed), so a freshly picked item is billable straight away.
+    var $qty = selected_item_input.parent().parent().find('input[name=invoice-qty]');
+    var qv = parseFloat($qty.val());
+    if (!qv || qv <= 0) { $qty.val(1); }
+
     initialize_auto_calculation();
 }
 

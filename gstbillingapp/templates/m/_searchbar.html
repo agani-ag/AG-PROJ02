@@ -1,0 +1,17 @@
+{% comment %}
+Reusable live-search box for /m/ list screens. Wired by the delegated handler in
+m/base.html — no per-screen JS. Params:
+  target      CSS selector of the list container (required), e.g. "#inv-list"
+  placeholder input placeholder text (required)
+  empty       optional selector of an empty-state element to toggle
+  count       optional selector of a live-count element to update
+  noun        singular noun for the count (e.g. "invoice"); noun_pl for the plural
+{% endcomment %}
+<div style="position:relative;margin-bottom:12px">
+    <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+    <input class="field" data-filter="{{ target }}"
+           {% if empty %}data-empty="{{ empty }}"{% endif %}
+           {% if count %}data-count="{{ count }}" data-noun="{{ noun }}" data-noun-pl="{{ noun_pl }}"{% endif %}
+           placeholder="{{ placeholder }}" autocomplete="off" inputmode="search"
+           style="margin:0;padding-left:42px">
+</div>

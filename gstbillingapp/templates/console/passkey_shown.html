@@ -1,0 +1,48 @@
+{% extends "console/base.html" %}
+{% comment %}The one time a business's passkey is shown. Context: b (business summary),
+passkey, generated.{% endcomment %}
+{% block title %}Passkey · {{ b.user.username }}{% endblock %}
+{% block nav_biz %}on{% endblock %}
+{% block extracss %}
+<style>
+.gs .pk{display:flex;gap:10px;margin:8px 0 18px;flex-wrap:wrap}
+.gs .pk span{width:52px;height:60px;display:flex;align-items:center;justify-content:center;
+  font:700 28px/1 ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--wash);
+  border:1px solid var(--line);border-radius:12px}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{% url 'console_business_detail' b.user.id %}">{{ b.title|default:b.user.username }}</a> / Passkey</div>
+    <h1 class="disp">{% if generated %}New passkey{% else %}Passkey set{% endif %}</h1>
+    <div class="sub">Signs straight into {{ b.title|default:b.user.username }} from "Sign in with passkey" or "Switch User"</div>
+  </div>
+</div>
+
+<div class="warnbox"><svg class="gico"><use href="#i-alert"/></svg>
+  <div><b>This passkey is shown once.</b> Give it to the business owner now — it's stored only as a
+    digest and can't be shown again. If it's lost, generate a new one.</div></div>
+
+<div class="section open">
+  <div class="sh"><span class="si v"><svg class="gico"><use href="#i-key"/></svg></span>
+    <div><h3 class="disp">Passkey</h3></div></div>
+  <div class="body">
+    <div class="pk" id="pk" data-passkey="{{ passkey }}">{% for ch in passkey %}<span>{{ ch }}</span>{% endfor %}</div>
+    <button class="gbtn" type="button" id="pk-copy">Copy</button>
+  </div>
+</div>
+
+<p><a href="{% url 'console_business_detail' b.user.id %}" class="gbtn gbtn-primary">Done</a></p>
+
+<script>
+document.getElementById('pk-copy').addEventListener('click', function () {
+  var btn = this, text = document.getElementById('pk').getAttribute('data-passkey');
+  var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+  if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done); return; }
+  var ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) {} document.body.removeChild(ta);
+});
+</script>
+{% endblock %}

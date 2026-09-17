@@ -1,291 +1,239 @@
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
-  <!-- Branding with logo -->
-  <a class="navbar-brand d-flex align-items-center" href="{% url 'landing_page' %}">
-    {% if user_profile.business_brand %}
-      {{ user_profile.business_brand | upper }}
-    {% else %}
-      {{ user | upper }}
+{% load static %}
+<nav class="gnav" id="gnav">
+  <div class="gnav-row">
+    <a class="brand" href="{% url 'landing_page' %}">
+      <span class="mark" id="brand-mark" title="Active devices">
+        <i class="fas fa-bolt" id="brand-bolt" style="color:#fff;font-size:14px"></i>
+        <span class="brand-count" id="presence-count" hidden>1</span>
+      </span>
+      GSTSync
+      <span class="biz">{% if user_profile.business_brand %}{{ user_profile.business_brand|upper }}{% else %}{{ user|upper }}{% endif %}</span>
+    </a>
+    <button class="burger" type="button" onclick="document.getElementById('gnavItems').classList.toggle('show')"><i class="fas fa-bars"></i></button>
+
+    {% if user.is_authenticated %}
+    <div class="items" id="gnavItems">
+      <div class="mi"><a><i class="fas fa-receipt"></i> Invoices <i class="fas fa-chevron-down cv"></i></a>
+        <div class="drop">
+          <a class="primary" href="{% url 'invoice_create' %}"><i class="fas fa-plus"></i> New Invoice</a>
+          <a href="{% url 'quotation_create' %}"><i class="fas fa-file-signature"></i> New Quotation</a>
+          <div class="divider"></div><div class="mh">Bills</div>
+          <a href="{% url 'invoices' %}"><i class="fas fa-receipt"></i> Invoices</a>
+          <a href="{% url 'quotations' %}"><i class="fas fa-file-alt"></i> Quotations</a>
+        </div></div>
+
+      <div class="mi"><a><i class="fas fa-box"></i> Products <i class="fas fa-chevron-down cv"></i></a>
+        <div class="drop">
+          <a href="{% url 'products' %}"><i class="fas fa-box"></i> Products</a>
+          <a href="{% url 'product_category_list' %}"><i class="fas fa-tags"></i> Product Categories</a>
+          <a href="{% url 'products_aggrid' %}"><i class="fas fa-table-cells"></i> Products Grid</a>
+          <div class="divider"></div><div class="mh">Transactions</div>
+          <a href="{% url 'inventory' %}"><i class="fas fa-warehouse"></i> Inventory</a>
+          <a href="{% url 'inventory_logs_full' %}"><i class="fas fa-cubes"></i> Inventory Logs</a>
+        </div></div>
+
+      <div class="mi"><a><i class="fas fa-users"></i> Customers <i class="fas fa-chevron-down cv"></i></a>
+        <div class="drop">
+          <a href="{% url 'customers' %}"><i class="fas fa-users"></i> Customers</a>
+          <div class="divider"></div><div class="mh">Transactions</div>
+          <a href="{% url 'books' %}"><i class="fas fa-book"></i> Books</a>
+          <a href="{% url 'book_logs_full' %}"><i class="fas fa-book-open"></i> Books Logs</a>
+        </div></div>
+
+      <div class="mi"><a><i class="fas fa-wallet"></i> Accounts <i class="fas fa-chevron-down cv"></i></a>
+        <div class="drop">
+          <div class="mh">Users</div>
+          <a href="{% url 'vendors_purchase' %}"><i class="fas fa-truck"></i> Vendors</a>
+          <a href="{% url 'employees' %}"><i class="fas fa-user-tie"></i> Employees</a>
+          <div class="divider"></div><div class="mh">Purchases</div>
+          <a href="{% url 'purchases_logs' %}"><i class="fas fa-truck-loading"></i> Purchases Logs</a>
+          <a href="{% url 'purchases_logs_overdue' %}"><i class="fas fa-triangle-exclamation"></i> Purchases Overdue</a>
+          <div class="divider"></div><div class="mh">Finance</div>
+          <a href="{% url 'bank_details' %}"><i class="fas fa-landmark"></i> Bank Details</a>
+          <a href="{% url 'cheque_leafs' %}"><i class="fas fa-money-check"></i> Cheque Leaf</a>
+          <a href="{% url 'expense_tracker' %}"><i class="fas fa-receipt"></i> Expense Tracker</a>
+          <a href="{% url 'assets' %}"><i class="fas fa-cube"></i> Asset Management</a>
+        </div></div>
+
+      <div class="mi"><a><i class="fas fa-chart-line"></i> Reports <i class="fas fa-chevron-down cv"></i></a>
+        <div class="drop mega">
+          <div>
+            <div class="mh">Graphs</div>
+            <a href="{% url 'customer_books_graph' %}"><i class="fas fa-chart-line"></i> Books Graph</a>
+            <a href="{% url 'customer_graph' %}"><i class="fas fa-chart-line"></i> Customer Graph</a>
+            <a href="{% url 'sales_dashboard' %}"><i class="fas fa-chart-line"></i> Transaction Graph</a>
+            <a href="{% url 'expense_tracker_graph' %}"><i class="fas fa-chart-line"></i> Expense Tracker Graph</a>
+            <div class="mh">Maps</div>
+            <a href="{% url 'customer_location_map' %}"><i class="fas fa-location-dot"></i> Customer Location Map</a>
+            <div class="mh">Dashboard</div>
+            <a href="{% url 'bi_dashboard' %}"><i class="fas fa-gauge-high"></i> Business Cockpit</a>
+            <a href="{% url 'division_category_sales' %}"><i class="fas fa-chart-bar"></i> Division Category Sales</a>
+          </div>
+          <div class="col-b">
+            <div class="mh">Reports</div>
+            <a href="{% url 'inventory_margin_report' %}"><i class="fas fa-file-alt"></i> Margin Report</a>
+            <a href="{% url 'overdue_report' %}"><i class="fas fa-file-alt"></i> Overdue Report</a>
+            <a href="{% url 'inventory_transaction_report' %}"><i class="fas fa-file-alt"></i> Inventory Report</a>
+            <a href="{% url 'transaction_report' %}"><i class="fas fa-file-alt"></i> Transaction Report</a>
+            <div class="mh">Aging Reports</div>
+            <a href="{% url 'ar_aging_report' %}"><i class="fas fa-hourglass-half"></i> AR Aging Report</a>
+            <a href="{% url 'credit_aging_report' %}"><i class="fas fa-hourglass-half"></i> Credit Aging Report</a>
+            <div class="mh">Analysis</div>
+            <a href="{% url 'customer_analysis' %}"><i class="fas fa-users"></i> Customer Analysis</a>
+          </div>
+        </div></div>
+
+      <div class="mi"><a><i class="fas fa-cog"></i> Settings <i class="fas fa-chevron-down cv"></i></a>
+        <div class="drop">
+          <a href="{% url 'user_profile' %}"><i class="fas fa-user-cog"></i> Profile</a>
+          <a href="#" onclick="passSwitchkey();return false;"><i class="fas fa-user-friends"></i> Switch User</a>
+          <a href="{% url 'logout_view' %}"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div></div>
+    </div>
     {% endif %}
-  </a>
-
-  <!-- Navbar Toggler for mobile view -->
-  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
-    aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-    <span class="navbar-toggler-icon"></span>
-  </button>
-
-  <!-- Navbar Links -->
-  <div class="collapse navbar-collapse" id="navbarSupportedContent">
-    <ul class="navbar-nav ml-auto">
-      {% if user.is_authenticated %}
-
-        <!-- Invoices Dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="{% url 'invoice_create' %}" id="invoicesDropdown" role="button" data-toggle="dropdown"
-            aria-haspopup="true" aria-expanded="false">
-            Invoices
-          </a>
-          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="invoicesDropdown">
-            <a class="dropdown-item" href="{% url 'invoice_create' %}">New Invoice</a>
-            <a class="dropdown-item" href="{% url 'quotation_create' %}">New Quotation</a>
-            <div class="dropdown-divider"></div>
-            <h6 class="dropdown-header">Bills</h6>
-            <a class="dropdown-item" href="{% url 'invoices' %}">Invoices</a>
-            <a class="dropdown-item" href="{% url 'quotations' %}">Quotations</a>
-
-          </div>
-        </li>
-
-        <!-- Products Dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="productsDropdown" role="button" data-toggle="dropdown"
-            aria-haspopup="true" aria-expanded="false">
-            Products
-          </a>
-          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="productsDropdown">
-            <a class="dropdown-item" href="{% url 'products' %}">Products</a>
-            <a class="dropdown-item" href="{% url 'product_category_list' %}">Product Categories</a>
-            <a class="dropdown-item" href="{% url 'products_aggrid' %}">Products Grid</a>
-            <div class="dropdown-divider"></div>
-            <h6 class="dropdown-header">Transactions</h6>
-            <a class="dropdown-item" href="{% url 'inventory' %}">Inventory</a>
-            <a class="dropdown-item" href="{% url 'inventory_logs_full' %}">Inventory Logs</a>
-          </div>
-        </li>
-
-        <!-- Customers Dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="customersDropdown" role="button" data-toggle="dropdown"
-            aria-haspopup="true" aria-expanded="false">
-            Customers
-          </a>
-          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="customersDropdown">
-            <a class="dropdown-item" href="{% url 'customers' %}">Customers</a>
-            <div class="dropdown-divider"></div>
-            <h6 class="dropdown-header">Transactions</h6>
-            <a class="dropdown-item" href="{% url 'books' %}">Books</a>
-            <a class="dropdown-item" href="{% url 'book_logs_full' %}">Books Logs</a>
-          </div>
-        </li>
-
-        <!-- Accounts Dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="accountsDropdown" role="button" data-toggle="dropdown"
-            aria-haspopup="true" aria-expanded="false">
-            Accounts
-          </a>
-          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="accountsDropdown">
-            <a class="dropdown-item" href="{% url 'expense_tracker' %}">Expense Tracker</a>
-            <div class="dropdown-divider"></div>
-            <h6 class="dropdown-header">Purchases</h6>
-            <a class="dropdown-item" href="{% url 'purchases_logs' %}">Purchases Logs</a>
-            <a class="dropdown-item" href="{% url 'purchases_logs_overdue' %}">Purchases Overdue</a>
-            <a class="dropdown-item" href="{% url 'vendors_purchase' %}">Purchases Vendor</a>
-            <div class="dropdown-divider"></div>
-            <h6 class="dropdown-header">Banks</h6>
-            <a class="dropdown-item" href="{% url 'bank_details' %}">Bank Details</a>
-          </div>
-        </li>
-        
-        <!-- Graph Dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="graphsDropdown" role="button"
-            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-            Graphs
-          </a>
-
-          <div class="dropdown-menu dropdown-menu-right graphs-dropdown p-3"
-              aria-labelledby="graphsDropdown">
-
-            <div class="row">
-              <!-- LEFT COLUMN -->
-              <div class="col-6">
-                <h6 class="dropdown-header">Graphs</h6>
-                <a class="dropdown-item" href="{% url 'sales_dashboard' %}">Sales Dashboard</a>
-                <a class="dropdown-item" href="{% url 'customer_books_graph' %}">Books Graph</a>
-                <a class="dropdown-item" href="{% url 'customer_graph' %}">Customer Graph</a>
-                <a class="dropdown-item" href="{% url 'expense_tracker_graph' %}">Expense Tracker Graph</a>
-                <div class="dropdown-divider"></div>
-                <h6 class="dropdown-header">Maps</h6>
-                <a class="dropdown-item" href="{% url 'customer_location_map' %}">Customer Location Map</a>
-              </div>
-
-              <!-- RIGHT COLUMN -->
-              <div class="col-6 border-left">
-                <h6 class="dropdown-header">Reports</h6>
-                <a class="dropdown-item" href="{% url 'sales_report' %}">Sales Report</a>
-              </div>
-            </div>
-
-          </div>
-        </li>
-
-        <!-- Notifications -->
-        <li class="nav-item">
-          <a class="nav-link position-relative" href="{% url 'notifications_page' %}" id="notificationsLink">
-            <i class="bi bi-bell-fill"></i> Notifications
-            <span class="badge badge-danger badge-pill position-absolute" 
-                  id="notification-count-badge" 
-                  style="top: 5px; right: -5px; display: none; font-size: 0.65rem;">0</span>
-          </a>
-        </li>
-
-        <!-- Profile Dropdown -->
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="profileDropdown" role="button" data-toggle="dropdown"
-            aria-haspopup="true" aria-expanded="false">
-            Profile
-          </a>
-          <div class="dropdown-menu dropdown-menu-right" aria-labelledby="profileDropdown">
-            <a class="dropdown-item" href="{% url 'user_profile' %}">{{ user | upper }}</a>
-            <a class="dropdown-item" href="{% url 'logout_view' %}">Logout</a>
-          </div>
-        </li>
-
-      {% endif %}
-    </ul>
   </div>
 </nav>
 
-<style>
-  .graphs-dropdown {
-    min-width: 420px;
-  }
-
-  .graphs-dropdown .dropdown-item {
-    padding-left: 0;
-  }
-</style>
 <script>
-  // WebSocket for real-time notifications
-  let notificationSocket = null;
-  let reconnectInterval = null;
-  
-  function connectNotificationWebSocket() {
-    // Close existing connection if any
-    if (notificationSocket) {
-      notificationSocket.close();
-    }
-    
-    // Determine WebSocket protocol
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/notifications/`;
-    
-    try {
-      notificationSocket = new WebSocket(wsUrl);
-      
-      notificationSocket.onopen = function(e) {
-        console.log('Notification WebSocket connected');
-        // Clear reconnect interval if connected
-        if (reconnectInterval) {
-          clearInterval(reconnectInterval);
-          reconnectInterval = null;
-        }
-      };
-      
-      notificationSocket.onmessage = function(e) {
-        const data = JSON.parse(e.data);
-        
-        if (data.type === 'unread_count') {
-          // Update badge with new count
-          updateNotificationBadge(data.count);
-        } else if (data.type === 'notification') {
-          // New notification received
-          updateNotificationBadge(null); // Will fetch current count
-          // Optional: Show toast notification
-          showToastNotification(data.notification);
-        }
-      };
-      
-      notificationSocket.onclose = function(e) {
-        console.log('Notification WebSocket disconnected');
-        // Attempt to reconnect after 5 seconds
-        if (!reconnectInterval) {
-          reconnectInterval = setInterval(function() {
-            console.log('Attempting to reconnect WebSocket...');
-            connectNotificationWebSocket();
-          }, 5000);
-        }
-      };
-      
-      notificationSocket.onerror = function(e) {
-        console.error('Notification WebSocket error:', e);
-      };
-      
-    } catch (error) {
-      console.error('Failed to create WebSocket:', error);
-      // Fallback to polling if WebSocket fails
-      startPollingFallback();
-    }
-  }
-  
-  function updateNotificationBadge(count) {
-    const badge = document.getElementById('notification-count-badge');
-    if (badge) {
-      if (count === null) {
-        // Fetch current count
-        fetch('/notifications/api/count/')
-          .then(response => response.json())
-          .then(data => {
-            if (data.success && data.unread_count > 0) {
-              badge.textContent = data.unread_count;
-              badge.style.display = 'inline-block';
-            } else {
-              badge.style.display = 'none';
+(function(){
+  var nav = document.getElementById('gnav');
+  if(!nav) return;
+  var items = nav.querySelectorAll('.mi');
+  items.forEach(function(it){
+    var a = it.querySelector(':scope > a');
+    if(!it.querySelector('.drop')) return;
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      var wasOpen = it.classList.contains('open');
+      items.forEach(function(x){ x.classList.remove('open'); });
+      if(!wasOpen) it.classList.add('open');
+    });
+    it.addEventListener('mouseenter', function(){
+      if(window.innerWidth < 980) return;
+      items.forEach(function(x){ x.classList.remove('open'); });
+      it.classList.add('open');
+    });
+    it.addEventListener('mouseleave', function(){
+      if(window.innerWidth < 980) return;
+      it.classList.remove('open');
+    });
+  });
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('#gnav')) items.forEach(function(x){ x.classList.remove('open'); });
+  });
+})();
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
             }
-          })
-          .catch(error => console.error('Error fetching notification count:', error));
-      } else if (count > 0) {
-        badge.textContent = count;
-        badge.style.display = 'inline-block';
-      } else {
-        badge.style.display = 'none';
-      }
+        }
     }
-  }
-  
-  function showToastNotification(notification) {
-    // Optional: Show browser notification or toast
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(notification.title, {
-        body: notification.message,
-        icon: '/static/gstbillingapp/images/logo.png'
-      });
+    return cookieValue;
+}
+
+function passSwitchkey() {
+    Swal.fire({
+        title: 'Passkey Authentication',
+        html: `
+            <p>Please enter your 5-digit alphanumeric PIN</p>
+            <div style="display: flex; justify-content: center; gap: 10px; margin: 20px 0;">
+                <input type="password" id="pin1" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+                <input type="password" id="pin2" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+                <input type="password" id="pin3" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+                <input type="password" id="pin4" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+                <input type="password" id="pin5" maxlength="1" style="width: 40px; height: 40px; text-align: center; font-size: 18px; text-transform: uppercase; border: 2px solid #ddd; border-radius: 5px;">
+            </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonText: 'Cancel',
+        didOpen: () => {
+            const inputs = ['pin1', 'pin2', 'pin3', 'pin4', 'pin5'];
+            const authenticatePin = () => {
+                const passkey = inputs.map(id => document.getElementById(id).value).join('');
+                if (passkey.length === 5 && /^[A-Z0-9]{5}$/.test(passkey)) {
+                    fetch('/api/passkey-auth', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                        body: JSON.stringify({ passkey: passkey })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) { Swal.fire('Error', data.error, 'error'); }
+                        else { Swal.fire('Success!', data.message, 'success').then(() => window.location.reload()); }
+                    })
+                    .catch(error => { Swal.fire('Error', 'Authentication failed: ' + error.message, 'error'); });
+                }
+            };
+            inputs.forEach((id, index) => {
+                const input = document.getElementById(id);
+                input.addEventListener('input', (e) => {
+                    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (e.target.value && index < 4) { document.getElementById(inputs[index + 1]).focus(); }
+                    else if (e.target.value && index === 4) { authenticatePin(); }
+                });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Backspace' && !e.target.value && index > 0) { document.getElementById(inputs[index - 1]).focus(); }
+                });
+            });
+            document.getElementById('pin1').focus();
+        }
+    });
+}
+
+// ===== Real-time active-device presence (heartbeat) =====
+// Shows the live device count inside the brand thunder mark: the bolt normally,
+// and the number in its place when the same user is signed in on 2+ devices.
+(function(){
+  var countEl = document.getElementById('presence-count');
+  var bolt = document.getElementById('brand-bolt');
+  var mark = document.getElementById('brand-mark');
+  if(!countEl) return;
+  var PING_URL = "{% url 'presence_ping' %}";
+  var LEAVE_URL = "{% url 'presence_leave' %}";
+
+  // Stable per-browser device id (shared across tabs → counts as one device).
+  var tok;
+  try {
+    tok = localStorage.getItem('gs_device_id');
+    if(!tok){ tok = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2)); localStorage.setItem('gs_device_id', tok); }
+  } catch(e){ tok = (Date.now()+'-'+Math.random().toString(36).slice(2)); }
+
+  function render(count){
+    if(count >= 2){
+      countEl.textContent = count; countEl.hidden = false;
+      if(bolt) bolt.hidden = true;
+      if(mark){ mark.classList.add('has-count'); mark.title = count + ' devices signed in'; }
+    } else {
+      countEl.hidden = true;
+      if(bolt) bolt.hidden = false;
+      if(mark){ mark.classList.remove('has-count'); mark.title = 'Active devices'; }
     }
-  }
-  
-  function startPollingFallback() {
-    // Fallback to polling if WebSocket fails
-    console.log('Using polling fallback for notifications');
-    setInterval(function() {
-      fetch('/notifications/api/count/')
-        .then(response => response.json())
-        .then(data => {
-          if (data.success && data.unread_count > 0) {
-            updateNotificationBadge(data.unread_count);
-          }
-        })
-        .catch(error => console.error('Error in polling fallback:', error));
-    }, 30000); // Poll every 30 seconds as fallback
   }
 
-  // Connect WebSocket when page loads
-  document.addEventListener('DOMContentLoaded', function() {
-    connectNotificationWebSocket();
-    
-    // Request notification permission (optional)
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  });
-  
-  // Close WebSocket when page unloads
-  window.addEventListener('beforeunload', function() {
-    if (notificationSocket) {
-      notificationSocket.close();
-    }
-    if (reconnectInterval) {
-      clearInterval(reconnectInterval);
-    }
-  });
+  function ping(){
+    var body = new URLSearchParams(); body.set('token', tok);
+    fetch(PING_URL, {method:'POST', headers:{'X-CSRFToken': getCookie('csrftoken'), 'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString()})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(!d) return; render(d.count || 1); })
+      .catch(function(){});
+  }
+
+  function leave(){
+    try { var fd = new FormData(); fd.set('token', tok); navigator.sendBeacon(LEAVE_URL, fd); } catch(e){}
+  }
+
+  ping();
+  setInterval(ping, 30000);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') ping(); });
+  window.addEventListener('pagehide', leave);
+})();
 </script>

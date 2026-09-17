@@ -1,0 +1,40 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Settings{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Manage</a>{% endblock %}
+{% block heading %}Business profile{% endblock %}
+{% block content %}
+
+<div class="panel">
+    <label class="lbl">Business name *</label>
+    <input class="field" id="business_title" placeholder="Business name" value="{{ p.business_title|default:'' }}">
+    <label class="lbl">Brand</label>
+    <input class="field" id="business_brand" placeholder="Brand (shown on the app)" value="{{ p.business_brand|default:'' }}">
+    <label class="lbl">GST number</label>
+    <input class="field" id="business_gst" autocapitalize="characters" placeholder="GSTIN" value="{{ p.business_gst|default:'' }}">
+    <label class="lbl">Phone</label>
+    <input class="field" id="business_phone" inputmode="tel" placeholder="Business phone" value="{{ p.business_phone|default:'' }}">
+    <label class="lbl">Email</label>
+    <input class="field" id="business_email" inputmode="email" autocapitalize="off" placeholder="Email" value="{{ p.business_email|default:'' }}">
+    <label class="lbl">Address</label>
+    <textarea class="field" id="business_address" rows="5" placeholder="Business address" style="min-height:120px;line-height:1.5;resize:vertical">{{ p.business_address|default:'' }}</textarea>
+</div>
+
+<button class="btn btn-acc" onclick="saveSettings()"><svg class="i" style="stroke:#fff"><use href="#ic-check"/></svg> Save profile</button>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}
+{% block includejs %}
+<script>
+function val(id){ return document.getElementById(id).value.trim(); }
+async function saveSettings(){
+    if(!val('business_title')){ M.toast('Business name is required'); return; }
+    var r = await M.post("{% url 'm_manage_settings_save' %}", {
+        business_title: val('business_title'), business_brand: val('business_brand'),
+        business_gst: val('business_gst'), business_phone: val('business_phone'),
+        business_email: val('business_email'), business_address: val('business_address') });
+    if(r && r.ok){ M.toast('Saved'); setTimeout(function(){ location.href = r.redirect; }, 500); }
+    else { M.toast((r&&r.message)||'Could not save'); }
+}
+</script>
+{% endblock %}

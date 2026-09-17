@@ -8,14 +8,316 @@ import re
 import json
 import datetime
 
-
 # Model imports
-from .models import Product
-from .models import Inventory
-from .models import InventoryLog
-from .models import Book
-from .models import BookLog
-from .models import Customer
+from .models import (
+    Product, VendorPurchase,
+    Inventory, InventoryLog,
+    Book, BookLog, Customer
+)
+
+#  ================= JSON storage ====================
+def json_compact(data):
+    """Serialise for STORAGE — no whitespace padding.
+
+    json.dumps() defaults to ', ' and ': ' separators, which added roughly 6% of pure
+    padding to every stored invoice_json / quotation_json. Those blobs are the bulk of
+    the database, so every write that lands in a column goes through here.
+
+    Display/debug output is not storage and keeps its indentation (see the invoice debug
+    viewer, which uses indent=2 deliberately).
+    """
+    return json.dumps(data, separators=(',', ':'), ensure_ascii=False)
+
+
+#  ================= Customer matching ====================
+def find_matching_customer(user, data):
+    """
+    Locate the existing Customer an invoice / quotation form refers to.
+
+    Matches on the normalised name (+ phone when the form supplies one), NOT on an
+    exact name+address+phone+GST match. The old exact match compared customer_gst,
+    so a non-GST customer — stored with a NULL GST — never equalled the form's empty
+    '' GST, and the caller wrongly bounced the user to 'Add Customer' for a customer
+    that already existed. Name is upper-cased to line up with Customer.save(), which
+    stores it upper-case.
+
+    Shared by quotation_create/edit and invoice_create. Expects the POST field names
+    'customer-name' and 'customer-phone'. Returns the Customer or None.
+    """
+    name = (data.get('customer-name') or '').strip().upper()
+    if not name:
+        return None
+
+    qs = Customer.objects.filter(user=user, customer_name=name).order_by('id')
+
+    # Prefer a phone match to disambiguate namesakes, but only when it actually
+    # narrows things down — a blank or non-matching phone must not lose a valid hit.
+    phone = (data.get('customer-phone') or '').strip()
+    if phone:
+        phone_qs = qs.filter(customer_phone=phone)
+        if phone_qs.exists():
+            qs = phone_qs
+
+    return qs.first()
+
+
+#  ================= GST Calculation ====================
+def calculate_item_amounts(rate_with_gst, gst_percentage, discount, qty, igstcheck=False):
+    """
+    Canonical GST math for a single line item — the one convention used everywhere.
+
+    Despite its name, product_rate_with_gst is treated as GST-EXCLUSIVE: the
+    discount comes off the rate first, then GST is added on top of the discounted
+    rate. This mirrors update_amounts() in static/gstbillingapp/js/main.js, which
+    is what the quotation/invoice form posts, so a quotation's total does not move
+    when it is converted to an invoice.
+    """
+    rate_with_gst = float(rate_with_gst or 0)
+    gst_percentage = float(gst_percentage or 0)
+    discount = float(discount or 0)
+    qty = float(qty or 0)
+
+    rate_without_gst = rate_with_gst - (rate_with_gst * discount / 100)
+    amt_without_gst = rate_without_gst * qty
+
+    if igstcheck:
+        igst = amt_without_gst * gst_percentage / 100
+        sgst = cgst = 0.0
+    else:
+        sgst = cgst = amt_without_gst * gst_percentage / 200
+        igst = 0.0
+
+    amt_with_gst = amt_without_gst + sgst + cgst + igst
+
+    return {
+        'rate_without_gst': round(rate_without_gst, 2),
+        'amt_without_gst': round(amt_without_gst, 2),
+        'amt_sgst': round(sgst, 2),
+        'amt_cgst': round(cgst, 2),
+        'amt_igst': round(igst, 2),
+        'amt_with_gst': round(amt_with_gst, 2),
+    }
+
+
+def build_quotation_item(product, qty, igstcheck=False, discount=None):
+    """
+    Build one quotation_json item from a Product, priced by the canonical rule.
+
+    Rate and GST% are ALWAYS read from the Product — never from the caller — so a
+    tampered client payload cannot reprice a line. `discount` may be overridden
+    (staff set a per-line discount in the cart); it is clamped to 0-100. Pass
+    discount=None to use the product's own discount.
+
+    Emits the same keys invoice_data_processor() produces, so quotations created
+    from a cart/order render identically in the invoice printer and viewer.
+    """
+    if discount is None:
+        discount = product.product_discount or 0
+    discount = min(100.0, max(0.0, float(discount or 0)))
+
+    amounts = calculate_item_amounts(
+        product.product_rate_with_gst,
+        product.product_gst_percentage,
+        discount,
+        qty,
+        igstcheck,
+    )
+
+    return {
+        # Product id kept so a cart order can be reopened and edited (map line → product).
+        'product_id': product.id,
+        'invoice_model_no': product.model_no or '',
+        'invoice_product': product.product_name or '',
+        'invoice_hsn': product.product_hsn or '',
+        'invoice_qty': int(qty),
+        'invoice_discount': discount,
+        'invoice_rate_with_gst': float(product.product_rate_with_gst or 0),
+        'invoice_gst_percentage': float(product.product_gst_percentage or 0),
+        'invoice_rate_without_gst': amounts['rate_without_gst'],
+        'invoice_amt_without_gst': amounts['amt_without_gst'],
+        'invoice_amt_sgst': amounts['amt_sgst'],
+        'invoice_amt_cgst': amounts['amt_cgst'],
+        'invoice_amt_igst': amounts['amt_igst'],
+        'invoice_amt_with_gst': amounts['amt_with_gst'],
+        # Kept for existing order-history consumers that read invoice_amt.
+        'invoice_amt': amounts['amt_with_gst'],
+    }
+
+
+def apply_invoice_round_off(data):
+    """Round an invoice's grand total to the nearest whole rupee — 0.50 and above rounds
+    up, below rounds down — and record the adjustment as `invoice_round_off`. Applied ONLY
+    when an invoice is created (never retroactively to existing invoices).
+
+    Mutates and returns `data`. The amount-in-words, the UPI amount and the customer's
+    ledger all read invoice_total_amt_with_gst, so they pick up the rounded figure with no
+    further change."""
+    try:
+        raw = float(data.get('invoice_total_amt_with_gst', 0) or 0)
+    except (ValueError, TypeError):
+        return data
+    rounded = float(int(raw + 0.5))     # round half up — the grand total is always positive
+    data['invoice_round_off'] = round(rounded - raw, 2)
+    data['invoice_total_amt_with_gst'] = rounded
+    return data
+
+
+def calculate_employee_salary(posting, year, month, advances=None, bonus=None, base=None):
+    """Recompute and upsert a POSTING's monthly salary from its attendance marks plus the
+    month's advances/bonus. A posting is the person's per-business record (its own salary
+    and attendance), so a shared employee is paid separately in each business.
+
+    "Working days" model — a working day is every calendar day EXCEPT Leave; a blank
+    (unmarked) day counts as Absent (unpaid). So working days = days_in_month − leave.
+    Paid = Present + 0.5×Half (Absent and blank earn nothing; Leave is excluded, neither
+    paid nor a working day). earned = base × Paid / WorkingDays; net = earned − adv + bonus.
+    Mark weekly-offs/holidays as Leave to keep the divisor at the real working days."""
+    import calendar as _cal
+    from decimal import Decimal
+    from .models import AttendanceLog, SalaryRecord
+
+    rec = SalaryRecord.objects.filter(posting=posting, month=month, year=year).first()
+    # Each month carries its OWN base salary, editable on the attendance page:
+    #   • an explicit `base` (from that input) sets/updates the month's base;
+    #   • otherwise a month already computed keeps its stored base (so a later profile raise
+    #     never rewrites finalised months, and back-filling old attendance uses each month's
+    #     own salary); a fresh month defaults to the current profile salary.
+    if base is not None:
+        base_amt = Decimal(str(base))
+    elif rec is not None:
+        base_amt = Decimal(str(rec.base_salary))
+    else:
+        base_amt = Decimal(str(posting.salary or 0))
+    base = base_amt
+    days_in_month = _cal.monthrange(year, month)[1]
+
+    present = half = absent = leave = 0
+    for l in AttendanceLog.objects.filter(posting=posting, date__year=year, date__month=month):
+        if l.status == AttendanceLog.PRESENT:
+            present += 1
+        elif l.status == AttendanceLog.HALF:
+            half += 1
+        elif l.status == AttendanceLog.ABSENT:
+            absent += 1
+        elif l.status == AttendanceLog.LEAVE:
+            leave += 1
+    # Blank days count as absent → working days = every day that isn't Leave.
+    working_days = days_in_month - leave
+    paid_units = Decimal(str(present)) + Decimal("0.5") * Decimal(str(half))
+
+    adv = Decimal(str(advances if advances is not None else (rec.advances if rec else 0)))
+    bon = Decimal(str(bonus if bonus is not None else (rec.bonus if rec else 0)))
+
+    # If the whole month is Leave there are no working days → full base (avoid /0).
+    earned = ((base * paid_units / Decimal(working_days)) if working_days else base).quantize(Decimal("0.01"))
+    deduction = (base - earned).quantize(Decimal("0.01"))
+    net = (earned - adv + bon).quantize(Decimal("0.01"))
+
+    rec, _ = SalaryRecord.objects.update_or_create(
+        posting=posting, month=month, year=year,
+        defaults={
+            # total_days now means WORKING days (marked P+H+A), not calendar days.
+            "base_salary": base, "total_days": working_days, "paid_units": paid_units,
+            "deduction": deduction, "advances": adv, "bonus": bon, "calculated_salary": net,
+        },
+    )
+    return rec
+
+
+def round_to_rupee(value):
+    """Round a money amount to the nearest whole rupee (0.50 and above rounds up),
+    preserving sign. Used to keep MANUALLY-entered ledger movements (payments, purchases,
+    adjustments) free of paise. Not applied at model level — the roundoff_books command
+    still posts deliberate sub-rupee 'Other' deltas."""
+    try:
+        x = float(value or 0)
+    except (ValueError, TypeError):
+        return 0.0
+    return float(int(x + 0.5)) if x >= 0 else -float(int(-x + 0.5))
+
+
+#  ================= Invoice JSON debug-edit ====================
+
+INVOICE_ITEM_INPUT_KEYS = (
+    'invoice_model_no', 'invoice_product', 'invoice_hsn',
+    'invoice_qty', 'invoice_discount', 'invoice_rate_with_gst',
+    'invoice_gst_percentage',
+)
+
+
+def recompute_invoice_data(invoice_data):
+    """
+    Structurally validate an edited invoice_json dict, then regenerate every
+    computed amount from the per-item inputs (qty / rate / discount / gst%),
+    honoring igstcheck. The caller's totals are ignored and rebuilt so the saved
+    invoice is always internally consistent.
+
+    Mutates and returns the same dict. Raises ValueError with a human-readable
+    message on any structural problem — the debug save aborts on that.
+    """
+    if not isinstance(invoice_data, dict):
+        raise ValueError("Invoice JSON must be an object.")
+
+    items = invoice_data.get('items')
+    if not isinstance(items, list) or len(items) == 0:
+        raise ValueError("Invoice JSON must have a non-empty 'items' list.")
+
+    igstcheck = bool(invoice_data.get('igstcheck', False))
+
+    total_without_gst = total_sgst = total_cgst = total_igst = total_with_gst = 0.0
+
+    for idx, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Item {idx} is not an object.")
+        for key in INVOICE_ITEM_INPUT_KEYS:
+            if key not in item:
+                raise ValueError(f"Item {idx} is missing '{key}'.")
+
+        try:
+            qty = float(item['invoice_qty'])
+            rate = float(item['invoice_rate_with_gst'])
+            discount = float(item['invoice_discount'])
+            gst = float(item['invoice_gst_percentage'])
+        except (TypeError, ValueError):
+            raise ValueError(f"Item {idx} has a non-numeric qty / rate / discount / gst.")
+
+        amounts = calculate_item_amounts(rate, gst, discount, qty, igstcheck)
+
+        item['invoice_rate_without_gst'] = amounts['rate_without_gst']
+        item['invoice_amt_without_gst'] = amounts['amt_without_gst']
+        item['invoice_amt_sgst'] = amounts['amt_sgst']
+        item['invoice_amt_cgst'] = amounts['amt_cgst']
+        item['invoice_amt_igst'] = amounts['amt_igst']
+        item['invoice_amt_with_gst'] = amounts['amt_with_gst']
+        # Order-history consumers read invoice_amt; keep it in step.
+        item['invoice_amt'] = amounts['amt_with_gst']
+
+        total_without_gst += amounts['amt_without_gst']
+        total_sgst += amounts['amt_sgst']
+        total_cgst += amounts['amt_cgst']
+        total_igst += amounts['amt_igst']
+        total_with_gst += amounts['amt_with_gst']
+
+    invoice_data['igstcheck'] = igstcheck
+    invoice_data['invoice_total_amt_without_gst'] = round(total_without_gst, 2)
+    invoice_data['invoice_total_amt_sgst'] = round(total_sgst, 2)
+    invoice_data['invoice_total_amt_cgst'] = round(total_cgst, 2)
+    invoice_data['invoice_total_amt_igst'] = round(total_igst, 2)
+    invoice_data['invoice_total_amt_with_gst'] = round(total_with_gst, 2)
+
+    return invoice_data
+
+
+def remove_book_entries_for_invoice(invoice):
+    """Delete this invoice's book log(s) and re-total the book — the books half of
+    a re-reflect, mirroring remove_inventory_entries_for_invoice()."""
+    if invoice.invoice_customer is None:
+        return
+    book = Book.objects.filter(user=invoice.user, customer=invoice.invoice_customer).first()
+    if not book:
+        return
+    BookLog.objects.filter(parent_book=book, associated_invoice=invoice).delete()
+    recalculate_book_current_balance(book)
 
 
 #  ================= Invoice Methods ====================
@@ -59,7 +361,6 @@ def invoice_data_validator(invoice_data):
 
 
 def invoice_data_processor(invoice_post_data):
-    print(invoice_post_data)
     processed_invoice_data = {}
 
     processed_invoice_data['invoice_number'] = invoice_post_data['invoice-number']
@@ -88,12 +389,16 @@ def invoice_data_processor(invoice_post_data):
     invoice_post_data = dict(invoice_post_data)
     for idx, product in enumerate(invoice_post_data['invoice-model-no']):
         if product:
-            print(idx, product)
             item_entry = {}
             item_entry['invoice_model_no'] = product
             item_entry['invoice_product'] = invoice_post_data['invoice-product'][idx]
             item_entry['invoice_hsn'] = invoice_post_data['invoice-hsn'][idx]
-            item_entry['invoice_qty'] = int(invoice_post_data['invoice-qty'][idx])
+            # Allow 0 / negative / blank quantities to save (blank -> 0) instead of
+            # crashing on int('') — the UI warns on non-positive qty but still permits it.
+            try:
+                item_entry['invoice_qty'] = int(float(invoice_post_data['invoice-qty'][idx] or 0))
+            except (ValueError, TypeError):
+                item_entry['invoice_qty'] = 0
             item_entry['invoice_discount'] = float(invoice_post_data['invoice-discount'][idx])
             item_entry['invoice_rate_with_gst'] = float(invoice_post_data['invoice-rate-with-gst'][idx])
             item_entry['invoice_gst_percentage'] = float(invoice_post_data['invoice-gst-percentage'][idx])
@@ -108,7 +413,6 @@ def invoice_data_processor(invoice_post_data):
 
             processed_invoice_data['items'].append(item_entry)
 
-    print(processed_invoice_data)
     return processed_invoice_data
 
 
@@ -242,293 +546,353 @@ def recalculate_book_current_balance(book_obj):
     book_obj.save()
 
 # ================ Customer Methods ===========================
-def add_customer_userid(customer):
-    # check if customer not already exists
-    if not Customer.objects.filter(user=customer.user, id=customer.id).exists():
-        return
-    customer = get_object_or_404(Customer, user=customer.user, id=customer.id)
-    c_userid = f"{settings.PRODUCT_PREFIX}{customer.user.id}C{customer.id}"
-    customer.customer_userid = c_userid.lower()
-    customer.save()
 
-
-def customer_already_exists(user, customer_phone, customer_email, customer_gst):
-    if Customer.objects.filter(user=user, customer_phone=customer_phone).exists() or \
-       Customer.objects.filter(user=user, customer_email=customer_email).exists() or \
-       Customer.objects.filter(user=user, customer_gst=customer_gst).exists():
-        return True
-    return False
 
 # ================ Utility Methods ===========================
-def parse_code_GS(input_code):
-    if not input_code:
-        return None
-    # Regex to match the pattern
-    pattern = r'([A-Za-z]+)(\d+)'
-    # Find all matches
-    matches = re.findall(pattern, input_code)
-    # If no valid pattern found, return None
-    if not matches:
-        return None
-    # Create a dictionary from the matches
-    result = {key.upper(): int(value) for key, value in matches}
+
+# ================ Quotation Cart =====================
+
+def cart_product_payload(business_user):
+    """
+    Products for the cart, scoped to one business and field-whitelisted.
+
+    productsjson() dumps Product.objects.values() — every column, including
+    product_purchase_rate. That is the cost price, so it must never reach a cart
+    that unauthenticated customers can open.
+    """
+    fields = (
+        'id', 'model_no', 'product_name', 'product_hsn',
+        'product_rate_with_gst', 'product_gst_percentage', 'product_discount',
+        'product_image_url', 'product_category_id', 'product_division_category',
+        'product_model_category', 'product_colour',
+    )
+    return list(Product.objects.filter(user=business_user).values(*fields))
+
+
+class CartError(ValueError):
+    """A cart/order could not be turned into a quotation. `str(err)` is user-safe."""
+
+
+def _compute_cart_quotation(business_user, items, *, existing_customer=None,
+                            customer_fields=None, is_gst=True, allow_discount=True):
+    """Pure (no-DB) core: validate the cart items, re-read every rate/GST% from the
+    Product table, and build the quotation_json + recomputed totals. Shared by create
+    and update so a draft and its edit price identically. Raises CartError."""
+    if not items:
+        raise CartError('Cart is empty')
+
+    # A GST quotation needs the customer's GSTIN, so a customer without one is silently
+    # downgraded to non-GST — same rule as quotation_create() / invoice_create().
+    if existing_customer is not None:
+        customer_name = existing_customer.customer_name
+        customer_phone = existing_customer.customer_phone or ''
+        customer_address = existing_customer.customer_address or ''
+        customer_gst = (existing_customer.customer_gst or '').strip().upper()
+    else:
+        fields = customer_fields or {}
+        customer_name = (fields.get('name') or '').strip()
+        if not customer_name:
+            raise CartError('Customer name is required')
+        customer_phone = (fields.get('phone') or '').strip()
+        customer_address = (fields.get('address') or '').strip()
+        customer_gst = (fields.get('gst') or '').strip().upper()
+        if customer_gst and len(customer_gst) != 15:
+            raise CartError('Customer GST must be 15 characters')
+
+    is_gst = bool(is_gst)
+    auto_downgraded_to_non_gst = is_gst and not customer_gst
+    if auto_downgraded_to_non_gst:
+        is_gst = False
+
+    quotation_data = {
+        'customer_name': customer_name,
+        'customer_address': customer_address,
+        'customer_phone': customer_phone,
+        'customer_gst': customer_gst,
+        'vehicle_number': '',
+        'igstcheck': False,
+        'items': [],
+    }
+
+    total_gross = total_discount = 0.0
+    total_without_gst = total_sgst = total_cgst = total_igst = total_with_gst = 0.0
+
+    for line in items:
+        try:
+            product = Product.objects.get(id=line.get('id'), user=business_user)
+        except (Product.DoesNotExist, ValueError, TypeError):
+            raise CartError('A product in your cart no longer exists. Please refresh.')
+
+        try:
+            qty = int(float(line.get('qty', 0)))
+        except (ValueError, TypeError):
+            qty = 0
+        if qty < 1:
+            raise CartError(f'Invalid quantity for {product.model_no}')
+
+        # Discount is only honoured for actors allowed to set one (staff/employee).
+        # Otherwise the product's own discount is used, so a forged payload from a
+        # customer cannot mark down the price.
+        line_discount = line.get('discount') if allow_discount else None
+
+        item_entry = build_quotation_item(
+            product, qty,
+            igstcheck=quotation_data['igstcheck'],
+            discount=line_discount,
+        )
+
+        gross = item_entry['invoice_rate_with_gst'] * qty
+        total_gross += gross
+        total_discount += gross - item_entry['invoice_amt_without_gst']
+
+        total_without_gst += item_entry['invoice_amt_without_gst']
+        total_sgst += item_entry['invoice_amt_sgst']
+        total_cgst += item_entry['invoice_amt_cgst']
+        total_igst += item_entry['invoice_amt_igst']
+        total_with_gst += item_entry['invoice_amt_with_gst']
+
+        quotation_data['items'].append(item_entry)
+
+    quotation_data['invoice_total_amt_without_gst'] = round(total_without_gst, 2)
+    quotation_data['invoice_total_amt_sgst'] = round(total_sgst, 2)
+    quotation_data['invoice_total_amt_cgst'] = round(total_cgst, 2)
+    quotation_data['invoice_total_amt_igst'] = round(total_igst, 2)
+    quotation_data['invoice_total_amt_with_gst'] = round(total_with_gst, 2)
+
+    return {
+        'quotation_data': quotation_data,
+        'is_gst': is_gst,
+        'gst_downgraded': auto_downgraded_to_non_gst,
+        'customer_name': customer_name,
+        'customer_phone': customer_phone,
+        'customer_address': customer_address,
+        'customer_gst': customer_gst,
+        'totals': {
+            'gross': round(total_gross, 2),
+            'discount': round(total_discount, 2),
+            'taxable': quotation_data['invoice_total_amt_without_gst'],
+            'cgst': quotation_data['invoice_total_amt_cgst'],
+            'sgst': quotation_data['invoice_total_amt_sgst'],
+            'igst': quotation_data['invoice_total_amt_igst'],
+            'grand_total': quotation_data['invoice_total_amt_with_gst'],
+        },
+    }
+
+
+def create_cart_draft_quotation(business_user, items, *, existing_customer=None,
+                                customer_fields=None, is_gst=True,
+                                allow_discount=True, created_by_customer=False,
+                                actor_label='staff', order_employee=None):
+    """
+    Server-authoritative core shared by the mobile order flow. The client only ever
+    sends product ids, quantities and (for staff/employee) per-line discounts — rate
+    and GST% are ALWAYS re-read from the Product table, so a tampered payload cannot
+    reprice a line. Saves a DRAFT quotation and returns it plus the recomputed totals.
+
+    Customer is either `existing_customer` (trusted over any echoed fields) or, when
+    None, built from `customer_fields` {name, phone, address, gst}.
+    Raises CartError(user-safe message) on any validation failure.
+    """
+    from django.db import transaction
+    from django.db.models import Max
+    from .models import Quotation
+
+    comp = _compute_cart_quotation(
+        business_user, items, existing_customer=existing_customer,
+        customer_fields=customer_fields, is_gst=is_gst, allow_discount=allow_discount,
+    )
+    quotation_data = comp['quotation_data']
+    is_gst = comp['is_gst']
+    today = datetime.date.today()
+
+    with transaction.atomic():
+        # select_for_update holds the row lock until commit so two concurrent
+        # checkouts cannot read the same Max() and claim the same number.
+        max_number = Quotation.objects.select_for_update().filter(
+            user=business_user, is_gst=is_gst
+        ).aggregate(Max('quotation_number'))['quotation_number__max']
+
+        customer = existing_customer
+        if customer is None:
+            customer, _ = Customer.objects.get_or_create(
+                user=business_user,
+                customer_name=comp['customer_name'].upper(),
+                defaults={
+                    'customer_address': comp['customer_address'],
+                    'customer_phone': comp['customer_phone'],
+                    'customer_gst': comp['customer_gst'],
+                },
+            )
+
+        new_quotation = Quotation(
+            user=business_user,
+            quotation_number=(max_number or 0) + 1,
+            quotation_date=today,
+            valid_until=today + datetime.timedelta(days=30),
+            quotation_customer=customer,
+            quotation_json=json.dumps(quotation_data),
+            is_gst=is_gst,
+            # DRAFT: the buyer is still building this order on their phone — they can keep
+            # editing/adding until they Confirm it, which moves it to PENDING for the shop
+            # to approve. It never touches inventory or books at any draft/pending stage.
+            status='DRAFT',
+            created_from_cart=True,
+            created_by_customer=created_by_customer,
+            order_employee=order_employee,
+            notes=f'Created from Quotation Cart ({actor_label})',
+        )
+        new_quotation.save()
+
+    return {
+        'quotation': new_quotation,
+        'quotation_data': quotation_data,
+        'customer': customer,
+        'is_gst': is_gst,
+        'gst_downgraded': comp['gst_downgraded'],
+        'customer_name': comp['customer_name'],
+        'customer_phone': comp['customer_phone'],
+        'totals': comp['totals'],
+    }
+
+
+def update_cart_draft_quotation(quotation, items, *, is_gst=None, allow_discount=True):
+    """Recompute and replace a still-DRAFT cart order's lines in place, keeping its
+    number and customer. Used when a buyer edits an order before confirming it.
+    Raises CartError if the order is no longer editable or a line is invalid."""
+    from django.db import transaction
+
+    if quotation.status != 'DRAFT':
+        raise CartError('This order can no longer be edited.')
+    if is_gst is None:
+        is_gst = quotation.is_gst
+
+    comp = _compute_cart_quotation(
+        quotation.user, items, existing_customer=quotation.quotation_customer,
+        is_gst=is_gst, allow_discount=allow_discount,
+    )
+
+    with transaction.atomic():
+        quotation.quotation_json = json.dumps(comp['quotation_data'])
+        quotation.is_gst = comp['is_gst']
+        quotation.save(update_fields=['quotation_json', 'is_gst'])
+
+    return {
+        'quotation': quotation,
+        'is_gst': comp['is_gst'],
+        'gst_downgraded': comp['gst_downgraded'],
+        'totals': comp['totals'],
+    }
+
+
+def _price_signature(data):
+    """A comparable fingerprint of a quotation's pricing — grand total plus each line's
+    rate, discount, GST% and amount. Used to tell whether a re-price actually changed
+    anything, so we don't rewrite the JSON (or claim a change) when nothing moved."""
+    def r(v):
+        try:
+            return round(float(v or 0), 2)
+        except (ValueError, TypeError):
+            return 0.0
+    sig = [r(data.get('invoice_total_amt_with_gst'))]
+    for it in data.get('items') or []:
+        sig.append((it.get('product_id'), it.get('invoice_model_no'),
+                    r(it.get('invoice_rate_with_gst')), r(it.get('invoice_discount')),
+                    r(it.get('invoice_gst_percentage')), r(it.get('invoice_amt_with_gst'))))
+    return sig
+
+
+def resync_quotation_prices(quotation, *, persist=True):
+    """Re-price a not-yet-invoiced quotation from CURRENT product rates, GST% and
+    discounts, keeping each line's quantity. This is what keeps a quotation's price live
+    while it's still a quotation — an invoice, by contrast, is frozen.
+
+    Returns {'changed': bool, 'reason': str, 'old_total': float, 'new_total': float}.
+    Leaves the quotation untouched (changed=False) when it's already invoiced, uses
+    inter-state IGST, has a line with no resolvable product, or carries no line at all."""
+    result = {'changed': False, 'reason': '', 'old_total': 0.0, 'new_total': 0.0}
+    if quotation.status == 'CONVERTED' or quotation.converted_invoice_id:
+        result['reason'] = 'invoiced'
+        return result
+    try:
+        data = json.loads(quotation.quotation_json)
+    except (ValueError, TypeError):
+        result['reason'] = 'bad_json'
+        return result
+    if data.get('igstcheck'):
+        # Inter-state tax split isn't modelled by the cart engine — don't risk corrupting it.
+        result['reason'] = 'igst'
+        return result
+
+    items = data.get('items') or []
+    line_reqs = []
+    for it in items:
+        pid = it.get('product_id')
+        qty = it.get('invoice_qty')
+        if not pid:
+            # Older lines may predate product_id — fall back to matching by model number.
+            p = Product.objects.filter(user=quotation.user, model_no=it.get('invoice_model_no')).first()
+            pid = p.id if p else None
+        if not pid or not qty:
+            result['reason'] = 'unmapped'
+            return result
+        line_reqs.append({'id': pid, 'qty': qty})
+    if not line_reqs:
+        result['reason'] = 'empty'
+        return result
+
+    result['old_total'] = _price_signature(data)[0]
+    try:
+        comp = _compute_cart_quotation(
+            quotation.user, line_reqs,
+            existing_customer=quotation.quotation_customer,
+            is_gst=quotation.is_gst, allow_discount=False,
+        )
+    except CartError:
+        result['reason'] = 'product_missing'
+        return result
+
+    new_data = comp['quotation_data']
+    # Carry over the buyer/customer detail fields the pricing pass shouldn't disturb.
+    for k in ('customer_name', 'customer_address', 'customer_phone', 'customer_gst', 'vehicle_number'):
+        if data.get(k):
+            new_data[k] = data[k]
+
+    result['new_total'] = comp['totals']['grand_total']
+    result['changed'] = _price_signature(data) != _price_signature(new_data)
+    if result['changed'] and persist:
+        quotation.quotation_json = json.dumps(new_data)
+        quotation.save(update_fields=['quotation_json'])
+    result['reason'] = 'ok'
     return result
 
 
-# ================ Notification System Methods =================
-def create_notification(user, title, message, notification_type='INFO', 
-                       link_url=None, link_text=None, 
-                       related_object_type=None, related_object_id=None):
-    """
-    Create a notification for a user.
-    
-    Usage Examples:
-        # Simple notification
-        create_notification(request.user, "Welcome", "Welcome to GST Billing System", "SUCCESS")
-        
-        # Notification with link
-        create_notification(
-            request.user, 
-            "New Invoice", 
-            "Invoice #1234 has been created",
-            "INVOICE",
-            link_url="/invoice/1234/",
-            link_text="View Invoice"
-        )
-        
-        # Notification with related object
-        create_notification(
-            request.user,
-            "Payment Received",
-            "Payment of ₹5000 received from Customer ABC",
-            "PAYMENT",
-            link_url="/customers/123/",
-            link_text="View Customer",
-            related_object_type="Customer",
-            related_object_id=123
-        )
-    
-    Args:
-        user: User object
-        title: Notification title (max 200 chars)
-        message: Notification message
-        notification_type: Type of notification (INFO, SUCCESS, WARNING, ERROR, 
-                          INVOICE, QUOTATION, CUSTOMER, PRODUCT, PAYMENT, SYSTEM)
-        link_url: Optional URL to navigate when clicked
-        link_text: Optional text for the link button
-        related_object_type: Optional model name (e.g., "Invoice", "Customer")
-        related_object_id: Optional ID of the related object
-    
-    Returns:
-        Notification object
-    """
-    from .models import Notification
-    
-    notification = Notification.objects.create(
-        user=user,
-        notification_type=notification_type,
-        title=title[:200],  # Ensure max length
-        message=message,
-        link_url=link_url,
-        link_text=link_text,
-        related_object_type=related_object_type,
-        related_object_id=related_object_id
-    )
-    
-    # Send real-time notification via WebSocket
-    try:
-        from asgiref.sync import async_to_sync
-        from channels.layers import get_channel_layer
-        
-        channel_layer = get_channel_layer()
-        if channel_layer:
-            # Send notification to user's WebSocket
-            async_to_sync(channel_layer.group_send)(
-                f"notifications_user_{user.id}",
-                {
-                    'type': 'notification_message',
-                    'notification': {
-                        'id': notification.id,
-                        'title': notification.title,
-                        'message': notification.message,
-                        'notification_type': notification.notification_type,
-                        'link_url': notification.link_url or '',
-                        'link_text': notification.link_text or 'View',
-                        'created_at': notification.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                        'icon_class': notification.get_icon_class(),
-                        'badge_class': notification.get_badge_class(),
-                    }
-                }
-            )
-            
-            # Send updated count
-            unread_count = Notification.objects.filter(
-                user=user, is_read=False, is_deleted=False
-            ).count()
-            
-            async_to_sync(channel_layer.group_send)(
-                f"notifications_user_{user.id}",
-                {
-                    'type': 'count_update',
-                    'count': unread_count
-                }
-            )
-    except Exception as e:
-        # If WebSocket fails, continue silently
-        print(f"WebSocket notification failed: {e}")
-    
-    return notification
-
-
-def notify_invoice_created(user, invoice):
-    """
-    Create notification when invoice is created
-    
-    Usage: notify_invoice_created(request.user, invoice_obj)
-    """
-    return create_notification(
-        user=user,
-        title=f"Invoice #{invoice.invoice_number} Created",
-        message=f"New invoice #{invoice.invoice_number} created for {invoice.invoice_customer.customer_name if invoice.invoice_customer else 'N/A'}",
-        notification_type="INVOICE",
-        link_url=f"/invoice/{invoice.id}/",
-        link_text="View Invoice",
-        related_object_type="Invoice",
-        related_object_id=invoice.id
-    )
-
-
-def notify_quotation_created(user, quotation):
-    """
-    Create notification when quotation is created
-    
-    Usage: notify_quotation_created(request.user, quotation_obj)
-    """
-    return create_notification(
-        user=user,
-        title=f"Quotation #{quotation.quotation_number} Created",
-        message=f"New quotation #{quotation.quotation_number} created for {quotation.quotation_customer.customer_name if quotation.quotation_customer else 'N/A'}",
-        notification_type="QUOTATION",
-        link_url=f"/quotation/{quotation.id}/",
-        link_text="View Quotation",
-        related_object_type="Quotation",
-        related_object_id=quotation.id
-    )
-
-
-def notify_quotation_approved(user, quotation):
-    """
-    Create notification when quotation is approved
-    
-    Usage: notify_quotation_approved(request.user, quotation_obj)
-    """
-    return create_notification(
-        user=user,
-        title=f"Quotation #{quotation.quotation_number} Approved",
-        message=f"Quotation #{quotation.quotation_number} has been approved and is ready for conversion",
-        notification_type="SUCCESS",
-        link_url=f"/quotation/{quotation.id}/",
-        link_text="View Quotation",
-        related_object_type="Quotation",
-        related_object_id=quotation.id
-    )
-
-
-def notify_payment_received(user, customer, amount):
-    """
-    Create notification when payment is received
-    
-    Usage: notify_payment_received(request.user, customer_obj, 5000)
-    """
-    return create_notification(
-        user=user,
-        title="Payment Received",
-        message=f"Payment of ₹{amount:,.2f} received from {customer.customer_name}",
-        notification_type="PAYMENT",
-        link_url=f"/customers/edit/{customer.id}",
-        link_text="View Customer",
-        related_object_type="Customer",
-        related_object_id=customer.id
-    )
-
-
-def notify_low_stock(user, product, quantity):
-    """
-    Create notification for low stock alert
-    
-    Usage: notify_low_stock(request.user, product_obj, 5)
-    """
-    return create_notification(
-        user=user,
-        title="Low Stock Alert",
-        message=f"Product '{product.product_name}' ({product.model_no}) has low stock: {quantity} units remaining",
-        notification_type="WARNING",
-        link_url="/products",
-        link_text="View Products",
-        related_object_type="Product",
-        related_object_id=product.id
-    )
-
-
-def notify_custom(user, title, message, notification_type='INFO', 
-                 link_url=None, link_text=None):
-    """
-    Create a custom notification with flexible parameters
-    
-    Usage: 
-        notify_custom(
-            request.user, 
-            "Custom Alert", 
-            "This is a custom message",
-            "WARNING",
-            "/some-page/",
-            "Go to Page"
-        )
-    """
-    return create_notification(
-        user=user,
-        title=title,
-        message=message,
-        notification_type=notification_type,
-        link_url=link_url,
-        link_text=link_text
-    )
-
-
-def get_unread_notification_count(user):
-    """
-    Get count of unread notifications for a user
-    
-    Usage: count = get_unread_notification_count(request.user)
-    """
-    from .models import Notification
-    return Notification.objects.filter(user=user, is_read=False, is_deleted=False).count()
-
-
-def mark_all_notifications_read(user):
-    """
-    Mark all notifications as read for a user
-    
-    Usage: mark_all_notifications_read(request.user)
-    """
-    from .models import Notification
-    from datetime import datetime
-    
-    Notification.objects.filter(
-        user=user, 
-        is_read=False, 
-        is_deleted=False
-    ).update(is_read=True, read_at=datetime.now())
+def _escape_md(text):
+    """Escape special characters for Telegram MarkdownV2 format."""
+    if not text:
+        return ''
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    escaped = str(text)
+    for ch in special_chars:
+        escaped = escaped.replace(ch, f'\\{ch}')
+    return escaped
 
 # ================= Location Methods ===========================
 import math
 
-def distance_meters(lat1, lng1, lat2, lng2):
-    R = 6371000
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lng2 - lng1)
+# ================= Purchases Log Utilities ====================================
+def get_change_type_change(change_type, change):
+    if change_type == '3':  # Others
+        change = change
+    elif change_type == '1':  # Purchased
+        if float(change) > 0:
+            change = -float(change)
+    else:
+        change = abs(float(change))
+    return change
 
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+def get_vendor_instance(vendor, request):
+    if vendor == '':
+        vendor_instance = None
+    else:
+        vendor_instance = VendorPurchase.objects.get(user=request.user, id=vendor)
+    return vendor_instance

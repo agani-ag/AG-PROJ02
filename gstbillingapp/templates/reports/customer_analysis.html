@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% load static %}
+{% load money %}
+
+{% block title %}Customer Analysis · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* KPI cards */
+.ca-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:18px}
+.ca-kpi{display:flex;align-items:center;gap:13px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh);padding:15px 17px}
+.ca-kpi .ci{flex:none;width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.ca-kpi .cv{font-family:var(--disp);font-size:22px;font-weight:700;color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums}
+.ca-kpi .ck{font-size:12px;color:var(--soft);margin-top:2px}
+.ci.b{background:var(--bluebg);color:var(--brand)} .ci.g{background:var(--greenbg);color:var(--green)}
+.ci.a{background:var(--amberbg);color:var(--amber)} .ci.r{background:var(--redbg);color:var(--red)}
+/* Chips */
+.ca-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ca-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--soft);font-weight:600;font-size:13px;cursor:pointer;transition:.15s}
+.ca-chip:hover{border-color:#cfd8e6;background:var(--wash)}
+.ca-chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.ca-chip .n{background:rgba(0,0,0,.06);border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:800}
+.ca-chip.on .n{background:rgba(255,255,255,.25)}
+/* Score + segment */
+.seg{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+.seg.star{background:#fff5d6;color:#a9760a} .seg.loyal{background:var(--greenbg);color:var(--green)}
+.seg.promising{background:var(--bluebg);color:var(--brand)} .seg.atrisk{background:var(--amberbg);color:var(--amber)}
+.seg.critical{background:var(--redbg);color:var(--red)}
+.hb{height:6px;border-radius:4px;background:var(--line2);overflow:hidden;width:80px;margin-top:5px}
+.hb > i{display:block;height:100%;border-radius:4px}
+.hf-star{background:linear-gradient(90deg,#ffd76a,#f0a020)} .hf-loyal{background:linear-gradient(90deg,#34d399,#16a34a)}
+.hf-promising{background:linear-gradient(90deg,#60a5fa,#2563eb)} .hf-atrisk{background:linear-gradient(90deg,#fbbf24,#e5900f)}
+.hf-critical{background:linear-gradient(90deg,#fb7185,#e11d48)}
+.scw{display:flex;align-items:center;gap:10px}
+.scw .sv{font-family:var(--disp);font-weight:700;font-size:15px;color:var(--ink);min-width:24px}
+/* Status text */
+.st-active{color:var(--green);font-weight:600} .st-semi{color:var(--brand);font-weight:600}
+.st-dormant{color:var(--amber);font-weight:600} .st-inactive{color:var(--faint);font-weight:600}
+/* Expand */
+.exp-btn{border:0;background:none;color:var(--faint);cursor:pointer;padding:6px;border-radius:8px;transition:.15s}
+.exp-btn:hover{background:var(--wash);color:var(--brand)}
+tr.mainrow{cursor:pointer}
+tr.mainrow.open{background:var(--wash)}
+tr.mainrow.open .exp-btn i{transform:rotate(180deg)}
+.exp-btn i{transition:transform .18s}
+.detail-row > td{background:var(--wash);padding:0!important}
+.detail-wrap{padding:16px 18px}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 22px}
+.dg h6{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 7px}
+.dg .drow{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:2px 0}
+.dg .drow .l{color:var(--soft)} .dg .drow .v{font-weight:600;color:var(--ink)}
+.spill{display:inline-block;font-family:var(--disp);font-weight:700}
+/* Table tweaks */
+.gs table.gt td.rk{font-family:var(--disp);font-weight:700;color:var(--faint);text-align:center;width:40px}
+.gs .search{max-width:320px}
+@media(max-width:640px){.ca-kpi .cv{font-size:18px}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Customers</div>
+            <h1 class="disp">Customer Analysis</h1>
+            <div class="sub">Who your best customers are, who's slipping, and who owes you — as of {{ report_date|date:"d M Y" }}</div>
+        </div>
+        <div class="actions">
+            <button type="button" class="gbtn" onclick="howScoring()"><i class="fas fa-circle-question"></i> How it works</button>
+            <button type="button" class="gbtn" onclick="printAnalysis()"><i class="fas fa-print"></i> Print</button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="ca-kpis">
+        <div class="ca-kpi"><span class="ci b"><i class="fas fa-users"></i></span>
+            <div><div class="cv">{{ total_customers }}</div><div class="ck">Total customers</div></div></div>
+        <div class="ca-kpi"><span class="ci g"><i class="fas fa-star"></i></span>
+            <div><div class="cv">{{ best_count }}</div><div class="ck">Best customers</div></div></div>
+        <div class="ca-kpi"><span class="ci a"><i class="fas fa-triangle-exclamation"></i></span>
+            <div><div class="cv">{{ attention_count }}</div><div class="ck">Need attention</div></div></div>
+        <div class="ca-kpi"><span class="ci r"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="cv">&#8377; {{ total_outstanding|inrs }}</div><div class="ck">Money owed to you</div></div></div>
+    </div>
+
+    <!-- Quick filters -->
+    <div class="ca-chips" id="caChips">
+        <button type="button" class="ca-chip on" data-filter="all">All <span class="n">{{ total_customers }}</span></button>
+        <button type="button" class="ca-chip" data-filter="best"><i class="fas fa-star"></i> Best <span class="n">{{ best_count }}</span></button>
+        <button type="button" class="ca-chip" data-filter="slipping"><i class="fas fa-arrow-trend-down"></i> Slipping</button>
+        <button type="button" class="ca-chip" data-filter="owe"><i class="fas fa-hand-holding-dollar"></i> Owe you <span class="n">{{ owe_count }}</span></button>
+        <button type="button" class="ca-chip" data-filter="quiet"><i class="fas fa-moon"></i> Went quiet <span class="n">{{ quiet_count }}</span></button>
+    </div>
+
+    <div class="search" style="margin-bottom:14px"><i class="fas fa-magnifying-glass gico"></i>
+        <input type="text" id="searchInput" placeholder="Search customer…" autocomplete="off"></div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="customerTable">
+            <thead><tr>
+                <th class="rk">#</th>
+                <th>Customer</th>
+                <th>Score</th>
+                <th>Status</th>
+                <th>Last order</th>
+                <th class="r">Total business</th>
+                <th class="r">Outstanding</th>
+                <th>Payment</th>
+                <th></th>
+            </tr></thead>
+            <tbody>
+                {% for c in customer_rows %}
+                <tr class="mainrow" data-name="{{ c.name|lower }}" data-segment="{{ c.segment }}" data-activity="{{ c.activity_status }}" data-trend="{{ c.invoice_trend }}" data-owe="{% if c.outstanding > 0 %}1{% else %}0{% endif %}">
+                    <td class="rk">{{ c.rank }}</td>
+                    <td>
+                        <div class="prim"><span class="pi">{{ c.name|initials }}</span>
+                            <a href="{% url 'customer_edit' c.id %}" class="nm" style="color:var(--ink)" onclick="event.stopPropagation()">{{ c.name }}</a></div>
+                    </td>
+                    <td>
+                        <div class="scw"><span class="sv">{{ c.health_score }}</span>
+                            <div>
+                                <span class="seg {% if c.segment == 'Star' %}star{% elif c.segment == 'Loyal' %}loyal{% elif c.segment == 'Promising' %}promising{% elif c.segment == 'At Risk' %}atrisk{% else %}critical{% endif %}">{{ c.segment }}</span>
+                                <div class="hb"><i class="{% if c.segment == 'Star' %}hf-star{% elif c.segment == 'Loyal' %}hf-loyal{% elif c.segment == 'Promising' %}hf-promising{% elif c.segment == 'At Risk' %}hf-atrisk{% else %}hf-critical{% endif %}" style="width:{{ c.health_score }}%"></i></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="{% if c.activity_status == 'Active' %}st-active{% elif c.activity_status == 'Semi-Active' %}st-semi{% elif c.activity_status == 'Dormant' %}st-dormant{% else %}st-inactive{% endif %}">{{ c.activity_status }}</span></td>
+                    <td>{% if c.last_invoice %}{{ c.last_invoice|date:"d M Y" }}<div class="mut" style="font-size:11.5px">{% if c.days_since_last != None %}{{ c.days_since_last }}d ago{% endif %}</div>{% else %}<span class="mut">No orders</span>{% endif %}</td>
+                    <td class="r"><span class="num">&#8377; {{ c.total_invoice_value|inrs }}</span></td>
+                    <td class="r"><span class="num" style="{% if c.outstanding > 0 %}color:var(--red){% else %}color:var(--faint){% endif %}">&#8377; {{ c.outstanding|inrs }}</span></td>
+                    <td><span class="seg {% if c.payment_behavior == 'Excellent' %}loyal{% elif c.payment_behavior == 'Good' %}promising{% elif c.payment_behavior == 'Fair' %}atrisk{% else %}critical{% endif %}">{{ c.payment_behavior }}</span></td>
+                    <td class="r"><button type="button" class="exp-btn" title="Details"><i class="fas fa-chevron-down"></i></button></td>
+                </tr>
+                <tr class="detail-row" hidden>
+                    <td colspan="9">
+                        <div class="detail-wrap"><div class="detail-grid">
+                            <div class="dg">
+                                <h6>Score breakdown</h6>
+                                <div class="drow"><span class="l">Recency</span><span class="v">{{ c.recency_score }}/25</span></div>
+                                <div class="drow"><span class="l">Frequency</span><span class="v">{{ c.frequency_score }}/25</span></div>
+                                <div class="drow"><span class="l">Value</span><span class="v">{{ c.monetary_score }}/25</span></div>
+                                <div class="drow"><span class="l">Payment</span><span class="v">{{ c.payment_score }}/25</span></div>
+                            </div>
+                            <div class="dg">
+                                <h6>Buying behaviour</h6>
+                                <div class="drow"><span class="l">Orders</span><span class="v">{{ c.invoice_count }}</span></div>
+                                <div class="drow"><span class="l">Per month</span><span class="v">{{ c.invoices_per_month }}</span></div>
+                                <div class="drow"><span class="l">Avg order</span><span class="v">&#8377; {{ c.avg_invoice_value|inrs }}</span></div>
+                                <div class="drow"><span class="l">Pattern</span><span class="v">{{ c.frequency_pattern }}</span></div>
+                                <div class="drow"><span class="l">Avg gap</span><span class="v">{{ c.avg_gap_days }}d</span></div>
+                            </div>
+                            <div class="dg">
+                                <h6>Trend (90d vs prior)</h6>
+                                <div class="drow"><span class="l">Direction</span><span class="v">
+                                    {% if c.invoice_trend == 'Growing' %}<span style="color:var(--green)">↑ Growing</span>{% elif c.invoice_trend == 'Declining' %}<span style="color:var(--red)">↓ Declining</span>{% elif c.invoice_trend == 'Stable' %}<span style="color:var(--soft)">→ Stable</span>{% else %}{{ c.invoice_trend }}{% endif %}</span></div>
+                                <div class="drow"><span class="l">Recent 90d</span><span class="v">{{ c.recent_count }} orders</span></div>
+                                <div class="drow"><span class="l">Prior 90d</span><span class="v">{{ c.prior_count }} orders</span></div>
+                                <div class="drow"><span class="l">First order</span><span class="v">{% if c.first_invoice %}{{ c.first_invoice|date:"d M Y" }}{% else %}—{% endif %}</span></div>
+                            </div>
+                            <div class="dg">
+                                <h6>Money</h6>
+                                <div class="drow"><span class="l">Purchased</span><span class="v">&#8377; {{ c.total_purchased|inrs }}</span></div>
+                                <div class="drow"><span class="l">Paid</span><span class="v">&#8377; {{ c.total_paid|inrs }}</span></div>
+                                <div class="drow"><span class="l">Outstanding</span><span class="v" style="{% if c.outstanding > 0 %}color:var(--red){% endif %}">&#8377; {{ c.outstanding|inrs }}</span></div>
+                                <div class="drow"><span class="l">Pay ratio</span><span class="v">{{ c.payment_ratio }}%</span></div>
+                            </div>
+                            <div class="dg" style="align-self:end">
+                                {% if c.book_id %}<a href="{% url 'book_logs' c.book_id %}" class="gbtn" style="width:100%;justify-content:center"><i class="fas fa-book-open"></i> View ledger</a>{% endif %}
+                                <a href="{% url 'customer_edit' c.id %}" class="gbtn" style="width:100%;justify-content:center;margin-top:8px"><i class="fas fa-user"></i> Customer</a>
+                            </div>
+                        </div></div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="9"><div class="empty">
+                    <div class="ei"><i class="fas fa-users fa-lg"></i></div>
+                    <h3>No customer data yet</h3>
+                    <p>Once you raise invoices, this page ranks and analyses every customer.</p>
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <div id="noMatch" class="mut" style="display:none;padding:22px;text-align:center">No customers match this filter.</div>
+    </div>
+
+    <div class="mut" style="font-size:12px;margin:12px 2px 20px">
+        <strong>Score</strong> (0–100) blends how recently &amp; how often each customer buys, how much they spend, and how well they pay.
+        Tap any row for the full breakdown.
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+(function(){
+    var chips = document.getElementById('caChips');
+    var searchInput = document.getElementById('searchInput');
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#customerTable tbody tr.mainrow'));
+    var noMatch = document.getElementById('noMatch');
+    var mode = 'all';
+
+    function matchesMode(row){
+        var seg = row.getAttribute('data-segment');
+        var act = row.getAttribute('data-activity');
+        var trend = row.getAttribute('data-trend');
+        var owe = row.getAttribute('data-owe') === '1';
+        if(mode === 'best') return seg === 'Star' || seg === 'Loyal';
+        if(mode === 'slipping') return trend === 'Declining' || act === 'Semi-Active' || act === 'Dormant';
+        if(mode === 'owe') return owe;
+        if(mode === 'quiet') return act === 'Inactive' || act === 'No Invoices';
+        return true;
+    }
+
+    function apply(){
+        var q = (searchInput.value || '').toLowerCase().trim();
+        var shown = 0;
+        rows.forEach(function(row){
+            var ok = matchesMode(row) && (!q || row.getAttribute('data-name').indexOf(q) !== -1);
+            row.style.display = ok ? '' : 'none';
+            // keep the detail row in sync (hide it, collapse state)
+            var detail = row.nextElementSibling;
+            if(detail && detail.classList.contains('detail-row')){
+                if(!ok){ detail.hidden = true; row.classList.remove('open'); }
+                detail.style.display = ok ? '' : 'none';
+            }
+            if(ok) shown++;
+        });
+        noMatch.style.display = shown ? 'none' : 'block';
+    }
+
+    chips.addEventListener('click', function(e){
+        var btn = e.target.closest('.ca-chip'); if(!btn) return;
+        chips.querySelectorAll('.ca-chip').forEach(function(c){ c.classList.remove('on'); });
+        btn.classList.add('on');
+        mode = btn.getAttribute('data-filter');
+        apply();
+    });
+    searchInput.addEventListener('input', apply);
+
+    // Expand / collapse detail
+    document.querySelectorAll('#customerTable tbody tr.mainrow').forEach(function(row){
+        row.addEventListener('click', function(e){
+            if(e.target.closest('a')) return;   // let links work
+            var detail = row.nextElementSibling;
+            if(!detail || !detail.classList.contains('detail-row')) return;
+            var opening = detail.hidden;
+            detail.hidden = !opening;
+            row.classList.toggle('open', opening);
+        });
+    });
+})();
+
+function howScoring(){
+    Swal.fire({
+        title: 'How the score works',
+        html: '<div style="text-align:left;font-size:14px;line-height:1.6">'
+            + 'Every customer gets a <b>score from 0 to 100</b>, built from four equal parts (25 each):'
+            + '<ul style="margin:10px 0 0;padding-left:18px">'
+            + '<li><b>Recency</b> — how recently they last bought</li>'
+            + '<li><b>Frequency</b> — how often they buy</li>'
+            + '<li><b>Value</b> — how much they spend vs others</li>'
+            + '<li><b>Payment</b> — how well &amp; consistently they pay</li>'
+            + '</ul><div style="margin-top:12px">'
+            + '<span style="color:#a9760a;font-weight:700">Star 80–100</span> · '
+            + '<span style="color:#16a34a;font-weight:700">Loyal 60–79</span> · '
+            + '<span style="color:#2563eb;font-weight:700">Promising 40–59</span> · '
+            + '<span style="color:#e5900f;font-weight:700">At Risk 20–39</span> · '
+            + '<span style="color:#e11d48;font-weight:700">Critical 0–19</span></div></div>',
+        confirmButtonText: 'Got it', confirmButtonColor: '#2563eb', width: 480
+    });
+}
+
+function printAnalysis(){
+    var rptDate = '{{ report_date|date:"d M Y" }}';
+    var visible = Array.prototype.slice.call(document.querySelectorAll('#customerTable tbody tr.mainrow'))
+        .filter(function(r){ return r.style.display !== 'none'; });
+    var rowsHtml = visible.map(function(r){
+        var c = r.children;
+        return '<tr><td>' + c[0].innerText + '</td><td style="text-align:left">' + c[1].innerText.trim()
+            + '</td><td>' + c[2].innerText.trim().split('\n')[0] + '</td><td>' + c[3].innerText.trim()
+            + '</td><td>' + c[4].innerText.trim().replace('\n',' ') + '</td><td style="text-align:right">' + c[5].innerText.trim()
+            + '</td><td style="text-align:right">' + c[6].innerText.trim() + '</td><td>' + c[7].innerText.trim() + '</td></tr>';
+    }).join('');
+    var css = '@page{size:A4 landscape;margin:8mm}body{font-family:Arial,sans-serif;color:#222;padding:6px}'
+        + 'h2{margin:0 0 2px;font-size:16px}p.sub{margin:0 0 10px;color:#666;font-size:12px}'
+        + 'table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ccc;padding:4px 6px;text-align:center}'
+        + 'th{background:#0f172a;color:#fff;font-size:10px;text-transform:uppercase}tr:nth-child(even){background:#f7f9fc}';
+    var w = window.open('', '_blank');
+    w.document.write('<html><head><title>Customer Analysis</title><style>' + css + '</style></head><body>');
+    w.document.write('<h2>Customer Analysis</h2><p class="sub">Ranked by score · Report date: ' + rptDate + '</p>');
+    w.document.write('<table><thead><tr><th>#</th><th style="text-align:left">Customer</th><th>Score</th><th>Status</th><th>Last order</th><th>Total business</th><th>Outstanding</th><th>Payment</th></tr></thead><tbody>'
+        + rowsHtml + '</tbody></table></body></html>');
+    w.document.close();
+    setTimeout(function(){ w.print(); }, 400);
+}
+</script>
+{% endblock %}

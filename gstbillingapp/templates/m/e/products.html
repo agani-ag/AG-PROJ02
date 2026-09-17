@@ -1,0 +1,183 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Products{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_home' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Home</a>{% endblock %}
+{% block heading %}Products{% endblock %}
+{% block subhead %}<div class="sub"><span id="pcount">{{ count }}</span> product{{ count|pluralize }}</div>{% endblock %}
+{% block includecss %}
+.chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;-webkit-overflow-scrolling:touch}
+.chips button{flex:0 0 auto;border:0;padding:7px 14px;border-radius:20px;background:var(--card);color:var(--soft);font-size:12.5px;font-weight:700;white-space:nowrap;box-shadow:var(--sh)}
+.chips button.on{background:var(--acc);color:#fff}
+.fsel{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fsel select{flex:1;min-width:110px;border:1px solid var(--line);border-radius:12px;padding:9px 10px;font-size:13px;background:var(--card);color:var(--ink);box-shadow:var(--sh)}
+.prod{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.prod:last-child{border-bottom:0}
+.prod .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prod .meta{font-size:12px;color:var(--soft)}
+{% endblock %}
+{% block content %}
+
+<div style="position:relative;margin-bottom:12px">
+    <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+    <input class="field" id="q" placeholder="Search model or name…" oninput="render()" autocomplete="off" style="margin:0;padding-left:42px">
+</div>
+
+<div class="chips" id="chips"></div>
+<div class="chips" id="sortchips" style="padding-top:0">
+    <span style="align-self:center;font-size:12px;color:var(--faint);padding:0 4px">Sort</span>
+    <button class="on" data-s="name" onclick="setSort(this,'name')">Name</button>
+    <button data-s="price" onclick="setSort(this,'price')">Price</button>
+    {% if show_cost %}<button data-s="profit" onclick="setSort(this,'profit')">Profit</button>{% endif %}
+</div>
+<div class="fsel" id="filters"></div>
+
+<div class="list"><div id="plist"></div></div>
+<div class="empty" id="empty" style="display:none"><svg class="i"><use href="#ic-box"/></svg><div>No products found.</div></div>
+
+<script>
+const PRODUCTS = {{ products_json|safe }};
+const CATS = {{ categories_json|safe }};
+const SHOW_COST = {{ show_cost|yesno:"true,false" }};   // admin-only: cost/profit visible
+let activeCat = '';
+let sortField = 'name', sortDir = 'asc';
+let fDiv = '', fModel = '', fColour = '';   // division / model-category / colour filters
+
+function price(p){ return Number(p.product_rate_with_gst)||0; }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// Canonical margin (matches the desktop): sale = rate less discount, plus GST; profit vs cost.
+function calc(p){
+    var rate=Number(p.product_rate_with_gst)||0, disc=Number(p.product_discount)||0,
+        gst=Number(p.product_gst_percentage)||0, cost=Number(p.product_purchase_rate)||0;
+    var sale = Math.round(rate*(1-disc/100)*(1+gst/100)*100)/100;
+    var profit = Math.round((sale-cost)*100)/100;
+    return { sale:sale, cost:cost, profit:profit, margin: sale>0 ? (profit/sale*100) : 0 };
+}
+
+function buildChips(){
+    // Category chips cascade like the dropdowns: show only categories present among the
+    // products the other filters allow. If none use a category, hide the row (no lone "All").
+    var used = {}; PRODUCTS.forEach(function(p){ if(baseMatch(p,'cat') && p.product_category_id) used[p.product_category_id]=1; });
+    if(activeCat && !used[activeCat]) activeCat = '';
+    var cats = CATS.filter(function(c){ return used[c.id]; });
+    var box = document.getElementById('chips');
+    if(!cats.length){ box.innerHTML = ''; box.style.display = 'none'; return; }
+    box.style.display = '';
+    var html = '<button class="'+(activeCat===''?'on':'')+'" data-c="" onclick="setCat(this,\'\')">All</button>';
+    cats.forEach(function(c){ html += '<button class="'+(String(activeCat)===String(c.id)?'on':'')+'" data-c="'+c.id+'" onclick="setCat(this,\''+c.id+'\')">'+esc(c.category_name)+'</button>'; });
+    box.innerHTML = html;
+}
+function setCat(btn, id){
+    activeCat = id;
+    buildChips(); buildFilters(); render();
+}
+function setSort(btn, field){
+    if(sortField===field){ sortDir = sortDir==='asc' ? 'desc' : 'asc'; }
+    else { sortField = field; sortDir = 'asc'; }
+    document.querySelectorAll('#sortchips button').forEach(function(b){ b.classList.remove('on'); });
+    btn.classList.add('on'); paintSort(); render();
+}
+function paintSort(){
+    var LBL = {name:'Name', price:'Price', profit:'Profit'};
+    document.querySelectorAll('#sortchips button').forEach(function(b){
+        var f = b.getAttribute('data-s');
+        b.textContent = LBL[f] + (f===sortField ? (sortDir==='asc' ? ' ↑' : ' ↓') : '');
+    });
+}
+// Division / model-category / colour dropdowns. They CASCADE: each dropdown's options are
+// the values still available given the category chip and the OTHER two dropdowns. A
+// dropdown with nothing to offer hides itself, and a selection another filter rules out
+// is cleared automatically.
+const FDEFS = [
+    {k:'div', field:'product_division_category', label:'divisions'},
+    {k:'model', field:'product_model_category', label:'model categories'},
+    {k:'colour', field:'product_colour', label:'colours'}
+];
+function fVal(k){ return k==='div' ? fDiv : k==='model' ? fModel : fColour; }
+function fSet(k, v){ if(k==='div') fDiv=v; else if(k==='model') fModel=v; else fColour=v; }
+function baseMatch(p, exceptKey){
+    if(exceptKey!=='cat' && activeCat && String(p.product_category_id)!==String(activeCat)) return false;
+    if(exceptKey!=='div' && fDiv && String(p.product_division_category||'').trim()!==fDiv) return false;
+    if(exceptKey!=='model' && fModel && String(p.product_model_category||'').trim()!==fModel) return false;
+    if(exceptKey!=='colour' && fColour && String(p.product_colour||'').trim()!==fColour) return false;
+    return true;
+}
+function distinctFor(field, exceptKey){
+    var s={}; PRODUCTS.forEach(function(p){ if(!baseMatch(p, exceptKey)) return; var v=String(p[field]||'').trim(); if(v) s[v]=1; });
+    return Object.keys(s).sort();
+}
+function buildFilters(){
+    FDEFS.forEach(function(d){ var cur=fVal(d.k); if(cur && distinctFor(d.field, d.k).indexOf(cur)<0) fSet(d.k, ''); });
+    var html = '';
+    FDEFS.forEach(function(d){
+        var vals = distinctFor(d.field, d.k);
+        if(!vals.length) return;                       // nothing to filter by → hide
+        var cur = fVal(d.k);
+        html += '<select onchange="setFilter(\''+d.k+'\',this.value)"><option value="">All '+d.label+'</option>';
+        vals.forEach(function(v){ html += '<option value="'+esc(v)+'"'+(v===cur?' selected':'')+'>'+esc(v)+'</option>'; });
+        html += '</select>';
+    });
+    document.getElementById('filters').innerHTML = html;
+}
+function setFilter(k, v){ fSet(k, v); buildChips(); buildFilters(); render(); }
+
+function render(){
+    var q = (document.getElementById('q').value||'').toLowerCase().trim();
+    var arr = PRODUCTS.filter(function(p){
+        if(activeCat && String(p.product_category_id)!==String(activeCat)) return false;
+        if(fDiv && String(p.product_division_category||'').trim()!==fDiv) return false;
+        if(fModel && String(p.product_model_category||'').trim()!==fModel) return false;
+        if(fColour && String(p.product_colour||'').trim()!==fColour) return false;
+        if(q){
+            var hay = ((p.product_name||'')+' '+(p.model_no||'')+' '+(p.product_hsn||'')+' '+(p.product_colour||'')).toLowerCase();
+            if(hay.indexOf(q)<0) return false;
+        }
+        return true;
+    });
+    arr.sort(function(a,b){
+        var r;
+        if(sortField==='price') r = calc(a).sale-calc(b).sale;   // sort by the price customers pay
+        else if(sortField==='profit') r = calc(a).profit - calc(b).profit;
+        else r = String(a.product_name||a.model_no||'').localeCompare(String(b.product_name||b.model_no||''));
+        return sortDir==='asc' ? r : -r;
+    });
+    var out = '';
+    arr.forEach(function(p){
+        var meta = [p.product_name, p.product_hsn ? 'HSN '+p.product_hsn : '', 'GST '+(Number(p.product_gst_percentage)||0)+'%',
+                    Number(p.product_discount)>0 ? (p.product_discount+'% off') : '']
+                   .filter(Boolean).map(esc).join(' · ');
+        var c = calc(p);
+        var costLine = '';
+        if(SHOW_COST){                                  // cost & margin are admin-only
+            var cost;
+            if(c.cost>0){
+                var col = c.profit>=0 ? 'var(--green)' : 'var(--red)';
+                cost = 'Cost '+M.money2(c.cost)+' · <span style="color:'+col+';font-weight:700">'
+                     + (c.profit>=0?'+':'−')+M.money2(Math.abs(c.profit))+' ('+c.margin.toFixed(1)+'%)</span>';
+            } else {
+                cost = '<span class="muted">Cost not set</span>';
+            }
+            costLine = '<div class="meta" style="margin-top:2px">'+cost+'</div>';
+        }
+        // Headline the actual price the customer pays (offer, incl. GST), MRP struck when lower.
+        var mrp = price(p);
+        var priceHtml = (mrp > c.sale + 0.005)
+            ? M.money2(c.sale)+'<div style="text-decoration:line-through;color:var(--faint);font-size:11.5px;font-weight:600;margin-top:1px">'+M.money2(mrp)+'</div>'
+            : M.money2(c.sale);
+        out += '<div class="prod">'
+            + '<div style="flex:1;min-width:0"><div class="nm">'+esc(p.model_no||'—')+'</div>'
+            + '<div class="meta">'+meta+'</div>'
+            + costLine + '</div>'
+            + '<div class="b tabnum" style="white-space:nowrap;text-align:right">'+priceHtml+'</div></div>';
+    });
+    document.getElementById('plist').innerHTML = out;
+    document.getElementById('empty').style.display = arr.length ? 'none' : 'block';
+    document.getElementById('pcount').textContent = arr.length;
+}
+
+// window.M is defined later in base.html — defer the first render (it uses M.money2).
+function init(){ buildChips(); buildFilters(); paintSort(); render(); }
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+</script>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

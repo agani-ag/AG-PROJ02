@@ -1,0 +1,47 @@
+{% extends "m/base.html" %}
+{% block bizsel %}{% endblock %}
+{% block title %}Reports{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_manage' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Manage</a>{% endblock %}
+{% block heading %}Reports{% endblock %}
+{% block content %}
+
+<div class="stats">
+    <a href="{% url 'm_employee_customers' %}?filter=owing" class="stat c-red">
+        <div class="chip"><svg class="i"><use href="#ic-receipt"/></svg></div>
+        <p class="l">Outstanding</p>
+        <div class="v">&#8377; {{ outstanding }}</div>
+        <p class="c">{{ owing_count }} customer{{ owing_count|pluralize }}</p>
+    </a>
+    <a href="{% url 'm_employee_customers' %}?filter=advance" class="stat c-green">
+        <div class="chip"><svg class="i"><use href="#ic-wallet"/></svg></div>
+        <p class="l">In advance</p>
+        <div class="v">&#8377; {{ advance }}</div>
+        <p class="c">{{ advance_count }} customer{{ advance_count|pluralize }}</p>
+    </a>
+</div>
+
+<div class="sec"><h2 class="t">Receivables aging</h2><p class="s">By oldest unpaid bill</p></div>
+<div class="list">
+    <a href="{% url 'm_employee_customers' %}?filter=overdue" class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center"><span class="ico ic-green"><svg class="i"><use href="#ic-clock"/></svg></span><span class="b">0 – 30 days</span></span>
+        <span class="right" style="white-space:nowrap"><div class="b tabnum">&#8377; {{ aging.d0_30.amt }}</div><span class="badge b-grey">{{ aging.d0_30.count }}</span></span>
+    </a>
+    <a href="{% url 'm_employee_customers' %}?filter=overdue&od=30" class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center"><span class="ico ic-amber"><svg class="i"><use href="#ic-clock"/></svg></span><span class="b">31 – 60 days</span></span>
+        <span class="right" style="white-space:nowrap"><div class="b tabnum">&#8377; {{ aging.d31_60.amt }}</div><span class="badge b-grey">{{ aging.d31_60.count }}</span></span>
+    </a>
+    <a href="{% url 'm_employee_customers' %}?filter=overdue&od=60" class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center"><span class="ico ic-amber"><svg class="i"><use href="#ic-clock"/></svg></span><span class="b">61 – 90 days</span></span>
+        <span class="right" style="white-space:nowrap"><div class="b tabnum">&#8377; {{ aging.d61_90.amt }}</div><span class="badge b-grey">{{ aging.d61_90.count }}</span></span>
+    </a>
+    <a href="{% url 'm_employee_customers' %}?filter=overdue&od=90" class="row">
+        <span class="lbl" style="display:flex;gap:11px;align-items:center"><span class="ico ic-red"><svg class="i"><use href="#ic-clock"/></svg></span><span class="b">90+ days</span></span>
+        <span class="right" style="white-space:nowrap"><div class="b tabnum" style="color:var(--red)">&#8377; {{ aging.d90p.amt }}</div><span class="badge b-red">{{ aging.d90p.count }}</span></span>
+    </a>
+</div>
+
+<div class="sec"><h2 class="t">Totals</h2></div>
+<div class="panel between"><span class="muted">Total invoices</span><span class="b">{{ invoices }}</span></div>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="home" %}{% endblock %}

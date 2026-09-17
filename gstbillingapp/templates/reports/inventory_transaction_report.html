@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+{% load money %}
+
+{% block title %}Inventory Transaction Report · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+<style>
+/* Filter toolbar */
+.itr-filters{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:18px}
+.itr-filters .fld{display:flex;align-items:center;gap:7px}
+.itr-filters .fld > label{font-size:12px;font-weight:600;color:var(--soft);white-space:nowrap}
+.itr-filters input[type="date"]{padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--soft);background:#fff;font-family:var(--sans);cursor:pointer}
+.itr-filters input[type="date"]:focus{border-color:var(--brand);outline:none;box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.itr-chk{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:var(--soft);white-space:nowrap}
+.itr-chk input{width:16px;height:16px;cursor:pointer;accent-color:var(--brand)}
+/* Total row */
+.gs table.gt tr.total-row td{font-family:var(--disp);font-weight:700;color:var(--ink);background:var(--wash);border-top:2px solid var(--line2)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow">Reports › Inventory</div>
+            <h1 class="disp">Inventory Transaction Report</h1>
+            <div class="sub">Product movement &amp; current stock valuation — as of {{ report_date|date:"d M Y" }}</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'inventory_dashboard' %}" class="gbtn"><i class="fas fa-arrow-left"></i> Back to Inventory</a>
+            <button type="button" class="gbtn" onclick="printReport()"><i class="fas fa-print"></i> Print</button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="itr-filters" id="filterForm">
+        <div class="fld">
+            <label for="typeSelect"><i class="fas fa-filter"></i> Type</label>
+            <select class="selctl" id="typeSelect" name="type" onchange="document.getElementById('filterForm').submit()">
+                <option value="all" {% if txn_type == 'all' %}selected{% endif %}>All</option>
+                <option value="purchase" {% if txn_type == 'purchase' %}selected{% endif %}>Purchases</option>
+                <option value="production" {% if txn_type == 'production' %}selected{% endif %}>Production</option>
+                <option value="return" {% if txn_type == 'return' %}selected{% endif %}>Returns</option>
+                <option value="sales" {% if txn_type == 'sales' %}selected{% endif %}>Sales</option>
+                <option value="other" {% if txn_type == 'other' %}selected{% endif %}>Others</option>
+            </select>
+        </div>
+
+        <div class="fld">
+            <label for="dateFrom"><i class="fas fa-calendar"></i> From</label>
+            <input type="date" id="dateFrom" name="from" value="{{ date_from }}" onchange="document.getElementById('filterForm').submit()">
+        </div>
+
+        <div class="fld">
+            <label for="dateTo">To</label>
+            <input type="date" id="dateTo" name="to" value="{{ date_to }}" onchange="document.getElementById('filterForm').submit()">
+        </div>
+
+        <div class="fld">
+            <label for="sortSelect"><i class="fas fa-sort"></i> Sort</label>
+            <select class="selctl" id="sortSelect" name="sort" onchange="document.getElementById('filterForm').submit()">
+                <option value="model_no_asc" {% if sort_by == 'model_no_asc' %}selected{% endif %}>Model No (A-Z)</option>
+                <option value="model_no_desc" {% if sort_by == 'model_no_desc' %}selected{% endif %}>Model No (Z-A)</option>
+                <option value="name_asc" {% if sort_by == 'name_asc' %}selected{% endif %}>Name (A-Z)</option>
+                <option value="name_desc" {% if sort_by == 'name_desc' %}selected{% endif %}>Name (Z-A)</option>
+                <option value="stock_desc" {% if sort_by == 'stock_desc' %}selected{% endif %}>Stock (High-Low)</option>
+                <option value="stock_asc" {% if sort_by == 'stock_asc' %}selected{% endif %}>Stock (Low-High)</option>
+                <option value="price_desc" {% if sort_by == 'price_desc' %}selected{% endif %}>Price (High-Low)</option>
+                <option value="price_asc" {% if sort_by == 'price_asc' %}selected{% endif %}>Price (Low-High)</option>
+                <option value="amount_desc" {% if sort_by == 'amount_desc' %}selected{% endif %}>Amount (High-Low)</option>
+                <option value="amount_asc" {% if sort_by == 'amount_asc' %}selected{% endif %}>Amount (Low-High)</option>
+            </select>
+        </div>
+
+        <label class="itr-chk" for="hideZero">
+            <input type="hidden" name="hide_zero" value="0">
+            <input type="checkbox" id="hideZero" name="hide_zero" value="1" {% if hide_zero == '1' %}checked{% endif %} onchange="document.getElementById('filterForm').submit()">
+            Only Positive
+        </label>
+
+        <a href="{% url 'inventory_transaction_report' %}" class="gbtn"><i class="fas fa-rotate-left"></i> Reset</a>
+    </form>
+
+    <!-- KPIs -->
+    <div class="statgrid">
+        <div class="stat"><span class="si b"><i class="fas fa-boxes-stacked"></i></span>
+            <div><div class="sv">{{ grand_total|intcomma }}</div><div class="sk">Total Quantity</div></div></div>
+        <div class="stat"><span class="si g"><i class="fas fa-indian-rupee-sign"></i></span>
+            <div><div class="sv">&#8377; {{ grand_total_amount|inrs }}</div><div class="sk">Total Amount</div></div></div>
+        <div class="stat"><span class="si s"><i class="fas fa-cubes"></i></span>
+            <div><div class="sv">{{ total_products }}</div><div class="sk">Products</div></div></div>
+        <div class="stat"><span class="si v"><i class="fas fa-filter"></i></span>
+            <div><div class="sv"><span class="gbadge {% if txn_type == 'production' or txn_type == 'return' %}ok{% elif txn_type == 'sales' %}out{% elif txn_type == 'other' %}grey{% else %}blue{% endif %}">{{ type_label }}</span></div><div class="sk">Transaction Type</div></div></div>
+    </div>
+
+    <!-- Section title -->
+    <div class="rsec"><i class="fas fa-table"></i> {{ type_label }}
+        {% if date_from and date_to %}<span class="mut" style="font-weight:600;font-size:12.5px">({{ date_from }} to {{ date_to }})</span>
+        {% elif date_from %}<span class="mut" style="font-weight:600;font-size:12.5px">(From {{ date_from }})</span>
+        {% elif date_to %}<span class="mut" style="font-weight:600;font-size:12.5px">(Up to {{ date_to }})</span>
+        {% endif %}
+    </div>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt" id="txnTable">
+            <thead><tr>
+                <th style="width:50px" class="r">#</th>
+                <th>Model No</th>
+                <th>Product Name</th>
+                <th class="r">Current Stock</th>
+                <th class="r">Price (&#8377;)</th>
+                <th class="r">Total Amount (&#8377;)</th>
+            </tr></thead>
+            <tbody>
+                {% for p in product_rows %}
+                <tr>
+                    <td class="r">{{ forloop.counter }}</td>
+                    <td><a href="{% url 'inventory_logs' p.product_id %}" class="nm" style="color:var(--ink);font-weight:700">{{ p.model_no }}</a></td>
+                    <td><div class="prim"><span class="pi">{{ p.name|initials }}</span><span class="nm">{{ p.name }}</span></div></td>
+                    <td class="r"><span class="num">{{ p.current_stock|intcomma }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ p.price|inrs }}</span></td>
+                    <td class="r"><span class="num">&#8377; {{ p.total_amount|inrs }}</span></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6"><div class="empty">
+                    <div class="ei"><i class="fas fa-inbox fa-lg"></i></div>
+                    <h3>No inventory transactions found</h3>
+                    <p>No records match the selected filters.</p>
+                </div></td></tr>
+                {% endfor %}
+
+                {% if product_rows %}
+                <tr class="total-row">
+                    <td></td>
+                    <td colspan="4">TOTAL ({{ total_products }} products)</td>
+                    <td class="r"><span class="num">&#8377; {{ grand_total_amount|inrs }}</span></td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+function printReport() {
+    var table = document.getElementById('txnTable');
+    if (!table) return;
+    var clone = table.cloneNode(true);
+
+    /* Business details from Django context */
+    var bizName   = '{{ user_profile.business_title|escapejs }}';
+    var bizAddr   = '{{ user_profile.business_address|escapejs }}';
+    var bizPhone  = '{{ user_profile.business_phone|escapejs }}';
+    var bizGst    = '{{ user_profile.business_gst|escapejs }}';
+    var rptDate   = '{{ report_date|date:"d M Y" }}';
+    var typeLabel = '{{ type_label|escapejs }}';
+    var dateFrom  = '{{ date_from|escapejs }}';
+    var dateTo    = '{{ date_to|escapejs }}';
+
+    var dateRange = '';
+    if (dateFrom && dateTo) dateRange = dateFrom + '  to  ' + dateTo;
+    else if (dateFrom) dateRange = 'From ' + dateFrom;
+    else if (dateTo) dateRange = 'Up to ' + dateTo;
+    else dateRange = 'All Time';
+
+    var win = window.open('', '_blank');
+    win.document.write('<html><head><title>Inventory Transaction Report</title>');
+    win.document.write('<style>');
+    win.document.write('@page{size:A4 portrait;margin:12mm;}');
+    win.document.write('body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:10px;color:#333;}');
+    /* Header */
+    win.document.write('.print-header{text-align:center;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:16px;}');
+    win.document.write('.print-header h1{margin:0 0 2px;font-size:1.4rem;text-transform:uppercase;letter-spacing:.04em;}');
+    win.document.write('.print-header .addr{margin:0;font-size:.82rem;color:#555;}');
+    win.document.write('.print-header .contact{margin:4px 0 0;font-size:.82rem;color:#555;}');
+    /* Sub header */
+    win.document.write('.sub-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:.85rem;}');
+    win.document.write('.sub-header .badge{display:inline-block;padding:3px 12px;border-radius:4px;background:#007bff;color:#fff;font-weight:700;font-size:.82rem;}');
+    /* Table */
+    win.document.write('table{width:100%;border-collapse:collapse;font-size:.85rem;}');
+    win.document.write('th,td{border:1px solid #aaa;padding:6px 10px;}');
+    win.document.write('th{background:#343a40;color:#fff;font-size:.78rem;text-transform:uppercase;}');
+    win.document.write('td:first-child{text-align:center;width:40px;}');
+    win.document.write('td:last-child,th:last-child{text-align:right;}');
+    win.document.write('tr:nth-child(even){background:#f9f9f9;}');
+    win.document.write('.total-row td{font-weight:700;border-top:2px solid #333;background:#eee !important;}');
+    win.document.write('.pi{display:none;}');
+    win.document.write('.font-weight-bold{font-weight:700;}');
+    /* Footer */
+    win.document.write('.print-footer{text-align:center;margin-top:20px;font-size:.72rem;color:#999;border-top:1px solid #ccc;padding-top:6px;}');
+    win.document.write('@media print{@page{size:A4 portrait;margin:12mm;}body{margin:0;padding:8px;}}');
+    win.document.write('</style></head><body>');
+
+    /* === Header === */
+    win.document.write('<div class="print-header">');
+    win.document.write('<h1>' + bizName + '</h1>');
+    if (bizAddr) win.document.write('<p class="addr">' + bizAddr + '</p>');
+    var contactParts = [];
+    if (bizPhone) contactParts.push('Phone: ' + bizPhone);
+    if (bizGst) contactParts.push('GST: ' + bizGst);
+    if (contactParts.length) win.document.write('<p class="contact">' + contactParts.join('  |  ') + '</p>');
+    win.document.write('</div>');
+
+    /* === Sub Header === */
+    win.document.write('<div class="sub-header">');
+    win.document.write('<div><strong>Inventory Transaction Report</strong> &mdash; <span class="badge">' + typeLabel + '</span></div>');
+    win.document.write('<div>Period: <strong>' + dateRange + '</strong> &nbsp;|&nbsp; Date: <strong>' + rptDate + '</strong></div>');
+    win.document.write('</div>');
+
+    /* === Table === */
+    win.document.write(clone.outerHTML);
+
+    /* === Footer === */
+    win.document.write('<div class="print-footer">This is a computer-generated report. &mdash; ' + bizName + '</div>');
+
+    win.document.write('</body></html>');
+    win.document.close();
+    setTimeout(function(){ win.print(); }, 300);
+}
+</script>
+{% endblock %}

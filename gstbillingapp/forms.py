@@ -1,54 +1,134 @@
+from django import forms
 from django.forms import ModelForm
 from .models import (
     Customer, Product, UserProfile,
     InventoryLog, Book, BookLog,
     ExpenseTracker, BankDetails, VendorPurchase,
-    PurchaseLog, ProductCategory
+    PurchaseLog, ProductCategory, Asset, AssetLog,
+    ChequeLeaf, Employee, DEFAULT_PRODUCT_COLOURS
 )
 
 
 class CustomerForm(ModelForm):
     class Meta:
         model = Customer
-        fields = ['customer_name', 'customer_address', 'customer_phone', 'customer_gst', 'customer_email'
-                   , 'customer_latitude', 'customer_longitude', 'bankdetails']
+        fields = ['customer_name', 'customer_address', 'customer_phone', 'customer_gst', 'customer_email',
+                   'customer_place', 'customer_latitude', 'customer_longitude', 'bankdetails', 'collection_day',
+                   'credit_limit']
+        widgets = {
+            'customer_place': forms.TextInput(attrs={'placeholder': 'Enter Collection Place'}),
+        }
 
     def __init__(self, *args, **kwargs):
+        # Scope the customer bank-account choices to this business's own records only.
+        user = kwargs.pop('user', None)
         super(CustomerForm, self).__init__(*args, **kwargs)
-        self.fields['bankdetails'].queryset = BankDetails.objects.filter(whom_account=1)
+        qs = BankDetails.objects.filter(whom_account=1)
+        self.fields['bankdetails'].queryset = qs.filter(user=user) if user is not None else qs.none()
 
 class ProductForm(ModelForm):
+     # These three are free-text "tag" fields. Declared explicitly as CharFields so
+     # Django accepts ANY value (typed or selected) with no "Select a valid choice"
+     # validation, while still rendering as a <select> so the Select2 tags:true
+     # editable dropdown (see product_edit.html) can turn each into a type-or-select box.
+     product_division_category = forms.CharField(
+         required=False, widget=forms.Select(attrs={'class': 'editable-dropdown'})
+     )
+     product_model_category = forms.CharField(
+         required=False, widget=forms.Select(attrs={'class': 'editable-dropdown'})
+     )
+     product_colour = forms.CharField(
+         required=False, widget=forms.Select(attrs={'class': 'editable-dropdown'})
+     )
+
      class Meta:
         model = Product
-        fields = ['model_no', 'product_name', 'product_hsn', 'product_gst_percentage',
-                    'product_rate_with_gst', 'product_discount', 'product_image_url', 'product_category']
-     
+        fields = ['model_no', 'product_name', 'product_hsn', 'product_gst_percentage', 'product_purchase_rate',
+                    'product_rate_with_gst', 'product_discount', 'product_image_url', 'product_category',
+                    'product_division_category', 'product_model_category', 'product_colour']
+
      def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super(ProductForm, self).__init__(*args, **kwargs)
-        if user:
-            # Show only child categories (categories with parent) for product assignment
-            self.fields['product_category'].queryset = ProductCategory.objects.filter(
-                user=user, parent_category__isnull=False
-            ).select_related('parent_category').order_by('parent_category__category_name', 'category_name')
-            self.fields['product_category'].label_from_instance = lambda obj: obj.get_full_path()
 
+        # 1. Handle category filtering logic
+        if user:
+            if 'product_category' in self.fields:
+                self.fields['product_category'].queryset = ProductCategory.objects.filter(
+                    user=user, parent_category__isnull=False
+                ).select_related('parent_category').order_by('parent_category__category_name', 'category_name')
+                self.fields['product_category'].label_from_instance = lambda obj: obj.get_full_path()
+
+        # 2. Populate each tag field's <select> with the business's distinct values
+        #    (colour also seeds WHITE/GREY/BLACK). Plain dropdowns; the '＋ Add' button
+        #    on each adds a new value.
+        base_query = Product.objects.filter(user=user) if user else Product.objects.all()
+
+        for field_name, seeds in (
+            ('product_division_category', []),
+            ('product_model_category', []),
+            ('product_colour', DEFAULT_PRODUCT_COLOURS),
+        ):
+            distinct = list(seeds)
+            for value in (base_query.values_list(field_name, flat=True)
+                          .exclude(**{field_name + '__isnull': True})
+                          .exclude(**{field_name: ''})
+                          .distinct().order_by(field_name)):
+                if value not in distinct:
+                    distinct.append(value)
+
+            # Ensure the current saved / submitted value is present so it shows selected.
+            current = self.data.get(field_name) or getattr(self.instance, field_name, None)
+            if current and current not in distinct:
+                distinct.insert(0, current)
+
+            self.fields[field_name].widget.choices = (
+                [('', '---------')] + [(v, v) for v in distinct]
+            )
+
+        # 3. Cascading map for the Model Category dropdown: which distinct model
+        #    categories exist under each division. The template renders this as JSON
+        #    and the page filters Model Category whenever Division changes.
+        self.division_model_map = {}
+        pairs = (base_query
+                 .exclude(product_model_category__isnull=True)
+                 .exclude(product_model_category='')
+                 .values_list('product_division_category', 'product_model_category')
+                 .distinct())
+        for division, model_cat in pairs:
+            key = division or ''
+            bucket = self.division_model_map.setdefault(key, [])
+            if model_cat not in bucket:
+                bucket.append(model_cat)
+        for values in self.division_model_map.values():
+            values.sort()
+
+        # Full distinct lists, for the "include the other field's values" toggles.
+        self.all_divisions = list(base_query
+                                  .exclude(product_division_category__isnull=True)
+                                  .exclude(product_division_category='')
+                                  .values_list('product_division_category', flat=True)
+                                  .distinct().order_by('product_division_category'))
+        self.all_model_categories = list(base_query
+                                         .exclude(product_model_category__isnull=True)
+                                         .exclude(product_model_category='')
+                                         .values_list('product_model_category', flat=True)
+                                         .distinct().order_by('product_model_category'))
 
 class UserProfileForm(ModelForm):
-    def __init__(self, *args, **kwargs):
-        # first call parent's constructor
-        super(UserProfileForm, self).__init__(*args, **kwargs)
-        # there's a `fields` property now
-        self.fields['business_title'].required = True
-
     class Meta:
         model = UserProfile
         fields = ['business_title', 'business_address', 'business_email', 'business_phone',
                   'business_gst', 'business_brand', 'business_latitude', 'business_longitude', 'bankdetails']
-    
+
     def __init__(self, *args, **kwargs):
+        # Scope the bank-account choices to this business only — a business must never see
+        # or pick another business's bank account.
+        user = kwargs.pop('user', None)
         super(UserProfileForm, self).__init__(*args, **kwargs)
-        self.fields['bankdetails'].queryset = BankDetails.objects.filter(whom_account=0)
+        self.fields['business_title'].required = True
+        qs = BankDetails.objects.filter(whom_account=0)
+        self.fields['bankdetails'].queryset = qs.filter(user=user) if user is not None else qs.none()
 
 class InventoryLogForm(ModelForm):
     class Meta:
@@ -91,8 +171,11 @@ class VendorPurchaseForm(ModelForm):
                   , 'vendor_latitude', 'vendor_longitude', 'bankdetails']
     
     def __init__(self, *args, **kwargs):
+        # Scope the vendor bank-account choices to this business's own records only.
+        user = kwargs.pop('user', None)
         super(VendorPurchaseForm, self).__init__(*args, **kwargs)
-        self.fields['bankdetails'].queryset = BankDetails.objects.filter(whom_account=2)
+        qs = BankDetails.objects.filter(whom_account=2)
+        self.fields['bankdetails'].queryset = qs.filter(user=user) if user is not None else qs.none()
 
 class ExpenseTrackerForm(ModelForm):
     class Meta:
@@ -105,7 +188,46 @@ class BankDetailsForm(ModelForm):
         fields = ['account_name', 'account_number', 'bank_name', 'branch_name', 'ifsc_code',
                   'upi_id', 'upi_name', 'business_account', 'customer_account', 'vendor_account', 'whom_account']
 
+    def __init__(self, *args, **kwargs):
+        # A bank account can only be mapped to THIS business's own profile / customers /
+        # vendors — never another business's records.
+        user = kwargs.pop('user', None)
+        super(BankDetailsForm, self).__init__(*args, **kwargs)
+        if user is not None:
+            self.fields['business_account'].queryset = UserProfile.objects.filter(user=user)
+            self.fields['customer_account'].queryset = Customer.objects.filter(user=user)
+            self.fields['vendor_account'].queryset = VendorPurchase.objects.filter(user=user)
+        else:
+            self.fields['business_account'].queryset = UserProfile.objects.none()
+            self.fields['customer_account'].queryset = Customer.objects.none()
+            self.fields['vendor_account'].queryset = VendorPurchase.objects.none()
+
 class PurchaseLogForm(ModelForm):
     class Meta:
         model = PurchaseLog
         fields = ['date', 'change_type', 'change', 'vendor', 'reference', 'category']
+
+class AssetForm(ModelForm):
+    class Meta:
+        model = Asset
+        fields = ['name', 'category', 'value', 'date', 'description']
+
+class AssetLogForm(ModelForm):
+    class Meta:
+        model = AssetLog
+        fields = ['date', 'change_type', 'change', 'category', 'description']
+
+class ChequeLeafForm(ModelForm):
+    class Meta:
+        model = ChequeLeaf
+        fields = ['cheque_number', 'leaf_number', 'status', 'amount', 'payee_name', 
+                  'issue_date', 'clearance_date', 'remarks', 'bank', 'branch', 'account_number']
+    
+    def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.fields['amount'].required = True
+
+class EmployeeForm(ModelForm):
+    class Meta:
+        model = Employee
+        fields = ['name', 'email', 'phone', 'address', 'is_active']

@@ -1,0 +1,102 @@
+{% extends "console/base.html" %}
+{% block title %}New business{% endblock %}
+{% block nav_biz %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{% url 'console_businesses' %}">Businesses</a> / New</div>
+    <h1 class="disp">New business</h1>
+    <div class="sub">Creates the login and its business profile together</div>
+  </div>
+</div>
+
+<form method="post" class="formwrap">
+  {% csrf_token %}
+
+  {% if errors %}
+    <div class="cmsg bad">
+      <svg class="gico"><use href="#i-alert"/></svg>
+      <div>{% for e in errors %}<div>{{ e }}</div>{% endfor %}</div>
+    </div>
+  {% endif %}
+
+  <div class="section open">
+    <div class="sh"><span class="si b"><svg class="gico"><use href="#i-key"/></svg></span>
+      <div><h3 class="disp">Login</h3><div class="sd">How the owner signs in</div></div></div>
+    <div class="body">
+      <div class="grid">
+        <div class="field">
+          <label for="username">Username <span class="req">*</span></label>
+          <input id="username" class="control" type="text" name="username"
+                 value="{{ d.username|default:'' }}" autocomplete="off" required>
+        </div>
+        <div class="field">
+          <label for="password">Password <span class="req">*</span></label>
+          <input id="password" class="control" type="password" name="password"
+                 autocomplete="new-password" required>
+          <div class="h">Share it with the owner; they can change it after signing in.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section open">
+    <div class="sh"><span class="si g"><svg class="gico"><use href="#i-shop"/></svg></span>
+      <div><h3 class="disp">Business</h3><div class="sd">Prints on their invoices</div></div></div>
+    <div class="body">
+      <div class="grid">
+        <div class="field full">
+          <label for="business_title">Business name <span class="req">*</span></label>
+          <input id="business_title" class="control" type="text" name="business_title"
+                 value="{{ d.business_title|default:'' }}" required>
+        </div>
+        <div class="field">
+          <label for="business_brand">Brand <span class="opt">optional</span></label>
+          <input id="business_brand" class="control" type="text" name="business_brand"
+                 value="{{ d.business_brand|default:'' }}">
+        </div>
+        <div class="field">
+          <label for="business_gst">GSTIN <span class="opt">optional</span></label>
+          <input id="business_gst" class="control" type="text" name="business_gst"
+                 value="{{ d.business_gst|default:'' }}" maxlength="15" placeholder="33ABCDE1234F1Z5">
+        </div>
+      </div>
+      <div class="hint">
+        <svg class="gico"><use href="#i-alert"/></svg>
+        <div>Businesses sharing a GSTIN form one legal entity and share the GST invoice
+             number series.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section open">
+    <div class="sh"><span class="si t"><svg class="gico"><use href="#i-user"/></svg></span>
+      <div><h3 class="disp">Contact</h3><div class="sd">Optional</div></div></div>
+    <div class="body">
+      <div class="grid">
+        <div class="field">
+          <label for="business_phone">Phone</label>
+          <input id="business_phone" class="control" type="text" name="business_phone"
+                 value="{{ d.business_phone|default:'' }}">
+        </div>
+        <div class="field">
+          <label for="business_email">Email</label>
+          <input id="business_email" class="control" type="email" name="business_email"
+                 value="{{ d.business_email|default:'' }}">
+        </div>
+        <div class="field full">
+          <label for="business_address">Address</label>
+          <textarea id="business_address" class="control" name="business_address"
+                    rows="3">{{ d.business_address|default:'' }}</textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+    <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-plus"/></svg> Create business</button>
+    <a href="{% url 'console_businesses' %}" class="gbtn">Cancel</a>
+  </div>
+</form>
+{% endblock %}

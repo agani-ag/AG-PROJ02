@@ -5,46 +5,36 @@
 
 {% block includecss %}
 <style>
+    /* Light AG-Grid theme to match the GSTSync (.gs) design system. */
     .ag-theme-alpine {
-        --ag-header-height: 45px;
-        --ag-header-foreground-color: white;
-        --ag-header-background-color: #343a40;
-        --ag-odd-row-background-color: #f8f9fa;
+        --ag-header-height: 46px;
+        --ag-header-background-color: #f6f8fc;
+        --ag-header-foreground-color: #5b6472;
+        --ag-header-cell-hover-background-color: #eef2f7;
+        --ag-border-color: #e7ebf2;
+        --ag-row-border-color: #eef2f7;
+        --ag-row-hover-color: #f9fbff;
+        --ag-odd-row-background-color: #fbfcfe;
+        --ag-selected-row-background-color: #e8f1ff;
+        --ag-range-selection-border-color: #2563eb;
+        --ag-input-focus-border-color: #2563eb;
+        --ag-font-family: "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+        --ag-font-size: 13px;
+        /* NOTE: no overflow:hidden / border-radius on the grid root, and the card
+           wrapper stays overflow:visible — an overflow:hidden ancestor clips AG-Grid's
+           cell-editor dropdowns (Category/Division/Colour) and breaks inline editing. */
     }
-    
-    .stats-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    .ag-theme-alpine .ag-header-cell-text {
+        font-weight: 700; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #97a1b0;
     }
-    
-    .stats-card h3 {
-        margin: 0;
-        font-size: 2.5rem;
-        font-weight: bold;
+    /* Logs action button — light amber chip, consistent with the app's action buttons. */
+    .ag-theme-alpine .btn-logs {
+        display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 9px;
+        padding: 5px 11px; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: .15s;
+        background: #fff3e0; color: #e5900f; font-family: inherit; line-height: 1;
     }
-    
-    .stats-card p {
-        margin: 5px 0 0 0;
-        font-size: 1rem;
-        opacity: 0.9;
-    }
-    
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-    
-    .btn-group-actions {
-        display: flex;
-        gap: 10px;
-    }
-    
+    .ag-theme-alpine .btn-logs:hover { background: #ffe7bd; color: #c9780a; transform: translateY(-1px); }
+
     .category-badge-parent {
         background: #6f42c1;
         color: white;
@@ -67,26 +57,22 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div>
-        <h2><i class="fas fa-box"></i> Products - AG Grid</h2>
-        <p class="text-muted">Edit products inline with auto-save - Total Products: {{ products_count }}</p>
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><a href="{% url 'products' %}">Products</a> › Grid</div>
+            <h1 class="disp">Products grid</h1>
+            <div class="sub">Edit inline with auto-save · {{ products_count }} products</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'products' %}" class="gbtn" title="Back to List View"><i class="fas fa-list"></i> List view</a>
+            <a href="{% url 'product_add' %}" class="gbtn gbtn-primary" title="Add Product"><i class="fas fa-plus"></i> Add new</a>
+        </div>
     </div>
-    <div class="btn-group-actions">
-        <a href="{% url 'products' %}" class="btn btn-secondary btn-sm btn-curve" title="Back to List View">
-            <i class="fas fa-list"></i> List View
-        </a>
-        <a href="{% url 'product_add' %}" class="btn btn-primary btn-sm btn-curve" title="Add Product">
-            <i class="fas fa-plus"></i> Add New
-        </a>
-        <a href="{% url 'feature_upload' %}" class="btn btn-success btn-sm btn-curve" title="Upload Excel">
-            <i class="fas fa-file-excel"></i> Upload
-        </a>
-    </div>
-</div>
 
-<div class="card">
-    <div class="card-body">
+    <!-- Plain card frame with overflow:visible — must NOT clip AG-Grid's cell-editor
+         dropdowns, and no popupParent overlay that would block navbar clicks. -->
+    <div style="background:#fff;border:1px solid #e7ebf2;border-radius:16px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 22px -14px rgba(15,23,42,.18);padding:12px;overflow:visible">
         <div id="products-grid" class="ag-theme-alpine" style="height: 600px; width: 100%;"></div>
     </div>
 </div>
@@ -96,7 +82,7 @@
     <div class="toast-header">
         <i class="fas fa-info-circle mr-2"></i>
         <strong class="mr-auto">Notification</strong>
-        <button type="button" class="ml-2 mb-1 close" data-dismiss="toast">&times;</button>
+        <button type="button" class="ml-2 mb-1 close" onclick="this.closest('.toast').classList.remove('show')">&times;</button>
     </div>
     <div class="toast-body"></div>
 </div>
@@ -107,7 +93,10 @@
 <script>
     const productsData = {{ products_json|safe }};
     const categoriesData = {{ categories_json|safe }};
-    
+    const divisionsData = {{ divisions_json|safe }};
+    const modelCategoriesData = {{ model_categories_json|safe }};
+    const coloursData = {{ colours_json|safe }};
+
     // Category value formatter
     function categoryFormatter(params) {
         if (!params.value) return '';
@@ -125,16 +114,16 @@
     
     // Show toast notification
     function showToast(message, type = 'info') {
-        const toast = $('#toast');
-        const toastBody = toast.find('.toast-body');
-        const toastHeader = toast.find('.toast-header');
-        
-        toastBody.text(message);
-        
+        const toast = document.getElementById('toast');
+        const toastBody = toast.querySelector('.toast-body');
+        const toastHeader = toast.querySelector('.toast-header');
+
+        toastBody.textContent = message;
+
         // Update icon and color based on type
         let icon = 'fa-info-circle';
         let bgClass = 'bg-info';
-        
+
         if (type === 'success') {
             icon = 'fa-check-circle';
             bgClass = 'bg-success';
@@ -142,12 +131,17 @@
             icon = 'fa-times-circle';
             bgClass = 'bg-danger';
         }
-        
-        toastHeader.removeClass('bg-info bg-success bg-danger').addClass(bgClass);
-        toastHeader.find('i').removeClass().addClass(`fas ${icon} mr-2 text-white`);
-        toastHeader.css('color', 'white');
-        
-        toast.toast('show');
+
+        toastHeader.classList.remove('bg-info', 'bg-success', 'bg-danger');
+        toastHeader.classList.add(bgClass);
+        const _ti = toastHeader.querySelector('i');
+        if (_ti) _ti.className = `fas ${icon} mr-2 text-white`;
+        toastHeader.style.color = 'white';
+
+        // Vanilla show + auto-hide (replaces Bootstrap toast('show'))
+        toast.classList.add('show');
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 3000);
     }
     
     // Cell style for editable cells
@@ -206,6 +200,59 @@
             ])
         },
         {
+            headerName: 'Division',
+            field: 'product_division_category',
+            editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: {
+                values: ['', ...divisionsData],
+                valueListGap: 0,
+                valueListMaxHeight: 300
+            },
+            valueFormatter: params => params.value ? params.value : '-',
+            cellStyle: editableCellStyle,
+            width: 160
+        },
+        {
+            headerName: 'Model Category',
+            field: 'product_model_category',
+            editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: {
+                values: ['', ...modelCategoriesData],
+                valueListGap: 0,
+                valueListMaxHeight: 300
+            },
+            valueFormatter: params => params.value ? params.value : '-',
+            cellStyle: editableCellStyle,
+            width: 160
+        },
+        {
+            headerName: 'Colour',
+            field: 'product_colour',
+            editable: true,
+            cellEditor: 'agSelectCellEditor',
+            cellEditorParams: {
+                values: ['', ...coloursData],
+                valueListGap: 0,
+                valueListMaxHeight: 300
+            },
+            valueFormatter: params => params.value ? params.value : '-',
+            cellStyle: editableCellStyle,
+            width: 140
+        },
+        {
+            headerName: 'Purchase Rate (₹)',
+            field: 'product_purchase_rate',
+            editable: true,
+            type: 'numericColumn',
+            cellStyle: editableCellStyle,
+            valueFormatter: params => params.value ? 
+                new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(params.value) 
+                : '₹0.00',
+            width: 140
+        },
+        {
             headerName: 'MRP (₹)',
             field: 'product_rate_with_gst',
             editable: true,
@@ -233,6 +280,87 @@
             width: 100
         },
         {
+            headerName: 'Final MRP',
+            sortable: true,
+            valueGetter: params => {
+                let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
+                let discount = parseFloat(params.data.product_discount) || 0;
+                let gst = parseFloat(params.data.product_gst_percentage) || 0;
+
+                let discounted = mrp - (mrp * discount / 100);
+                let finalPrice = discounted + (discounted * gst / 100);
+
+                let percent = mrp ? ((finalPrice - mrp) / mrp) * 100 : 0;
+
+                return { value: finalPrice, percent: percent };
+            },
+            comparator: (a, b) => {
+                return (a?.value || 0) - (b?.value || 0);
+            },
+            cellRenderer: params => {
+                let val = params.value?.value || 0;
+                let percent = params.value?.percent || 0;
+
+                let color = percent >= 0 ? '#28a745' : '#dc3545';
+
+                return `
+                    <div>
+                        ₹${val.toFixed(2)}
+                        <small style="color:${color}">
+                            (${percent.toFixed(2)}%)
+                        </small>
+                    </div>
+                `;
+            },
+            width: 150
+        },
+        {
+            headerName: 'Profit',
+            sortable: true,
+            valueGetter: params => {
+                let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
+                let discount = parseFloat(params.data.product_discount) || 0;
+                let gst = parseFloat(params.data.product_gst_percentage) || 0;
+                let purchase = parseFloat(params.data.product_purchase_rate) || 0;
+
+                let discounted = mrp - (mrp * discount / 100);
+                let finalPrice = discounted + (discounted * gst / 100);
+
+                let profit = finalPrice - purchase;
+                let percent = purchase ? (profit / purchase) * 100 : 0;
+
+                return { value: profit, percent: percent };
+            },
+            comparator: (a, b) => {
+                return (a?.percent || 0) - (b?.percent || 0);
+            },
+            cellRenderer: params => {
+                let val = params.value?.value || 0;
+                let percent = params.value?.percent || 0;
+
+                let color = '#28a745'; // default green
+                let icon = '';
+
+                if (val < 0) {
+                    color = '#dc3545'; // red
+                } else if (percent < 10) {
+                    color = '#dc3545'; // low profit
+                } else if (percent < 20) {
+                    color = '#ffc107'; // medium
+                }
+
+                return `
+                    <div style="font-weight:bold; color:${color}">
+                        ₹${val.toFixed(2)}
+                        <small>
+                            (${percent.toFixed(2)}%)
+                        </small>
+                    </div>
+                `;
+            },
+            width: 140
+        },
+        {
             headerName: 'Current Stock',
             field: 'current_stock',
             editable: true,
@@ -255,6 +383,34 @@
             }
         },
         {
+            headerName: 'Total Profit',
+            valueGetter: params => {
+                let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
+                let discount = parseFloat(params.data.product_discount) || 0;
+                let gst = parseFloat(params.data.product_gst_percentage) || 0;
+                let purchase = parseFloat(params.data.product_purchase_rate) || 0;
+                let stock = parseFloat(params.data.current_stock) || 0;
+
+                let discounted = mrp - (mrp * discount / 100);
+                let finalPrice = discounted + (discounted * gst / 100);
+
+                let profit = finalPrice - purchase;
+
+                return profit * stock;
+            },
+            cellRenderer: params => {
+                let val = params.value || 0;
+                let color = val >= 0 ? '#28a745' : '#dc3545';
+
+                return `
+                    <div style="font-weight:bold; color:${color}">
+                        ₹${val.toFixed(2)}
+                    </div>
+                `;
+            },
+            width: 150
+        },
+        {
             headerName: 'Alert Level',
             field: 'alert_level',
             editable: true,
@@ -268,7 +424,7 @@
             pinned: 'right',
             width: 120,
             cellRenderer: params => {
-                return `<button class="btn btn-warning btn-sm" onclick="viewInventoryLogs(${params.value})" title="View Inventory Logs">
+                return `<button class="btn-logs" onclick="viewInventoryLogs(${params.value})" title="View Inventory Logs">
                     <i class="fas fa-file-lines"></i> Logs
                 </button>`;
             },
@@ -294,7 +450,25 @@
         stopEditingWhenCellsLoseFocus: true,
         singleClickEdit: false,
         enableCellTextSelection: true,
-        getRowId: params => params.data.id
+        getRowId: params => String(params.data.id),   // v31 requires a string row id
+        getRowStyle: params => {
+            let mrp = parseFloat(params.data.product_rate_with_gst) || 0;
+            let discount = parseFloat(params.data.product_discount) || 0;
+            let gst = parseFloat(params.data.product_gst_percentage) || 0;
+            let purchase = parseFloat(params.data.product_purchase_rate) || 0;
+
+            let discounted = mrp - (mrp * discount / 100);
+            let finalPrice = discounted + (discounted * gst / 100);
+
+            let profit = finalPrice - purchase;
+
+            if (profit < 0) {
+                return {
+                    backgroundColor: '#ffe6e6', // light red row
+                };
+            }
+            return null;
+        }
     };
     
     // Handle cell value changes
@@ -306,7 +480,8 @@
         
         // Show loading
         event.node.setDataValue(event.column.colId, event.newValue);
-        
+        // Force refresh to show loading state
+        event.api.refreshCells({rowNodes: [event.node],force: true});
         // Send update to server
         fetch('{% url "product_aggrid_update" %}', {
             method: 'POST',
@@ -326,7 +501,7 @@
                     event.data.product_category_name = data.product.product_category_name;
                     event.data.parent_category = data.product.parent_category;
                     event.data.child_category = data.product.child_category;
-                    gridOptions.api.refreshCells({
+                    event.api.refreshCells({
                         rowNodes: [event.node],
                         columns: ['product_category_id']
                     });
@@ -345,13 +520,14 @@
         });
     }
     
-    // Initialize grid on page load
+    // Initialize grid on page load.
+    // AG-Grid v31 removed `new agGrid.Grid(...)`; the grid is now created with
+    // agGrid.createGrid(), which RETURNS the Grid API (gridOptions.api is no longer
+    // populated). Keep the returned api for programmatic calls.
+    let gridApi;
     document.addEventListener('DOMContentLoaded', function() {
         const gridDiv = document.querySelector('#products-grid');
-        new agGrid.Grid(gridDiv, gridOptions);
-        
-        // Initialize Bootstrap toast
-        $('.toast').toast({ autohide: true, delay: 3000 });
+        gridApi = agGrid.createGrid(gridDiv, gridOptions);
     });
     
     // View inventory logs popup
@@ -373,3 +549,7 @@
     }
 </script>
 {% endblock %}
+
+{% block head_libs %}{% include "partials/libs/aggrid_head.html" %}{% endblock %}
+
+{% block body_libs %}{% include "partials/libs/aggrid_body.html" %}{% endblock %}

@@ -1,14 +1,16 @@
 # Django imports
 from django.contrib import messages
-from django.db.models import Max
+from django.core.paginator import Paginator
+from django.db.models import Max, Q
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db import transaction
 from django.utils import timezone
+from django.urls import reverse
 
 # Models
-from ..models import Customer, Quotation, Invoice, UserProfile
+from ..models import Customer, Quotation, Invoice, UserProfile, Product, ProductCategory
 
 # Utility functions
 from ..utils import (
@@ -16,8 +18,16 @@ from ..utils import (
     invoice_data_processor,
     update_products_from_invoice,
     update_inventory,
-    auto_deduct_book_from_invoice
+    auto_deduct_book_from_invoice,
+    find_matching_customer,
+    apply_invoice_round_off,
+    remove_inventory_entries_for_invoice,
+    remove_book_entries_for_invoice,
+    resync_quotation_prices,
+    json_compact,
+    CartError,
 )
+from ..templatetags.money import format_inr_smart
 
 # Third-party libraries
 import json
@@ -82,9 +92,17 @@ def quotation_create(request):
         non_gst_mode = 'nongstcheck' in quotation_data
         is_gst = not non_gst_mode
         
+        # A GST quotation needs the customer's GSTIN. Rather than rejecting, fall back to
+        # a non-GST quotation — but the number submitted with the form came from the GST
+        # series, so it has to be re-drawn from the non-GST series below.
+        auto_downgraded_to_non_gst = False
         if is_gst and quotation_data['customer-gst'].strip() == '':
-            messages.warning(request, "GST Quotation requires Customer GST Number.")
-            return render(request, 'quotations/quotation_create.html', context)
+            is_gst = False
+            auto_downgraded_to_non_gst = True
+            messages.info(
+                request,
+                "Customer has no GST Number — this was created as a NON-GST quotation."
+            )
         
         # Validate data (reuse invoice validator)
         validation_error = invoice_data_validator(quotation_data)
@@ -102,16 +120,11 @@ def quotation_create(request):
         customer = None
         
         if is_modified_customer:
-            # When modifying details, still need to find/create a base customer
-            # Try to find existing customer by name only
-            try:
-                customer = Customer.objects.filter(
-                    user=request.user,
-                    customer_name=quotation_data['customer-name']
-                ).first()
-            except:
-                pass
-            
+            # When modifying details, still need to find/create a base customer.
+            # Match on the normalised name so we reuse the existing record instead of
+            # creating a near-duplicate that differs only in casing.
+            customer = find_matching_customer(request.user, quotation_data)
+
             if not customer:
                 # Create a base customer record with the provided details
                 customer = Customer.objects.create(
@@ -123,17 +136,8 @@ def quotation_create(request):
                 )
                 messages.info(request, f"New customer '{customer.customer_name}' created.")
         else:
-            # Normal flow - exact match required
-            try:
-                customer = Customer.objects.get(
-                    user=request.user,
-                    customer_name=quotation_data['customer-name'],
-                    customer_address=quotation_data['customer-address'],
-                    customer_phone=quotation_data['customer-phone'],
-                    customer_gst=quotation_data['customer-gst']
-                )
-            except Customer.DoesNotExist:
-                pass
+            # Normal flow - match an existing customer by name (+ phone).
+            customer = find_matching_customer(request.user, quotation_data)
 
             if not customer:
                 # Redirect to customer add page
@@ -144,7 +148,7 @@ def quotation_create(request):
         # update_products_from_invoice(quotation_data_processed, request)
 
         # Save quotation
-        quotation_data_processed_json = json.dumps(quotation_data_processed)
+        quotation_data_processed_json = json_compact(quotation_data_processed)
         
         # Get valid_until date
         valid_until_date = quotation_data.get('valid-until', '')
@@ -153,9 +157,17 @@ def quotation_create(request):
         else:
             valid_until_date = None
         
+        quotation_number = int(quotation_data['invoice-number'])  # Reusing form field name
+        if auto_downgraded_to_non_gst:
+            # The posted number belongs to the GST series; take the next non-GST one.
+            max_non_gst = Quotation.objects.filter(
+                user=request.user, is_gst=False
+            ).aggregate(Max('quotation_number'))['quotation_number__max']
+            quotation_number = (max_non_gst or 0) + 1
+
         new_quotation = Quotation(
             user=request.user,
-            quotation_number=int(quotation_data['invoice-number']),  # Reusing form field name
+            quotation_number=quotation_number,
             quotation_date=datetime.datetime.strptime(quotation_data['invoice-date'], '%Y-%m-%d'),
             valid_until=valid_until_date,
             quotation_customer=customer,
@@ -173,13 +185,165 @@ def quotation_create(request):
     return render(request, 'quotations/quotation_create.html', context)
 
 
+def _filtered_quotations(request, search_value=''):
+    """Shared filter for the Quotations list + its print/ajax feed.
+    Mirrors the quotations_ajax filters; returns (queryset, filter_context)."""
+    from datetime import timedelta
+
+    quotation_type = request.GET.get('quotation_type', 'all')
+    status_filter = request.GET.get('status_filter', 'all')
+    date_filter = request.GET.get('date_filter', 'all')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
+    customer_id = request.GET.get('customer_id', '')
+
+    # Unconfirmed mobile carts (DRAFT + created_from_cart) stay private until PENDING.
+    qs = (Quotation.objects.filter(user=request.user)
+          .exclude(created_from_cart=True, status='DRAFT')
+          .select_related('quotation_customer'))
+
+    if customer_id and customer_id.isdigit():
+        qs = qs.filter(quotation_customer__id=int(customer_id))
+
+    if quotation_type == 'gst':
+        qs = qs.filter(is_gst=True)
+    elif quotation_type == 'non_gst':
+        qs = qs.filter(is_gst=False)
+
+    if status_filter == 'pending':
+        qs = qs.filter(status='PENDING')
+    elif status_filter == 'draft':
+        qs = qs.filter(status='DRAFT')
+    elif status_filter == 'approved':
+        qs = qs.filter(status='APPROVED')
+    elif status_filter == 'converted':
+        qs = qs.filter(status='CONVERTED')
+
+    if date_filter and date_filter != 'all':
+        if date_filter == 'today':
+            qs = qs.filter(quotation_date=timezone.now().date())
+        elif date_filter == 'week':
+            week_start = timezone.now().date() - timedelta(days=timezone.now().weekday())
+            qs = qs.filter(quotation_date__gte=week_start)
+        elif date_filter == 'month':
+            qs = qs.filter(quotation_date__gte=timezone.now().date().replace(day=1))
+        elif date_filter == 'custom' and start_date and end_date:
+            try:
+                qs = qs.filter(quotation_date__gte=start_date, quotation_date__lte=end_date)
+            except Exception:
+                pass
+
+    if search_value:
+        qs = qs.filter(
+            Q(quotation_number__icontains=search_value) |
+            Q(quotation_customer__customer_name__icontains=search_value)
+        )
+
+    return qs, {
+        'quotation_type': quotation_type, 'status_filter': status_filter,
+        'customer_id': customer_id, 'date_filter': date_filter,
+        'start_date': start_date, 'end_date': end_date,
+    }
+
+
+def _quotations_total_amount(queryset):
+    total = 0.0
+    for quotation_json_str in queryset.values_list('quotation_json', flat=True):
+        try:
+            total += float(json.loads(quotation_json_str).get('invoice_total_amt_with_gst', 0))
+        except Exception:
+            pass
+    return total
+
+
+def _quotation_row_dict(quotation):
+    """Build one quotations-table row (shared by the native list + the ajax/print feed)."""
+    if quotation.is_gst:
+        quotation_num = f'QT-{quotation.quotation_number}'
+    else:
+        quotation_num = f'<span class="text-danger font-weight-bold">QT-NG{quotation.quotation_number}</span>'
+
+    src = quotation.order_source
+    if src == 'customer':
+        quotation_num += ' <span class="badge badge-info" title="Placed by the customer in the app"><i class="fas fa-mobile-alt"></i> Customer app</span>'
+    elif src == 'employee':
+        emp_name = quotation.order_employee.name if quotation.order_employee else ''
+        suffix = f' · {emp_name}' if emp_name else ''
+        quotation_num += f' <span class="badge badge-primary" title="Placed by field-staff in the app"><i class="fas fa-mobile-alt"></i> Employee app{suffix}</span>'
+    elif src == 'app':
+        quotation_num += ' <span class="badge badge-info" title="From the mobile app"><i class="fas fa-mobile-alt"></i> Mobile app</span>'
+    else:
+        quotation_num += ' <span class="badge badge-light border" title="Created on the desktop"><i class="fas fa-desktop"></i> Desktop</span>'
+
+    if quotation.quotation_customer:
+        customer_html = f'<a href="/customer/edit/{quotation.quotation_customer.id}" style="text-decoration: none;color: black;">{quotation.quotation_customer.customer_name}</a>'
+    else:
+        customer_html = '<span class="text-danger">N/A</span>'
+
+    try:
+        quotation_json = json.loads(quotation.quotation_json)
+        quotation_amount = float(quotation_json.get('invoice_total_amt_with_gst', 0))
+    except Exception:
+        quotation_amount = 0.0
+
+    status_badges = {
+        'PENDING': '<span class="badge badge-warning"><i class="fas fa-hourglass-half"></i> Pending Approval</span>',
+        'DRAFT': '<span class="badge badge-secondary">Draft</span>',
+        'APPROVED': '<span class="badge badge-success">Approved</span>',
+        'CONVERTED': '<span class="badge badge-dark"><i class="fas fa-check-double"></i> Invoiced</span>'
+    }
+    status_html = status_badges.get(quotation.status, quotation.status)
+
+    actions_html = '<div class="btn-group" role="group">'
+    actions_html += f'<a href="/quotation/{quotation.id}" class="btn btn-primary btn-sm btn-curve" title="View"><i class="fa fa-eye"></i></a>'
+    if quotation.can_be_edited():
+        actions_html += f'<a href="/quotation/edit/{quotation.id}" class="btn btn-warning btn-sm btn-curve" title="Edit"><i class="fa fa-edit"></i></a>'
+    if quotation.needs_approval:
+        actions_html += f'<button type="button" onclick="approveQuotation({quotation.id})" class="btn btn-success btn-sm btn-curve" title="Approve order"><i class="fa fa-check"></i></button>'
+    if quotation.converted_invoice:
+        actions_html += f'<a href="/invoice/{quotation.converted_invoice.id}" class="btn btn-info btn-sm btn-curve" title="View Invoice"><i class="fa fa-file-invoice"></i></a>'
+    if quotation.can_be_deleted():
+        actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" onclick="deleteQuotation({quotation.id})" title="Delete"><i class="fa fa-trash"></i></button>'
+    actions_html += '</div>'
+
+    return {
+        'quotation_number': quotation_num,
+        'quotation_date': quotation.quotation_date.strftime('%b %d, %Y'),
+        'customer': customer_html,
+        'quotation_amount': f"₹ {format_inr_smart(quotation_amount)}",
+        'status': status_html,
+        'actions': actions_html,
+    }
+
+
 @login_required
 def quotations(request):
-    """List all quotations with server-side DataTables"""
-    context = {}
-    # Get all customers for dropdown filter
-    customers = Customer.objects.filter(user=request.user).order_by('customer_name')
-    context['customers'] = customers
+    """List all quotations, server-paginated natively (no jQuery DataTables)."""
+    # Default the Type filter to "All Types" when first opened.
+    qs, fctx = _filtered_quotations(request, search_value=request.GET.get('q', '').strip())
+
+    # Keep mobile-placed cart orders priced at today's catalog (live Amount + Total).
+    for quotation in qs.filter(created_from_cart=True):
+        resync_quotation_prices(quotation)
+
+    qs = qs.order_by('-id')
+    total_quotation_amount = _quotations_total_amount(qs)
+
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    rows = [_quotation_row_dict(quotation) for quotation in page_obj]
+
+    params = request.GET.copy()
+    params.pop('page', None)
+
+    context = dict(fctx)
+    context['customers'] = Customer.objects.filter(user=request.user).order_by('customer_name')
+    context['rows'] = rows
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
+    context['q'] = request.GET.get('q', '').strip()
+    context['total_quotation_amount'] = total_quotation_amount
     return render(request, 'quotations/quotations.html', context)
 
 
@@ -206,9 +370,13 @@ def quotations_ajax(request):
         end_date = request.GET.get('end_date', '')
         customer_id = request.GET.get('customer_id', '')
         
-        # Base queryset
-        queryset = Quotation.objects.filter(user=request.user).select_related('quotation_customer')
-        
+        # Base queryset. An unconfirmed mobile order (a cart the buyer is still building)
+        # is private to the mobile user until they confirm it — it only surfaces here once
+        # it becomes PENDING, so the shop never approves a half-finished order.
+        queryset = (Quotation.objects.filter(user=request.user)
+                    .exclude(created_from_cart=True, status='DRAFT')
+                    .select_related('quotation_customer'))
+
         # Apply customer filter
         if customer_id and customer_id.isdigit():
             queryset = queryset.filter(quotation_customer__id=int(customer_id))
@@ -220,20 +388,12 @@ def quotations_ajax(request):
             queryset = queryset.filter(is_gst=False)
         
         # Apply status filter
-        if status_filter == 'draft':
+        if status_filter == 'pending':
+            queryset = queryset.filter(status='PENDING')
+        elif status_filter == 'draft':
             queryset = queryset.filter(status='DRAFT')
         elif status_filter == 'approved':
             queryset = queryset.filter(status='APPROVED')
-        elif status_filter == 'processing':
-            queryset = queryset.filter(status='PROCESSING')
-        elif status_filter == 'packed':
-            queryset = queryset.filter(status='PACKED')
-        elif status_filter == 'shipped':
-            queryset = queryset.filter(status='SHIPPED')
-        elif status_filter == 'out_for_delivery':
-            queryset = queryset.filter(status='OUT_FOR_DELIVERY')
-        elif status_filter == 'delivered':
-            queryset = queryset.filter(status='DELIVERED')
         elif status_filter == 'converted':
             queryset = queryset.filter(status='CONVERTED')
         
@@ -266,7 +426,14 @@ def quotations_ajax(request):
         
         # Filtered records count
         filtered_records = queryset.count()
-        
+
+        # Keep mobile-placed orders priced at today's catalog, so the Amount column and the
+        # Total card below are live — the same auto-sync the quotation viewer does on open.
+        # (Only PENDING/APPROVED cart orders reach this list; drafts are hidden and invoiced
+        # ones are skipped inside resync.)
+        for q in queryset.filter(created_from_cart=True):
+            resync_quotation_prices(q)
+
         # Ordering
         order_columns = ['quotation_number', 'quotation_date', 'quotation_customer__customer_name', 'status']
         if 0 <= order_column_index < len(order_columns):
@@ -291,67 +458,8 @@ def quotations_ajax(request):
         # Pagination
         queryset = queryset[start:start + length]
         
-        # Prepare data
-        data = []
-        for quotation in queryset:
-            # Quotation number
-            if quotation.is_gst:
-                quotation_num = f'QT-{quotation.quotation_number}'
-            else:
-                quotation_num = f'<span class="text-danger font-weight-bold">QT-NG{quotation.quotation_number}</span>'
-
-            # Customer
-            if quotation.quotation_customer:
-                customer_html = f'<a href="/customer/edit/{quotation.quotation_customer.id}" style="text-decoration: none;color: black;">{quotation.quotation_customer.customer_name}</a>'
-            else:
-                customer_html = '<span class="text-danger">N/A</span>'
-
-            # Quotation Amount
-            try:
-                quotation_json = json.loads(quotation.quotation_json)
-                quotation_amount = float(quotation_json.get('invoice_total_amt_with_gst', 0))
-            except Exception:
-                quotation_amount = 0.0
-
-            # Status badge
-            status_badges = {
-                'DRAFT': '<span class="badge badge-secondary">Draft</span>',
-                'APPROVED': '<span class="badge badge-success">Approved</span>',
-                'PROCESSING': '<span class="badge badge-info"><i class="fas fa-cog fa-spin"></i> Processing</span>',
-                'PACKED': '<span class="badge badge-primary"><i class="fas fa-box"></i> Packed</span>',
-                'SHIPPED': '<span class="badge badge-primary"><i class="fas fa-shipping-fast"></i> Shipped</span>',
-                'OUT_FOR_DELIVERY': '<span class="badge badge-info"><i class="fas fa-truck"></i> Out for Delivery</span>',
-                'DELIVERED': '<span class="badge badge-success"><i class="fas fa-check-circle"></i> Delivered</span>',
-                'CONVERTED': '<span class="badge badge-dark"><i class="fas fa-check-double"></i> Received</span>'
-            }
-            status_html = status_badges.get(quotation.status, quotation.status)
-
-            # Actions
-            actions_html = '<div class="btn-group" role="group">'
-            actions_html += f'<a href="/quotation/{quotation.id}" class="btn btn-primary btn-sm btn-curve" title="View"><i class="fa fa-eye"></i></a>'
-            
-            if quotation.can_be_edited():
-                actions_html += f'<a href="/quotation/edit/{quotation.id}" class="btn btn-warning btn-sm btn-curve" title="Edit"><i class="fa fa-edit"></i></a>'
-            
-            if quotation.can_be_converted():
-                actions_html += f'<button type="button" onclick="convertToInvoice({quotation.id})" class="btn btn-success btn-sm btn-curve" title="Convert to Invoice"><i class="fa fa-exchange"></i></button>'
-            
-            if quotation.converted_invoice:
-                actions_html += f'<a href="/invoice/{quotation.converted_invoice.id}" class="btn btn-info btn-sm btn-curve" title="View Invoice"><i class="fa fa-file-invoice"></i></a>'
-            
-            if quotation.can_be_edited():
-                actions_html += f'<button type="button" class="btn btn-danger btn-sm btn-curve" onclick="deleteQuotation({quotation.id})" title="Delete"><i class="fa fa-trash"></i></button>'
-            
-            actions_html += '</div>'
-
-            data.append({
-                'quotation_number': quotation_num,
-                'quotation_date': quotation.quotation_date.strftime('%b %d, %Y'),
-                'customer': customer_html,
-                'quotation_amount': f"₹ {quotation_amount:,.2f}",
-                'status': status_html,
-                'actions': actions_html
-            })
+        # Prepare data (shared row-builder — same output as the native list)
+        data = [_quotation_row_dict(quotation) for quotation in queryset]
 
         return JsonResponse({
             'draw': draw,
@@ -375,6 +483,13 @@ def quotation_viewer(request, quotation_id):
     """View quotation details"""
     quotation_obj = get_object_or_404(Quotation, user=request.user, id=quotation_id)
     user_profile = get_object_or_404(UserProfile, user=request.user)
+
+    # A mobile-placed order stays priced at today's catalog: re-sync it whenever the admin
+    # opens it, exactly as the mobile order page does for the buyer. (Desktop-created
+    # quotations are left to the manual "Sync Prices" button.) Best-effort — an already-
+    # invoiced or unmappable quotation is left untouched.
+    if quotation_obj.created_from_cart:
+        resync_quotation_prices(quotation_obj)
 
     context = {}
     context['quotation'] = quotation_obj
@@ -433,24 +548,15 @@ def quotation_edit(request, quotation_id):
             customer = quotation.quotation_customer
             messages.info(request, "Customer details modified. Using original customer mapping.")
         else:
-            # Normal flow - validate customer from form (must match existing)
-            try:
-                customer = Customer.objects.get(
-                    user=request.user,
-                    customer_name=quotation_data['customer-name'],
-                    customer_address=quotation_data['customer-address'],
-                    customer_phone=quotation_data['customer-phone'],
-                    customer_gst=quotation_data['customer-gst']
-                )
-            except Customer.DoesNotExist:
-                pass
+            # Normal flow - match an existing customer by name (+ phone).
+            customer = find_matching_customer(request.user, quotation_data)
 
             if not customer:
                 messages.warning(request, "Customer not found. Please add the customer first or enable 'Modify Details'.")
                 return redirect('customer_add')
         
         # Update quotation
-        quotation.quotation_json = json.dumps(quotation_data_processed)
+        quotation.quotation_json = json_compact(quotation_data_processed)
         quotation.quotation_customer = customer
         quotation.quotation_date = datetime.datetime.strptime(quotation_data['invoice-date'], '%Y-%m-%d')
         quotation.customer_details_modified = is_modified_customer
@@ -504,10 +610,18 @@ def quotation_convert_to_invoice(request, quotation_id):
                 'success': False,
                 'message': 'This quotation cannot be converted'
             }, status=400)
-        
-        # Parse quotation data
+
+        # Bring the quotation up to the current catalog first, so the invoice freezes in
+        # today's prices (a quotation is live; an invoice is fixed). Best-effort — a line
+        # with no resolvable product just keeps its saved price.
+        resync_quotation_prices(quotation)
+        quotation.refresh_from_db()
+
+        # Parse quotation data, then round the grand total to the nearest rupee for the
+        # INVOICE (the quotation keeps its exact figure).
         quotation_data = json.loads(quotation.quotation_json)
-        
+        apply_invoice_round_off(quotation_data)
+
         # Get next invoice number
         user_profile = get_object_or_404(UserProfile, user=request.user)
         
@@ -542,7 +656,7 @@ def quotation_convert_to_invoice(request, quotation_id):
             invoice_number=next_invoice_number,
             invoice_date=datetime.date.today(),
             invoice_customer=quotation.quotation_customer,
-            invoice_json=quotation.quotation_json,  # Reuse quotation JSON
+            invoice_json=json_compact(quotation_data),  # rounded grand total for the invoice
             is_gst=quotation.is_gst,
             inventory_reflected=False,
             books_reflected=False
@@ -559,15 +673,28 @@ def quotation_convert_to_invoice(request, quotation_id):
         
         new_invoice.save()
         
-        # Link invoice to quotation (status remains unchanged - business owner will update through tracking)
-        quotation.converted_invoice = new_invoice
-        quotation.converted_at = timezone.now()
-        quotation.converted_by = request.user
-        quotation.save()
-        
+        # A DESKTOP quotation is a pure duplicate of the invoice once converted, so it is
+        # DELETED — the invoice becomes the single source of truth, and nothing lingers on
+        # the quotation list. Re-making one is the invoice viewer's "convert to quotation".
+        #
+        # A MOBILE order (created_from_cart) is NOT deleted. It is the customer's own record
+        # of what they ordered and /m/c/orders lists exactly these rows, so deleting it would
+        # empty their order history the moment the order was billed. It is marked CONVERTED
+        # and linked instead — which the orders screen already renders as an "Invoiced" badge,
+        # and which keeps the reconvert / invoice-delete-restore paths working for orders.
+        q_number = quotation.quotation_number
+        if quotation.created_from_cart:
+            quotation.status = 'CONVERTED'
+            quotation.converted_invoice = new_invoice
+            quotation.converted_at = timezone.now()
+            quotation.converted_by = request.user
+            quotation.save()
+        else:
+            quotation.delete()
+
         messages.success(
-            request, 
-            f'Quotation #{quotation.quotation_number} converted to Invoice #{new_invoice.invoice_number}'
+            request,
+            f'Quotation #{q_number} converted to Invoice #{new_invoice.invoice_number}'
         )
         
         return JsonResponse({
@@ -609,9 +736,11 @@ def quotation_reconvert_to_invoice(request, quotation_id):
                 'message': 'Invoice still exists. Cannot reconvert.'
             }, status=400)
         
-        # Parse quotation data
+        # Parse quotation data, then round the grand total to the nearest rupee for the
+        # INVOICE (the quotation keeps its exact figure).
         quotation_data = json.loads(quotation.quotation_json)
-        
+        apply_invoice_round_off(quotation_data)
+
         # Get next invoice number
         user_profile = get_object_or_404(UserProfile, user=request.user)
         
@@ -646,7 +775,7 @@ def quotation_reconvert_to_invoice(request, quotation_id):
             invoice_number=next_invoice_number,
             invoice_date=datetime.date.today(),
             invoice_customer=quotation.quotation_customer,
-            invoice_json=quotation.quotation_json,  # Reuse quotation JSON
+            invoice_json=json_compact(quotation_data),  # rounded grand total for the invoice
             is_gst=quotation.is_gst,
             inventory_reflected=False,
             books_reflected=False
@@ -690,31 +819,162 @@ def quotation_reconvert_to_invoice(request, quotation_id):
         }, status=500)
 
 
+def _next_quotation_number(user, is_gst):
+    """Next quotation number — GST series is shared across the same business GST,
+    non-GST is per user (mirrors quotation_create / invoice_delete's move flow)."""
+    if is_gst:
+        user_profile = get_object_or_404(UserProfile, user=user)
+        maxes = []
+        for profile in UserProfile.objects.filter(business_gst=user_profile.business_gst):
+            m = Quotation.objects.filter(user=profile.user, is_gst=True).aggregate(
+                Max('quotation_number'))['quotation_number__max']
+            if m is not None:
+                maxes.append(m)
+        return (max(maxes) + 1) if maxes else 1
+    m = Quotation.objects.filter(user=user, is_gst=False).aggregate(
+        Max('quotation_number'))['quotation_number__max']
+    return (m + 1) if m else 1
+
+
+def _quotation_from_invoice(invoice, note):
+    """Build (unsaved) a DRAFT quotation carrying this invoice's customer + items."""
+    return Quotation(
+        user=invoice.user,
+        quotation_number=_next_quotation_number(invoice.user, invoice.is_gst),
+        quotation_date=datetime.date.today(),
+        valid_until=(datetime.date.today() + datetime.timedelta(days=30)),
+        quotation_customer=invoice.invoice_customer,
+        quotation_json=invoice.invoice_json,   # same shape as quotation_json
+        is_gst=invoice.is_gst,
+        status='DRAFT',
+        notes=note,
+    )
+
+
+@login_required
+@transaction.atomic
+def invoice_to_quotation(request, invoice_id):
+    """Turn an invoice back into a quotation. Two modes chosen from the viewer:
+
+      mode='move' — delete this invoice (reversing its inventory + books) and
+                    convert it into a fresh DRAFT quotation. If the invoice itself
+                    came from a quotation, that original quotation is restored to
+                    DRAFT instead of creating a duplicate.
+      mode='copy' — keep the invoice untouched and ALSO create a DRAFT quotation
+                    copy of it.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+
+    mode = request.POST.get('mode', 'copy')
+    try:
+        invoice = get_object_or_404(Invoice, user=request.user, id=invoice_id)
+        inv_no = invoice.invoice_number
+
+        if mode == 'move':
+            # If this invoice was produced by converting a quotation, restore THAT
+            # quotation rather than spawning a second one.
+            source_q = Quotation.objects.filter(user=request.user, converted_invoice=invoice).first()
+
+            remove_inventory_entries_for_invoice(invoice, request.user)
+            remove_book_entries_for_invoice(invoice)
+
+            if source_q:
+                source_q.converted_invoice = None
+                source_q.converted_at = None
+                source_q.converted_by = None
+                source_q.status = 'DRAFT'
+                source_q.quotation_json = invoice.invoice_json  # keep any invoice-side edits
+                source_q.notes = (source_q.notes or '') + \
+                    f'\nInvoice #{inv_no} deleted; quotation restored.'
+                source_q.save()
+                quotation = source_q
+            else:
+                quotation = _quotation_from_invoice(invoice, f'Converted from deleted Invoice #{inv_no}')
+                quotation.save()
+
+            invoice.delete()
+            messages.success(
+                request,
+                f'Invoice #{inv_no} converted back to Quotation #{quotation.quotation_number}.')
+            return JsonResponse({
+                'success': True,
+                'mode': 'move',
+                'message': f'Invoice deleted · now Quotation #{quotation.quotation_number}',
+                'quotation_id': quotation.id,
+            })
+
+        # mode == 'copy' — invoice stays, add a quotation copy.
+        quotation = _quotation_from_invoice(invoice, f'Duplicated from Invoice #{inv_no}')
+        quotation.save()
+        messages.success(
+            request,
+            f'Quotation #{quotation.quotation_number} created from Invoice #{inv_no} '
+            f'(invoice kept).')
+        return JsonResponse({
+            'success': True,
+            'mode': 'copy',
+            'message': f'Duplicated as Quotation #{quotation.quotation_number}',
+            'quotation_id': quotation.id,
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"Error in invoice_to_quotation: {traceback.format_exc()}")
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
 @login_required
 def quotation_approve(request, quotation_id):
-    """Approve a quotation (change status to APPROVED)"""
+    """Approve a mobile order — moves it out of Pending into the fulfilment pipeline."""
     if request.method != 'POST':
         return JsonResponse({
             'success': False,
             'message': 'Invalid request method'
         }, status=405)
-    
+
     quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
-    
-    if quotation.status != 'DRAFT':
+
+    # Only a pending mobile order needs approval. Desktop drafts don't.
+    if quotation.status != 'PENDING':
         return JsonResponse({
             'success': False,
-            'message': 'Only draft quotations can be approved'
+            'message': 'Only pending orders can be approved'
         }, status=400)
-    
+
     quotation.status = 'APPROVED'
     quotation.save()
-    
-    messages.success(request, f'Quotation #{quotation.quotation_number} approved')
+
+    messages.success(request, f'Order #{quotation.quotation_number} approved')
     return JsonResponse({
         'success': True,
-        'message': f'Quotation #{quotation.quotation_number} approved successfully'
+        'message': f'Order #{quotation.quotation_number} approved successfully'
     })
+
+
+@login_required
+def quotation_resync_prices(request, quotation_id):
+    """Re-price a quotation to the current product rates, GST% and discounts. A quotation
+    stays live until it's billed, so this is the manual 'catch up to today's prices' action
+    (mobile does it automatically when the buyer opens the order)."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
+
+    quotation = get_object_or_404(Quotation, user=request.user, id=quotation_id)
+    r = resync_quotation_prices(quotation)
+
+    if r['reason'] == 'invoiced':
+        return JsonResponse({'success': False, 'message': 'This quotation is already an invoice — its prices are frozen.'}, status=400)
+    if r['reason'] in ('unmapped', 'product_missing'):
+        return JsonResponse({'success': False, 'message': "Some lines aren't linked to a current product, so prices can't be synced automatically. Edit the quotation to update them."}, status=400)
+    if r['reason'] == 'igst':
+        return JsonResponse({'success': False, 'message': "Inter-state (IGST) quotations can't be auto-synced. Edit the quotation to update prices."}, status=400)
+
+    if r['changed']:
+        msg = f"Prices updated to today's rates — new total ₹ {format_inr_smart(r['new_total'])}."
+    else:
+        msg = 'Already up to date — prices match the current catalog.'
+    return JsonResponse({'success': True, 'changed': r['changed'], 'message': msg})
 
 
 @login_required
@@ -749,7 +1009,7 @@ def quotation_update_customer(request, quotation_id):
             quotation_data['vehicle_number'] = data.get('vehicle_number', '')
         
         # Save updated JSON and mark as modified
-        quotation.quotation_json = json.dumps(quotation_data)
+        quotation.quotation_json = json_compact(quotation_data)
         quotation.customer_details_modified = True
         quotation.save()
         
@@ -766,46 +1026,3 @@ def quotation_update_customer(request, quotation_id):
         }, status=400)
 
 
-@login_required
-def quotation_update_status(request, quotation_id):
-    """Update quotation/order status for tracking"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Invalid method'}, status=405)
-    
-    try:
-        quotation = get_object_or_404(Quotation, id=quotation_id, user=request.user)
-        new_status = request.POST.get('status')
-        
-        # Validate status
-        valid_statuses = ['DRAFT', 'APPROVED', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CONVERTED']
-        if new_status not in valid_statuses:
-            return JsonResponse({'success': False, 'message': 'Invalid status'}, status=400)
-        
-        # Update status
-        old_status = quotation.status
-        quotation.status = new_status
-        quotation.save()
-        
-        # Get status display name
-        status_names = {
-            'DRAFT': 'Pending',
-            'APPROVED': 'Approved',
-            'PROCESSING': 'Processing',
-            'PACKED': 'Packed',
-            'SHIPPED': 'Shipped',
-            'OUT_FOR_DELIVERY': 'Out for Delivery',
-            'DELIVERED': 'Delivered',
-            'CONVERTED': 'Completed'
-        }
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'Order status updated from {status_names.get(old_status, old_status)} to {status_names.get(new_status, new_status)}',
-            'new_status': new_status
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': str(e)
-        }, status=400)

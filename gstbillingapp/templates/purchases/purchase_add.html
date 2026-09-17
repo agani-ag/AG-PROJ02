@@ -1,219 +1,130 @@
 {% extends "base.html" %}
 {% load static %}
+{% block title %}Add purchase · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
 
 {% block content %}
-<h2>Add Purchase Logs</h2>
-
-<form method="POST">
+<div class="gs gs-pad">
+<form method="POST" class="gform">
     {% csrf_token %}
+    <div class="formwrap">
+        <div class="page-head">
+            <div>
+                <div class="eyebrow"><a href="{% url 'purchases_logs' %}">Purchases</a> › New</div>
+                <h1 class="disp">Add purchase log</h1>
+            </div>
+        </div>
 
-    <table class="table">
-        <tbody class="two-col-form">
+        <div class="section open">
+            <div class="sh"><span class="si o"><i class="fas fa-truck"></i></span>
+                <div><h3 class="disp">Purchase entry</h3><div class="sd">Vendor, amount &amp; category</div></div>
+                <i class="fas fa-chevron-down chev"></i></div>
+            <div class="body"><div class="grid">
+                <div class="field"><label>Date &amp; Time</label><input type="datetime-local" value="{% now 'Y-m-d H:i:s' %}" name="date"></div>
+                <div class="field">
+                    <label>Vendor</label>
+                    <div class="fieldrow">
+                        <input type="hidden" name="vendor" id="vendorHidden" value="{{ form.vendor.value }}">
+                        <input type="text" id="vendorDisplay" placeholder="Select vendor" readonly>
+                        <button type="button" id="changeVendorBtn" class="gbtn gbtn-icon gadd" title="Find vendor"><i class="fas fa-search"></i></button>
+                    </div>
+                </div>
+                <div class="field"><label>Change in balance</label>{{ form.change }}</div>
+                <div class="field"><label>Change Type</label>{{ form.change_type }}</div>
 
-        <!-- DATE -->
-        <tr>
-            <th scope="row" class="text-right">Date & Time:</th>
-            <td class="form-input-td customer_search_area">
-                <input type="datetime-local" value="{% now "Y-m-d H:i:s" %}" name="date">
-            </td>
-        </tr>
-        
-        <!-- VENDOR -->
-        <tr>
-            <th class="text-right">Vendor:</th>
-            <td class="d-flex gap-2">
-                <!-- Hidden field for submission -->
-                <input type="hidden" name="vendor" id="vendorHidden" value="{{ form.vendor.value }}">
-                <!-- Display input -->
-                <input type="text" id="vendorDisplay" placeholder="Select Vendor" readonly>
-                <button type="button" id="changeVendorBtn" class="btn btn-primary"><i class="fa fa-search"></i></button>
-            </td>
-        </tr>
+                <div class="field">
+                    <label for="categorySelect">Category</label>
+                    <select id="categorySelect" name="category" class="control" onchange="toggleCategoryTextbox()">
+                        <option value="">Other (please specify)</option>
+                        {% for category in categories %}<option value="{{ category }}" {% if form.category.value == category %}selected{% endif %}>{{ category }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field" id="customCategoryRow" style="display:none"><label for="customCategory">Custom category</label><input type="text" id="customCategory" class="control" placeholder="Enter custom category"></div>
 
-        <!-- CHANGE IN BALANCE -->
-        <tr>
-            <th class="text-right">Change in balance:</th>
-            <td>{{ form.change }}</td>
-        </tr>
-
-        <!-- CHANGE TYPE -->
-        <tr>
-            <th class="text-right">Change Type:</th>
-            <td>{{ form.change_type }}</td>
-        </tr>
-
-        <!-- CATEGORY -->
-        <tr>
-            <th scope="row" class="text-right">Category:</th>
-            <td>
-                <select id="categorySelect" style="width: 200px;" onchange="toggleCategoryTextbox()" name="category">
-                    <option value="">Other (Please specify)</option>
-                    {% for category in categories %}
-                        <option value="{{ category }}" {% if form.category.value == category %}selected{% endif %}>{{ category }}</option>
-                    {% endfor %}
-                </select>
-            </td>
-        </tr>
-        <tr id="customCategoryRow" style="display: none;">
-            <th scope="row" class="text-right">Custom Category:</th>
-            <td>
-                <input type="text" id="customCategory" style="width: 200px;" placeholder="Enter custom category" />
-            </td>
-        </tr>
-
-        <!-- REFERENCE -->
-        <tr>
-            <th scope="row" class="text-right">Reference:</th>
-            <td>
-                <select id="referenceSelect" style="width: 200px;" onchange="toggleReferenceTextbox()" name="reference">
-                    <option value="">Other (Please specify)</option>
-                    {% for reference in references %}
-                        <option value="{{ reference }}" {% if form.reference.value == reference %}selected{% endif %}>{{ reference }}</option>
-                    {% endfor %}
-                </select>
-            </td>
-        </tr>
-        <tr id="customReferenceRow" style="display: none;">
-            <th scope="row" class="text-right">Custom Reference:</th>
-            <td>
-                <input type="text" id="customReference" style="width: 200px;" placeholder="Enter custom reference" />
-            </td>
-        </tr>
-
-        </tbody>
-    </table>
-
-    <div class="d-flex justify-content-end gap-2">
-        <button type="submit" class="btn btn-primary">
-            <i class="fas fa-save"></i>
-        </button>
-        <a href="{% url 'purchases_logs' %}" class="btn btn-secondary"><i class="fas fa-times"></i></a>
+                <div class="field">
+                    <label for="referenceSelect">Reference</label>
+                    <select id="referenceSelect" name="reference" class="control" onchange="toggleReferenceTextbox()">
+                        <option value="">Other (please specify)</option>
+                        {% for reference in references %}<option value="{{ reference }}" {% if form.reference.value == reference %}selected{% endif %}>{{ reference }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="field" id="customReferenceRow" style="display:none"><label for="customReference">Custom reference</label><input type="text" id="customReference" class="control" placeholder="Enter custom reference"></div>
+            </div></div>
+        </div>
     </div>
+
+    <div class="gs-actionbar"><div class="inner">
+        <div class="msg">New purchase · not saved</div>
+        <div class="end">
+            <a class="gbtn" href="{% url 'purchases_logs' %}">Cancel</a>
+            <button type="submit" class="gbtn gbtn-primary"><i class="fas fa-save"></i> Save purchase</button>
+        </div>
+    </div></div>
 </form>
+</div>
 {% endblock %}
 
 {% block includejs %}
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-// ================= VENDOR POPUP =================
 function openVendorPopup() {
-    $.ajax({
-        url: "{% url 'vendor_purchase_filter' %}",
-        success: function(vendors) {
-
+    fetch("{% url 'vendor_purchase_filter' %}")
+        .then(res => res.json())
+        .then(vendors => {
             let html = `
                 <input type="text" id="vendorSearch" class="form-control mb-2" placeholder="Search vendor...">
                 <table class="table table-bordered" id="vendorTable">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Address</th>
-                            <th>Phone</th>
-                            <th>GSTIN</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
+                    <thead><tr><th>Name</th><th>Address</th><th>Phone</th><th>GSTIN</th></tr></thead>
+                    <tbody>`;
             vendors.forEach(v => {
-                html += `
-                    <tr class="vendorRow" style="cursor:pointer"
-                        data-id="${v.id}"
-                        data-name="${v.name}">
-                        <td>${v.name}</td>
-                        <td>${v.address || '-'}</td>
-                        <td>${v.phone || '-'}</td>
-                        <td>${v.gstin || '-'}</td>
-                    </tr>
-                `;
+                html += `<tr class="vendorRow" style="cursor:pointer" data-id="${v.id}" data-name="${v.name}">
+                    <td>${v.name}</td><td>${v.address || '-'}</td><td>${v.phone || '-'}</td><td>${v.gstin || '-'}</td></tr>`;
             });
-
             html += `</tbody></table>`;
-
             Swal.fire({
-                title: "Select Vendor",
-                html: html,
-                width: "1000px",
-                showCancelButton: true,
+                title: "Select Vendor", html: html, width: "1000px", showCancelButton: true,
                 didOpen: () => {
-                    // Filter table by search
-                    $('#vendorSearch').on('keyup', function () {
-                        let val = $(this).val().toLowerCase();
-                        $('#vendorTable tbody tr').filter(function () {
-                            $(this).toggle($(this).text().toLowerCase().indexOf(val) > -1);
+                    document.getElementById('vendorSearch').addEventListener('keyup', function () {
+                        var val = this.value.toLowerCase();
+                        document.querySelectorAll('#vendorTable tbody tr').forEach(function (tr) {
+                            tr.style.display = (tr.textContent.toLowerCase().indexOf(val) > -1) ? '' : 'none';
                         });
                     });
-
-                    // Click row to select
-                    $('.vendorRow').on('click', function () {
-                        let id = $(this).data('id');
-                        let name = $(this).data('name');
-
-                        // Set hidden input for form submission
-                        $('#vendorHidden').val(id);
-
-                        // Set display input
-                        $('#vendorDisplay').val(name);
-
-                        Swal.close();
+                    document.querySelectorAll('.vendorRow').forEach(function (row) {
+                        row.addEventListener('click', function () {
+                            document.getElementById('vendorHidden').value = this.getAttribute('data-id');
+                            document.getElementById('vendorDisplay').value = this.getAttribute('data-name');
+                            Swal.close();
+                        });
                     });
                 }
             });
-        }
-    });
+        });
 }
 
-// ================= CATEGORY & REFERENCE TOGGLE =================
 function toggleCategoryTextbox() {
-    var categorySelect = document.getElementById('categorySelect');
-    var customCategoryRow = document.getElementById('customCategoryRow');
-    var customCategoryInput = document.getElementById('customCategory');
-    
-    if (categorySelect.value === "") {
-        customCategoryRow.style.display = 'table-row';
-        customCategoryInput.required = true;
-        customCategoryInput.setAttribute('name', 'category');
-        categorySelect.removeAttribute('name');
-    } else {
-        customCategoryRow.style.display = 'none';
-        customCategoryInput.value = '';
-        customCategoryInput.required = false;
-        categorySelect.setAttribute('name', 'category');
-        customCategoryInput.removeAttribute('name');
-    }
+    var s = document.getElementById('categorySelect'), row = document.getElementById('customCategoryRow'), inp = document.getElementById('customCategory');
+    if (s.value === "") { row.style.display=''; inp.required=true; inp.setAttribute('name','category'); s.removeAttribute('name'); }
+    else { row.style.display='none'; inp.value=''; inp.required=false; s.setAttribute('name','category'); inp.removeAttribute('name'); }
 }
-
 function toggleReferenceTextbox() {
-    var referenceSelect = document.getElementById('referenceSelect');
-    var customReferenceRow = document.getElementById('customReferenceRow');
-    var customReferenceInput = document.getElementById('customReference');
-    
-    if (referenceSelect.value === "") {
-        customReferenceRow.style.display = 'table-row';
-        customReferenceInput.required = true;
-        customReferenceInput.setAttribute('name', 'reference');
-        referenceSelect.removeAttribute('name');
-    } else {
-        customReferenceRow.style.display = 'none';
-        customReferenceInput.value = '';
-        customReferenceInput.required = false;
-        referenceSelect.setAttribute('name', 'reference');
-        customReferenceInput.removeAttribute('name');
-    }
+    var s = document.getElementById('referenceSelect'), row = document.getElementById('customReferenceRow'), inp = document.getElementById('customReference');
+    if (s.value === "") { row.style.display=''; inp.required=true; inp.setAttribute('name','reference'); s.removeAttribute('name'); }
+    else { row.style.display='none'; inp.value=''; inp.required=false; s.setAttribute('name','reference'); inp.removeAttribute('name'); }
 }
 
-// ================= EVENTS =================
-$(document).ready(function () {
-    $('#changeVendorBtn').on('click', openVendorPopup);
-
-    // Autofill on edit
-    let vendHidden = $('#vendorHidden');
-    if (vendHidden.val()) {
-        // Optionally, you could fetch vendor name via JS/Ajax or set server-side
-        $('#vendorDisplay').val(vendHidden.data('name') || '');
+document.addEventListener('DOMContentLoaded', function () {
+    var cvb = document.getElementById('changeVendorBtn');
+    if (cvb) cvb.addEventListener('click', openVendorPopup);
+    var vendHidden = document.getElementById('vendorHidden');
+    if (vendHidden && vendHidden.value) {
+        document.getElementById('vendorDisplay').value = vendHidden.getAttribute('data-name') || '';
     }
-
-    // Trigger category/reference toggles on page load
     toggleCategoryTextbox();
     toggleReferenceTextbox();
 });

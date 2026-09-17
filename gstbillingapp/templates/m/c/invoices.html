@@ -1,0 +1,20 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block title %}Invoices{% endblock %}
+{% block heading %}My Invoices{% endblock %}
+{% block content %}
+
+<div data-mpaged="{% url 'm_customer_invoices_data' %}" data-mpaged-list="#inv-list" data-mpaged-offset="{{ rows|length }}">
+    <div style="position:relative;margin-bottom:12px">
+        <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+        <input class="field" data-mpaged-search placeholder="Search invoice number…" autocomplete="off" inputmode="search" style="margin:0;padding-left:42px">
+    </div>
+    <div class="list" id="inv-list">
+        {% include "m/_invoice_rows.html" with rows=rows link_name="m_customer_invoice" %}
+    </div>
+    <div class="empty" data-mpaged-empty {% if rows %}style="display:none"{% endif %}><svg class="i"><use href="#ic-receipt"/></svg><div>No invoices found.</div></div>
+    <button class="btn" data-mpaged-more style="{% if not has_more %}display:none;{% endif %}margin-bottom:14px">Load more</button>
+</div>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_customer.html" with active="invoices" %}{% endblock %}

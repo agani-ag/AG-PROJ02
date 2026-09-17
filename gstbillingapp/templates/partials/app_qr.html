@@ -1,0 +1,19 @@
+{% comment %}Draws a QR code into every element with data-qr="<url>" (data-qr-size="<px>",
+default 120). Include with lib=True on pages that don't already load qr-code-styling.
+Runs on window load, so it works whichever include loads the library.{% endcomment %}
+{% if lib %}<script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>{% endif %}
+<script>
+(function () {
+  function draw() {
+    if (!window.QRCodeStyling) return;
+    document.querySelectorAll('[data-qr]').forEach(function (el) {
+      if (el.getAttribute('data-qr-done')) return;
+      el.setAttribute('data-qr-done', '1');
+      var size = parseInt(el.getAttribute('data-qr-size') || '120', 10);
+      new QRCodeStyling({ width: size, height: size, data: el.getAttribute('data-qr'),
+                          dotsOptions: { color: '#0f172a', type: 'rounded' } }).append(el);
+    });
+  }
+  window.addEventListener('load', draw);
+})();
+</script>

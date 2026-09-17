@@ -4,24 +4,39 @@
 
 	<div class="card">
 		<div class="card-header">
-			<div class="row">
-			<div class="col-sm-6 col-6">&nbsp;</div>
-			<div class="col-sm-6 text-right"><strong>Original[&nbsp;&nbsp;] / Duplicate[&nbsp;&nbsp;] / Triplicate[&nbsp;&nbsp;]</strong></div> 
-			<div class="col-sm-6 col-6">&nbsp;</div>
-			<div class="col-sm-6 col-6">&nbsp;</div>
-			<div class="col-sm-6 col-6"><strong>Invoice Date: {{invoice.invoice_date}}</strong></div>
-			<div class="col-sm-6 text-right">&nbsp;</div> 
-			<div class="col-sm-6 col-6"><strong>Invoice No:
-				{% if invoice.is_gst %}
-					{{invoice.invoice_number}}
-				{% else %}
-					INV-{{invoice.invoice_number}}
-				{% endif %}
-			</strong></div>
+			<div class="row align-items-center" style="padding-top: 35px;">
+
+				<!-- Left: invoice date + number -->
+				<div class="col-4 text-left">
+					<div><strong>Invoice Date: {{invoice.invoice_date}}</strong></div>
+					<div><strong>Invoice No:
+						{% if invoice.is_gst %}
+							{{invoice.invoice_number}}
+						{% else %}
+							INV-{{invoice.invoice_number}}
+						{% endif %}
+					</strong></div>
+				</div>
+
+				<!-- Middle: invoice title -->
+				<div class="col-4 text-center" id="invoice-title">
+					<span contenteditable="true" style="outline:none; cursor:text;">
+						<h4 class="mb-0 text-uppercase font-weight-bold" style="letter-spacing:2px;">
+							{% if invoice.is_gst %}Tax Invoice{% else %}Invoice{% endif %}
+						</h4>
+					</span>
+				</div>
+
+				<!-- Right: copy type -->
+				<div class="col-4 text-right">
+					<strong>Original[&nbsp;&nbsp;] / Duplicate[&nbsp;&nbsp;] / Triplicate[&nbsp;&nbsp;]</strong>
+				</div>
+
 			</div>
 		</div>
 
 		<div class="card-body">
+			<span contenteditable="true" style="outline:none; cursor:text;">
 			<div class="row">
 
 				<div class="col-sm-6 col-md-6 col-lg-6 col-6">
@@ -56,10 +71,8 @@
 						<div><strong>Vehicle No:</strong> {{ invoice_data.vehicle_number }}</div>
 					{% endif %}
 				</div>
-
-
-
 			</div>
+			</span>
 
 			<div class="table-responsive-sm">
 				<table class="table table-striped table-invoice">
@@ -92,9 +105,9 @@
 						{% for item in invoice_data.items %}
 						<tr>
 							<td class="text-center">{{ forloop.counter }}</td>
-							<td class="text-left strong">{{ item.invoice_model_no }}</td>
-							<td class="text-center">{{ item.invoice_product }}</td>
-							<td class="text-center">{{ item.invoice_hsn }}</td>
+							<td class="text-left strong" contenteditable="true">{{ item.invoice_model_no }}</td>
+							<td class="text-center" contenteditable="true">{{ item.invoice_product }}</td>
+							<td class="text-center" contenteditable="true">{{ item.invoice_hsn }}</td>
 
 							<td class="text-center">{{ item.invoice_rate_with_gst }}</td>
 							<td class="text-center">{{ item.invoice_discount }}%</td>
@@ -194,26 +207,13 @@
 								<tr>
 									<td colspan="2" class="text-center">
 										<div style="display:flex; align-items:center; justify-content:center;">
-
 											<div id="upi_qr_new"
 												style="margin-top:10px; padding-right:20px;"
 												data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}">
 											</div>
-
-											<div style="width:1px; height:180px; background:#ccc;"></div>
-
-											<div id="upi_qr"
-												style="margin-top:10px; padding-left:20px;"
-												data-upi_id="upi://pay?pa={{ user_profile.bankdetails.upi_id }}&am={{ invoice_data.invoice_total_amt_with_gst|floatformat:2 }}">
-											</div>
-
 										</div>
 									</td>
 								</tr>
-								<!-- <tr>
-									<td>UPI ID</td>
-									<td>{{ user_profile.bankdetails.upi_id }}</td>
-								</tr> -->
                             {% endif %}
 						</table>
 					{% endif %}
@@ -239,12 +239,18 @@
 								<td>{{ currency }} {{ invoice_data.invoice_total_amt_sgst|floatformat:2 }}</td>
 							</tr>
 						{% endif %}
-						
+
+						{% if invoice_data.invoice_round_off %}
+							<tr>
+								<td>Round Off: </td>
+								<td>{{ currency }} {{ invoice_data.invoice_round_off|floatformat:2 }}</td>
+							</tr>
+						{% endif %}
+
 						 <tr>
 							<td>Invoice Total: </td>
 							<td>{{ currency }} {{invoice_data.invoice_total_amt_with_gst|floatformat:2 }}</td>
 						</tr>
-
 
 						<tr> 
 							<td colspan="2" class="text-middle">
@@ -255,47 +261,200 @@
 							<td colspan="2" style="padding-top:150px;"></td>
 						</tr>
 						<tr id="invoice-signature-text-row">
-							<td colspan="2">Authorized Signatory<br> {{user_profile.business_title}} </td>
+							<td colspan="2">Authorized Signatory<br> <span contenteditable="true" style="outline:none; cursor:text;">{{user_profile.business_title}}</span> </td>
 						</tr>
 					</table>
-
-
 				</div>
-
-
-
 			</div>
-
-
 		</div>
 	</div>
 	<div class="text-right" style="margin-right: 5px;">
-		<button onclick="window.print();" title="Print Invoice"
-			class="btn btn-primary btn-curve d-print-none">
-			<i class="fas fa-print"></i>
-		</button>
-		<a href="{% url 'invoices' %}" class="btn btn-danger" title="Cancel Invoice"><i class="fas fa-cancel"></i></a>
+		<button onclick="window.print();" title="Print Invoice" class="btn btn-primary btn-curve d-print-none"><i class="fas fa-print"></i></button>
+		{% if invoice_data.customer_phone %}
+			<button onclick="shareInvoiceWhatsApp();" title="Send to customer on WhatsApp" class="btn btn-success btn-curve d-print-none"><i class="fab fa-whatsapp"></i></button>
+		{% endif %}
+		{% if has_employees %}
+			<button onclick="mapInvoiceToEmployee();" class="btn btn-warning btn-curve d-print-none" title="{% if assigned_employee %}Assigned to {{ assigned_employee.name }} — tap to change{% else %}Relate this invoice to a staff member{% endif %}">
+				<i class="fas fa-user-tag"></i>{% if assigned_employee %} <span class="d-none d-md-inline">{{ assigned_employee.name }}</span>{% endif %}
+			</button>
+		{% endif %}
+		<button onclick="invoiceToQuotation();" class="btn btn-info btn-curve d-print-none" title="Convert this invoice back to a quotation"><i class="fas fa-exchange-alt"></i> <span class="d-none d-md-inline">To Quotation</span></button>
+		<a href="{% url 'invoices' %}" class="btn btn-danger btn-curve d-print-none" title="Cancel Invoice"><i class="fas fa-times"></i></a>
 	</div>
+
+	<!-- Convert this invoice back to a quotation: delete-&-move, or keep-&-duplicate. -->
+	<script>
+		var invoiceToQuotationApi = "{% url 'invoice_to_quotation' invoice.id %}";
+		function invoiceToQuotation() {
+			Swal.fire({
+				title: '<i class="fas fa-exchange-alt" style="color:#17a2b8;margin-right:8px;"></i>Convert to Quotation',
+				html: '<div style="text-align:left;font-size:14px;line-height:1.5">'
+					+ '<p style="margin:0 0 12px"><b>Delete &amp; convert</b> removes this invoice — reversing its stock and books — and turns it back into a draft quotation.</p>'
+					+ '<p style="margin:0"><b>Duplicate as quotation</b> keeps this invoice as-is and creates a separate draft quotation copy.</p>'
+					+ '</div>',
+				showDenyButton: true,
+				showCancelButton: true,
+				confirmButtonText: '<i class="fas fa-trash-alt"></i> Delete &amp; convert',
+				denyButtonText: '<i class="fas fa-copy"></i> Duplicate as quotation',
+				cancelButtonText: 'Cancel',
+				confirmButtonColor: '#dc3545',
+				denyButtonColor: '#17a2b8',
+			}).then(function (r) {
+				var mode = null;
+				if (r.isConfirmed) { mode = 'move'; }
+				else if (r.isDenied) { mode = 'copy'; }
+				if (!mode) { return; }
+				Swal.fire({ title: 'Working…', allowOutsideClick: false, didOpen: function(){ Swal.showLoading(); } });
+				var body = new FormData();
+				body.append('mode', mode);
+				fetch(invoiceToQuotationApi, {
+					method: 'POST',
+					headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+					body: body
+				})
+				.then(function (res) { return res.json(); })
+				.then(function (d) {
+					if (!d.success) { Swal.fire('Error', d.message || 'Conversion failed.', 'error'); return; }
+					Swal.fire({ icon: 'success', title: 'Done', text: d.message, confirmButtonColor: '#17a2b8' })
+						.then(function () {
+							if (d.mode === 'move') { window.location.href = "{% url 'quotations' %}"; }
+							else { window.location.href = '/quotation/' + d.quotation_id + '/'; }
+						});
+				})
+				.catch(function () { Swal.fire('Error', 'Server error. Try again.', 'error'); });
+			});
+		}
+	</script>
+
+	<!-- C14: one-tap WhatsApp share to the customer (free wa.me click-to-chat, no API). -->
+	<script>
+		function shareInvoiceWhatsApp() {
+			var phone = "{{ invoice_data.customer_phone|default:''|escapejs }}".replace(/\D/g, '');
+			if (!phone) { alert('No customer phone number on this invoice.'); return; }
+			if (phone.length === 10) { phone = '91' + phone; }   // default to India country code
+			var lines = [
+				"Hello {{ invoice_data.customer_name|default:''|escapejs }},",
+				"",
+				"Invoice {% if invoice.is_gst %}#{{ invoice.invoice_number }}{% else %}INV-{{ invoice.invoice_number }}{% endif %} dated {{ invoice.invoice_date }}",
+				"Amount: {{ currency }} {{ invoice_data.invoice_total_amt_with_gst|floatformat:2 }}",
+				"",
+				"Thank you for your business.",
+				"{{ user_profile.business_title|default:''|escapejs }}{% if user_profile.business_phone %} | {{ user_profile.business_phone|escapejs }}{% endif %}"
+			];
+			window.open("https://wa.me/" + phone + "?text=" + encodeURIComponent(lines.join("\n")), "_blank");
+		}
+	</script>
+
+{% if debug_mode %}
+	{% csrf_token %}
+	<!-- Debug JSON editor. d-print-none: never appears on a printout/PDF. -->
+	<div class="card mt-4 border-warning d-print-none" id="jsonDebugPanel">
+		<div class="card-header bg-warning d-flex justify-content-between align-items-center">
+			<strong><i class="fas fa-code"></i> Invoice JSON — Debug Editor</strong>
+			<span class="badge badge-dark">debug mode</span>
+		</div>
+		<div class="card-body">
+			<div class="alert alert-secondary py-2" style="font-size:0.85em;">
+				<i class="fas fa-info-circle"></i>
+				Totals are <strong>recomputed from the items</strong> on save. Editing here changes the
+				<strong>document only</strong> — tick <em>Re-reflect</em> to also update stock &amp; ledger.
+				Changing a line's model&nbsp;no / name / HSN / GST% and re-reflecting will be refused
+				(the product can't be matched).
+			</div>
+
+			<textarea id="jsonEditor" class="form-control" spellcheck="false"
+				style="font-family:monospace; font-size:0.8em; min-height:340px; white-space:pre;">{{ invoice_json_pretty }}</textarea>
+
+			<div class="d-flex flex-wrap align-items-center mt-2" style="gap:10px;">
+				<span id="jsonStatus" class="badge badge-success">valid JSON</span>
+
+				<div class="custom-control custom-checkbox">
+					<input type="checkbox" class="custom-control-input" id="reflectCheck">
+					<label class="custom-control-label" for="reflectCheck">Re-reflect inventory &amp; books</label>
+				</div>
+
+				<div class="ml-auto d-flex" style="gap:8px;">
+					<button class="btn btn-sm btn-outline-secondary" onclick="prettifyJson()"><i class="fas fa-align-left"></i> Prettify</button>
+					<button class="btn btn-sm btn-outline-secondary" onclick="revertJson()"><i class="fas fa-undo"></i> Revert edits</button>
+					{% if has_backup %}
+						<button class="btn btn-sm btn-outline-danger" onclick="restoreOriginal()"><i class="fas fa-history"></i> Restore original</button>
+					{% endif %}
+					<button class="btn btn-sm btn-success" id="jsonSaveBtn" onclick="saveJson()"><i class="fas fa-save"></i> Save</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{% endif %}
 
 {% endblock %}
 {% block includejs %}
 <script src="https://unpkg.com/qr-code-styling/lib/qr-code-styling.js"></script>
 <script>
-	// UPI QR Code Generation
-    const upiQR = document.getElementById("upi_qr").getAttribute("data-upi_id");
-    const qr = new QRCodeStyling({
-        width: 100,
-        height: 100,
-        data: upiQR,
-		image: "{% static 'gstbillingapp/images/MS-exact.jpg' %}",
-		imageOptions: {
-			crossOrigin: "anonymous",
-			margin: 1,
-			imageSize: 0.5
-		},
-        dotsOptions: { color: "#000", type: "rounded" }
-    });
-    qr.append(document.getElementById("upi_qr"));
+	{% if has_employees %}
+		// Credit this invoice to one of the business's own staff (local Employee model).
+		var assignEmployeeApi = "{% url 'invoice_assign_employee' invoice.id %}";
+		function mapInvoiceToEmployee() {
+			Swal.fire({ title: 'Loading staff…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+			fetch(assignEmployeeApi)
+				.then(res => res.json())
+				.then(data => {
+					if (!data.employees || data.employees.length === 0) {
+						Swal.fire('No staff', 'Add employees first to relate invoices to them.', 'info');
+						return;
+					}
+					var currentId = data.current ? String(data.current.id) : '';
+					var options = data.employees.map(e =>
+						'<option value="' + e.id + '"' + (String(e.id) === currentId ? ' selected' : '') + '>' + e.name + (e.shared ? ' (Shared)' : '') + '</option>'
+					).join('');
+
+					Swal.fire({
+						title: '<i class="fas fa-user-tag" style="color:#667eea;margin-right:8px;"></i>Relate to staff',
+						html: `
+							<div style="text-align:left;margin-top:12px;">
+								<label style="font-weight:600;font-size:13px;color:#666;margin-bottom:6px;display:block;">Employee</label>
+								<select id="swal-employee" class="swal2-input" style="width:100%;margin:0;">
+									<option value="">— None (clear) —</option>
+									${options}
+								</select>
+							</div>
+							<div style="margin-top:16px;padding:12px 14px;background:#f8f9ff;border-radius:10px;border:1px solid #e5e5ea;text-align:left;font-size:13px;">
+								<div style="margin-bottom:6px;"><strong>Invoice:</strong> {% if invoice.is_gst %}{{ invoice.invoice_number }}{% else %}INV-{{ invoice.invoice_number }}{% endif %}</div>
+								<div style="margin-bottom:6px;"><strong>Date:</strong> {{ invoice.invoice_date }}</div>
+								<div><strong>Amount:</strong> {{ currency }} {{ invoice_data.invoice_total_amt_with_gst|floatformat:2 }}</div>
+							</div>
+						`,
+						showCancelButton: true,
+						confirmButtonText: '<i class="fas fa-check"></i> Save',
+						confirmButtonColor: '#667eea',
+						cancelButtonText: 'Cancel',
+						focusConfirm: false,
+						preConfirm: () => document.getElementById('swal-employee').value
+					}).then(result => {
+							if (!result.isConfirmed) return;
+							Swal.fire({ title: 'Saving…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+							fetch(assignEmployeeApi, {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+								body: JSON.stringify({ employee_id: result.value })
+							})
+							.then(res => res.json())
+							.then(resp => {
+								if (resp.error) { Swal.fire('Error', resp.error, 'error'); return; }
+								if (resp.cleared) {
+									Swal.fire({ icon: 'success', title: 'Cleared', text: 'This invoice is no longer related to anyone.', confirmButtonColor: '#667eea' })
+										.then(() => location.reload());
+								} else {
+									Swal.fire({ icon: 'success', title: resp.reassigned ? 'Updated' : 'Related',
+										text: 'Invoice related to ' + resp.employee.name + '.', confirmButtonColor: '#667eea' })
+										.then(() => location.reload());
+								}
+							})
+							.catch(() => Swal.fire('Error', 'Server error. Try again.', 'error'));
+						});
+					})
+				.catch(() => Swal.fire('Error', 'Failed to load staff.', 'error'));
+		}
+	{% endif %}
 
 	// UPI QR Code Generation without amount
     const upiQR_new = document.getElementById("upi_qr_new").getAttribute("data-upi_id");
@@ -306,5 +465,102 @@
 		dotsOptions: { color: "#000", type: "rounded" }
 	});
     qr_new.append(document.getElementById("upi_qr_new"));
+
+{% if debug_mode %}
+	/* ============ Invoice JSON Debug Editor ============ */
+	var JSON_ORIGINAL_TEXT = document.getElementById('jsonEditor').value;  // as first rendered
+	var SAVE_URL = "{% url 'invoice_json_save' invoice.id %}";
+	var RESTORE_URL = "{% url 'invoice_json_restore' invoice.id %}";
+
+	function debugCsrf() { return '{{ csrf_token }}'; }
+
+	/* Live valid/invalid indicator. */
+	function checkJsonValidity() {
+		var el = document.getElementById('jsonEditor');
+		var status = document.getElementById('jsonStatus');
+		var btn = document.getElementById('jsonSaveBtn');
+		try {
+			JSON.parse(el.value);
+			status.className = 'badge badge-success';
+			status.textContent = 'valid JSON';
+			btn.disabled = false;
+			return true;
+		} catch (e) {
+			status.className = 'badge badge-danger';
+			status.textContent = 'invalid JSON: ' + e.message;
+			btn.disabled = true;
+			return false;
+		}
+	}
+	document.getElementById('jsonEditor').addEventListener('input', checkJsonValidity);
+
+	function prettifyJson() {
+		if (!checkJsonValidity()) return;
+		var el = document.getElementById('jsonEditor');
+		el.value = JSON.stringify(JSON.parse(el.value), null, 2);
+	}
+
+	function revertJson() {
+		document.getElementById('jsonEditor').value = JSON_ORIGINAL_TEXT;
+		checkJsonValidity();
+	}
+
+	function saveJson() {
+		if (!checkJsonValidity()) {
+			Swal.fire('Invalid JSON', 'Fix the JSON before saving.', 'error');
+			return;
+		}
+		var reflect = document.getElementById('reflectCheck').checked;
+		var body = { json: document.getElementById('jsonEditor').value, reflect: reflect };
+
+		Swal.fire({ title: 'Saving...', allowOutsideClick: false, didOpen: function(){ Swal.showLoading(); } });
+
+		fetch(SAVE_URL, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', 'X-CSRFToken': debugCsrf() },
+			body: JSON.stringify(body)
+		})
+		.then(function(r){ return r.json().catch(function(){ return { success: false, message: 'Bad response' }; }); })
+		.then(function(d){
+			if (!d.success) { Swal.fire('Not saved', d.message || 'Save failed.', 'error'); return; }
+			var t = d.totals || {};
+			Swal.fire({
+				icon: 'success',
+				title: 'Saved',
+				html: (d.message || '') +
+					'<br><small>Grand Total: ₹ ' + (t.grand_total != null ? t.grand_total : '-') + '</small>',
+			}).then(function(){ window.location.reload(); });
+		})
+		.catch(function(){ Swal.fire('Error', 'Network error. Nothing saved.', 'error'); });
+	}
+
+	function restoreOriginal() {
+		Swal.fire({
+			title: 'Restore original?',
+			html: 'This replaces the current invoice with the <strong>original</strong> version.',
+			icon: 'warning',
+			showCancelButton: true,
+			confirmButtonText: 'Restore',
+			confirmButtonColor: '#d33',
+			input: 'checkbox',
+			inputPlaceholder: 'Also re-reflect inventory &amp; books'
+		}).then(function(res){
+			if (!res.isConfirmed) return;
+			var reflect = !!res.value;
+			Swal.fire({ title: 'Restoring...', allowOutsideClick: false, didOpen: function(){ Swal.showLoading(); } });
+			fetch(RESTORE_URL, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'X-CSRFToken': debugCsrf() },
+				body: JSON.stringify({ reflect: reflect })
+			})
+			.then(function(r){ return r.json().catch(function(){ return { success:false, message:'Bad response' }; }); })
+			.then(function(d){
+				if (!d.success) { Swal.fire('Not restored', d.message || 'Restore failed.', 'error'); return; }
+				Swal.fire('Restored', d.message || '', 'success').then(function(){ window.location.reload(); });
+			})
+			.catch(function(){ Swal.fire('Error', 'Network error. Nothing changed.', 'error'); });
+		});
+	}
+{% endif %}
 </script>
 {% endblock %}

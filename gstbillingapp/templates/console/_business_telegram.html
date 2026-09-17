@@ -1,0 +1,122 @@
+{% comment %}Console → business page: the Telegram switch and this business's chat ids.
+The business picks WHICH reports and WHEN on each report's own page.{% endcomment %}
+<div class="section open">
+  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-send"/></svg></span>
+    <div><h3 class="disp">Telegram reports</h3><div class="sd">Daily reports to this business's own Telegram group(s), through SyncUp's bot</div></div></div>
+  <div class="body">
+    {% if not tg.relay_ready %}
+    <div class="cmsg bad" style="margin:0 0 12px"><svg class="gico"><use href="#i-alert"/></svg>
+      <div>Nothing is sent yet — turn on <b>Send Telegram reports</b> under <a href="{% url 'console_syncup' %}">Settings</a>.</div></div>
+    {% endif %}
+
+    <p style="font-size:13.5px;margin:0 0 13px">
+      {% if tg.enabled %}<span class="gbadge ok">On</span>
+        This business may send its reports to the chat ids below.
+      {% else %}<span class="gbadge grey">Off</span>
+        The Telegram button on its report pages is disabled.
+      {% endif %}
+    </p>
+    <form method="post" action="{% url 'console_business_telegram' b.user.id %}">
+      {% csrf_token %}
+      <button class="gbtn"><svg class="gico"><use href="#i-power"/></svg>
+        {% if tg.enabled %}Turn Telegram off{% else %}Turn Telegram on{% endif %}</button>
+    </form>
+
+    <form method="post" action="{% url 'console_business_telegram_logins' b.user.id %}" style="margin-top:14px">
+      {% csrf_token %}
+      <label class="gtoggle" style="display:flex;margin:0 0 6px"><input type="checkbox" name="login_alerts" value="1" {% if tg.row.login_alerts %}checked{% endif %}> Login notifications</label>
+      <div class="h mut" style="font-size:12px;margin:0 0 8px">
+        Announces every sign-in — the owner on the desktop, and customers and employees opening
+        the app — with who, when and on what device. Console sign-ins are never announced, and a
+        visit to the app alerts once, not once per screen. The business then picks which logins
+        it wants, and which of its groups hear them, on its own Profile page.
+      </div>
+      <button class="gbtn gbtn-sm" {% if not tg.enabled %}disabled{% endif %}><svg class="gico"><use href="#i-ok"/></svg> Save</button>
+      {% if tg.row.login_alerts %}<span class="mut" style="font-size:12.5px;margin-left:8px">
+        Business chose: {% if tg.row.notify_desktop %}desktop{% endif %}{% if tg.row.notify_desktop and tg.row.notify_mobile %} + {% endif %}{% if tg.row.notify_mobile %}mobile{% endif %}{% if not tg.row.notify_desktop and not tg.row.notify_mobile %}nothing yet{% endif %}.
+      </span>{% endif %}
+    </form>
+
+    <div style="border-top:1px solid var(--line);margin:20px 0 14px"></div>
+    <div style="font-weight:700;font-size:14px;margin:0 0 4px">Chat ids</div>
+    <p class="mut" style="font-size:13px;margin:0 0 12px">
+      Add as many as this business needs. Our bot must be in the group first — then read the id
+      from SyncUp → Telegram → <b>Discover</b> and paste it here. A business never sees or types
+      an id itself; it only chooses which of these a report goes to.
+    </p>
+
+    {% if tg.chats %}
+    <div class="list" style="margin-bottom:12px">
+      {% for c in tg.chats %}
+      <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)">
+        <span style="flex:1 1 220px;min-width:0">
+          <span class="b">{{ c.label|default:"(no label)" }}</span>
+          <code class="mut" style="font-size:12px">{{ c.chat_id }}</code>
+          {% if not c.is_active %}<span class="gbadge grey">Off</span>{% endif %}
+          <div class="mut" style="font-size:12px">
+            {% if c.last_error %}<span style="color:#c50f1f">{{ c.last_error }}</span>
+            {% elif c.last_ok_at %}Last delivered {{ c.last_ok_at|date:"d M Y, H:i" }}
+            {% else %}Not used yet — send a test.{% endif %}</div>
+        </span>
+        <form method="post" action="{% url 'console_business_telegram_chat_test' b.user.id c.id %}">
+          {% csrf_token %}<button class="gbtn gbtn-sm" {% if not tg.relay_ready %}disabled{% endif %}>Send test</button>
+        </form>
+        <form method="post" action="{% url 'console_business_telegram_chat_toggle' b.user.id c.id %}">
+          {% csrf_token %}<button class="gbtn gbtn-sm">{% if c.is_active %}Turn off{% else %}Turn on{% endif %}</button>
+        </form>
+        <form method="post" action="{% url 'console_business_telegram_chat_delete' b.user.id c.id %}"
+              onsubmit="return confirm('Remove this chat id? Reports that use only it stop arriving.')">
+          {% csrf_token %}<button class="gbtn gbtn-sm gbtn-danger">Remove</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'console_business_telegram_chat_add' b.user.id %}"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      {% csrf_token %}
+      <input class="control" name="chat_id" placeholder="-1001234567890" required style="width:190px" aria-label="Chat id">
+      <input class="control" name="label" placeholder="Owner group" maxlength="40" style="width:170px" aria-label="Label">
+      <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-plus"/></svg> Add chat id</button>
+    </form>
+
+    {% if tg.reusable %}
+    <div class="mut" style="font-size:12.5px;margin:12px 0 6px">
+      …or use a group we already have — for an owner whose businesses all report to one place.
+      Nothing is typed, so the id can't come out wrong.
+    </div>
+    <form method="post" action="{% url 'console_business_telegram_chat_reuse' b.user.id %}"
+          style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      {% csrf_token %}
+      <select class="control" name="chat_id" required style="width:370px" aria-label="Existing group">
+        <option value="">Pick an existing group…</option>
+        {% for r in tg.reusable %}
+        <option value="{{ r.chat_id }}">{{ r.label|default:r.chat_id }} · {{ r.chat_id }} · used by {{ r.used_by }}</option>
+        {% endfor %}
+      </select>
+      <input class="control" name="label" placeholder="Label here (optional)" maxlength="40" style="width:170px" aria-label="Label for this business">
+      <button class="gbtn"><svg class="gico"><use href="#i-plus"/></svg> Use this group</button>
+    </form>
+    {% endif %}
+
+    {% if tg.reports %}
+    <div style="border-top:1px solid var(--line);margin:20px 0 14px"></div>
+    <div style="font-weight:700;font-size:14px;margin:0 0 4px">What this business has scheduled</div>
+    <div class="list">
+      {% for r in tg.reports %}
+      <div class="row" style="padding:6px 0">
+        <span class="b">{{ r.label }}{% if r.row.days %} · {{ r.row.days }} days{% endif %}</span>
+        <span class="mut" style="font-size:12.5px">
+          {{ r.row.send_at|time:"H:i" }} · {{ r.chats|default:"no chat id" }}
+          {% if not r.row.enabled %}· paused{% endif %}
+          {% if r.row.last_sent_on %}· last {{ r.row.last_sent_on|date:"d M" }}{% endif %}
+          {% if r.row.last_status %}· {{ r.row.last_status }}{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="mut" style="font-size:12px;margin:8px 0 0">Set by the business on each report's own page.</p>
+    {% endif %}
+  </div>
+</div>

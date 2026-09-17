@@ -1,7 +1,9 @@
 # Django imports
+import csv
 from django.utils import timezone
 from django.contrib import messages
-from django.http import JsonResponse
+from django.core.paginator import Paginator
+from django.http import JsonResponse, HttpResponse
 from django.db.models.functions import Abs, Cast
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Case, When, FloatField, F, Q
@@ -11,11 +13,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from ..models import (
     PurchaseLog, VendorPurchase
 )
-
-# Forms
 from ..forms import (
     PurchaseLogForm
 )
+from ..utils import (
+    get_change_type_change,
+    get_vendor_instance
+)
+
 # Third-party libraries
 import num2words
 import json
@@ -40,6 +45,8 @@ def purchases_logs(request):
     total_balance = abs(total_purchased) - (abs(total_paid) + abs(total_returned) + abs(total_others))
     # Calculate balance (absolute value if you want it always positive)
     context['total_balance'] = total_balance
+    if total_balance < 0:
+        context['balance_status'] = 'Excess Paid'
     context['total_balance_word'] = num2words.num2words(abs(int(context['total_balance'])), lang='en_IN').title()
     context['total_purchased'] = abs(total_purchased)
     context['total_paid'] = abs(total_paid)
@@ -55,20 +62,69 @@ def purchases_logs(request):
         purchases_logs = purchases_logs.filter(change_type=3)
     else:
         purchases_logs = purchases_logs.filter(Q(change_type=0) | Q(change_type=1) | Q(change_type=2) | Q(change_type=3))
-    context['purchases'] = purchases_logs    
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        purchases_logs = purchases_logs.filter(Q(reference__icontains=q) | Q(vendor__vendor_name__icontains=q))
+    paginator = Paginator(purchases_logs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    context['purchases'] = page_obj
+    context['page_obj'] = page_obj
+    context['total_count'] = paginator.count
+    context['querystring'] = params.urlencode()
+    context['q'] = q
+    context['active_filter'] = request.GET.get('filter', '')
     return render(request, 'purchases/purchases.html', context)
+
+
+@login_required
+def purchases_logs_export(request):
+    logs = PurchaseLog.objects.filter(user=request.user).select_related('vendor').order_by('-date')
+    f = request.GET.get('filter')
+    fmap = {'paid': 0, 'purchased': 1, 'returned': 2, 'others': 3}
+    if f in fmap:
+        logs = logs.filter(change_type=fmap[f])
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        logs = logs.filter(Q(reference__icontains=q) | Q(vendor__vendor_name__icontains=q))
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="purchases.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Type', 'Amount', 'Reference', 'Vendor'])
+    for p in logs:
+        writer.writerow([
+            p.date.strftime('%Y-%m-%d %H:%M') if p.date else '',
+            p.get_change_type_display(), p.change, p.reference or '',
+            p.vendor.vendor_name if p.vendor else '',
+        ])
+    return response
 
 @login_required
 def purchases_logs_overdue(request):
-    return render(request, 'purchases/purchases_overdue.html')
+    context = {}
+    context['vendor'] = VendorPurchase.objects.filter(user=request.user) \
+        .values_list('vendor_name', flat=True) \
+        .distinct() \
+        .exclude(vendor_name__isnull=True) \
+        .exclude(vendor_name__exact='')
+    return render(request, 'purchases/purchases_overdue.html', context)
 
 @login_required
 def purchases_logs_overdue_api(request):
-    purchases = (
-        PurchaseLog.objects
-        .filter(user=request.user)
-        .order_by('date')
-    )
+    vendor = request.GET.get('vendor')
+    if vendor:
+        purchases = (
+            PurchaseLog.objects
+            .filter(user=request.user, vendor__vendor_name=vendor)
+            .order_by('date')
+        )
+    else:
+        purchases = (
+            PurchaseLog.objects
+            .filter(user=request.user)
+            .order_by('date')
+        )
     totals = purchases.aggregate(
         total_paid=Sum(Case(When(change_type=0, then=F('change')), output_field=FloatField())),
         total_purchased=Sum(Case(When(change_type=1, then=F('change')), output_field=FloatField())),
@@ -112,6 +168,7 @@ def purchases_logs_overdue_api(request):
             'category': log.category,
             'reference': log.reference,
             'amount': invoice_amount,
+            'vendor': log.vendor.vendor_name if log.vendor else '',
             'overdue_days': log.overdue_days,
             'payment_pending': log.payment_pending,
             'remaining_amount': log.remaining_amount if log.payment_pending else 0,
@@ -124,8 +181,8 @@ def purchases_logs_overdue_api(request):
 @login_required
 def purchases_logs_add(request):
     context = {}
-    context['categories'] = PurchaseLog.objects.filter(user=request.user).values_list('category', flat=True).distinct().exclude(category__isnull=True).exclude(category__exact='')
-    context['references'] = PurchaseLog.objects.filter(user=request.user).values_list('reference', flat=True).distinct().exclude(reference__isnull=True).exclude(reference__exact='')
+    context['categories'] = PurchaseLog.objects.filter(user=request.user).values_list('category', flat=True).distinct().exclude(category__isnull=True).exclude(category__exact='').order_by('category')
+    context['references'] = PurchaseLog.objects.filter(user=request.user).values_list('reference', flat=True).distinct().exclude(reference__isnull=True).exclude(reference__exact='').order_by('reference')
     context['form'] = PurchaseLogForm()
         
     if request.method == "POST":
@@ -136,7 +193,6 @@ def purchases_logs_add(request):
             purchase = form.save(commit=False)
             purchase.user = request.user
             purchase.change = get_change_type_change(request.POST.get('change_type'), request.POST.get('change'))
-            # purchase.vendor = get_vendor_instance(request.POST.get('vendor'), request)
             purchase.save()
             return redirect('purchases_logs')
     return render(request,'purchases/purchase_add.html',context)
@@ -146,20 +202,6 @@ def purchases_logs_delete(request,pid):
     if pid:
         purchases_obj = get_object_or_404(PurchaseLog, user=request.user, id=pid)
         purchases_obj.delete()
+    if request.GET.get('vendor'):
+        return redirect('purchases_vendor_logs', vendor_purchase_id=request.GET.get('vendor'))
     return redirect('purchases_logs')
-
-# ================= Utilities ====================================
-def get_change_type_change(change_type, change):
-    if change_type == '1':  # Purchased
-        if int(change) > 0:
-            change = -int(change)
-    else:
-        change = abs(int(change))
-    return change
-
-def get_vendor_instance(vendor, request):
-    if vendor == '':
-        vendor_instance = None
-    else:
-        vendor_instance = VendorPurchase.objects.get(user=request.user, id=vendor)
-    return vendor_instance

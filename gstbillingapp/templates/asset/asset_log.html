@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+{% load money %}
+{% load tz %}
+{% block title %}Asset Logs · GSTSync{% endblock %}
+
+{% block includecss %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'gstbillingapp/gstsync.css' %}?v={{ ASSET_VER }}">
+{% endblock %}
+
+{% block content %}
+<div class="gs">
+    <div class="page-head">
+        <div>
+            <div class="eyebrow"><a href="{% url 'assets' %}">Assets</a> › Logs</div>
+            <h1 class="disp">{{ asset.name }}</h1><div class="sub">{{ total_count }} log{{ total_count|pluralize }}</div>
+        </div>
+        <div class="actions">
+            <a href="{% url 'asset_log_export' asset.id %}{% if querystring %}?{{ querystring }}{% endif %}" class="gbtn"><i class="fas fa-file-arrow-down"></i> Export</a>
+            <a href="{% url 'asset_log_add' asset.id %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add log</a>
+        </div>
+    </div>
+
+    <div class="gstats">
+        <a href="?filter=debit" class="gstat red {% if active_filter == 'debit' %}on{% endif %}">
+            <div class="gk"><span class="dot"></span> Total Debit</div><div class="gv">₹ {{ total_debit|default:0|inrs }}</div></a>
+        <a href="?filter=credit" class="gstat green {% if active_filter == 'credit' %}on{% endif %}">
+            <div class="gk"><span class="dot"></span> Total Credit</div><div class="gv">₹ {{ total_credit|default:0|inrs }}</div></a>
+        <div class="gstat blue"><div class="gk"><span class="dot"></span> Counts</div><div class="gv">+{{ total_credit_count }} · −{{ total_debit_count }}</div></div>
+    </div>
+
+    <form method="get" class="toolbar">
+        <div class="search"><i class="fas fa-magnifying-glass gico"></i>
+            <input type="text" name="q" value="{{ q }}" placeholder="Search category, description…" autocomplete="off"></div>
+        <select class="selctl" onchange="if(this.value)location.href='?category='+encodeURIComponent(this.value); else location.href='{% url 'asset_log' asset.id %}';">
+            <option value="">All categories</option>
+            {% for category in categories %}<option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>{% endfor %}
+        </select>
+        {% if active_filter or selected_category or q %}<a href="{% url 'asset_log' asset.id %}" class="gbtn">Clear</a>{% endif %}
+    </form>
+
+    <div class="tablecard">
+        <div class="tbl-scroll">
+        <table class="gt">
+            <thead><tr>
+                <th>Date</th><th>Transaction</th><th class="r">Amount</th><th>Category</th><th class="r">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.date|localtime|date:"M d, Y" }}<div class="mn">{{ log.date|naturaltime }}</div></td>
+                    <td>{% if log.change_type == 0 %}<span class="gbadge ok">{{ log.get_change_type_display }}</span>{% else %}<span class="gbadge out">{{ log.get_change_type_display }}</span>{% endif %}</td>
+                    <td class="r num">{% if log.change %}₹ {{ log.change|inrs }}{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td>{% if log.category %}<span class="tag2">{{ log.category }}</span>{% else %}<span class="mut">—</span>{% endif %}</td>
+                    <td class="r"><div class="rowacts">
+                        <button type="button" class="gbtn gbtn-icon" title="Description" onclick="showDescription('{{ log.description|escapejs }}')"><i class="fas fa-circle-info"></i></button>
+                        <button type="button" class="gbtn gbtn-icon del" title="Delete" onclick="deleteLog('{% url 'asset_log_delete' log.id %}')"><i class="fas fa-trash"></i></button>
+                    </div></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5"><div class="empty">
+                    <div class="ei"><i class="fas fa-clock-rotate-left fa-lg"></i></div>
+                    <h3>No logs found</h3>
+                    <p>{% if q or active_filter or selected_category %}Try clearing the filters.{% else %}Add the first log for this asset.{% endif %}</p>
+                    {% if q or active_filter or selected_category %}<a href="{% url 'asset_log' asset.id %}" class="gbtn">Clear filters</a>{% else %}<a href="{% url 'asset_log_add' asset.id %}" class="gbtn gbtn-primary"><i class="fas fa-plus"></i> Add log</a>{% endif %}
+                </div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% include "gs/_pager.html" %}
+    </div>
+</div>
+{% endblock %}
+
+{% block includejs %}
+<script>
+function showDescription(description){
+    Swal.fire({ title:'Log Description', text: description || 'No description provided.', icon:'info', confirmButtonText:'Close' });
+}
+function deleteLog(url){
+    Swal.fire({ title:'Delete log?', text:'This cannot be undone.', icon:'warning',
+        showCancelButton:true, confirmButtonText:'Delete', confirmButtonColor:'#e11d48', cancelButtonText:'Cancel'
+    }).then(function(r){ if(r.isConfirmed){ window.location.href = url; } });
+}
+</script>
+{% endblock %}
