@@ -1382,6 +1382,18 @@ def transaction_report(request):
     if txn_type not in valid_types:
         txn_type = 'purchased'
 
+    # Outstanding filter: all customers / only those with dues / only settled.
+    outstanding_filter = request.GET.get('outstanding', 'all')
+    if outstanding_filter not in ('all', 'due', 'settled'):
+        outstanding_filter = 'all'
+
+    # Sort order for the customer rows.
+    sort_by = request.GET.get('sort', 'amount_desc')
+    valid_sorts = ['amount_desc', 'amount_asc', 'outstanding_desc',
+                   'outstanding_asc', 'name_asc', 'name_desc']
+    if sort_by not in valid_sorts:
+        sort_by = 'amount_desc'
+
     # Parse dates
     try:
         start_date = datetime.strptime(date_from, '%Y-%m-%d').date() if date_from else None
@@ -1408,39 +1420,77 @@ def transaction_report(request):
         'returned': 'Returns',
         'others': 'Others',
     }
+    outstanding_labels = {
+        'all': 'All customers',
+        'due': 'With outstanding dues',
+        'settled': 'Settled (no dues)',
+    }
 
     # --- Query ---
     books = Book.objects.filter(user=user).select_related('customer')
 
     customer_rows = []
     grand_total = 0.0
+    total_outstanding_shown = 0.0
 
     for book in books:
         if not book.customer:
             continue
 
-        log_filter = Q(parent_book=book, is_active=True, change_type__in=change_types)
-        if start_date:
-            log_filter &= Q(date__date__gte=start_date)
-        if end_date:
-            log_filter &= Q(date__date__lte=end_date)
+        # One fetch per book: the type/date amount AND the (all-time) outstanding.
+        logs = list(BookLog.objects.filter(parent_book=book, is_active=True))
 
-        logs = BookLog.objects.filter(log_filter)
-        total_amount = sum(abs(log.change) for log in logs)
+        # Amount for the selected type within the date range.
+        total_amount = 0.0
+        for log in logs:
+            if log.change_type not in change_types:
+                continue
+            log_date = log.date.date() if hasattr(log.date, 'date') else log.date
+            if start_date and log_date < start_date:
+                continue
+            if end_date and log_date > end_date:
+                continue
+            total_amount += abs(log.change)
 
         if total_amount <= 0:
             continue
 
+        # Outstanding (canonical, all-time): purchased - (paid + returned + other).
+        # Matches the BI dashboard / AR aging definition; > 0 means the customer owes.
+        purchased = sum(abs(l.change) for l in logs if l.change_type == 1)
+        paid = sum(abs(l.change) for l in logs if l.change_type == 0)
+        returned = sum(abs(l.change) for l in logs if l.change_type == 2)
+        other = sum(abs(l.change) for l in logs if l.change_type == 3)
+        outstanding = round(purchased - (paid + returned + other), 2)
+
+        # Apply the outstanding filter.
+        if outstanding_filter == 'due' and outstanding <= 0.01:
+            continue
+        if outstanding_filter == 'settled' and outstanding > 0.01:
+            continue
+
         grand_total += total_amount
+        if outstanding > 0:
+            total_outstanding_shown += outstanding
 
         customer_rows.append({
             'book_id': book.id,
             'name': book.customer.customer_name,
             'phone': book.customer.customer_phone or '-',
             'amount': round(total_amount, 2),
+            'outstanding': outstanding,
         })
 
-    customer_rows.sort(key=lambda x: x['amount'], reverse=True)
+    sort_keys = {
+        'amount_desc':      (lambda x: x['amount'], True),
+        'amount_asc':       (lambda x: x['amount'], False),
+        'outstanding_desc': (lambda x: x['outstanding'], True),
+        'outstanding_asc':  (lambda x: x['outstanding'], False),
+        'name_asc':         (lambda x: (x['name'] or '').lower(), False),
+        'name_desc':        (lambda x: (x['name'] or '').lower(), True),
+    }
+    key_func, reverse = sort_keys[sort_by]
+    customer_rows.sort(key=key_func, reverse=reverse)
 
     context = {
         'user_profile': user_profile,
@@ -1449,6 +1499,10 @@ def transaction_report(request):
         'total_customers': len(customer_rows),
         'txn_type': txn_type,
         'type_label': type_labels.get(txn_type, 'All Transactions'),
+        'outstanding_filter': outstanding_filter,
+        'outstanding_label': outstanding_labels.get(outstanding_filter, 'All customers'),
+        'total_outstanding_shown': round(total_outstanding_shown, 2),
+        'sort_by': sort_by,
         'date_from': date_from,
         'date_to': date_to,
         'report_date': today,
