@@ -1387,6 +1387,9 @@ def transaction_report(request):
     if outstanding_filter not in ('all', 'due', 'settled'):
         outstanding_filter = 'all'
 
+    # Whether to display the Outstanding column + KPI (off by default).
+    show_outstanding = request.GET.get('show_outstanding', '0') == '1'
+
     # Sort order for the customer rows.
     sort_by = request.GET.get('sort', 'amount_desc')
     valid_sorts = ['amount_desc', 'amount_asc', 'outstanding_desc',
@@ -1502,6 +1505,7 @@ def transaction_report(request):
         'outstanding_filter': outstanding_filter,
         'outstanding_label': outstanding_labels.get(outstanding_filter, 'All customers'),
         'total_outstanding_shown': round(total_outstanding_shown, 2),
+        'show_outstanding': '1' if show_outstanding else '0',
         'sort_by': sort_by,
         'date_from': date_from,
         'date_to': date_to,

@@ -54,6 +54,12 @@
             <option value="settled" {% if outstanding_filter == 'settled' %}selected{% endif %}>Settled</option>
         </select>
 
+        <label for="showOutstanding" style="cursor:pointer">
+            <input type="hidden" name="show_outstanding" value="0">
+            <input type="checkbox" id="showOutstanding" name="show_outstanding" value="1" {% if show_outstanding == '1' %}checked{% endif %} onchange="document.getElementById('filterForm').submit()">
+            Show column
+        </label>
+
         <label for="dateFrom"><i class="fas fa-calendar"></i> From</label>
         <input type="date" id="dateFrom" name="from" value="{{ date_from }}" onchange="document.getElementById('filterForm').submit()">
 
@@ -87,10 +93,12 @@
             <span class="si g"><i class="fas fa-exchange-alt"></i></span>
             <div><div class="sv">{{ type_label }}</div><div class="sk">Transaction type</div></div>
         </div>
+        {% if show_outstanding == '1' %}
         <div class="stat">
             <span class="si o"><i class="fas fa-hand-holding-dollar"></i></span>
             <div><div class="sv">&#8377; {{ total_outstanding_shown|inrs }}</div><div class="sk">Outstanding (dues)</div></div>
         </div>
+        {% endif %}
     </div>
 
     <div class="rsec"><i class="fas fa-table"></i> {{ type_label }}
@@ -107,7 +115,7 @@
                 <th>Customer Name</th>
                 <th>Phone</th>
                 <th class="r">Amount (&#8377;)</th>
-                <th class="r">Outstanding (&#8377;)</th>
+                {% if show_outstanding == '1' %}<th class="r">Outstanding (&#8377;)</th>{% endif %}
             </tr></thead>
             <tbody>
                 {% for c in customer_rows %}
@@ -119,13 +127,15 @@
                     </td>
                     <td><span class="mut">{{ c.phone }}</span></td>
                     <td class="r"><span class="num">&#8377; {{ c.amount|inrs }}</span></td>
+                    {% if show_outstanding == '1' %}
                     <td class="r">
                         {% if c.outstanding > 0 %}<span class="num" style="color:var(--rd,#dc2626)">&#8377; {{ c.outstanding|inrs }}</span>
                         {% else %}<span class="mut">&#8377; 0</span>{% endif %}
                     </td>
+                    {% endif %}
                 </tr>
                 {% empty %}
-                <tr><td colspan="5"><div class="empty">
+                <tr><td colspan="{% if show_outstanding == '1' %}5{% else %}4{% endif %}"><div class="empty">
                     <div class="ei"><i class="fas fa-inbox fa-lg"></i></div>
                     <h3>No transactions found</h3>
                     <p>No transactions match the selected filters.</p>
@@ -137,7 +147,7 @@
                     <td></td>
                     <td colspan="2">TOTAL ({{ total_customers }} customers)</td>
                     <td class="r"><span class="num">&#8377; {{ grand_total|inrs }}</span></td>
-                    <td class="r"><span class="num">&#8377; {{ total_outstanding_shown|inrs }}</span></td>
+                    {% if show_outstanding == '1' %}<td class="r"><span class="num">&#8377; {{ total_outstanding_shown|inrs }}</span></td>{% endif %}
                 </tr>
                 {% endif %}
             </tbody>
