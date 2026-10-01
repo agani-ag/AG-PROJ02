@@ -6,8 +6,8 @@ class GstbillingappConfig(AppConfig):
     name = 'gstbillingapp'
 
     def ready(self):
-        # Connects the hook that switches off a deleted employee's SyncUp login.
-        from . import staff  # noqa: F401
+        # Keeps every row pointed at the person holding its number (identity.py).
+        from . import identity_hooks  # noqa: F401
         # Connects the hooks that queue SyncUp messages (bills, payments, orders).
         from . import syncup_messages  # noqa: F401
         # Connects the desktop sign-in hook that announces logins to Telegram.

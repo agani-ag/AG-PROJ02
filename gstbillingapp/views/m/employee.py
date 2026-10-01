@@ -16,7 +16,7 @@ from ...utils import recalculate_book_current_balance, round_to_rupee, calculate
 from ...templatetags.money import format_inr
 from ._paged import PAGE, invoice_page, ledger_page
 from ...mobile_auth import label_accounts
-from ...parties import members, party_for, row_is_visible
+from ...appusers import customer_rows, row_is_visible
 from ...syncup_app import customer_invite
 from ...syncup_messages import approve_pending_payment, delete_booklog
 
@@ -46,14 +46,14 @@ def _brand_nav(request, c):
     switcher. Each entry carries that row's own id, so switching opens the right record
     instead of reusing this row's id (which would 404 at another brand).
 
-    "Same customer" means mapped to one Party by a platform admin - nothing is guessed from
-    phone, GSTIN or name (a shared office phone used to open the wrong customer). Usually
-    that's one row per brand; a brand holding two of their rows (two shops) gets a chip for
+    "Same customer" means the same mobile number — the one thing that identifies a person
+    (identity.py) — plus the other branches of a shop whose contact is the owner's own.
+    Usually that's one row per brand; a brand holding several of their shops gets a chip for
     each, labelled exactly as the customer's own app labels them. The template shows the
     switcher only when there's more than one entry."""
     order = {b.id: i for i, b in enumerate(request.mobile_actor.get("businesses", []))}
-    party = party_for(c)
-    rows = [r for r in members(party) if r.user_id in order] if party is not None else []
+    person = c.app_user
+    rows = [r for r in customer_rows(person) if r.user_id in order] if person is not None else []
     if not any(r.id == c.id for r in rows):
         rows.append(c)
     rows.sort(key=lambda r: (order.get(r.user_id, len(order)), r.id))

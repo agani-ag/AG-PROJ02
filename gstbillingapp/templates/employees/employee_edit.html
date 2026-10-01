@@ -37,6 +37,12 @@
                 <div class="field"><label>Email</label><input type="email" name="email" value="{{ form.email.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %}></div>
                 <div class="field"><label>Phone</label><input type="tel" name="phone" pattern="^$|^[6-9][0-9]{9}$" value="{{ form.phone.value|default:'' }}" {% if posting and not posting.is_home %}readonly{% endif %}></div>
                 <div class="field"><label>Address</label><textarea name="address" rows="3" {% if posting and not posting.is_home %}readonly{% endif %}>{{ form.address.value|default:'' }}</textarea></div>
+                {% if posting.is_home or not posting %}
+                <div class="field full">
+                    <label class="gtoggle"><input type="checkbox" name="is_mobile_user" {% if form.is_mobile_user.value|default_if_none:True %}checked{% endif %}> Mobile app access</label>
+                    <div class="h">Lets them open the SyncUp staff app with this number. Off and they stay an employee here — they just can't open the app.</div>
+                </div>
+                {% endif %}
             </div></div>
         </div>
 
@@ -59,7 +65,7 @@
                 </div>
                 <div class="field full">
                     <label class="gtoggle"><input type="checkbox" name="is_active" {% if posting.is_active or not posting %}checked{% endif %}> Active</label>
-                    {% if posting.is_home or not posting %}<div class="h">Turning this off also stops their app login and any app link you've copied for them.</div>{% endif %}
+                    {% if posting.is_home or not posting %}<div class="h">Whether they still work here. Off also stops their app login and any app link you've copied for them.</div>{% endif %}
                 </div>
             </div></div>
         </div>

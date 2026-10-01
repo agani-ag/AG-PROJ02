@@ -10,6 +10,10 @@ from .models import (
 
 
 class CustomerForm(ModelForm):
+    """The customer's own mobile number is their identity in the app (identity.py), so this
+    form is where it has to be right: one 10-digit Indian mobile, belonging to this customer
+    alone within the business."""
+
     class Meta:
         model = Customer
         fields = ['customer_name', 'customer_address', 'customer_phone', 'customer_gst', 'customer_email',
@@ -23,8 +27,41 @@ class CustomerForm(ModelForm):
         # Scope the customer bank-account choices to this business's own records only.
         user = kwargs.pop('user', None)
         super(CustomerForm, self).__init__(*args, **kwargs)
+        self.business = user
+        # Accept it as people write it ("+91 98765 43210"); clean_customer_phone stores the
+        # bare 10 digits, so the model's own 14-char limit never sees the spacing.
+        self.fields['customer_phone'].max_length = None
+        self.fields['customer_phone'].validators = []
         qs = BankDetails.objects.filter(whom_account=1)
         self.fields['bankdetails'].queryset = qs.filter(user=user) if user is not None else qs.none()
+
+    def clean_customer_phone(self):
+        from .identity import clean_mobile, mobile_error
+        raw = self.cleaned_data.get('customer_phone') or ''
+        error = mobile_error(raw, required=True)
+        if error:
+            raise forms.ValidationError(error)
+        return clean_mobile(raw)        # stored bare: 10 digits, no +91, no spaces
+
+    def clean_customer_email(self):
+        from .identity import clean_email
+        raw = (self.cleaned_data.get('customer_email') or '').strip()
+        if raw and not clean_email(raw):
+            raise forms.ValidationError('Enter a valid email address.')
+        return clean_email(raw) or None
+
+    def clean(self):
+        """One number, one customer per business."""
+        from .identity import customer_clash
+        data = super().clean()
+        if self.business is None:
+            return data
+        message, _other = customer_clash(self.business, mobile=data.get('customer_phone') or '',
+                                         email=data.get('customer_email') or '',
+                                         customer=self.instance if self.instance.pk else None)
+        if message:
+            raise forms.ValidationError(message)
+        return data
 
 class ProductForm(ModelForm):
      # These three are free-text "tag" fields. Declared explicitly as CharFields so
@@ -230,4 +267,4 @@ class ChequeLeafForm(ModelForm):
 class EmployeeForm(ModelForm):
     class Meta:
         model = Employee
-        fields = ['name', 'email', 'phone', 'address', 'is_active']
+        fields = ['name', 'email', 'phone', 'address', 'is_active', 'is_mobile_user']

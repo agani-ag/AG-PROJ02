@@ -184,7 +184,7 @@ def cleanup(request):
 # --------------------------------------------------------------------------- #
 @cron_endpoint
 def syncup(request):
-    """Re-send any customer or employee login whose SyncUp state fell behind - a push that
+    """Re-send any app login whose SyncUp state fell behind - a push that
     failed or hit its short time limit while a business was changing access. Logins already
     in step cost no network call, so a frequent schedule is cheap.
 
@@ -192,14 +192,13 @@ def syncup(request):
     summary, weekly overdue, tile subtitles), sends the outbox, and looks up Approve / Reject
     answers whose callback never arrived. Telegram reports whose time has come are queued in
     the same run (see telegram_reports.py)."""
-    from . import parties, staff, syncup_messages, telegram_reports
+    from . import appusers, syncup_messages, telegram_reports
     from .syncup_client import is_configured
     if not is_configured():
         return JsonResponse({"ok": True, "skipped": "not_configured"})
     try:
         with job_lock("syncup"):
-            out = {"ok": True, "customers": parties.retry_pending(),
-                   "employees": staff.retry_pending()}
+            out = {"ok": True, "logins": appusers.retry_pending()}
             scheduled = syncup_messages.run_schedules()
             # Telegram reports are queued first, so anything due goes out in this same run.
             out["telegram"] = telegram_reports.run_due()

@@ -40,7 +40,8 @@
                     <td>{% if p.is_home %}<span class="gbadge blue">Own</span>{% else %}<span class="gbadge grey">Shared</span><div class="mn">from {{ p.employee.business.userprofile.business_brand|default:p.employee.business.userprofile.business_title|default:p.employee.business.username }}</div>{% endif %}</td>
                     <td class="r num">{% if p.attendance_eligible %}{% if p.salary %}₹ {{ p.salary|inrs }}{% else %}<span class="mut">—</span>{% endif %}{% else %}<span class="gbadge grey">Not on payroll</span>{% endif %}</td>
                     <td>{% if p.is_admin %}<span class="gbadge blue">Admin</span>{% else %}<span class="mut">—</span>{% endif %}</td>
-                    <td>{% if p.is_active %}<span class="gbadge ok">Active</span>{% else %}<span class="gbadge grey">Inactive</span>{% endif %}</td>
+                    <td>{% if p.is_active %}<span class="gbadge ok">Active</span>{% else %}<span class="gbadge grey">Inactive</span>{% endif %}
+                        {% if not p.employee.is_mobile_user %}<span class="gbadge grey">No app</span>{% endif %}</td>
                     <td class="r"><div class="rowacts">
                         <a href="{% url 'employee_edit' p.id %}" class="gbtn gbtn-icon" title="Edit"><i class="fas fa-pen-to-square"></i></a>
                         <a href="{% url 'employee_salary' p.id %}" class="gbtn gbtn-icon" title="Attendance &amp; Salary"><i class="fas fa-wallet"></i></a>

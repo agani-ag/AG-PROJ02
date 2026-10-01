@@ -54,20 +54,6 @@
   </div>
 
   <div class="section open">
-    <div class="sh"><span class="si v"><svg class="gico"><use href="#i-key"/></svg></span>
-      <div><h3 class="disp">Customer logins</h3><div class="sd">The sign-in email each customer gets</div></div></div>
-    <div class="body">
-      <div class="row2">
-        <div class="field"><label for="login_domain">Login domain</label>
-          <input id="login_domain" class="control" name="login_domain" value="{{ form.login_domain }}"
-                 {% if locked %}readonly style="background:var(--wash)"{% endif %}>
-          <div class="h">Logins look like <b>gsp12@{{ form.login_domain|default:"gstsync.app" }}</b> — for signing in only; nothing is ever mailed to them.
-            {% if locked %}Locked: logins have already been issued with it.{% endif %}</div></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="section open">
     <div class="sh"><span class="si g"><svg class="gico"><use href="#i-team"/></svg></span>
       <div><h3 class="disp">SyncUp app on Google Play</h3><div class="sd">Shown on the landing page, the business dashboard &amp; profile, and shared by staff</div></div></div>
     <div class="body">

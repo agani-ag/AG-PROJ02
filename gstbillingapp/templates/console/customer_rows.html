@@ -1,0 +1,59 @@
+{% extends "console/base.html" %}
+{% comment %}Every customer row, business by business — the same people seen the other way
+round from the combined list. Read-only: a row is corrected by its own business.{% endcomment %}
+{% block title %}Business customers{% endblock %}
+{% block nav_cust %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{% url 'console_customers' %}">Customers</a> / Business customers</div>
+    <h1 class="disp">Business customers</h1>
+    <div class="sub">Every row as its business keeps it · <b>{{ shared_count }}</b> of them belong to someone another business also has</div>
+  </div>
+</div>
+
+<form method="get" class="toolbar">
+  <select class="control" name="biz" onchange="this.form.submit()" style="width:220px" aria-label="Business">
+    <option value="">Every business</option>
+    {% for b in businesses %}
+    <option value="{{ b.id }}" {% if biz == b.id %}selected{% endif %}>{{ b.userprofile.business_brand|default:b.userprofile.business_title|default:b.username }}</option>
+    {% endfor %}
+  </select>
+  <input class="control" name="q" value="{{ q }}" placeholder="Name or mobile number…" autocomplete="off">
+  <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-search"/></svg> Search</button>
+  {% if q or biz %}<a href="?" class="gbtn">Clear</a>{% endif %}
+  <a class="gbtn" href="{% url 'console_customers' %}">All customers</a>
+</form>
+
+<div class="tablecard ctable">
+  <div class="tbl-scroll">
+  <table class="gt ct">
+    <thead><tr>
+      <th>Business</th><th>Customer</th><th>Mobile</th><th>Same person as</th><th class="r">In the app</th>
+    </tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="hd"><b>{{ r.brand }}</b></td>
+        <td data-l="Customer">{{ r.row.customer_name }}
+          {% if r.row.customer_place %}<div class="mut sm">{{ r.row.customer_place }}</div>{% endif %}</td>
+        <td data-l="Mobile"><code>{{ r.row.customer_phone|default:"—" }}</code></td>
+        <td data-l="Same person as">
+          {% if r.person %}<a href="{% url 'console_person' r.person.id %}">{{ r.person.name|default:r.person.sign_in }}</a>
+            {% if r.shared %}<span class="gbadge ok">shared</span>{% endif %}
+          {% else %}<span class="mut sm">no usable number</span>{% endif %}</td>
+        <td class="r" data-l="In the app">
+          {% if r.visible %}<span class="gbadge ok">Shown</span>
+          {% else %}<span class="gbadge grey">Hidden</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="emptycell"><div class="empty">
+        <h3>No customer rows</h3><p>{% if q or biz %}Nothing matches that.{% else %}No business has added a customer yet.{% endif %}</p>
+      </div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

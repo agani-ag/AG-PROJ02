@@ -1,0 +1,103 @@
+{% extends "console/base.html" %}
+{% comment %}One person: what they sign in with, what they reach, and their login.
+Replaces the old Party page — there is nothing to map, merge or ungroup any more.{% endcomment %}
+{% block title %}{{ person.name|default:person.sign_in }}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{% url 'console_customers' %}">People</a> / {{ person.name|default:person.sign_in }}</div>
+    <h1 class="disp">{{ person.name|default:person.sign_in }}</h1>
+    <div class="sub">Signs in with <b>{{ person.mobile|default:person.email|default:"nothing yet" }}</b>
+      {% if person.mobile and person.email %}· also {{ person.email }}{% endif %}
+      {% if person.app_opens %}· opened the app {{ person.app_opens }} time{{ person.app_opens|pluralize }}{% if person.last_open_at %}, last {{ person.last_open_at|date:"d M Y, H:i" }}{% endif %}{% endif %}</div>
+  </div>
+  <div class="actions">
+    {% if person.connection == 'not_enabled' %}<span class="gbadge low">Waiting on them</span>
+    {% elif person.connection == 'disabled' %}<span class="gbadge out">They turned it off</span>
+    {% elif person.login_status == 'active' %}<span class="gbadge ok">Login active</span>
+    {% elif person.login_status == 'inactive' %}<span class="gbadge out">Login off</span>
+    {% else %}<span class="gbadge grey">No login</span>{% endif %}
+  </div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-user"/></svg></span>
+    <div><h3 class="disp">Ledgers</h3><div class="sd">Every business holding this number — each bills and collects on its own row</div></div></div>
+  <div class="body">
+    <div class="tablecard ctable">
+      <div class="tbl-scroll">
+      <table class="gt ct">
+        <thead><tr><th>Business</th><th>Row</th><th>Place</th><th class="r">In the app</th></tr></thead>
+        <tbody>
+          {% for c in rows_seen %}
+          <tr>
+            <td class="hd"><a href="{% url 'console_business_detail' c.user.id %}"><b>{{ c.user.userprofile.business_brand|default:c.user.userprofile.business_title|default:c.user.username }}</b></a>
+              {% if c.branch_of %}<div class="mut sm">Branch of {{ c.branch_of.customer_name }}</div>{% endif %}</td>
+            <td data-l="Row">{{ c.customer_name }}</td>
+            <td data-l="Place">{{ c.customer_place|default:"—" }}</td>
+            <td class="r" data-l="In the app">
+              {% if c in visible_rows %}<span class="gbadge ok">Shown</span>
+              {% else %}<span class="gbadge grey">Hidden</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="emptycell"><div class="empty"><h3>No ledgers</h3>
+            <p>No business holds this number on a customer row.</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if postings %}
+<div class="section open">
+  <div class="sh"><span class="si g"><svg class="gico"><use href="#i-team"/></svg></span>
+    <div><h3 class="disp">Works at</h3><div class="sd">Each business sets its own role and status</div></div></div>
+  <div class="body">
+    <div class="list">
+      {% for p in postings %}
+      <div class="row" style="padding:7px 0">
+        <a href="{% url 'console_business_detail' p.business.id %}"><b>{{ p.business.userprofile.business_brand|default:p.business.userprofile.business_title|default:p.business.username }}</b></a>
+        <span class="mut" style="font-size:12.5px">{{ p.employee.name }}{% if p.is_admin %} · Admin{% endif %}{% if p.is_home %} · home{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="section open">
+  <div class="sh"><span class="si v"><svg class="gico"><use href="#i-key"/></svg></span>
+    <div><h3 class="disp">App login</h3><div class="sd">Opens by itself · one login for everything above</div></div></div>
+  <div class="body">
+    {% if blockers %}
+    {% for b in blockers %}<div class="warnbox"><svg class="gico"><use href="#i-alert"/></svg><div>{{ b }}</div></div>{% endfor %}
+    {% endif %}
+    {% if person.syncup_error %}
+    <div class="cmsg bad"><svg class="gico"><use href="#i-alert"/></svg><div>{{ person.syncup_error }}</div></div>
+    {% endif %}
+    {% if person.connection == 'not_enabled' %}
+    <div class="cmsg"><svg class="gico"><use href="#i-alert"/></svg><div>
+      This number already had a SyncUp account before we sent it — somebody else's app, or their
+      own sign-up. The account stays theirs, so our tile only appears once <b>they</b> switch this
+      business on in SyncUp. Nothing to do here; nothing is broken.</div></div>
+    {% elif person.connection == 'disabled' %}
+    <div class="cmsg"><svg class="gico"><use href="#i-alert"/></svg><div>
+      They switched this business off in their own app. Their ledgers stay here; the tile is
+      hidden until they switch it back on.</div></div>
+    {% endif %}
+    <p class="mut" style="font-size:13px;margin:0">
+      {% if person.login_status == 'active' %}{% if person.connection != 'not_enabled' %}Opened
+        {{ person.login_issued_at|date:"d M Y" }}.{% endif %}
+        They sign in with <b>{{ person.sign_in }}</b>; their password started as that same number
+        and they can change it in the app.
+      {% elif blockers %}Not open yet — see above. It opens by itself once there is something to show them.
+      {% else %}Opening on the next sync — nothing to do here.{% endif %}
+    </p>
+  </div>
+</div>
+
+<p><a href="{% url 'console_customers' %}" class="gbtn"><svg class="gico"><use href="#i-back"/></svg> All people</a></p>
+{% endblock %}

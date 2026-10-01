@@ -1,0 +1,84 @@
+{% extends "console/base.html" %}
+{% comment %}The people who use the app — the same screen for customers and for staff.
+
+A person is a mobile number: nothing is issued and nothing is mapped here, so the screen is a
+list and a search. The counts sit in one line under the title rather than in three cards —
+numbers nobody can act on don't deserve a third of the page.
+{% endcomment %}
+{% block title %}{{ title }}{% endblock %}
+{% block nav_cust %}{% if not staff_side %}on{% endif %}{% endblock %}
+{% block nav_staff %}{% if staff_side %}on{% endif %}{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1 class="disp">{{ title }}</h1>
+    <div class="sub">
+      <b>{{ count_all }}</b> {% if staff_side %}working for a business{% else %}with a ledger in a business{% endif %} ·
+      <b>{{ count_login }}</b> can open the app{% if count_waiting %} ·
+      <b>{{ count_waiting }}</b> have to switch us on themselves{% endif %} ·
+      <b>{{ count_shared }}</b> in more than one business
+    </div>
+  </div>
+  <div class="actions">
+    {% if not staff_side %}<a class="gbtn" href="{% url 'console_customer_rows' %}">
+      <svg class="gico"><use href="#i-shop"/></svg> Business customers</a>{% endif %}
+  </div>
+</div>
+
+{% if problem_count %}
+<div class="warnbox" style="margin-bottom:14px">
+  <svg class="gico"><use href="#i-alert"/></svg>
+  <div><b>{{ problem_count }} row{{ problem_count|pluralize }} can't be matched to a person</b> —
+    a number that isn't a 10-digit mobile, or one sitting on two customers of the same business.
+    Those customers have no app access until their business fixes the number.
+    <a href="{% url 'console_problems' %}">See the list</a>.</div>
+</div>
+{% endif %}
+
+<form method="get" class="toolbar">
+  <input class="control" name="q" value="{{ q }}" placeholder="Name, mobile number or email…" autocomplete="off">
+  <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-search"/></svg> Search</button>
+  {% if q %}<a href="?" class="gbtn">Clear</a>{% endif %}
+</form>
+
+<div class="tablecard ctable">
+  <div class="tbl-scroll">
+  <table class="gt ct">
+    <thead><tr>
+      <th>Person</th><th>Signs in with</th>
+      <th>{% if staff_side %}Works at{% else %}Businesses{% endif %}</th>
+      <th class="r">{% if not staff_side %}Owed{% endif %}</th><th class="r">App</th>
+    </tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="hd"><a href="{% url 'console_person' r.person.id %}"><b>{{ r.person.name|default:r.person.sign_in }}</b></a>
+          {% if not staff_side %}<div class="mut sm">{{ r.visible }} of {{ r.rows|length }} ledger{{ r.rows|length|pluralize }} shown in the app</div>{% endif %}</td>
+        <td data-l="Signs in with"><code>{{ r.person.mobile|default:r.person.email|default:"—" }}</code></td>
+        <td data-l="Businesses">{{ r.brands|join:", "|default:"—" }}
+          {% if r.brands|length > 1 %}<span class="gbadge ok">shared</span>{% endif %}</td>
+        <td class="r" data-l="Owed">{% if not staff_side %}{% if r.owed %}&#8377; {{ r.owed }}{% else %}<span class="mut">—</span>{% endif %}{% endif %}</td>
+        <td class="r" data-l="App">
+          {% if r.person.connection == 'not_enabled' %}<span class="gbadge low"
+            title="The number already had a SyncUp account, so they switch us on from their side">Their turn</span>
+          {% elif r.person.connection == 'disabled' %}<span class="gbadge out"
+            title="They switched this business off in their app">They turned it off</span>
+          {% elif r.person.login_status == 'active' %}<span class="gbadge ok">Open</span>
+          {% elif r.person.login_status == 'inactive' %}<span class="gbadge out">Off</span>
+          {% else %}<span class="mut sm">Opening…</span>{% endif %}
+          {% if r.person.syncup_error %}<span class="gbadge out" title="{{ r.person.syncup_error }}">Sync</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="emptycell"><div class="empty">
+        <h3>Nobody here yet</h3>
+        <p>{% if q %}Nothing matches that search.{% else %}A person appears here once a business puts their mobile number on a {% if staff_side %}staff record{% else %}customer{% endif %}.{% endif %}</p>
+        {% if q %}<a href="?" class="gbtn">Clear search</a>{% endif %}
+      </div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

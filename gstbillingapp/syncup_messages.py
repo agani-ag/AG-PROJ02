@@ -25,10 +25,10 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from . import syncup_client
-from .models import (BalanceConfirmation, Book, BookLog, BusinessNotifications, Customer,
-                     Employee, EmployeePosting, Invoice, Party, Quotation, StaffLogin,
-                     SyncUpJobRun, SyncUpMessage, SyncUpSettings, TelegramChat, TelegramReport)
-from .parties import party_for, row_is_visible
+from .models import (AppUser, BalanceConfirmation, Book, BookLog, BusinessNotifications,
+                     Customer, Employee, EmployeePosting, Invoice, Quotation, SyncUpJobRun,
+                     SyncUpMessage, SyncUpSettings, TelegramChat, TelegramReport)
+from .appusers import row_is_visible
 from .templatetags.money import format_inr
 
 log = logging.getLogger(__name__)
@@ -155,26 +155,27 @@ def queue(*, business, event, external_id, title, body="", url="", dedupe,
 # ---- who gets it ---------------------------------------------------------------------------
 def customer_target(customer):
     """The customer's SyncUp id — only with an active login and this row shown in the app."""
-    party = party_for(customer)
-    if party is not None and party.login_status == Party.LOGIN_ACTIVE and row_is_visible(customer):
-        return party.external_id
+    person = customer.app_user
+    if person is not None and person.login_status == AppUser.LOGIN_ACTIVE and row_is_visible(customer):
+        return person.external_id
     return None
 
 
 def staff_target(employee):
-    if employee is None or not employee.is_active:
+    if employee is None or not employee.is_active or employee.app_user is None:
         return None
-    login = StaffLogin.objects.filter(employee=employee, login_status=StaffLogin.LOGIN_ACTIVE).first()
-    return login.external_id if login else None
+    person = employee.app_user
+    return person.external_id if person.login_status == AppUser.LOGIN_ACTIVE else None
 
 
 def _staff_postings(business, admins_only=False):
     qs = EmployeePosting.objects.filter(
         business=business, is_active=True, employee__is_active=True,
-        employee__staff_login__login_status=StaffLogin.LOGIN_ACTIVE).select_related("employee")
+        employee__app_user__login_status=AppUser.LOGIN_ACTIVE).select_related(
+            "employee", "employee__app_user")
     if admins_only:
         qs = qs.filter(is_admin=True)
-    return [(p.employee, "employee-%d" % p.employee_id) for p in qs]
+    return [(p.employee, p.employee.app_user.external_id) for p in qs]
 
 
 def admin_targets(business):
@@ -450,10 +451,10 @@ def refresh_tiles(clear=False):
     """Put "₹… due · N shops" on each customer's GSTSync tile — only where it changed. With
     `clear`, remove the subtitles instead (the setting was switched off). Returns how many
     changed, or None if SyncUp stopped answering (the rest wait for the next run)."""
-    from .parties import app_link, visible_rows
+    from .appusers import app_link, visible_rows
     updated = 0
-    parties = Party.objects.exclude(tile_text="") if clear else Party.objects.filter(
-        login_status=Party.LOGIN_ACTIVE)
+    parties = AppUser.objects.exclude(tile_text="") if clear else AppUser.objects.filter(
+        login_status=AppUser.LOGIN_ACTIVE)
     for party in parties:
         rows = [] if clear else visible_rows(party)
         if not clear and not rows:
@@ -461,7 +462,7 @@ def refresh_tiles(clear=False):
         text = "" if clear else _tile_text(party, rows)
         if text == party.tile_text:
             continue
-        if party.login_status == Party.LOGIN_ACTIVE:
+        if party.login_status == AppUser.LOGIN_ACTIVE:
             try:
                 syncup_client.update_app_link(party.external_id, url=app_link(party),
                                               description=text, timeout=syncup_client.QUICK_TIMEOUT)
@@ -470,7 +471,7 @@ def refresh_tiles(clear=False):
                 if e.status is None:
                     return None
                 continue
-        Party.objects.filter(pk=party.pk).update(tile_text=text)
+        AppUser.objects.filter(pk=party.pk).update(tile_text=text)
         updated += 1
     return updated
 
@@ -481,7 +482,7 @@ def run_schedules(now=None):
     if not cfg.is_configured:
         return {}
     out = {}
-    if not (ready(cfg) and cfg.tile_due) and Party.objects.exclude(tile_text="").exists():
+    if not (ready(cfg) and cfg.tile_due) and AppUser.objects.exclude(tile_text="").exists():
         out["tiles_cleared"] = refresh_tiles(clear=True)          # switched off since
     if not ready(cfg):
         return {k: v for k, v in out.items() if v is not None}
@@ -665,11 +666,12 @@ def apply_answer(request_id, value):
     if not SyncUpMessage.objects.filter(pk=m.pk, answered_at__isnull=True).update(
             answered_at=_now(), answer=str(value)[:20]):
         return "ignored"
-    emp_id = m.external_id.split("-", 1)[1] if m.external_id.startswith("employee-") else ""
-    still_admin = emp_id.isdigit() and EmployeePosting.objects.filter(
-        employee_id=int(emp_id), business=m.business, is_admin=True, is_active=True,
-        employee__is_active=True,
-        employee__staff_login__login_status=StaffLogin.LOGIN_ACTIVE).exists()
+    # The prompt was sent to a person (SyncUp's "user-N"); they may since have lost Admin.
+    person_id = m.external_id.split("-", 1)[1] if m.external_id.startswith("user-") else ""
+    still_admin = person_id.isdigit() and EmployeePosting.objects.filter(
+        employee__app_user_id=int(person_id), business=m.business, is_admin=True,
+        is_active=True, employee__is_active=True,
+        employee__app_user__login_status=AppUser.LOGIN_ACTIVE).exists()
     if not still_admin:
         return "not an admin any more"
     if value not in ("approved", "rejected"):

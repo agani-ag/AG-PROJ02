@@ -1,25 +1,22 @@
 """
 Signed-token auth + account resolution for the mobile web pages (/m/).
 
-gstbilling mints an unforgeable Django-signed token identifying a Party (one real shop
-owner), a single Customer row, or an Employee:
+One link per PERSON. gstbilling mints an unforgeable Django-signed token naming an AppUser —
+whoever holds that mobile number (see identity.py) — and the same link opens whatever they
+have:
 
-  * Party — the customer rows a platform admin mapped together (see parties.py). Only
-    rows whose business has the customer app on AND whose own mobile toggle is on are
-    visible. This is the token the SyncUp app's link carries.
-  * Customer row (older links) — that one row, in its own business only. It never
-    expands to other businesses: GSTINs are printed on every invoice, so any business could
-    put another business's customer's GSTIN on a row of its own. A shared GSTIN proves
-    nothing; only the admin's mapping links businesses.
-  * Employee — the businesses they're posted to (falls back to the home business).
+  * their **ledgers**, one per customer row that a business shows them (the business's
+    customer-app switch and the row's own Mobile toggle);
+  * the **staff app**, at each business they hold an active posting with.
 
-A customer's screens are scoped to one ACCOUNT: one of their visible customer rows.
-Usually that's one row per business, but a business can hold two rows for the same owner
-(two shops, two firms), and each is its own ledger — so the customer switches between
-rows, not businesses. `?acct=<row id>` picks one (validated against the person's own
-rows); the older `?biz=<id>` still works and picks that business's account. Employees
-switch businesses with `?biz=`. The `v` version stamp is enforced so bumping the record's
-version revokes one link and its live session.
+Someone can have both, and the link lands them in the right place either way (views/m/entry).
+
+A customer's screens are scoped to one ACCOUNT: one of their visible rows — one per business
+that holds their number, each its own ledger, so they switch between rows rather than
+businesses. `?acct=<row id>` picks one
+(validated against their own rows); the older `?biz=<id>` still works and picks that
+business's account. Employees switch businesses with `?biz=`. The `v` stamp is enforced, so
+bumping the person's token_version revokes their link and its live session at once.
 """
 from collections import defaultdict
 import logging
@@ -29,8 +26,8 @@ from django.core import signing
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
 
-from .models import Customer, Employee, Party, UserProfile
-from .parties import row_is_visible, visible_rows
+from . import appusers
+from .models import AppUser, Customer, UserProfile
 
 _log = logging.getLogger(__name__)
 
@@ -45,16 +42,10 @@ _COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 
 
 # ---------------- minting ----------------
-def mint_customer_token(customer):
-    return signing.dumps({"r": "c", "id": customer.id, "v": customer.mobile_token_version}, salt=_SALT)
-
-
-def mint_employee_token(employee):
-    return signing.dumps({"r": "emp", "id": employee.id, "v": employee.token_version}, salt=_SALT)
-
-
-def mint_party_token(party):
-    return signing.dumps({"r": "p", "id": party.id, "v": party.token_version}, salt=_SALT)
+def mint_user_token(person):
+    """The one link a person gets. It opens their ledgers or the staff app — whichever they
+    have — and dies when their login is re-issued or switched off (token_version)."""
+    return signing.dumps({"r": "u", "id": person.id, "v": person.token_version}, salt=_SALT)
 
 
 def verify_mobile_token(token, max_age=None):
@@ -108,39 +99,16 @@ def label_accounts(rows):
 
 # ---------------- identity + accessibility ----------------
 def _load_identity(payload):
-    if not payload:
+    """The person this token names — None if it is stale, revoked or switched off."""
+    if not payload or payload.get("r") != "u":
         return None
-    role, rid, ver = payload.get("r"), payload.get("id"), payload.get("v")
-    if role == "p":
-        party = Party.objects.filter(id=rid).first()
-        if party and party.login_status == Party.LOGIN_ACTIVE and party.token_version == ver:
-            return {"role": "customer", "party": party, "primary": None}
-    elif role == "c":
-        c = Customer.objects.select_related("user").filter(id=rid).first()
-        if c and c.user and c.mobile_token_version == ver:
-            return {"role": "customer", "primary": c}
-    elif role == "emp":
-        emp = Employee.objects.select_related("business").filter(id=rid, is_active=True).first()
-        if emp and emp.token_version == ver:
-            return {"role": "employee", "employee": emp}
+    person = AppUser.objects.filter(id=payload.get("id")).first()
+    # A SyncUp-provisioned login OR a GSTSync-native web quick-login is enough; both are
+    # revoked by bumping token_version, so an old/copied link stops working either way.
+    if (person and person.token_version == payload.get("v")
+            and (person.login_status == AppUser.LOGIN_ACTIVE or person.web_login)):
+        return person
     return None
-
-
-def _accessible(identity):
-    """Return (business Users, visible customer rows). Rows are empty for employees."""
-    if identity["role"] == "employee":
-        return list(identity["employee"].covered_businesses()), []
-    if identity.get("party") is not None:
-        rows = visible_rows(identity["party"])          # ordered by business, then row
-    else:
-        # An older single-row link: that row only, and only while its business shows it.
-        primary = identity["primary"]
-        rows = [primary] if row_is_visible(primary) else []
-    # No business left means every one has switched this customer off - the caller shows
-    # the "deactivated" screen rather than "expired".
-    businesses = list(User.objects.filter(id__in={r.user_id for r in rows})
-                      .select_related("userprofile").order_by("id"))
-    return businesses, rows
 
 
 def _pick_account(request, rows, req_biz):
@@ -163,7 +131,7 @@ def _pick_account(request, rows, req_biz):
     return at_biz[0] if at_biz else rows[0]
 
 
-def resolve_mobile_actor(request):
+def resolve_mobile_actor(request, role=None):
     # Priority: a fresh ?t= link → the durable m_auth cookie → the legacy session.
     token = request.GET.get("t") or request.COOKIES.get(_COOKIE)
     payload = verify_mobile_token(token)
@@ -173,28 +141,38 @@ def resolve_mobile_actor(request):
         request._mobile_token = token
 
     if not identity:
-        # Backward-compat: sessions established before the m_auth cookie existed.
-        kind, rid = request.session.get("m_kind"), request.session.get("m_id")
-        if kind and rid is not None:
-            identity = _load_identity({"r": kind, "id": rid, "v": request.session.get("m_v")})
-
-    if not identity:
         # No/invalid/expired token or a revoked link — ask them to reopen from the app.
         request._mobile_denied = "expired"
         return None
 
-    businesses, rows = _accessible(identity)
-    if not businesses:
-        # The person is known, but every business has turned their mobile access off.
-        # That's a deactivation, not an expiry — tell them to contact the business.
+    person = identity
+    rows = appusers.visible_rows(person)
+    posts = appusers.postings(person)
+    if not rows and not posts:
+        # The person is known, but every business has switched them off. That's a
+        # deactivation, not an expiry — tell them to contact the business.
         request._mobile_denied = "deactivated"
         return None
+    # Which side of the app: what the view asked for, else whatever they have (staff first,
+    # because an employee who is also a customer somewhere opens the staff app by habit).
+    want = role or ("employee" if posts else "customer")
+    if want == "employee" and not posts:
+        request._mobile_denied = "expired"
+        return None
+    if want == "customer" and not rows:
+        request._mobile_denied = "expired"
+        return None
 
+    # One person can hold two staff records at one business; the business is listed once.
+    businesses = (list({p.business_id: p.business for p in posts}.values())
+                  if want == "employee" else
+                  list(User.objects.filter(id__in={r.user_id for r in rows})
+                       .select_related("userprofile").order_by("id")))
     by_biz = {b.id: b for b in businesses}
     req_biz = request.GET.get("biz")
     req_biz = int(req_biz) if req_biz and req_biz.isdigit() and int(req_biz) in by_biz else None
 
-    if identity["role"] == "employee":
+    if want == "employee":
         # Resolve the active business (?biz → session → first).
         if req_biz is not None:
             active_id = req_biz
@@ -204,9 +182,9 @@ def resolve_mobile_actor(request):
             active_id = businesses[0].id
         request.session["m_biz"] = active_id
         active_business = by_biz[active_id]
-        emp = identity["employee"]
         # is_admin (and salary/attendance) are per-business: read the ACTIVE posting.
-        posting = emp.postings.filter(business_id=active_id).first()
+        posting = next((p for p in posts if p.business_id == active_id), None)
+        emp = posting.employee if posting else None
         return {
             "role": "employee",
             "businesses": businesses,
@@ -218,6 +196,7 @@ def resolve_mobile_actor(request):
                        for b in businesses],
             "employee": emp,
             "posting": posting,
+            "person": person,
             "is_admin": bool(posting and posting.is_admin),
         }
 
@@ -237,10 +216,10 @@ def resolve_mobile_actor(request):
         "switch": [{"param": "acct=%d" % a["row"].id, "label": a["chip"],
                     "on": a["row"].id == active.id} for a in accounts],
         "customer": active,
-        # A Party login has no single "primary" row, so its first visible row stands in
-        # for the greeting; everything else works from the ACTIVE account.
-        "primary": identity.get("primary") or rows[0],
-        "party": identity.get("party"),
+        # No single "primary" row — the first visible one stands in for the greeting;
+        # everything else works from the ACTIVE account.
+        "primary": rows[0],
+        "person": person,
     }
 
 
@@ -248,8 +227,8 @@ def mobile_login_required(role=None):
     def _decorator(view):
         @wraps(view)
         def _wrapped(request, *args, **kwargs):
-            actor = resolve_mobile_actor(request)
-            if not actor or (role and actor["role"] != role):
+            actor = resolve_mobile_actor(request, role)
+            if not actor:
                 # "deactivated" only when the identity is valid but access was turned off;
                 # a role mismatch or missing identity is the generic "expired" case.
                 reason = getattr(request, "_mobile_denied", "expired") if not actor else "expired"

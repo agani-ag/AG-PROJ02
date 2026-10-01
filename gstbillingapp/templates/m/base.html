@@ -25,7 +25,7 @@
             --red:#ff3b30;--redbg:#ffecea;--green:#34c759;--greenbg:#e7f8ec;
             --amber:#ff9500;--amberbg:#fff2e0;--blue:#007aff;--bluebg:#e7f1ff;
             --purple:#8a3ffc;--purplebg:#f1e9ff;--teal:#0a9aa6;--tealbg:#e0f6f8;--pink:#e0398a;--pinkbg:#ffe7f2;
-            --nav-h:62px;--r:22px;--sh:0 1px 2px rgba(20,22,30,.03),0 4px 16px rgba(20,22,30,.05)}
+            --nav-h:0px;--r:22px;--sh:0 1px 2px rgba(20,22,30,.03),0 4px 16px rgba(20,22,30,.05);--drw:min(80vw,280px)}
         html,body{margin:0;overscroll-behavior-y:contain}
         body{background:var(--bg);color:var(--ink);
              font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -135,13 +135,33 @@
         .field:focus{outline:0;border-color:var(--acc)}
         label.lbl{display:block;font-size:12.5px;color:var(--soft);margin:0 2px 5px}
 
-        /* bottom nav */
-        .nav{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;background:var(--card);
-             border-top:1px solid var(--line);height:calc(var(--nav-h) + env(safe-area-inset-bottom));
-             padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -2px 14px rgba(0,0,0,.05)}
-        .nav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--faint);font-size:10.5px;font-weight:700}
-        .nav a.on{color:var(--acc)}.nav a.on svg{stroke:var(--acc)}
-        .nav svg{width:22px;height:22px}
+        /* side drawer nav (replaces the old bottom bar); the page pushes left when open */
+        .mpage{transition:transform .26s cubic-bezier(.4,0,.2,1);min-height:100vh}
+        body.nav-open{overflow:hidden}
+        body.nav-open .mpage{transform:translateX(calc(-1 * var(--drw)))}
+        .lt-top{padding-right:44px}   /* clear the fixed menu toggle on list/detail headers */
+        .navtog{position:fixed;top:calc(12px + env(safe-area-inset-top));right:14px;z-index:1100;
+                width:40px;height:40px;border-radius:50%;border:0;cursor:pointer;background:var(--card);
+                box-shadow:0 2px 10px rgba(20,22,30,.18);color:var(--ink);display:flex;align-items:center;justify-content:center;
+                transition:transform .26s cubic-bezier(.4,0,.2,1)}
+        .navtog svg{width:22px;height:22px;transition:transform .26s ease}
+        body.nav-open .navtog{transform:translateX(calc(-1 * var(--drw)))}
+        body.nav-open .navtog svg{transform:rotate(180deg)}
+        .navov{position:fixed;inset:0;background:rgba(15,18,24,.38);opacity:0;visibility:hidden;
+               transition:opacity .26s,visibility .26s;z-index:900}
+        body.nav-open .navov{opacity:1;visibility:visible}
+        .nav{position:fixed;top:0;right:0;bottom:0;width:var(--drw);z-index:1000;background:var(--card);
+             display:flex;flex-direction:column;gap:2px;overflow-y:auto;
+             padding:calc(64px + env(safe-area-inset-top)) 10px calc(16px + env(safe-area-inset-bottom));
+             box-shadow:-6px 0 24px rgba(20,22,30,.16);transform:translateX(100%);
+             transition:transform .26s cubic-bezier(.4,0,.2,1)}
+        body.nav-open .nav{transform:translateX(0)}
+        .nav a{display:flex;flex-direction:row;align-items:center;gap:14px;color:var(--soft);
+               font-size:15px;font-weight:600;padding:13px 14px;border-radius:12px}
+        .nav a:active{background:rgba(0,0,0,.04)}
+        .nav a.on{color:var(--acc);background:var(--bluebg)}
+        .nav a.on svg{stroke:var(--acc)}
+        .nav svg{width:22px;height:22px;flex:none}
 
         /* horizontally-scrollable chip rows: hide the native scrollbar */
         /* horizontal chip rows (bizsel / filt / days / chips): hide the native scrollbar */
@@ -199,6 +219,10 @@
         <symbol id="ic-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
     </defs></svg>
 
+    <button class="navtog" id="navTog" type="button" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+    </button>
+    <div class="mpage" id="mpage">
     {% block chrome %}
     <div class="lt">
         <div class="lt-top">
@@ -227,9 +251,21 @@
     <div class="wrap">
         {% block content %}{% endblock %}
     </div>
+    </div><!-- /.mpage -->
 
     {% block nav %}{% endblock %}
+    <div class="navov" id="navOv"></div>
     <div id="toast"></div>
+    <script>
+    (function(){
+        var tog=document.getElementById('navTog'), ov=document.getElementById('navOv');
+        function closeNav(){ document.body.classList.remove('nav-open'); }
+        if(tog) tog.addEventListener('click', function(){ document.body.classList.toggle('nav-open'); });
+        if(ov) ov.addEventListener('click', closeNav);
+        // Tapping a nav link closes the drawer (the navigation reloads the page anyway).
+        document.querySelectorAll('.nav a').forEach(function(a){ a.addEventListener('click', closeNav); });
+    })();
+    </script>
 
     <script>
     window.M = {

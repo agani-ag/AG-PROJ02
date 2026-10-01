@@ -13,7 +13,7 @@ from ..models import Book, Customer, UserProfile
 
 # Utility functions
 from ..utils import add_customer_book
-from ..parties import app_enabled, party_for, refresh_for_customer, refresh_login
+from ..appusers import app_enabled
 
 # Forms
 from ..forms import CustomerForm
@@ -63,11 +63,7 @@ def customer_add(request):
     context = {'customer_app_enabled': app_on}
     if request.method == "POST":
         customer_form = CustomerForm(request.POST, user=request.user)
-        if request.POST.get('customer_phone') == "":
-            context["error_message"] = "Customer phone is required."
-        elif Customer.objects.filter(user=request.user, customer_phone=request.POST.get('customer_phone')).exists():
-            context["error_message"] = "Customer with this phone number already exists."
-        elif customer_form.is_valid():
+        if customer_form.is_valid():
             new_customer = customer_form.save(commit=False)
             new_customer.user = request.user
             # Only a business with the customer app switched on can show a customer in it.
@@ -94,17 +90,11 @@ def customer_edit(request, customer_id):
         # With the customer app off the toggle isn't on the form, so keep the stored value
         # rather than reading a missing checkbox as "off".
         wants_visible = (request.POST.get('is_mobile_user') == 'on') if app_on else was_visible
-        if request.POST.get('customer_phone') == "":
-            context["error_message"] = "Customer phone is required."
-        elif Customer.objects.filter(user=request.user,
-                customer_phone=request.POST.get('customer_phone')).exclude(id=customer_id).exists():
-            context["error_message"] = "Customer with this phone number already exists."
-        elif customer_form.is_valid():
+        if customer_form.is_valid():
             new_customer = customer_form.save(commit=False)
             new_customer.is_mobile_user = wants_visible
             new_customer.save()
-            if wants_visible != was_visible:
-                refresh_for_customer(new_customer)
+            # Saving re-points the person and syncs their login (identity_hooks.py).
             return redirect('customers')
         context['customer_form'] = customer_form
         context['is_mobile_user'] = wants_visible
@@ -119,10 +109,9 @@ def customer_delete(request):
     if request.method == "POST":
         customer_id = request.POST["customer_id"]
         customer_obj = get_object_or_404(Customer, user=request.user, id=customer_id)
-        party = party_for(customer_obj)
         customer_obj.delete()
-        if party is not None:
-            refresh_login(party)          # it may have been their last visible ledger
+        # The delete hook re-points the person and syncs their login (identity_hooks.py) —
+        # it may have been their last visible ledger.
     return redirect('customers')
 
 
@@ -173,7 +162,7 @@ def customer_is_mobile_user(request):
                              'message': "The customer app isn't switched on for your business."})
     customer_obj.is_mobile_user = not customer_obj.is_mobile_user
     customer_obj.save(update_fields=["is_mobile_user"])
-    refresh_for_customer(customer_obj)
+    # The save hook re-points the person and syncs their login (identity_hooks.py).
     state = "on" if customer_obj.is_mobile_user else "off"
     return JsonResponse({'status': 'success',
                          'message': f'Mobile access for {customer_obj.customer_name} is now {state}.'})

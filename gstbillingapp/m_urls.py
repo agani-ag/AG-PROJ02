@@ -4,12 +4,14 @@ Auth: signed token minted by gstbilling (mobile_auth.py), not legacy cid/users_f
 """
 from django.urls import path
 
-from .views.m import customer as c
+from .views.m import entry, customer as c
 from .views.m import employee as e
 from .views.m import order as o
 from .views.m import admin as a
 
 urlpatterns = [
+    # The app link lands here and goes on to whichever side they have.
+    path('', entry.entry, name='m_entry'),
     # ---- Order flow (customer self-order / employee order-for-customer) ----
     path('order', o.order, name='m_order'),
     path('order/cart', o.cart, name='m_order_cart'),

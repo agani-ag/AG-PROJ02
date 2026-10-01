@@ -79,6 +79,11 @@ class Customer(models.Model):
     # Bumped to revoke this customer's mobile (/m/) access link without touching others —
     # baked into the signed token (see mobile_auth.py).
     mobile_token_version = models.IntegerField(default=1)
+    # ---- who this row belongs to in the app (see identity.py) ----
+    # The person holding this row's mobile (or email). Not decided by anyone: it follows the
+    # number, and is re-pointed whenever the number changes. Empty = no app access.
+    app_user = models.ForeignKey("AppUser", null=True, blank=True, on_delete=models.SET_NULL,
+                                 related_name="customers")
 
     def save(self, *args, **kwargs):
         if self.customer_name:
@@ -618,9 +623,16 @@ class Employee(models.Model):
     email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=14, blank=True, null=True)
     address = models.TextField(max_length=600, blank=True, null=True)
-    is_active = models.BooleanField(default=True)   # person-level (mobile login) active
+    is_active = models.BooleanField(default=True)   # person-level: do they still work here
+    # The staff app switch, the same idea as Customer.is_mobile_user: employment and app
+    # access are two different questions. On by default — the staff app is how a rep works.
+    is_mobile_user = models.BooleanField(default=True)
     # Bumped to revoke this employee's mobile access link (baked into the signed token).
     token_version = models.IntegerField(default=1)
+    # The person holding this employee's mobile (or email) — the same record a customer row
+    # points at, because one number is one person (see identity.py).
+    app_user = models.ForeignKey("AppUser", null=True, blank=True, on_delete=models.SET_NULL,
+                                 related_name="employees")
     # The code another business pastes to add this person as a shared employee.
     share_code = models.CharField(max_length=20, unique=True, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -843,112 +855,6 @@ class PlatformAdmin(models.Model):
 
 
 # ======================= Shared customers (one real shop owner) ============================
-class Party(models.Model):
-    """One real shop owner, as decided by a platform admin on the console.
-
-    Every business keeps its own Customer row, so a shop owner who buys from three of our
-    businesses exists as three rows. A Party is the admin's statement that those rows are
-    one person. It is never created or extended automatically: shared phone numbers and
-    GSTINs are only offered to the admin as suggestions (see parties.py).
-
-    A Party may span any number of businesses and GSTINs - one owner can run several firms,
-    and a customer can register a GSTIN later without their identity changing.
-
-    The Party also holds the owner's single customer-app login. SyncUp (AG-PROJ01) stores
-    the password hash and performs the login; here we keep only its state.
-    """
-    LOGIN_NONE, LOGIN_ACTIVE, LOGIN_INACTIVE = "none", "active", "inactive"
-    LOGIN_STATUS = [
-        (LOGIN_NONE, "No login"),
-        (LOGIN_ACTIVE, "Active"),
-        (LOGIN_INACTIVE, "Deactivated"),
-    ]
-
-    name = models.CharField(max_length=200)
-    notes = models.TextField(blank=True, null=True)
-    created_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
-                                   on_delete=models.SET_NULL, related_name="parties_created")
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    # ---- customer-app login ----
-    # The admin's decision. Whether the login actually works also needs at least one
-    # visible ledger - see parties.visible_rows().
-    login_status = models.CharField(max_length=10, choices=LOGIN_STATUS, default=LOGIN_NONE)
-    login_issued_at = models.DateTimeField(null=True, blank=True)
-    # Baked into the /m/ link. Bumped on re-issue and on deactivation, so an old or copied
-    # link stops working.
-    token_version = models.IntegerField(default=1)
-    # What SyncUp was last told about is_active (None = never told). Lets a change that
-    # doesn't alter it skip the network call entirely.
-    syncup_active = models.BooleanField(null=True, blank=True)
-    syncup_synced_at = models.DateTimeField(null=True, blank=True)
-    # The last failed push, shown on the console with a retry. Empty when in sync.
-    syncup_error = models.CharField(max_length=300, blank=True, default="")
-    # The subtitle last put on this customer's GSTSync tile ("₹… due · N shops"), so the daily
-    # refresh only calls SyncUp when it changes. Cleared when a login is (re)issued.
-    tile_text = models.CharField(max_length=80, blank=True, default="")
-    # How often they have opened the app, and when they last did (a fresh open more than
-    # telegram_alerts.SESSION_GAP after the last one counts as a new login).
-    app_opens = models.PositiveIntegerField(default=0)
-    last_open_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ["name", "id"]
-
-    @property
-    def external_id(self):
-        """How GSTSync addresses this login in SyncUp's Partner API."""
-        return "party-%d" % self.id
-
-    @property
-    def login_email(self):
-        """The login-only email, gsp{id}@<login domain> (SyncUp lower-cases it; never
-        mailed). The domain is set under Console -> Settings and locks once any login
-        exists."""
-        return self.login_email_at(SyncUpSettings.load().login_domain)
-
-    def login_email_at(self, domain):
-        """login_email for a domain already loaded - lists use it to avoid a query per row."""
-        return "gsp%d@%s" % (self.id, domain)
-
-    @property
-    def has_login(self):
-        return self.login_status != self.LOGIN_NONE
-
-    def __str__(self):
-        return self.name
-
-
-class PartyMapping(models.Model):
-    """A platform admin's decision that one customer row belongs to a Party.
-
-    Kept in its own table rather than as a column on Customer: business-owned tables stay
-    untouched, the row records who decided and on what evidence, and the one-to-one link
-    makes it impossible for a customer row to belong to two people.
-    """
-    EVIDENCE = [
-        ("phone_gstin", "Phone and GSTIN"),
-        ("phone", "Phone"),
-        ("gstin", "GSTIN"),
-        ("manual", "Manual"),
-    ]
-
-    party = models.ForeignKey(Party, on_delete=models.CASCADE, related_name="mappings")
-    customer = models.OneToOneField("Customer", on_delete=models.CASCADE,
-                                    related_name="party_mapping")
-    evidence = models.CharField(max_length=12, choices=EVIDENCE, default="manual")
-    note = models.CharField(max_length=200, blank=True, default="")
-    mapped_by = models.ForeignKey("PlatformAdmin", null=True, blank=True,
-                                  on_delete=models.SET_NULL, related_name="+")
-    mapped_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["party_id", "customer__user_id"]
-
-    def __str__(self):
-        return "%s -> %s" % (self.customer_id, self.party_id)
-
-
 class SyncUpSettings(models.Model):
     """How GSTSync reaches SyncUp (AG-PROJ01) - one row, edited under Console -> Settings.
 
@@ -967,8 +873,6 @@ class SyncUpSettings(models.Model):
     # This site's public https:// address; the customer's app link is built from it.
     link_base = models.CharField(max_length=200, blank=True, default="")
     timeout = models.PositiveSmallIntegerField(default=5)          # seconds per call
-    # Customer logins are gsp{party id}@<this>. Login only - never mailed.
-    login_domain = models.CharField(max_length=100, default="gstsync.app")
     # ---- the SyncUp app's Google Play listing (see syncup_app.py) ----
     # Blank hides every "get the app" block and share button everywhere.
     play_url = models.CharField(max_length=300, blank=True, default="")
@@ -1015,13 +919,15 @@ class SyncUpSettings(models.Model):
         return "SyncUp settings"
 
 
-class StaffLogin(models.Model):
-    """An employee's SyncUp app login, issued from the console (rules in staff.py).
+class AppUser(models.Model):
+    """One real person in the SyncUp app, recognised by their own mobile number.
 
-    One per person: an Employee already spans every business they're posted to, so there's
-    nothing to group (unlike customers - see Party). Kept in its own table so the business's
-    Employee table only changes when the business itself acts. SyncUp holds the password
-    hash; this holds the login's state.
+    Nobody maps anyone: a customer row or an employee carrying this mobile IS this person, in
+    every business that holds it. Change the number on a row and the row moves to whoever holds
+    the new one. An email works the same way for the few who have one.
+
+    SyncUp (AG-PROJ01) keeps the password and performs the sign-in — the person signs in with
+    their own number, not an address we invented. Only the state of that login lives here.
     """
     LOGIN_NONE, LOGIN_ACTIVE, LOGIN_INACTIVE = "none", "active", "inactive"
     LOGIN_STATUS = [
@@ -1030,39 +936,75 @@ class StaffLogin(models.Model):
         (LOGIN_INACTIVE, "Deactivated"),
     ]
 
-    employee = models.OneToOneField("Employee", on_delete=models.CASCADE,
-                                    related_name="staff_login")
+    # The identity. At least one is set; each is unique across the platform, because it is
+    # exactly what makes two rows the same person. Mobile: bare 10 digits, Indian (6-9 first).
+    mobile = models.CharField(max_length=10, blank=True, default="")
+    email = models.EmailField(blank=True, null=True)
+    # What the app calls them — taken from the row that created them, refreshed as rows change.
+    name = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    # ---- the app login ----
     login_status = models.CharField(max_length=10, choices=LOGIN_STATUS, default=LOGIN_NONE)
     login_issued_at = models.DateTimeField(null=True, blank=True)
-    # What SyncUp was last told about is_active (None = never told).
+    # Baked into the /m/ link. Bumped on re-issue and on deactivation, so an old or copied
+    # link stops working.
+    token_version = models.IntegerField(default=1)
+    # GSTSync-native quick login: lets this person open the /m/ web pages via a copied link
+    # WITHOUT SyncUp being configured — a browser sign-in the home business shares directly.
+    # Independent of login_status (the SyncUp native login). Cleared when access is revoked.
+    web_login = models.BooleanField(default=False)
+    # What SyncUp was last told about is_active (None = never told). Lets a change that
+    # doesn't alter it skip the network call entirely.
     syncup_active = models.BooleanField(null=True, blank=True)
     syncup_synced_at = models.DateTimeField(null=True, blank=True)
     # The last failed push, shown on the console with a retry. Empty when in sync.
     syncup_error = models.CharField(max_length=300, blank=True, default="")
-    # How often they have opened the app, and when they last did (see telegram_alerts.py).
+    # The subtitle last put on their GSTSync tile ("₹… due · N shops"), so the daily refresh
+    # only calls SyncUp when it changes. Cleared when a login is (re)issued.
+    tile_text = models.CharField(max_length=80, blank=True, default="")
+    # Which tiles SyncUp was last given ("gstsync", "gstsync-staff"), so gaining or losing a
+    # side changes them — and nothing else costs a call.
+    link_keys = models.CharField(max_length=80, blank=True, default="")
+    # Their number or email changed and SyncUp hasn't been told yet. Set when the sign-in
+    # moves, cleared when the push lands, so a failed push is retried by /cron/syncup instead
+    # of being quietly forgotten.
+    identity_pending = models.BooleanField(default=False)
+    # What SyncUp says about OUR connection to this person: "enabled" (they can see our
+    # tiles), "not_enabled" (the number already belonged to a SyncUp account, so they must
+    # switch GSTSync on in their app first) or "disabled" (they switched us off). Empty until
+    # SyncUp has told us.
+    connection = models.CharField(max_length=20, blank=True, default="")
+    # How often they have opened the app, and when they last did (a fresh open more than
+    # telegram_alerts.SESSION_GAP after the last one counts as a new login).
     app_opens = models.PositiveIntegerField(default=0)
     last_open_at = models.DateTimeField(null=True, blank=True)
 
+    class Meta:
+        ordering = ["name", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["mobile"], condition=~models.Q(mobile=""),
+                                    name="uniq_appuser_mobile"),
+            models.UniqueConstraint(fields=["email"], condition=models.Q(email__isnull=False),
+                                    name="uniq_appuser_email"),
+        ]
+
     @property
     def external_id(self):
-        """How GSTSync addresses this login in SyncUp's Partner API."""
-        return "employee-%d" % self.employee_id
-
-    def login_email_at(self, domain):
-        return "gse%d@%s" % (self.employee_id, domain)
+        """How GSTSync addresses this person in SyncUp's Partner API."""
+        return "user-%d" % self.id
 
     @property
-    def login_email(self):
-        """gse{employee id}@<login domain> - login only, never mailed. Doesn't change if the
-        person's home business does."""
-        return self.login_email_at(SyncUpSettings.load().login_domain)
+    def sign_in(self):
+        """What they type to sign in — their own number, or their email."""
+        return self.mobile or (self.email or "")
 
     @property
     def has_login(self):
         return self.login_status != self.LOGIN_NONE
 
     def __str__(self):
-        return "%s login" % self.employee_id
+        return self.name or self.sign_in or "user %s" % self.pk
 
 
 class BusinessPasskey(models.Model):

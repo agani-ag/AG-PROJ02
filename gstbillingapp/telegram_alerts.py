@@ -34,7 +34,7 @@ from django.db.models import F
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import BusinessTelegram, StaffLogin, SyncUpMessage
+from .models import BusinessTelegram, SyncUpMessage
 from .telegram_reports import SEPARATOR, available, brand, chats
 from .utils import _escape_md
 
@@ -222,16 +222,15 @@ def note_app_open(request, actor):
     request.session[SESSION_KEY] = now
 
     when = timezone.localtime()
+    person = actor.get("person")
     if actor["role"] == "employee":
-        person = actor["employee"]
-        who, detail, role = person.name, "", EMPLOYEE
-        count = _bump(StaffLogin.objects.filter(employee=person).first())
+        emp = actor.get("employee")
+        who, detail, role = (emp.name if emp else person.name), "", EMPLOYEE
     else:
-        party = actor.get("party")
         row = actor.get("customer") or actor.get("primary")
-        who = (party.name if party is not None else (row.customer_name if row else "Customer"))
+        who = (person.name or (row.customer_name if row else "Customer"))
         detail, role = ((row.customer_place or "") if row else ""), CUSTOMER
-        count = _bump(party)
+    count = _bump(person)
     # The count is kept whether or not anyone is listening, so the console always has it.
     return announce(actor["businesses"], who=who, role=role, when=when, count=count,
                     device=_agent(request), detail=detail)

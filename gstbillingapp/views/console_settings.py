@@ -4,7 +4,6 @@ Kept in the database (models.SyncUpSettings, one row) rather than settings.py, s
 platform admin can set SyncUp up, rotate the partner key or move hosts without server
 access or a restart.
 """
-import re
 from urllib.parse import urlsplit
 
 from django.contrib import messages
@@ -13,11 +12,10 @@ from django.views.decorators.http import require_POST
 
 from .. import syncup_messages
 from ..console_auth import console_required
-from ..models import Party, StaffLogin, SyncUpSettings
+from ..models import SyncUpSettings
 from ..syncup_app import DEFAULT_CUSTOMER_TEXT, DEFAULT_SHARE_TEXT, listing, parse_play_url
 from ..syncup_client import check_connection, link_base as link_base_of
 
-_DOMAIN = re.compile(r"^(?=.{1,100}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$")
 # Plain http is only accepted for a SyncUp on this machine (development). Anywhere else
 # the partner key would cross the network in the clear.
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
@@ -38,19 +36,11 @@ def _clean_base(value, *, https_only, label):
     return value, None
 
 
-def domain_locked():
-    """The login domain is part of every issued login's email in SyncUp, so it can't change
-    once one exists — those customers and employees would be locked out."""
-    return (Party.objects.exclude(login_status=Party.LOGIN_NONE).exists()
-            or StaffLogin.objects.exclude(login_status=StaffLogin.LOGIN_NONE).exists())
-
-
 @console_required
 def syncup_settings(request):
     cfg = SyncUpSettings.load()
-    locked = domain_locked()
     form = {"api_base": cfg.api_base, "link_base": cfg.link_base,
-            "timeout": cfg.timeout, "login_domain": cfg.login_domain,
+            "timeout": cfg.timeout,
             "play_url": cfg.play_url, "play_on_landing": cfg.play_on_landing,
             "customer_share_text": cfg.customer_share_text, "share_text": cfg.share_text,
             "messages_enabled": cfg.messages_enabled, "tile_due": cfg.tile_due,
@@ -77,12 +67,6 @@ def syncup_settings(request):
             timeout = 0
         if not 1 <= timeout <= 30:
             errors.append("Timeout must be between 1 and 30 seconds.")
-        domain = (d.get("login_domain") or "").strip().lower()
-        if locked and domain != cfg.login_domain:
-            errors.append("The login domain can't change now — issued logins already use it "
-                          "in SyncUp.")
-        elif not _DOMAIN.match(domain):
-            errors.append("Login domain must look like gstsync.app.")
         key = (d.get("partner_key") or "").strip()
         if key and len(key) > 200:
             errors.append("That partner key is too long.")
@@ -101,18 +85,17 @@ def syncup_settings(request):
 
         if errors:
             form.update(api_base=d.get("api_base") or "", link_base=d.get("link_base") or "",
-                        timeout=d.get("timeout") or "", login_domain=d.get("login_domain") or "",
+                        timeout=d.get("timeout") or "",
                         play_url=play_raw, play_on_landing=bool(d.get("play_on_landing")),
                         messages_enabled=bool(d.get("messages_enabled")),
                         tile_due=bool(d.get("tile_due")),
                         telegram_enabled=bool(d.get("telegram_enabled")), **texts)
             return render(request, "console/syncup_settings.html",
-                          dict(extra, cfg=cfg, form=form, locked=locked, errors=errors,
-                               app=listing(cfg)),
+                          dict(extra, cfg=cfg, form=form, errors=errors, app=listing(cfg)),
                           status=400)
 
         cfg.api_base, cfg.link_base = api_base, link_base
-        cfg.timeout, cfg.login_domain = timeout, domain
+        cfg.timeout = timeout
         cfg.play_url, cfg.play_on_landing = play_url, bool(d.get("play_on_landing"))
         cfg.customer_share_text, cfg.share_text = texts["customer_share_text"], texts["share_text"]
         if d.get("clear_key"):
@@ -131,7 +114,7 @@ def syncup_settings(request):
         return redirect("console_syncup")
 
     return render(request, "console/syncup_settings.html",
-                  dict(extra, cfg=cfg, form=form, locked=locked, errors=[], app=listing(cfg)))
+                  dict(extra, cfg=cfg, form=form, errors=[], app=listing(cfg)))
 
 
 @console_required

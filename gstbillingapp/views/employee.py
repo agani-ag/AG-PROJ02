@@ -9,8 +9,9 @@ from django.contrib.auth.models import User
 from ..models import (Employee, Customer, Invoice, EmployeePosting,
                       AttendanceLog, SalaryRecord, EmployeeIncentive)
 from ..forms import EmployeeForm
-from .. import staff
-from ..mobile_auth import mint_employee_token
+from .. import appusers
+from ..models import AppUser
+from ..mobile_auth import mint_user_token
 from ..syncup_client import link_base
 from ..utils import calculate_employee_salary
 
@@ -112,13 +113,18 @@ def employee_edit(request, posting_id):
     if request.method == "POST":
         # The person's identity is editable only by their HOME business.
         if posting.is_home:
-            was_active = emp.is_active
+            before = (emp.is_active, emp.is_mobile_user)
             form = EmployeeForm(request.POST, instance=emp)
             if form.is_valid():
                 form.save()
-                if emp.is_active != was_active:
+                if (emp.is_active, emp.is_mobile_user) != before:
                     # Their GSTSync app login follows: off stops it, on restores it.
-                    staff.refresh_login(emp)
+                    appusers.refresh_for_employee(emp)
+                    # The GSTSync-native web quick-login follows the same switch.
+                    if emp.is_active and emp.is_mobile_user:
+                        appusers.ensure_web_login(emp)
+                    else:
+                        appusers.disable_web_login(emp)
             else:
                 return render(request, "employees/employee_edit.html", {
                     "posting": posting, "employee": emp,
@@ -137,16 +143,23 @@ def employee_edit(request, posting_id):
 
 
 def _app_link(request, posting):
-    """The employee's SyncUp link, for the home business to copy and send them. Only the
-    home business has it (one person, one link) and only while they're active — switching
-    them off, or a login issued/deactivated on the console, stops any copied link. Built
-    from the public https address set on the console when there is one, so a link copied
+    """The person's SyncUp link, for the home business to copy and send them. Only the home
+    business has it (one person, one link) and only while they're active with a live login —
+    switching them off, or a login issued/deactivated on the console, stops any copied link.
+    Built from the public https address set on the console when there is one, so a link copied
     over an internal address still opens on a phone."""
     emp = posting.employee
-    if not (posting.is_home and emp.is_active):
+    if not (posting.is_home and emp.is_active and emp.is_mobile_user):
+        return ""
+    person = emp.app_user
+    if not (person and person.login_status == AppUser.LOGIN_ACTIVE):
+        # No SyncUp login (or SyncUp isn't configured) — mint a GSTSync-native web login
+        # so the link still works in a plain browser.
+        person = appusers.ensure_web_login(emp)
+    if person is None:
         return ""
     base = link_base() or request.build_absolute_uri("/").rstrip("/")
-    return base + "/m/employee/?t=" + mint_employee_token(emp)
+    return base + "/m/?t=" + mint_user_token(person)
 
 
 @login_required

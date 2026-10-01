@@ -25,9 +25,13 @@ import urllib.request
 
 from .models import SyncUpSettings
 
-# The key SyncUp stores on GSTSync's app link, so re-issuing a login replaces that link
-# instead of adding a second one. Links the account holds for other purposes are untouched.
-APP_LINK_KEY = "gstsync"
+# The keys SyncUp stores on GSTSync's app links, so re-issuing a login replaces them instead
+# of adding more. Links the account holds for other partners are untouched.
+#
+# A person can be a customer at one business and staff at another — the same number, so the
+# same SyncUp account. They get a tile for each side rather than one tile that has to guess.
+APP_LINK_KEY = "gstsync"                 # their ledgers
+STAFF_LINK_KEY = "gstsync-staff"         # the staff app
 
 # Pushes made on a business's behalf (a Mobile toggle, an Active switch) wait at most this
 # long, whatever the console's timeout: a failure is recorded and /cron/syncup retries it,
@@ -149,22 +153,34 @@ def check_connection(cfg=None):
         return False, str(e)
 
 
-def upsert_account(external_id, *, name, email, password=None, is_active=True, app_link=None):
+def upsert_account(external_id, *, name, phone=None, email=None, password=None,
+                   is_active=True, app_link=None, links=None):
     """Create or update the account in one call (SyncUp's PUT is an idempotent upsert).
+
+    The person is recognised by **their own mobile and/or email** — SyncUp needs at least one.
+    An identifier it already knows belongs to a real person: it then gives GSTSync a connection
+    to them, which they switch on in their app with this password, and leaves their account's
+    own details alone. Sending a phone and an email that belong to two different people is
+    refused (409) rather than guessed at.
 
     Creating needs a password; updating only changes the password when one is given. With
     `app_link`, the same call sets the account's GSTSync link (replaced by its key), and the
     reply is checked for it: an older SyncUp that doesn't understand links would otherwise
-    leave the customer with a login and nothing to open."""
-    payload = {"name": name, "email": email, "is_active": bool(is_active)}
+    leave the person with a login and nothing to open."""
+    payload = {"name": name, "is_active": bool(is_active)}
+    if phone:
+        payload["phone"] = phone
+    if email:
+        payload["email"] = email
     if password:
         payload["password"] = password
-    if app_link:
-        payload["links"] = [{"external_id": APP_LINK_KEY, "title": "GSTSync",
-                             "url": app_link, "icon": "home"}]
+    wanted = list(links) if links else ([{"external_id": APP_LINK_KEY, "title": "GSTSync",
+                                          "url": app_link, "icon": "home"}] if app_link else [])
+    if wanted:
+        payload["links"] = wanted
     data = _request("PUT", "users/external/%s" % external_id, payload)
-    if app_link and not any((link or {}).get("url") == app_link
-                            for link in (data.get("links") or [])):
+    got = {(link or {}).get("url") for link in (data.get("links") or [])}
+    if wanted and not all(w["url"] in got for w in wanted):
         raise SyncUpError("SyncUp saved the account but not its app link. SyncUp may need "
                           "updating to the Partner API with link upserts.")
     return data.get("user") or {}
@@ -192,6 +208,18 @@ def create_action(external_id, payload, timeout=None):
 def action_status(request_id, timeout=None):
     """A prompt's state and answer — for an answer whose callback never arrived."""
     return _request("GET", "actions/%s" % request_id, timeout=timeout)
+
+
+def list_links(external_id, timeout=None):
+    """The links GSTSync has put on this account, each with its SyncUp id and our own key."""
+    return _request("GET", "users/external/%s/links" % external_id,
+                    timeout=timeout).get("links") or []
+
+
+def delete_link(link_id, timeout=None):
+    """Remove one of our links — used when somebody stops being staff (or a customer) and
+    their tile for that side should go with it."""
+    return _request("DELETE", "links/%s" % link_id, timeout=timeout)
 
 
 def update_app_link(external_id, *, url, description, timeout=None):

@@ -1,0 +1,128 @@
+{% extends "console/base.html" %}
+{% comment %}The rows where a mobile number can't identify anybody yet. All that survives of the
+old suggestion / merge / ungroup screens — and read-only: every fix is made by the business on
+its own customer screen.{% endcomment %}
+{% block title %}To look at{% endblock %}
+{% block nav_cust %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1 class="disp">To look at</h1>
+    <div class="sub">A person is their mobile number. These are the rows where that can't work yet</div>
+  </div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si o"><svg class="gico"><use href="#i-alert"/></svg></span>
+    <div><h3 class="disp">Same number, two customers of one business</h3>
+      <div class="sd">These would make two people one — inside a business, a number can only be one customer</div></div></div>
+  <div class="body">
+    {% for d in duplicates %}
+    <div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
+      <span class="b">{{ d.brand }}</span> · <code>{{ d.mobile }}</code>
+      <div class="mut" style="font-size:12.5px">{% for c in d.rows %}{{ c.customer_name }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+    </div>
+    {% empty %}<p class="mut" style="font-size:13px;margin:0">Nothing — every number belongs to one customer per business.</p>{% endfor %}
+  </div>
+</div>
+
+<div class="section open">
+  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-user"/></svg></span>
+    <div><h3 class="disp">No usable number</h3><div class="sd">A landline, two numbers in one box, or nothing — so no app login</div></div></div>
+  <div class="body">
+    <div class="tablecard ctable">
+      <div class="tbl-scroll">
+      <table class="gt ct">
+        <thead><tr><th>Business</th><th>Customer</th><th>What's there</th><th>Why</th></tr></thead>
+        <tbody>
+          {% for u in unusable %}
+          <tr><td class="hd"><b>{{ u.brand }}</b></td><td data-l="Customer">{{ u.row.customer_name }}</td>
+            <td data-l="What's there"><code>{{ u.phone|default:"—" }}</code></td>
+            <td data-l="Why">{{ u.why }}</td></tr>
+          {% empty %}
+          <tr><td colspan="4" class="emptycell"><div class="empty"><h3>All clear</h3>
+            <p>Every customer row carries a number the app can use.</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if own_contact %}
+<div class="section open">
+  <div class="sh"><span class="si o"><svg class="gico"><use href="#i-alert"/></svg></span>
+    <div><h3 class="disp">The business's own number on a customer</h3>
+      <div class="sd">Left alone, every customer carrying it becomes the same person</div></div></div>
+  <div class="body">
+    {% for o in own_contact %}
+    <div class="row" style="padding:6px 0"><span class="b">{{ o.brand }}</span> · {{ o.row.customer_name }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if conflicts %}
+<div class="section open">
+  <div class="sh"><span class="si o"><svg class="gico"><use href="#i-alert"/></svg></span>
+    <div><h3 class="disp">Number and email disagree</h3>
+      <div class="sd">The number belongs to one app user and the email to another — SyncUp refuses to guess</div></div></div>
+  <div class="body">
+    {% for c in conflicts %}
+    <div class="row" style="padding:6px 0">
+      <span class="b">{{ c.brand }}</span> · {{ c.row.customer_name }}
+      <span class="mut" style="font-size:12.5px">{{ c.mobile_user }} vs {{ c.email_user }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="section open">
+  <div class="sh"><span class="si g"><svg class="gico"><use href="#i-team"/></svg></span>
+    <div><h3 class="disp">One number, several businesses</h3>
+      <div class="sd">Not a fault — this is the join. One person, one login, every ledger they hold</div></div></div>
+  <div class="body">
+    <div class="tablecard ctable">
+      <div class="tbl-scroll">
+      <table class="gt ct">
+        <thead><tr><th>Mobile</th><th>Called</th><th class="r">Businesses</th></tr></thead>
+        <tbody>
+          {% for s in shared %}
+          <tr>
+            <td class="hd">{% if s.person %}<a href="{% url 'console_person' s.person.id %}"><code>{{ s.mobile }}</code></a>
+              {% else %}<code>{{ s.mobile }}</code>{% endif %}
+              <div class="mut sm">{{ s.name }}</div></td>
+            <td data-l="Called">
+              {% if s.one_name %}<span class="mut">{{ s.entries.0.name }} — the same name everywhere</span>
+              {% else %}{% for e in s.entries %}<div><b>{{ e.brand }}</b> — {{ e.name }}{% if e.place %}
+                <span class="mut sm">{{ e.place }}</span>{% endif %}</div>{% endfor %}{% endif %}</td>
+            <td class="r" data-l="Businesses">{{ s.brands|length }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="emptycell"><div class="empty"><h3>Nothing shared yet</h3>
+            <p>No number appears in more than one business.</p></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if staff_without_identity %}
+<div class="section open">
+  <div class="sh"><span class="si b"><svg class="gico"><use href="#i-team"/></svg></span>
+    <div><h3 class="disp">Staff with no number</h3><div class="sd">No number, no staff app</div></div></div>
+  <div class="body">
+    {% for e in staff_without_identity %}
+    <div class="row" style="padding:6px 0">{{ e.name }} <span class="mut" style="font-size:12.5px">{{ e.business.username }}</span></div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<p><a href="{% url 'console_customers' %}" class="gbtn"><svg class="gico"><use href="#i-back"/></svg> Back to people</a></p>
+{% endblock %}

@@ -18,8 +18,8 @@ from django.contrib.auth.models import User
 from django.db import models, transaction
 from django.db.models import Max
 
-from .models import ActiveDevice, BusinessPasskey, Customer, Invoice, Party, Product, UserProfile
-from .parties import refresh_for_business, refresh_parties
+from .models import ActiveDevice, AppUser, BusinessPasskey, Customer, Invoice, Product, UserProfile
+from .appusers import refresh_for_business, refresh_people
 
 
 # --------------------------------------------------------------------------- #
@@ -199,14 +199,14 @@ def purge_business(user, commit=True):
     if commit:
         # Parties with a row here may lose their only visible ledger. They're re-checked
         # once the delete commits, so SyncUp never hears about a purge that rolled back.
-        party_ids = list(Party.objects.filter(mappings__customer__user=user)
+        party_ids = list(AppUser.objects.filter(customers__user=user)
                          .values_list("id", flat=True).distinct())
         for _, qs in owned_querysets(user):
             qs.delete()
         # UserProfile is itself a derived root (user, CASCADE), so it went with the loop.
         user.delete()
         if party_ids:
-            transaction.on_commit(lambda: refresh_parties(party_ids))
+            transaction.on_commit(lambda: refresh_people(party_ids))
     return dict(counts, username=user.username, committed=bool(commit), total=total)
 
 
