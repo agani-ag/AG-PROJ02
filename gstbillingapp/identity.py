@@ -139,11 +139,22 @@ def _sole_owner(row):
     person = AppUser.objects.filter(pk=row.app_user_id).first() if row.app_user_id else None
     if person is None or not person.has_login:
         return None
-    others = person.customers.all() if not isinstance(row, Customer) else         person.customers.exclude(pk=row.pk)
-    if others.exists():
-        return None
-    others = person.employees.all() if isinstance(row, Customer) else         person.employees.exclude(pk=row.pk)
-    return None if others.exists() else person
+    return person if _only_row_of(person, row) else None
+
+
+def _only_row_of(person, row):
+    """Is this row the only thing pointing at this person?
+
+    It decides who may *correct* a number or an email rather than merely fill in a blank
+    one. A person two businesses share can't have their sign-in rewritten by one of them —
+    the other business would lose them — so there, the value entered first stands."""
+    customers = (person.customers.exclude(pk=row.pk) if isinstance(row, Customer)
+                 else person.customers.all())
+    if customers.exists():
+        return False
+    employees = (person.employees.exclude(pk=row.pk) if isinstance(row, Employee)
+                 else person.employees.all())
+    return not employees.exists()
 
 
 def person_for(row, *, create=True):
@@ -172,14 +183,24 @@ def person_for(row, *, create=True):
             return None
         return AppUser.objects.create(mobile=mobile, email=email or None,
                                       name=display_name(row))
+    # The person already exists. Two things can have happened to the row: a half they
+    # didn't have was filled in (a number that now has an email beside it), or a half they
+    # did have was corrected. Both have to land on the person — and both have to be told to
+    # SyncUp, which is what identity_pending is for. Without it the email sat in our
+    # database and never reached their app.
+    alone = _only_row_of(person, row)
     fields = []
-    if mobile and not person.mobile and not AppUser.objects.filter(mobile=mobile).exists():
+    if mobile and mobile != person.mobile and (alone or not person.mobile) \
+            and not AppUser.objects.filter(mobile=mobile).exclude(pk=person.pk).exists():
         person.mobile, _ = mobile, fields.append("mobile")
-    if email and not person.email and not AppUser.objects.filter(email=email).exists():
+    if email and email != person.email and (alone or not person.email) \
+            and not AppUser.objects.filter(email=email).exclude(pk=person.pk).exists():
         person.email, _ = email, fields.append("email")
     if not person.name and display_name(row):
         person.name, _ = display_name(row), fields.append("name")
     if fields:
+        person.identity_pending = True
+        fields.append("identity_pending")
         person.save(update_fields=fields)
     return person
 

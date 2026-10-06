@@ -153,7 +153,7 @@ def check_connection(cfg=None):
         return False, str(e)
 
 
-def upsert_account(external_id, *, name, phone=None, email=None, password=None,
+def upsert_account(external_id, *, name, phone=None, email=None, password=None, timeout=None,
                    is_active=True, app_link=None, links=None):
     """Create or update the account in one call (SyncUp's PUT is an idempotent upsert).
 
@@ -178,7 +178,7 @@ def upsert_account(external_id, *, name, phone=None, email=None, password=None,
                                           "url": app_link, "icon": "home"}] if app_link else [])
     if wanted:
         payload["links"] = wanted
-    data = _request("PUT", "users/external/%s" % external_id, payload)
+    data = _request("PUT", "users/external/%s" % external_id, payload, timeout=timeout)
     got = {(link or {}).get("url") for link in (data.get("links") or [])}
     if wanted and not all(w["url"] in got for w in wanted):
         raise SyncUpError("SyncUp saved the account but not its app link. SyncUp may need "

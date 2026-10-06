@@ -2790,6 +2790,18 @@ def _app_token(row, active=True):
     return mint_user_token(person)
 
 
+def _told(person):
+    """Mark this person as already described to SyncUp.
+
+    A test that sets up a login with .update() leaves no record of what SyncUp was told, and
+    /cron/syncup reads that as "never told" and pushes. Tests about app state say so here."""
+    from .models import AppUser
+    AppUser.objects.filter(pk=person.pk).update(
+        identity_sent=appusers.identity_signature(person))
+    person.refresh_from_db()
+    return person
+
+
 def _person_of(row):
     from .identity import attach
     return attach(row)
@@ -2851,6 +2863,7 @@ class CustomerAppSwitchTests(TestCase):
         AppUser.objects.filter(pk=cls.party.pk).update(login_status=AppUser.LOGIN_ACTIVE,
                                                        syncup_active=True)
         cls.party.refresh_from_db()
+        _told(cls.party)
 
     def setUp(self):
         self.client.force_login(self.owner)
@@ -3083,7 +3096,7 @@ class SyncUpSpeedTests(TestCase):
         AppUser.objects.filter(pk=person.pk).update(login_status=AppUser.LOGIN_ACTIVE,
                                                     syncup_active=True)
         person.refresh_from_db()
-        party = person
+        party = _told(person)
         with mock.patch("gstbillingapp.syncup_client.set_account_active") as push:
             self.assertEqual(refresh_login(party), "pushed")
         push.assert_called_once_with(party.external_id, False, timeout=2)
@@ -3106,9 +3119,11 @@ class SyncUpSpeedTests(TestCase):
         AppUser.objects.filter(pk=party.pk).update(login_status=AppUser.LOGIN_ACTIVE,
                                                    syncup_active=True, syncup_error="timed out")
         party.refresh_from_db()
+        _told(party)
         staff = _employee(a, "GANESH", phone="9000000009")
         AppUser.objects.filter(pk=_person_of(staff).pk).update(
             login_status=AppUser.LOGIN_ACTIVE, syncup_active=True)        # already in step
+        _told(_person_of(staff))
         with mock.patch("gstbillingapp.syncup_client.set_account_active") as push:
             r = self.client.get("/cron/syncup", {"key": "k"})
         body = r.json()
@@ -5151,6 +5166,191 @@ class NumberChangedTests(TestCase):
         self.assertFalse(person.identity_pending)
         self.assertEqual(person.syncup_error, "")
         self.assertEqual(self.upsert.call_args.kwargs["phone"], "9876500046")
+
+
+class IdentityChangeReachesSyncUpTests(TestCase):
+    """An edit that doesn't reach SyncUp is worse than one that fails: nothing says so.
+
+    The case that found this: an employee synced by mobile, an email added to them days
+    later, and the email still not on their app the next day. It was saved on our side and
+    never sent."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+
+    def setUp(self):
+        _syncup_on()
+        self.upsert = mock.patch("gstbillingapp.syncup_client.upsert_account").start()
+        self.push = mock.patch("gstbillingapp.syncup_client.set_account_active").start()
+        self.upsert.return_value = {"status": "enabled"}
+        self.push.return_value = {"status": "enabled"}
+        self.addCleanup(mock.patch.stopall)
+
+    def _employee(self, **kw):
+        with self.captureOnCommitCallbacks(execute=True):
+            return Employee.objects.create(business=self.a, name="RIZWAN", **kw)
+
+    def test_an_email_added_later_is_sent_to_syncup(self):
+        from .models import AppUser
+        emp = self._employee(phone="9876500021")
+        person = _person_of(emp)
+        self.upsert.reset_mock()
+        with self.captureOnCommitCallbacks(execute=True):
+            emp.email = "rizwan@example.com"
+            emp.save()
+        person.refresh_from_db()
+        self.assertEqual(person.email, "rizwan@example.com")     # ours
+        self.upsert.assert_called()                              # and theirs
+        sent = self.upsert.call_args.kwargs
+        self.assertEqual(sent["email"], "rizwan@example.com")
+        self.assertEqual(sent["phone"], "9876500021")
+        self.assertNotIn("password", sent)                       # their password stands
+        self.assertFalse(AppUser.objects.get(pk=person.pk).identity_pending)
+
+    def test_a_changed_email_replaces_the_old_one(self):
+        """The second half of the same bug: a value that was already there was ignored, so
+        our own database kept the old address too."""
+        emp = self._employee(phone="9876500022", email="old@example.com")
+        person = _person_of(emp)
+        self.upsert.reset_mock()
+        with self.captureOnCommitCallbacks(execute=True):
+            emp.email = "new@example.com"
+            emp.save()
+        person.refresh_from_db()
+        self.assertEqual(person.email, "new@example.com")
+        self.assertEqual(self.upsert.call_args.kwargs["email"], "new@example.com")
+
+    def test_a_changed_number_on_a_row_with_an_email_follows_too(self):
+        emp = self._employee(phone="9876500023", email="rb@example.com")
+        person = _person_of(emp)
+        with self.captureOnCommitCallbacks(execute=True):
+            emp.phone = "9876500024"
+            emp.save()
+        person.refresh_from_db()
+        self.assertEqual(person.mobile, "9876500024")
+        self.assertEqual(self.upsert.call_args.kwargs["phone"], "9876500024")
+
+    def test_a_shared_person_keeps_the_address_entered_first(self):
+        """Two businesses, one person. One of them must not silently rewrite the other's
+        sign-in — but a blank is still filled."""
+        with self.captureOnCommitCallbacks(execute=True):
+            ca = Customer.objects.create(user=self.a, customer_name="KMR",
+                                         customer_phone="9876500025", is_mobile_user=True)
+            cb = Customer.objects.create(user=self.b, customer_name="KMR TRADERS",
+                                         customer_phone="9876500025", is_mobile_user=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            ca.customer_email = "first@example.com"
+            ca.save()
+        self.assertEqual(_person_of(ca).email, "first@example.com")
+        with self.captureOnCommitCallbacks(execute=True):
+            cb.customer_email = "second@example.com"
+            cb.save()
+        self.assertEqual(_person_of(ca).email, "first@example.com")
+
+    def test_the_cron_sends_what_a_failed_push_left_behind(self):
+        from .models import AppUser
+        emp = self._employee(phone="9876500026")
+        self.upsert.side_effect = syncup_client.SyncUpError("SyncUp is unreachable")
+        with self.captureOnCommitCallbacks(execute=True):
+            emp.email = "late@example.com"
+            emp.save()
+        person = _person_of(emp)
+        self.assertTrue(person.identity_pending)
+        self.upsert.side_effect = None
+        self.upsert.return_value = {"status": "enabled"}
+        appusers.retry_pending()
+        self.assertFalse(AppUser.objects.get(pk=person.pk).identity_pending)
+        self.assertEqual(self.upsert.call_args.kwargs["email"], "late@example.com")
+
+
+class CronRepairsDriftTests(TestCase):
+    """/cron/syncup is the thing that runs by itself, so it is the thing that has to notice.
+
+    It compares the fingerprint of what SyncUp was last told with what we hold now, which
+    costs no API call — so a person whose email never reached them is found on the next run
+    without asking SyncUp about all 157 people every ten minutes."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.a, = _businesses("ALPHA")
+
+    def setUp(self):
+        _syncup_on()
+        self.upsert = mock.patch("gstbillingapp.syncup_client.upsert_account").start()
+        self.push = mock.patch("gstbillingapp.syncup_client.set_account_active").start()
+        self.upsert.return_value = {"status": "enabled"}
+        self.push.return_value = {"status": "enabled"}
+        self.addCleanup(mock.patch.stopall)
+
+    def _employee(self, phone, **kw):
+        with self.captureOnCommitCallbacks(execute=True):
+            return Employee.objects.create(business=self.a, name="RIZWAN", phone=phone, **kw)
+
+    def test_a_person_from_before_we_kept_track_is_pushed_once(self):
+        """Everyone live today has no fingerprint. The cron treats that as "never told"
+        and brings them up to date — which is how the employee's missing email is fixed
+        without anybody running anything."""
+        from .models import AppUser
+        emp = self._employee("9876500041")
+        person = _person_of(emp)
+        # As the live database looks: the email is ours, SyncUp was never told, and nothing
+        # is flagged because the flag didn't exist when it happened.
+        AppUser.objects.filter(pk=person.pk).update(
+            email="late@example.com", identity_pending=False, identity_sent="")
+        self.upsert.reset_mock()
+
+        appusers.retry_pending()
+
+        self.upsert.assert_called_once()
+        self.assertEqual(self.upsert.call_args.kwargs["email"], "late@example.com")
+        self.assertTrue(AppUser.objects.get(pk=person.pk).identity_sent)
+
+    def test_a_second_run_costs_nothing(self):
+        self._employee("9876500042")
+        appusers.retry_pending()
+        self.upsert.reset_mock()
+        self.push.reset_mock()
+        counts = appusers.retry_pending()
+        self.upsert.assert_not_called()
+        self.assertEqual(counts["pushed"], 0)
+
+    def test_a_run_stops_at_a_hundred_calls_and_the_next_one_carries_on(self):
+        from .models import AppUser
+        for i in range(5):
+            self._employee("98764%05d" % i)
+        AppUser.objects.update(identity_sent="")        # everyone looks untold
+        self.upsert.reset_mock()
+        with mock.patch.object(appusers, "PER_RUN", 2):
+            counts = appusers.retry_pending()
+        self.assertEqual(self.upsert.call_count, 2)
+        self.assertEqual(counts["later"], 3)
+        with mock.patch.object(appusers, "PER_RUN", 2):
+            appusers.retry_pending()
+        self.assertEqual(AppUser.objects.filter(identity_sent="").count(), 1)
+
+    def test_a_push_syncup_refuses_is_tried_again_next_run(self):
+        from .models import AppUser
+        emp = self._employee("9876500043")
+        person = _person_of(emp)
+        AppUser.objects.filter(pk=person.pk).update(email="x@example.com", identity_sent="")
+        self.upsert.side_effect = syncup_client.SyncUpError("down")
+        appusers.retry_pending()
+        self.assertEqual(AppUser.objects.get(pk=person.pk).identity_sent, "")
+        self.upsert.side_effect = None
+        self.upsert.return_value = {"status": "enabled"}
+        appusers.retry_pending()
+        self.assertTrue(AppUser.objects.get(pk=person.pk).identity_sent)
+
+    @override_settings(CRON_KEY="k")
+    def test_the_cron_endpoint_reports_what_it_did(self):
+        from .models import AppUser
+        self._employee("9876500044")
+        AppUser.objects.update(identity_sent="")
+        r = self.client.get(reverse("cron_syncup"), HTTP_X_CRON_KEY="k")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("logins", r.json())
+        self.assertFalse(AppUser.objects.filter(identity_sent="").exists())
 
 
 class BackfillTests(TestCase):

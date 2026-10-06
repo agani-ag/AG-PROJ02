@@ -970,6 +970,12 @@ class AppUser(models.Model):
     # moves, cleared when the push lands, so a failed push is retried by /cron/syncup instead
     # of being quietly forgotten.
     identity_pending = models.BooleanField(default=False)
+    # A fingerprint of the name, number and email SyncUp was last *given* — the same idea as
+    # link_keys above. /cron/syncup compares it with what we hold now and pushes the
+    # difference, so an edit that never reached them is found without asking SyncUp about
+    # every person. Empty means "we have no record of telling them", which is true of
+    # everyone who existed before this field did.
+    identity_sent = models.CharField(max_length=40, blank=True, default="")
     # What SyncUp says about OUR connection to this person: "enabled" (they can see our
     # tiles), "not_enabled" (the number already belonged to a SyncUp account, so they must
     # switch GSTSync on in their app first) or "disabled" (they switched us off). Empty until

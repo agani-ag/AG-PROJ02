@@ -11,6 +11,7 @@ them, nothing is mailed, and the console only looks on.
 Every call here is one Partner API call, and nothing a business does is ever blocked by
 SyncUp being down: a failure is recorded on the person and retried by /cron/syncup.
 """
+import hashlib
 import logging
 import secrets
 
@@ -156,6 +157,21 @@ def _identity_payload(person):
     return payload
 
 
+def identity_signature(person):
+    """A fingerprint of exactly what an upsert would tell SyncUp about this person.
+
+    Stored on the person after each successful call, so "have they been told?" is a string
+    comparison rather than a question only SyncUp can answer. A digest rather than the
+    values themselves: fixed width, and the contact details are already a column away."""
+    payload = "%s|%s|%s" % (person.name or person.sign_in, person.mobile, person.email or "")
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:32]
+
+
+def identity_drifted(person):
+    """Does SyncUp hold something other than what we hold? Costs no call."""
+    return person.identity_pending or person.identity_sent != identity_signature(person)
+
+
 def _note_connection(person, user):
     """SyncUp's answer carries the state of OUR connection to this person. A number that
     already belonged to somebody's SyncUp account gives us "not_enabled": the account is
@@ -200,6 +216,8 @@ def ensure_login(person):
     AppUser.objects.filter(pk=person.pk).update(
         login_status=AppUser.LOGIN_ACTIVE, login_issued_at=timezone.now(), tile_text="",
         syncup_active=True, syncup_synced_at=timezone.now(), syncup_error="",
+        identity_pending=False,                 # the account was just made from these values
+        identity_sent=identity_signature(person),
         link_keys=",".join(sorted(link["external_id"] for link in links)))
     _note_connection(person, user)
     return "created"
@@ -282,25 +300,29 @@ def sync_links(person):
     return True
 
 
-def push_identity(person):
-    """Their number (or email) changed and they keep the same account: tell SyncUp, so they
-    sign in with the new one. The password is not sent, so one they have chosen stands.
+def push_identity(person, timeout=None):
+    """Tell SyncUp the name, number and email we hold, so they sign in with what the business
+    typed. The password is not sent, so one they have chosen stands.
 
-    Never raises. A 409 means the new number already belongs to somebody else's SyncUp
-    account — that is recorded against the person and shown on the console."""
+    `timeout` is for the calls made while a business waits (see QUICK_TIMEOUT): their save
+    must not hang on SyncUp, and /cron/syncup picks up whatever didn't land.
+
+    Never raises. A 409 means the number already belongs to somebody else's SyncUp account —
+    that is recorded against the person and shown on the console."""
     if person.login_status == AppUser.LOGIN_NONE or not syncup_client.config().is_configured:
         return None
     try:
         user = syncup_client.upsert_account(
             person.external_id, name=person.name or person.sign_in,
-            is_active=person.syncup_active, links=desired_links(person),
+            is_active=person.syncup_active, links=desired_links(person), timeout=timeout,
             **_identity_payload(person))
     except syncup_client.SyncUpError as e:
         log.warning("New sign-in for %s not accepted: %s", person.external_id, e)
         AppUser.objects.filter(pk=person.pk).update(syncup_error=str(e)[:300])
         return "busy" if e.status == 429 else "failed"
-    AppUser.objects.filter(pk=person.pk).update(syncup_error="", identity_pending=False,
-                                                syncup_synced_at=timezone.now())
+    AppUser.objects.filter(pk=person.pk).update(
+        syncup_error="", identity_pending=False, identity_sent=identity_signature(person),
+        syncup_synced_at=timezone.now())
     _note_connection(person, user)
     return "pushed"
 
@@ -317,10 +339,11 @@ def refresh_login(person):
     person = AppUser.objects.filter(pk=person.pk).first()
     if person is None or person.login_status == AppUser.LOGIN_NONE:
         return None
-    if person.identity_pending:
-        # They sign in with something else now. Until SyncUp has that, nothing else is worth
-        # pushing — and the error stands so /cron/syncup comes back to it.
-        if push_identity(person) != "pushed":
+    if identity_drifted(person):
+        # What SyncUp holds isn't what we hold — a corrected number, an email added days
+        # after the account was made, or a person from before we kept track. Until that has
+        # landed nothing else is worth pushing, and the error stands so the cron returns.
+        if push_identity(person, timeout=syncup_client.QUICK_TIMEOUT) != "pushed":
             return "failed"
         person.refresh_from_db()
     want = person.login_status == AppUser.LOGIN_ACTIVE and can_use_app(person)
@@ -369,7 +392,7 @@ def retry_pending():
     into a pile of failures, and every person we skip is still waiting in the same place for
     the next run. Returns counts by outcome."""
     counts = {"created": 0, "pushed": 0, "failed": 0, "unchanged": 0, "busy": 0, "left": 0,
-              "linked": link_new_rows()}
+              "identity": 0, "linked": link_new_rows()}
     opened = 0
     for person in AppUser.objects.filter(login_status=AppUser.LOGIN_NONE):
         if opened >= PER_RUN:
@@ -383,12 +406,29 @@ def retry_pending():
     # Everyone still without a login — the ones this run didn't reach, plus the ones who have
     # nothing to open yet. Informational: the next run walks the same list.
     counts["left"] = AppUser.objects.filter(login_status=AppUser.LOGIN_NONE).count()
-    for person in AppUser.objects.exclude(login_status=AppUser.LOGIN_NONE):
+    # Then everyone who already has one: their state, their tiles, and — the part that
+    # matters here — any name, number or email SyncUp was never told about. The run is
+    # capped by *calls made*, not people looked at, so a quiet run still walks everybody
+    # while the first run after a change works through them a hundred at a time.
+    calls, seen = 0, 0
+    people = AppUser.objects.exclude(login_status=AppUser.LOGIN_NONE)
+    for person in people:
+        if calls >= PER_RUN:
+            break
+        seen += 1
+        # Asked before, because refresh_login reports what it did to their *state* — a
+        # person whose email we sent and whose state was already right answers "unchanged".
+        drifted = identity_drifted(person)
         outcome = refresh_login(person)
         if outcome:
             counts[outcome] = counts.get(outcome, 0) + 1
+        if drifted and outcome != "failed":
+            counts["identity"] += 1
+        if drifted or outcome in ("pushed", "failed", "busy"):
+            calls += 1
         if outcome == "busy":
             break
+    counts["later"] = max(people.count() - seen, 0)
     return counts
 
 
