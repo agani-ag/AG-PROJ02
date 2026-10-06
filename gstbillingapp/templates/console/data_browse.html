@@ -1,0 +1,123 @@
+{% extends "console/base.html" %}
+{% comment %}The database, one screen: a table picker, a filter box per column, and the rows.
+
+Modelled on a desktop database browser rather than on the rest of the console — every column
+is shown and the grid scrolls sideways, because the point here is to see the row as the
+database holds it, not a tidy summary of it. The table lives in ?t= and each filter in
+?f_<column>=, so a narrowed view is a link.
+{% endcomment %}
+{% block title %}Data · {{ model_name }}{% endblock %}
+{% block nav_data %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1 class="disp">Data</h1>
+    <div class="sub">{{ page.paginator.count }} {{ verbose }}{% if filtered %} matching{% endif %}
+      · showing {{ page.start_index }}–{{ page.end_index }}</div>
+  </div>
+  <div class="actions">
+    <a href="{% url 'console_data_add' label %}" class="gbtn gbtn-primary">
+      <svg class="gico"><use href="#i-plus"/></svg> New row</a>
+  </div>
+</div>
+
+<div class="warnbox" style="margin-bottom:14px">
+  <svg class="gico"><use href="#i-alert"/></svg>
+  <div><b>The live database.</b> A save runs the model's validation and its signals, exactly as
+    if a business had typed it. Passwords, keys and device tokens are never shown and can't be
+    written from here. Nothing on this screen changes the schema.</div>
+</div>
+
+<form method="get" class="dbgrid">
+  <div class="toolbar">
+    <label class="mut" style="font-size:12.5px;font-weight:700" for="tpick">TABLE</label>
+    <select id="tpick" name="t" class="control" style="width:260px"
+            onchange="location='?t=' + encodeURIComponent(this.value)">
+      {% for t in tables %}
+      <option value="{{ t.label }}" {% if t.label == label %}selected{% endif %}>{{ t.name }} ({{ t.count }})</option>
+      {% endfor %}
+    </select>
+    <div class="search" style="flex:1;min-width:200px">
+      <svg class="gico"><use href="#i-search"/></svg>
+      <input type="text" name="q" value="{{ q }}" placeholder="Filter in any column…" autocomplete="off">
+    </div>
+    <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-search"/></svg> Apply</button>
+    {% if filtered %}<a href="?t={{ label }}" class="gbtn">Clear</a>{% endif %}
+    {% if page.paginator.num_pages > 1 %}
+    <div class="pager">
+      {% if page.has_previous %}<a href="?{{ carried }}&page={{ page.previous_page_number }}">&lsaquo;</a>{% endif %}
+      <span>{{ page.number }} / {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a href="?{{ carried }}&page={{ page.next_page_number }}">&rsaquo;</a>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="tablecard">
+    <div class="tbl-scroll">
+    <table class="gt dbt">
+      <thead>
+        <tr>
+          <th class="pin"></th>
+          {% for c in columns %}<th>{{ c.name }}</th>{% endfor %}
+        </tr>
+        <tr class="frow">
+          <th class="pin"></th>
+          {% for c in columns %}
+          <th><input name="f_{{ c.name }}" value="{{ c.filter }}" placeholder="Filter"
+                     autocomplete="off" aria-label="Filter {{ c.name }}"></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="pin"><a class="gbtn gbtn-sm" href="{% url 'console_data_row' label r.pk %}?{{ carried }}">Open</a></td>
+          {% for cell in r.cells %}<td{% if forloop.first %} class="k"{% endif %}>{{ cell }}</td>{% endfor %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="{{ columns|length|add:1 }}" class="emptycell"><div class="empty">
+          <h3>No rows</h3>
+          <p>{% if filtered %}Nothing in {{ model_name }} matches those filters.{% else %}{{ model_name }} is empty.{% endif %}</p>
+          {% if filtered %}<a href="?t={{ label }}" class="gbtn">Clear filters</a>{% endif %}
+        </div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  {% if page.paginator.num_pages > 1 %}
+  <div class="toolbar" style="margin-top:12px">
+    <span class="mut" style="font-size:12.5px">{{ page.paginator.count }} rows in
+      {{ page.paginator.num_pages }} pages</span>
+    <div class="pager">
+      {% if page.has_previous %}<a href="?{{ carried }}&page=1">&laquo; First</a>
+      <a href="?{{ carried }}&page={{ page.previous_page_number }}">&lsaquo; Back</a>{% endif %}
+      <span>{{ page.number }}</span>
+      {% if page.has_next %}<a href="?{{ carried }}&page={{ page.next_page_number }}">Next &rsaquo;</a>
+      <a href="?{{ carried }}&page={{ page.paginator.num_pages }}">Last &raquo;</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</form>
+
+<style>
+/* A database grid, not a summary table: every column is here, so it scrolls sideways and the
+   rows stay tight enough to read a lot of them at once. */
+.gs .dbt{min-width:100%;font-size:12.5px}
+.gs .dbt thead th{padding:9px 11px;white-space:nowrap;font-size:10.5px}
+.gs .dbt tbody td{padding:7px 11px;white-space:nowrap;max-width:320px;overflow:hidden;
+  text-overflow:ellipsis;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;font-size:12px}
+.gs .dbt tbody td.k{font-weight:700;font-family:var(--sans)}
+.gs .dbt tbody tr:hover td{background:#f8fafd}
+.gs .dbt .frow th{padding:0 6px 7px;background:var(--wash)}
+.gs .dbt .frow input{width:100%;min-width:90px;border:1px solid var(--line);border-radius:7px;
+  padding:4px 7px;font-size:11.5px;font-family:var(--sans);background:#fff;color:var(--ink)}
+.gs .dbt .frow input:focus{outline:none;border-color:var(--brand)}
+/* The Open button stays put while the columns scroll under it. */
+.gs .dbt .pin{position:sticky;left:0;z-index:2;background:#fff;padding-left:14px}
+.gs .dbt thead .pin{background:var(--wash)}
+.gs .dbt tbody tr:hover .pin{background:#f8fafd}
+</style>
+{% endblock %}

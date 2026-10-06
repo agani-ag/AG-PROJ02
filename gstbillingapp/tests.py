@@ -5261,6 +5261,228 @@ class StaffAppSwitchTests(TestCase):
         self.assertTrue(appusers.can_use_app(person))
 
 
+class ConsoleDataTests(TestCase):
+    """The Data screens: every table, every row, and the rails around editing them."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin, SyncUpSettings
+        cls.admin = PlatformAdmin(username="dataop", full_name="Data Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.a, = _businesses("ALPHA")
+        cls.cust = Customer.objects.create(user=cls.a, customer_name="KMR",
+                                           customer_phone="9876543210", is_mobile_user=True)
+        cfg = SyncUpSettings.load()
+        cfg.partner_key = "secret-partner-key-xyz"
+        cfg.save()
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.client.post(reverse("console_login"),
+                         {"username": "dataop", "password": "Cons0le!pass9"})
+
+    # ---- getting there -------------------------------------------------- #
+    def test_one_screen_lists_every_table_in_its_picker(self):
+        r = self.client.get(reverse("console_data"))
+        for name in ("Customer", "Invoice", "AppUser", "SyncUpSettings", "User"):
+            self.assertContains(r, ">%s (" % name)          # an option in the dropdown
+        self.assertContains(r, "live database")
+
+    def test_it_opens_on_a_table_without_being_asked(self):
+        r = self.client.get(reverse("console_data"))
+        self.assertContains(r, "KMR")                       # rows, not an empty prompt
+
+    def test_every_column_is_shown_not_a_summary(self):
+        r = self.client.get(reverse("console_data"), {"t": "gstbillingapp.customer"})
+        for column in ("customer_name", "customer_phone", "customer_gst", "credit_limit",
+                       "customer_place", "collection_day"):
+            self.assertContains(r, column)
+
+    def test_a_table_that_does_not_exist_is_not_found(self):
+        for label in ("gstbillingapp.nosuch", "django_session", "auth.permission"):
+            self.assertEqual(self.client.get(
+                reverse("console_data"), {"t": label}).status_code, 404, label)
+
+    def test_the_console_login_is_required(self):
+        self.client.get(reverse("console_logout"))
+        for url in (reverse("console_data"),
+                    reverse("console_data_row", args=["gstbillingapp.customer", self.cust.pk])):
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 302, url)
+            self.assertIn("/console/login", r["Location"])
+
+    # ---- reading --------------------------------------------------------- #
+    def test_rows_can_be_filtered_in_any_column_or_in_one(self):
+        Customer.objects.create(user=self.a, customer_name="ZZTOP", customer_phone="9876500071")
+        url = reverse("console_data")
+        r = self.client.get(url, {"t": "gstbillingapp.customer", "q": "ZZTOP"})
+        self.assertContains(r, "ZZTOP")
+        self.assertNotContains(r, ">KMR<")
+        r = self.client.get(url, {"t": "gstbillingapp.customer", "f_customer_name": "KMR"})
+        self.assertContains(r, "KMR")
+        self.assertNotContains(r, "ZZTOP")
+        r = self.client.get(url, {"t": "gstbillingapp.customer", "f_user": self.a.id})
+        self.assertContains(r, "KMR")
+
+    def test_a_foreign_key_filters_on_the_words_behind_it(self):
+        """A book log shows its book as the customer's name, because a Book has no words of
+        its own. Typing part of that name has to reach through two tables, or the filter
+        looks broken — which is exactly what it did."""
+        from .models import Book, BookLog
+        book = Book.objects.create(user=self.a, customer=self.cust)
+        other = Customer.objects.create(user=self.a, customer_name="AMBAL TRADERS",
+                                        customer_phone="9876500061")
+        now = timezone.now()
+        BookLog.objects.create(parent_book=book, change=10, change_type=1, date=now)
+        BookLog.objects.create(parent_book=Book.objects.create(user=self.a, customer=other),
+                               change=20, change_type=1, date=now)
+        url = reverse("console_data")
+        r = self.client.get(url, {"t": "gstbillingapp.booklog", "f_parent_book": "ambal"})
+        self.assertContains(r, "AMBAL TRADERS")
+        self.assertNotContains(r, ">KMR<")
+        r = self.client.get(url, {"t": "gstbillingapp.booklog", "f_parent_book": book.pk})
+        self.assertContains(r, "KMR")               # an id still works
+        r = self.client.get(url, {"t": "gstbillingapp.booklog", "q": "ambal"})
+        self.assertContains(r, "AMBAL TRADERS")     # and so does the any-column box
+
+    def test_part_of_a_number_or_a_date_matches(self):
+        from .models import Book, BookLog
+        book = Book.objects.create(user=self.a, customer=self.cust)
+        BookLog.objects.create(parent_book=book, change=-275.5, change_type=1,
+                               date=timezone.now())
+        url = reverse("console_data")
+        r = self.client.get(url, {"t": "gstbillingapp.booklog", "f_change": "275"})
+        self.assertContains(r, "275")
+        r = self.client.get(url, {"t": "gstbillingapp.booklog", "f_change": "<-100"})
+        self.assertContains(r, "275")               # a comparison, not just equality
+        r = self.client.get(url, {"t": "gstbillingapp.booklog", "f_change": ">0"})
+        self.assertNotContains(r, "275")
+
+    def test_a_boolean_takes_a_word_not_just_a_digit(self):
+        url = reverse("console_data")
+        for value in ("yes", "true", "1"):
+            r = self.client.get(url, {"t": "gstbillingapp.customer", "f_is_mobile_user": value})
+            self.assertContains(r, "KMR", msg_prefix=value)
+        for value in ("no", "false", "0"):
+            r = self.client.get(url, {"t": "gstbillingapp.customer", "f_is_mobile_user": value})
+            self.assertNotContains(r, ">KMR<", msg_prefix=value)
+
+    def test_every_column_of_every_table_can_be_filtered(self):
+        """The sweep: each column of each table, with a word, a number and a date. Any
+        combination that can't build valid SQL shows up here rather than on a live page."""
+        from . import dbviewer
+        for model in dbviewer.all_models():
+            label = dbviewer.label_of(model)
+            for field in dbviewer.fields_of(model):
+                if dbviewer.is_secret(field):
+                    continue
+                for value in ("ambal", "27", "2026-09", ">5"):
+                    rows, typed, filtered = dbviewer.apply_filters(
+                        model, model._default_manager.all(), {"f_" + field.name: value})
+                    where = "%s.%s = %s" % (label, field.name, value)
+                    self.assertTrue(filtered, where)
+                    # The bug this guards: a filter the page accepted and then quietly
+                    # dropped, leaving every row on screen.
+                    self.assertTrue(rows.query.where.children, where)
+                    list(rows[:1])                  # runs the SQL
+            for value in ("ambal", "27"):
+                rows, _typed, _f = dbviewer.apply_filters(
+                    model, model._default_manager.all(), {"q": value})
+                list(rows[:1])
+
+    def test_a_filter_the_column_cannot_hold_is_ignored_not_fatal(self):
+        r = self.client.get(reverse("console_data"),
+                            {"t": "gstbillingapp.customer", "f_credit_limit": "not a number"})
+        self.assertEqual(r.status_code, 200)
+
+    def test_a_secret_is_never_printed(self):
+        r = self.client.get(reverse("console_data"), {"t": "gstbillingapp.syncupsettings"})
+        self.assertNotContains(r, "secret-partner-key-xyz")
+        from .models import SyncUpSettings
+        row = SyncUpSettings.load()
+        r = self.client.get(reverse("console_data_row",
+                                    args=["gstbillingapp.syncupsettings", row.pk]))
+        self.assertNotContains(r, "secret-partner-key-xyz")
+        self.assertNotContains(r, 'name="partner_key"')
+
+    def test_a_password_hash_is_never_printed(self):
+        r = self.client.get(reverse("console_data_row", args=["auth.user", self.a.pk]))
+        self.assertNotContains(r, self.a.password[:20])
+        self.assertNotContains(r, 'name="password"')
+
+    # ---- writing --------------------------------------------------------- #
+    def test_editing_a_row_saves_it(self):
+        r = self.client.post(
+            reverse("console_data_row", args=["gstbillingapp.customer", self.cust.pk]),
+            {"user": self.a.id, "customer_name": "KMR AND SONS",
+             "customer_phone": "9876543210", "is_mobile_user": "on",
+             "collection_day": self.cust.collection_day,
+             "mobile_token_version": self.cust.mobile_token_version}, follow=True)
+        self.assertEqual(r.status_code, 200)
+        self.cust.refresh_from_db()
+        self.assertEqual(self.cust.customer_name, "KMR AND SONS")
+
+    def test_a_secret_cannot_be_written_from_here(self):
+        from .models import SyncUpSettings
+        row = SyncUpSettings.load()
+        self.client.post(reverse("console_data_row", args=["gstbillingapp.syncupsettings", row.pk]),
+                         {"partner_key": "overwritten", "timeout": "10"})
+        row.refresh_from_db()
+        self.assertEqual(row.partner_key, "secret-partner-key-xyz")
+
+    def test_the_model_rules_still_apply(self):
+        """No special path to the database: a bad mobile is refused here too."""
+        r = self.client.post(
+            reverse("console_data_row", args=["gstbillingapp.appuser",
+                                              _person_of(self.cust).pk]),
+            {"mobile": "12345", "name": "KMR", "login_status": "none", "token_version": "1"})
+        self.assertEqual(r.status_code, 200)                 # redisplayed, not saved
+        self.assertEqual(_person_of(self.cust).mobile, "9876543210")
+
+    def test_adding_a_row(self):
+        self.client.post(reverse("console_data_add", args=["gstbillingapp.customer"]),
+                         {"user": self.a.id, "customer_name": "NEW SHOP",
+                          "customer_phone": "9876500072", "collection_day": "0",
+                          "mobile_token_version": "1"})
+        self.assertTrue(Customer.objects.filter(customer_name="NEW SHOP").exists())
+
+    # ---- deleting -------------------------------------------------------- #
+    def test_deleting_needs_the_row_id_typed(self):
+        r = self.client.post(
+            reverse("console_data_delete", args=["gstbillingapp.customer", self.cust.pk]),
+            {"confirm": "yes"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(Customer.objects.filter(pk=self.cust.pk).exists())
+
+    def test_deleting_with_the_row_id_removes_it(self):
+        self.client.post(
+            reverse("console_data_delete", args=["gstbillingapp.customer", self.cust.pk]),
+            {"confirm": str(self.cust.pk)})
+        self.assertFalse(Customer.objects.filter(pk=self.cust.pk).exists())
+
+    def test_the_row_page_says_what_would_go_with_it(self):
+        from .models import Book
+        Book.objects.create(customer=self.cust, user=self.a)
+        r = self.client.get(reverse("console_data_row",
+                                    args=["gstbillingapp.customer", self.cust.pk]))
+        self.assertContains(r, "point at nobody afterwards")     # Book.customer is SET_NULL
+
+    def test_you_cannot_delete_the_login_you_are_using(self):
+        from .models import PlatformAdmin
+        self.client.post(reverse("console_data_delete",
+                                 args=["gstbillingapp.platformadmin", self.admin.pk]),
+                         {"confirm": str(self.admin.pk)})
+        self.assertTrue(PlatformAdmin.objects.filter(pk=self.admin.pk).exists())
+
+    def test_a_delete_cannot_be_done_with_a_get(self):
+        r = self.client.get(reverse("console_data_delete",
+                                    args=["gstbillingapp.customer", self.cust.pk]))
+        self.assertEqual(r.status_code, 405)
+        self.assertTrue(Customer.objects.filter(pk=self.cust.pk).exists())
+
+
 class ConsolePeopleTests(TestCase):
     """The console: people, their login, and the rows a number can't speak for."""
 

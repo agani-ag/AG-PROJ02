@@ -2,6 +2,8 @@
 {% comment %}One person: what they sign in with, what they reach, and their login.
 Replaces the old Party page — there is nothing to map, merge or ungroup any more.{% endcomment %}
 {% block title %}{{ person.name|default:person.sign_in }}{% endblock %}
+{% block nav_cust %}{% if not postings %}on{% endif %}{% endblock %}
+{% block nav_staff %}{% if postings %}on{% endif %}{% endblock %}
 {% block content %}
 
 <div class="page-head">

@@ -1,0 +1,109 @@
+{% extends "console/base.html" %}
+{% comment %}One row, every field it has.
+
+Three kinds of field, and the difference matters: ordinary ones you edit freely; ones the app
+maintains itself, marked so nobody overrides bookkeeping by accident; and secrets, which are
+shown as dots and never submitted — the form doesn't contain them at all, so this page cannot
+leak a key or overwrite a hash with plain text.
+{% endcomment %}
+{% block title %}{{ title }}{% endblock %}
+{% block nav_data %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <div class="eyebrow"><a href="{{ back }}">Data</a> / {{ model_name }} /
+      {% if is_new %}new{% else %}#{{ instance.pk }}{% endif %}</div>
+    <h1 class="disp">{{ title }}</h1>
+    <div class="sub">{% if is_new %}A new {{ verbose }} — the same rules as everywhere else
+      {% else %}{{ verbose }} #{{ instance.pk }}{% endif %}</div>
+  </div>
+  <div class="actions"><a href="{{ back }}" class="gbtn">
+    <svg class="gico"><use href="#i-back"/></svg> Back to {{ model_name }}</a></div>
+</div>
+
+{% if form.non_field_errors %}
+<div class="cmsg bad"><svg class="gico"><use href="#i-alert"/></svg>
+  <div>{{ form.non_field_errors|join:" " }}</div></div>
+{% endif %}
+
+<form method="post">{% csrf_token %}
+  <div class="section open">
+    <div class="sh"><span class="si b"><svg class="gico"><use href="#i-db"/></svg></span>
+      <div><h3 class="disp">Fields</h3>
+        <div class="sd">Saved through the model, so its validation and its signals both run</div></div></div>
+    <div class="body"><div class="grid">
+      {% for f in fields %}
+      <div class="field{% if f.field.field.widget.input_type == 'checkbox' %} full{% endif %}">
+        {% if f.field.field.widget.input_type == 'checkbox' %}
+          <label class="gtoggle">{{ f.field }} {{ f.field.label }}</label>
+        {% else %}
+          <label for="{{ f.field.id_for_label }}">{{ f.field.label }}
+            {% if f.computed %}<span class="gbadge low">app-maintained</span>{% endif %}</label>
+          {{ f.field }}
+        {% endif %}
+        {% if f.help %}<div class="h">{{ f.help }}</div>{% endif %}
+        {% if f.computed %}<div class="h">The app writes this itself. Changing it by hand
+          overrides what it worked out.</div>{% endif %}
+        {% if f.field.errors %}<div class="h" style="color:#9f1239">{{ f.field.errors|join:" " }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div></div>
+  </div>
+
+  {% if read_only %}
+  <div class="section open">
+    <div class="sh"><span class="si g"><svg class="gico"><use href="#i-shield"/></svg></span>
+      <div><h3 class="disp">Not editable</h3>
+        <div class="sd">Set by the database or hidden on purpose</div></div></div>
+    <div class="body"><div class="grid">
+      {% for r in read_only %}
+      <div class="field"><label>{{ r.title }}</label>
+        <input class="control" value="{{ r.value }}" readonly>
+        {% if r.secret %}<div class="h">Never shown and never written from here.</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div></div>
+  </div>
+  {% endif %}
+
+  <div class="toolbar" style="margin-top:14px">
+    <button type="submit" class="gbtn gbtn-primary">
+      <svg class="gico"><use href="#i-ok"/></svg> {% if is_new %}Add row{% else %}Save changes{% endif %}</button>
+    <a href="{{ back }}" class="gbtn">Cancel</a>
+  </div>
+</form>
+
+{% if not is_new %}
+<div class="section open" style="margin-top:18px">
+  <div class="sh"><span class="si o"><svg class="gico"><use href="#i-trash"/></svg></span>
+    <div><h3 class="disp">Delete this row</h3>
+      <div class="sd">Permanent, and it takes everything that hangs off it</div></div></div>
+  <div class="body">
+    {% if blocked %}
+    <div class="cmsg bad"><svg class="gico"><use href="#i-alert"/></svg><div>{{ blocked }}</div></div>
+    {% else %}
+    {% if cascade %}
+    <div class="warnbox"><svg class="gico"><use href="#i-alert"/></svg>
+      <div>
+        {% for c in cascade %}{% if c.kind == 'deleted' %}
+        <div><b>{{ c.count }} {{ c.name }}</b> go with it</div>{% endif %}{% endfor %}
+        {% for c in cascade %}{% if c.kind == 'emptied' %}
+        <div><b>{{ c.count }} {{ c.name }}</b> stay, but point at nobody afterwards</div>{% endif %}{% endfor %}
+      </div></div>
+    {% else %}
+    <p class="mut" style="font-size:13px">Nothing else points at this row.</p>
+    {% endif %}
+    <form method="post" action="{% url 'console_data_delete' label instance.pk %}" class="toolbar">
+      {% csrf_token %}
+      <input class="control" name="confirm" style="width:170px" autocomplete="off"
+             placeholder="Type {{ instance.pk }}" aria-label="Type the row id to confirm">
+      <button type="submit" class="gbtn">
+        <svg class="gico"><use href="#i-trash"/></svg> Delete row {{ instance.pk }}</button>
+      <span class="mut" style="font-size:12.5px">Type the row's id to unlock this.</span>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

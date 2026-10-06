@@ -40,23 +40,35 @@ badly; templates are never cached, so inline is both simpler and always fresh.
 .cnav .brand .mark .gico{width:16px;height:16px}
 .cnav .brand .tagx{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
   color:#4f46e5;background:#eef0ff;border-radius:6px;padding:2px 7px;margin-left:2px}
-.cnav .items{display:flex;align-items:center;gap:4px;margin-left:10px}
+/* The links scroll sideways rather than wrapping into the brand on a narrow laptop —
+   between the burger (820px) and a full-width header there isn't room for all five. */
+.cnav .items{display:flex;align-items:center;gap:4px;margin-left:10px;min-width:0;
+  overflow-x:auto;scrollbar-width:none}
+.cnav .items::-webkit-scrollbar{display:none}
 .cnav .items a{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:9px;
-  font-size:13.5px;font-weight:600;color:#5b6472}
+  font-size:13.5px;font-weight:600;color:#5b6472;white-space:nowrap}
 .cnav .items a:hover{background:#f6f8fc;color:#0f172a}
 .cnav .items a.on{background:#e8f1ff;color:#2563eb}
-.cnav .end{margin-left:auto;display:flex;align-items:center;gap:10px}
+.cnav a:focus-visible,.cnav .burger:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.cnav .end{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none}
 .cnav .who{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#5b6472;font-weight:600}
 .cnav .who .av{width:29px;height:29px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#4f46e5);
   color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none}
+/* A long full name must not push the buttons off the header. */
+.cnav .who .nm{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cnav .end .gbtn.on{background:#e8f1ff;border-color:#cfe0ff;color:#2563eb}
 .cnav .burger{display:none;margin-left:auto;background:none;border:0;padding:8px;cursor:pointer;color:#0f172a}
+@media(max-width:1080px){.cnav .who .nm{display:none}}
 @media(max-width:820px){
   .cnav .in{flex-wrap:wrap;height:auto;padding:10px 16px;gap:10px}
   .cnav .burger{display:block}
   .cnav .items,.cnav .end{display:none;width:100%;flex-direction:column;align-items:stretch;gap:2px;margin:0}
   .cnav.open .items,.cnav.open .end{display:flex}
-  .cnav .end{border-top:1px solid #eef2f7;padding-top:10px;margin-top:4px}
+  .cnav .items{overflow-x:visible}
+  .cnav .end{border-top:1px solid #eef2f7;padding-top:10px;margin-top:4px;gap:6px}
   .cnav .who{padding:4px 12px}
+  .cnav .who .nm{display:block;max-width:none}
+  .cnav .end .gbtn{justify-content:flex-start}
 }
 .cwrap{max-width:1180px;margin:0 auto;padding:22px 20px 70px}
 @media(max-width:640px){.cwrap{padding:16px 14px 60px}}
@@ -126,6 +138,7 @@ badly; templates are never cached, so inline is both simpler and always fresh.
   <symbol id="i-team" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 2.9-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 4.8a3.3 3.3 0 0 1 0 6.4M18 14.8c2.2.6 3.5 2.4 3.5 5.2"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3L3 10.5l7 3 3 7z"/><path d="M21 3l-11 11"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
   <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></symbol>
 </svg>
 
@@ -140,24 +153,33 @@ badly; templates are never cached, so inline is both simpler and always fresh.
             onclick="document.getElementById('cnav').classList.toggle('open')">
       <svg class="gico"><use href="#i-menu"/></svg>
     </button>
-    <nav class="items">
+    {% comment %}The work the console does, left to right. Your own account — password and
+    signing out — sits with your name on the right, because it isn't a place to go.{% endcomment %}
+    <nav class="items" aria-label="Console">
       <a href="{% url 'console_businesses' %}" class="{% block nav_biz %}{% endblock %}">
         <svg class="gico sm"><use href="#i-shop"/></svg> Businesses</a>
       <a href="{% url 'console_customers' %}" class="{% block nav_cust %}{% endblock %}">
         <svg class="gico sm"><use href="#i-user"/></svg> Customers</a>
       <a href="{% url 'console_employees' %}" class="{% block nav_staff %}{% endblock %}">
         <svg class="gico sm"><use href="#i-team"/></svg> Employees</a>
+      <a href="{% url 'console_data' %}" class="{% block nav_data %}{% endblock %}">
+        <svg class="gico sm"><use href="#i-db"/></svg> Data</a>
       <a href="{% url 'console_admins' %}" class="{% block nav_adm %}{% endblock %}">
         <svg class="gico sm"><use href="#i-shield"/></svg> Admins</a>
       <a href="{% url 'console_syncup' %}" class="{% block nav_set %}{% endblock %}">
         <svg class="gico sm"><use href="#i-gear"/></svg> Settings</a>
-      <a href="{% url 'console_change_password' %}" class="{% block nav_pw %}{% endblock %}">
-        <svg class="gico sm"><use href="#i-key"/></svg> Password</a>
     </nav>
     <div class="end">
-      <span class="who"><span class="av">{{ request.platform_admin.initials }}</span>
-        {% if request.platform_admin_upper != request.platform_admin.initials %}{{ request.platform_admin | upper }}</span>{% endif %}
-      <a href="{% url 'console_logout' %}" class="gbtn"><svg class="gico"><use href="#i-out"/></svg> Sign out</a>
+      <span class="who" title="Signed in">
+        <span class="av">{{ request.platform_admin.initials }}</span>
+        {% if request.platform_admin_upper != request.platform_admin.initials %}
+        <span class="nm">{{ request.platform_admin|upper }}</span>{% endif %}
+      </span>
+      <a href="{% url 'console_change_password' %}" class="gbtn gbtn-sm {% block nav_pw %}{% endblock %}"
+         title="Change your console password">
+        <svg class="gico"><use href="#i-key"/></svg> <span class="lbl">Password</span></a>
+      <a href="{% url 'console_logout' %}" class="gbtn gbtn-sm">
+        <svg class="gico"><use href="#i-out"/></svg> <span class="lbl">Sign out</span></a>
     </div>
   </div>
 </header>
