@@ -4940,6 +4940,22 @@ class AppLoginTests(TestCase):
         self.assertFalse(appusers.sync_links(person))
         self.upsert.assert_not_called()
 
+    def test_a_renamed_tile_re_pushes_though_the_set_is_unchanged(self):
+        """A tile whose label changed — "GSTSync" to "GSTSync Customer" — reaches SyncUp on the
+        next sync even though the set of tiles (link_keys) is exactly the same. An account synced
+        before the label fingerprint existed carries an empty one, so it corrects itself once."""
+        person = _person_of(self.cust)
+        appusers.ensure_login(person)
+        self.upsert.reset_mock()
+        # Stand in for a pre-existing account: same tiles, but no record of what they were called.
+        AppUserModel.objects.filter(pk=person.pk).update(link_sig="")
+        person = AppUserModel.objects.get(pk=person.pk)
+        self.assertTrue(appusers.sync_links(person))
+        self.upsert.assert_called_once()
+        after = AppUserModel.objects.get(pk=person.pk)
+        self.assertEqual(after.link_sig, appusers.links_signature(appusers.desired_links(after)))
+        self.assertFalse(appusers.sync_links(after))            # and now it is quiet again
+
     def test_a_tile_goes_when_that_side_does(self):
         """They stop being staff: that tile is taken away, their ledger tile stays."""
         emp = Employee.objects.create(business=self.a, name="KMR", phone="9876543210")

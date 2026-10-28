@@ -120,6 +120,15 @@ def desired_links(person):
     return links
 
 
+def links_signature(links):
+    """A fingerprint of what the tiles SAY — title and icon — so a change to either re-pushes
+    even when the set of tiles (link_keys) is unchanged. The url is left out on purpose: its
+    token is re-minted on every call and would otherwise force a push every single run."""
+    parts = ["%s|%s|%s" % (l["external_id"], l.get("title") or "", l.get("icon") or "")
+             for l in sorted(links, key=lambda l: l["external_id"])]
+    return hashlib.sha1("\n".join(parts).encode("utf-8")).hexdigest()[:32]
+
+
 def prune_links(person, keep):
     """Take away a tile for a side they no longer have — they stopped being staff, or their
     last ledger was hidden. Quiet about failures: the next sync tries again."""
@@ -222,7 +231,8 @@ def ensure_login(person):
         syncup_active=True, syncup_synced_at=timezone.now(), syncup_error="",
         identity_pending=False,                 # the account was just made from these values
         identity_sent=identity_signature(person),
-        link_keys=",".join(sorted(link["external_id"] for link in links)))
+        link_keys=",".join(sorted(link["external_id"] for link in links)),
+        link_sig=links_signature(links))
     _note_connection(person, user)
     return "created"
 
@@ -288,7 +298,9 @@ def sync_links(person):
     both. Costs nothing while that set is unchanged, which is almost always."""
     links = desired_links(person)
     keys = ",".join(sorted(link["external_id"] for link in links))
-    if keys == person.link_keys:
+    sig = links_signature(links)
+    # A tile gained or lost (keys), or one renamed (sig) — otherwise this costs no call.
+    if keys == person.link_keys and sig == person.link_sig:
         return False
     if links:
         try:
@@ -299,8 +311,9 @@ def sync_links(person):
             log.warning("Tile update for %s failed: %s", person.external_id, e)
             return False
     prune_links(person, {link["external_id"] for link in links})
-    AppUser.objects.filter(pk=person.pk).update(link_keys=keys)
+    AppUser.objects.filter(pk=person.pk).update(link_keys=keys, link_sig=sig)
     person.link_keys = keys
+    person.link_sig = sig
     return True
 
 

@@ -966,6 +966,11 @@ class AppUser(models.Model):
     # Which tiles SyncUp was last given ("gstsync", "gstsync-staff"), so gaining or losing a
     # side changes them — and nothing else costs a call.
     link_keys = models.CharField(max_length=80, blank=True, default="")
+    # A fingerprint of what those tiles SAY (title + icon), so renaming a tile — e.g. "GSTSync"
+    # to "GSTSync Customer" — re-pushes even when link_keys is unchanged. The link url is left
+    # out of it: its token is re-minted every call and would force a push every run. Empty for
+    # everyone who existed before this field did, so their next sync corrects the label once.
+    link_sig = models.CharField(max_length=40, blank=True, default="")
     # Their number or email changed and SyncUp hasn't been told yet. Set when the sign-in
     # moves, cleared when the push lands, so a failed push is retried by /cron/syncup instead
     # of being quietly forgotten.
