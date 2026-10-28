@@ -367,7 +367,9 @@ def _overall_books_qs(u, period, q):
     qs = (BookLog.objects.filter(parent_book__user=u, is_active=True)
           .select_related("parent_book__customer").order_by("-date", "-id"))
     today = datetime.date.today()
-    if period == "week":
+    if period == "yesterday":
+        qs = qs.filter(date__date=today - datetime.timedelta(days=1))
+    elif period == "week":
         qs = qs.filter(date__date__gte=today - datetime.timedelta(days=today.weekday()))
     elif period == "month":
         qs = qs.filter(date__date__gte=today.replace(day=1))

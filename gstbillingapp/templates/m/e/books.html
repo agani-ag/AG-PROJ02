@@ -16,6 +16,7 @@
 
 <div class="bk-chips">
     <a href="?period=today&type={{ ctype }}" class="{% if period == 'today' %}on{% endif %}">Today</a>
+    <a href="?period=yesterday&type={{ ctype }}" class="{% if period == 'yesterday' %}on{% endif %}">Yesterday</a>
     <a href="?period=week&type={{ ctype }}" class="{% if period == 'week' %}on{% endif %}">This week</a>
     <a href="?period=month&type={{ ctype }}" class="{% if period == 'month' %}on{% endif %}">This month</a>
     <a href="?period=all&type={{ ctype }}" class="{% if period == 'all' %}on{% endif %}">All</a>
