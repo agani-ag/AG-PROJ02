@@ -282,7 +282,7 @@
        centre — on load for the currently-selected one, and on tap for the chip pressed.
        Covers the business switcher, filter chips, day picker and order categories alike. */
     (function(){
-        var ROWS = '.bizsel,.filt,.days,.chips';
+        var ROWS = '.bizsel,.filt,.days,.chips,.bk-chips';
         function center(row, el, smooth){
             if(!row || !el) return;
             var to = el.offsetLeft - (row.clientWidth - el.offsetWidth)/2;
