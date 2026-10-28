@@ -107,11 +107,15 @@ def desired_links(person):
     number, so they get two tiles rather than one that has to guess which they meant."""
     links = []
     if visible_rows(person):
-        links.append({"external_id": syncup_client.APP_LINK_KEY, "title": "GSTSync",
+        links.append({"external_id": syncup_client.APP_LINK_KEY, "title": "GSTSync Customer",
                       "url": app_link(person, "customer/"), "icon": "home",
                       "description": person.tile_text or None})
-    if is_staff(person):
-        links.append({"external_id": syncup_client.STAFF_LINK_KEY, "title": "GSTSync Staff",
+    posts = postings(person)
+    if posts:
+        # The staff tile reads "GSTSync Admin" when they're an admin at any business they
+        # work for, otherwise "GSTSync Staff".
+        title = "GSTSync Admin" if any(p.is_admin for p in posts) else "GSTSync Staff"
+        links.append({"external_id": syncup_client.STAFF_LINK_KEY, "title": title,
                       "url": app_link(person, "employee/"), "icon": "briefcase"})
     return links
 
