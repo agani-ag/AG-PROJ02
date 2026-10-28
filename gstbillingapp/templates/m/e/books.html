@@ -32,8 +32,9 @@
 </div>
 
 <div class="bk-tot">
-    <div class="c"><div class="l">Collected</div><div class="v" style="color:var(--green)">&#8377; {{ collected }}</div></div>
-    <div class="c"><div class="l">Billed</div><div class="v" style="color:var(--red)">&#8377; {{ billed }}</div></div>
+    {% for c in cards %}
+    <div class="c"><div class="l">{{ c.label }}</div><div class="v" style="color:{{ c.color }}">&#8377; {{ c.value }}</div></div>
+    {% endfor %}
 </div>
 
 <div data-mpaged="{% url 'm_employee_books_data' %}?period={{ period }}&type={{ ctype }}" data-mpaged-list="#bk-list" data-mpaged-offset="{{ rows|length }}">

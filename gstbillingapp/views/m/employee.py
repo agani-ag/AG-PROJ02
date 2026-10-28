@@ -403,10 +403,17 @@ def overall_books(request):
     ctype = request.GET.get("type", "all")
     if ctype not in _BOOK_TYPES:
         ctype = "all"
+    # The two summary cards follow the selected type: money types show Collected/Billed,
+    # adjustment types show Returns/Others.
+    if ctype in ("returns", "other"):
+        cards = [{"label": "Returns", "value": format_inr(t["returns"], 0), "color": "var(--amber)"},
+                 {"label": "Others", "value": format_inr(t["others"], 0), "color": "var(--blue)"}]
+    else:
+        cards = [{"label": "Collected", "value": format_inr(t["payments"], 0), "color": "var(--green)"},
+                 {"label": "Billed", "value": format_inr(t["purchases"], 0), "color": "var(--red)"}]
     rows, has_more, _ = ledger_page(_apply_book_type(base_qs, ctype), 0, "all")
     return render(request, "m/e/books.html", {
-        "rows": rows, "has_more": has_more, "period": period, "ctype": ctype,
-        "collected": format_inr(t["payments"], 0), "billed": format_inr(t["purchases"], 0),
+        "rows": rows, "has_more": has_more, "period": period, "ctype": ctype, "cards": cards,
     })
 
 
