@@ -38,6 +38,16 @@
     <button class="btn btn-acc" onclick="pay()"><svg class="i" style="stroke:#fff"><use href="#ic-check"/></svg> Save payment</button>
 </div>
 
+{% if c.customer_phone or c.customer_email or c.customer_gst or c.customer_address %}
+<div class="sec"><h2 class="t" style="font-size:15px">Customer details</h2></div>
+<div class="list">
+    {% if c.customer_phone %}<div class="row"><span class="muted">Phone</span><span class="b">{{ c.customer_phone }}</span></div>{% endif %}
+    {% if c.customer_email %}<div class="row"><span class="muted">Email</span><span class="b">{{ c.customer_email }}</span></div>{% endif %}
+    {% if c.customer_gst %}<div class="row"><span class="muted">GST</span><span class="b">{{ c.customer_gst }}</span></div>{% endif %}
+    {% if c.customer_address %}<div class="row" style="display:block"><div class="muted sm">Address</div><div class="mt">{{ c.customer_address }}</div></div>{% endif %}
+</div>
+{% endif %}
+
 {% if logs %}
 <div class="sec"><h2 class="t" style="font-size:15px">Recent entries</h2></div>
 <div data-mpaged="{% url 'm_employee_customer_ledger' c.id %}" data-mpaged-list="#led-list" data-mpaged-offset="{{ logs|length }}">
