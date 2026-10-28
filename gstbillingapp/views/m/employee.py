@@ -7,7 +7,7 @@ from django.shortcuts import render, get_object_or_404
 from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_exempt
 
-from django.db.models import Sum, Case, When, F, FloatField
+from django.db.models import Sum, Case, When, F, FloatField, Q
 
 from ...mobile_auth import mobile_login_required
 from ...models import (Customer, Book, BookLog, Invoice, Quotation, ExpenseTracker,
@@ -357,6 +357,64 @@ def invoices_data(request):
     html = render_to_string("m/_invoice_rows.html",
                             {"rows": rows, "link_name": "m_employee_invoice",
                              "show_customer": True, "show_mine": not mine}, request)
+    return JsonResponse({"html": html, "added": len(rows), "has_more": has_more})
+
+
+# ----------------------------- Overall Books -----------------------------
+def _overall_books_qs(u, period, q):
+    """All the business's ledger entries across every customer, newest first, filtered to a
+    period (today by default). Shared by the page and its load-more feed."""
+    qs = (BookLog.objects.filter(parent_book__user=u, is_active=True)
+          .select_related("parent_book__customer").order_by("-date", "-id"))
+    today = datetime.date.today()
+    if period == "week":
+        qs = qs.filter(date__date__gte=today - datetime.timedelta(days=today.weekday()))
+    elif period == "month":
+        qs = qs.filter(date__date__gte=today.replace(day=1))
+    elif period == "all":
+        pass
+    else:
+        period = "today"
+        qs = qs.filter(date__date=today)
+    q = (q or "").strip()
+    if q:
+        qs = qs.filter(Q(parent_book__customer__customer_name__icontains=q)
+                       | Q(description__icontains=q))
+    return qs, period
+
+
+# Type filter on the Books screen: a friendly name -> BookLog.change_type.
+_BOOK_TYPES = {"collected": 0, "billed": 1, "returns": 2, "other": 3}
+
+
+def _apply_book_type(qs, ctype):
+    return qs.filter(change_type=_BOOK_TYPES[ctype]) if ctype in _BOOK_TYPES else qs
+
+
+@mobile_login_required("employee")
+def overall_books(request):
+    u = _user(request)
+    # Totals stay period-wide (every type), so the Collected/Billed cards don't shrink when
+    # a type filter is on; the list below honours the filter.
+    base_qs, period = _overall_books_qs(u, request.GET.get("period", "today"), request.GET.get("q"))
+    t = _book_totals(base_qs)
+    ctype = request.GET.get("type", "all")
+    if ctype not in _BOOK_TYPES:
+        ctype = "all"
+    rows, has_more, _ = ledger_page(_apply_book_type(base_qs, ctype), 0, "all")
+    return render(request, "m/e/books.html", {
+        "rows": rows, "has_more": has_more, "period": period, "ctype": ctype,
+        "collected": format_inr(t["payments"], 0), "billed": format_inr(t["purchases"], 0),
+    })
+
+
+@mobile_login_required("employee")
+def overall_books_data(request):
+    u = _user(request)
+    base_qs, _ = _overall_books_qs(u, request.GET.get("period", "today"), request.GET.get("q"))
+    rows, has_more, _ = ledger_page(
+        _apply_book_type(base_qs, request.GET.get("type", "all")), request.GET.get("offset"), "all")
+    html = render_to_string("m/_book_rows.html", {"logs": rows}, request)
     return JsonResponse({"html": html, "added": len(rows), "has_more": has_more})
 
 

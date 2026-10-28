@@ -33,7 +33,7 @@ t();setInterval(t,1000);})();
         <div class="v">&#8377; {{ sales|inr0 }}</div>
         <p class="c">{{ inv_count }} invoice{{ inv_count|pluralize }}</p>
     </a>
-    <a href="{% url 'm_employee_collections' %}" class="stat c-green">
+    <a href="{% url 'm_employee_books' %}?period=today" class="stat c-green">
         <div class="chip"><svg class="i"><use href="#ic-check"/></svg></div>
         <p class="l">Collected</p>
         <div class="v">&#8377; {{ coll|inr0 }}</div>

@@ -1,0 +1,10 @@
+{% load money %}
+{% for l in logs %}
+<a class="row"{% if l.parent_book.customer_id %} href="{% url 'm_employee_customer' l.parent_book.customer_id %}"{% endif %} style="display:flex;align-items:center;justify-content:space-between{% if not l.is_active %};opacity:.7{% endif %}">
+    <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
+        <span class="ico {% if l.change_type == 0 %}ic-green{% elif l.change_type == 1 %}ic-red{% elif l.change_type == 2 %}ic-amber{% else %}ic-blue{% endif %}"><svg class="i"><use href="#{% if l.change_type == 0 %}ic-check{% elif l.change_type == 1 %}ic-receipt{% elif l.change_type == 2 %}ic-reply{% else %}ic-box{% endif %}"/></svg></span>
+        <span style="min-width:0"><span class="b">{{ l.parent_book.customer.customer_name|default:"—" }}</span><div class="sub">{{ l.get_change_type_display }} · {{ l.date|date:"d M Y" }}{% if not l.is_active %} · <span style="color:var(--amber);font-weight:700">Pending</span>{% endif %}</div></span>
+    </span>
+    <span class="b tabnum" style="color:{% if l.change_type == 0 %}var(--green){% elif l.change_type == 1 %}var(--red){% elif l.change_type == 2 %}var(--amber){% else %}var(--blue){% endif %};white-space:nowrap">{% if l.change < 0 %}&minus;{% else %}+{% endif %}&#8377; {{ l.change|inr|cut:"-" }}</span>
+</a>
+{% endfor %}

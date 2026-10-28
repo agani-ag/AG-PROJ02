@@ -1,0 +1,50 @@
+{% extends "m/base.html" %}
+{% load money %}
+{% block title %}Books{% endblock %}
+{% block back %}<a class="back" href="{% url 'm_employee_home' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Home</a>{% endblock %}
+{% block heading %}Overall Books{% endblock %}
+{% block subhead %}<div class="sub">Every customer's entries</div>{% endblock %}
+{% block includecss %}
+.bk-chips{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;-webkit-overflow-scrolling:touch}
+.bk-chips a{flex:none;padding:8px 14px;border-radius:999px;background:var(--card);box-shadow:var(--sh);font-size:13px;font-weight:700;color:var(--soft)}
+.bk-chips a.on{background:var(--acc);color:#fff}
+.bk-tot{display:flex;gap:10px;margin-bottom:12px}
+.bk-tot .c{flex:1;background:var(--card);border-radius:14px;box-shadow:var(--sh);padding:12px 14px}
+.bk-tot .l{font-size:12px;color:var(--soft)} .bk-tot .v{font-size:18px;font-weight:800;margin-top:2px}
+{% endblock %}
+{% block content %}
+
+<div class="bk-chips">
+    <a href="?period=today&type={{ ctype }}" class="{% if period == 'today' %}on{% endif %}">Today</a>
+    <a href="?period=week&type={{ ctype }}" class="{% if period == 'week' %}on{% endif %}">This week</a>
+    <a href="?period=month&type={{ ctype }}" class="{% if period == 'month' %}on{% endif %}">This month</a>
+    <a href="?period=all&type={{ ctype }}" class="{% if period == 'all' %}on{% endif %}">All</a>
+</div>
+
+<div class="bk-chips bk-types">
+    <a href="?period={{ period }}&type=all" class="{% if ctype == 'all' %}on{% endif %}">All</a>
+    <a href="?period={{ period }}&type=collected" class="t-g {% if ctype == 'collected' %}on{% endif %}">Collected</a>
+    <a href="?period={{ period }}&type=billed" class="t-r {% if ctype == 'billed' %}on{% endif %}">Billed</a>
+    <a href="?period={{ period }}&type=returns" class="t-a {% if ctype == 'returns' %}on{% endif %}">Returns</a>
+    <a href="?period={{ period }}&type=other" class="t-b {% if ctype == 'other' %}on{% endif %}">Other</a>
+</div>
+
+<div class="bk-tot">
+    <div class="c"><div class="l">Collected</div><div class="v" style="color:var(--green)">&#8377; {{ collected }}</div></div>
+    <div class="c"><div class="l">Billed</div><div class="v" style="color:var(--red)">&#8377; {{ billed }}</div></div>
+</div>
+
+<div data-mpaged="{% url 'm_employee_books_data' %}?period={{ period }}&type={{ ctype }}" data-mpaged-list="#bk-list" data-mpaged-offset="{{ rows|length }}">
+    <div style="position:relative;margin-bottom:12px">
+        <svg class="i" style="position:absolute;left:14px;top:14px;width:18px;height:18px;stroke:var(--faint)"><use href="#ic-search"/></svg>
+        <input class="field" data-mpaged-search placeholder="Search customer or note…" autocomplete="off" inputmode="search" style="margin:0;padding-left:42px">
+    </div>
+    <div class="list" id="bk-list">
+        {% include "m/_book_rows.html" with logs=rows %}
+    </div>
+    <div class="empty" data-mpaged-empty {% if rows %}style="display:none"{% endif %}><svg class="i"><use href="#ic-book"/></svg><div>No entries for this period.</div></div>
+    <button class="btn" data-mpaged-more style="{% if not has_more %}display:none;{% endif %}margin-bottom:14px">Load more</button>
+</div>
+
+{% endblock %}
+{% block nav %}{% include "m/nav_employee.html" with active="books" %}{% endblock %}
