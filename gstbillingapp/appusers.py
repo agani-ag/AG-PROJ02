@@ -11,11 +11,12 @@ them, nothing is mailed, and the console only looks on.
 Every call here is one Partner API call, and nothing a business does is ever blocked by
 SyncUp being down: a failure is recorded on the person and retried by /cron/syncup.
 """
+import datetime
 import hashlib
 import logging
 import secrets
 
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 from . import identity, syncup_client
@@ -400,6 +401,86 @@ def link_new_rows(limit=500):
     return done
 
 
+def _recreate(person):
+    """Re-create an account SyncUp lost — exactly as it was first opened: their own number is
+    the password again and both tiles are restored. The /m/ link keeps working throughout (it
+    is a GSTSync token, not a SyncUp session), so nobody is locked out while this catches up."""
+    try:
+        links = desired_links(person)
+        user = syncup_client.upsert_account(
+            person.external_id, name=person.name or person.sign_in,
+            password=person.mobile or person.email, is_active=True, links=links,
+            timeout=syncup_client.QUICK_TIMEOUT, **_identity_payload(person))
+    except syncup_client.SyncUpError as e:
+        log.warning("Re-creating %s after a SyncUp delete failed: %s", person.external_id, e)
+        AppUser.objects.filter(pk=person.pk).update(syncup_error=str(e)[:300])
+        return "busy" if e.status == 429 else "failed"
+    AppUser.objects.filter(pk=person.pk).update(
+        syncup_active=True, syncup_error="", syncup_synced_at=timezone.now(),
+        syncup_checked_at=timezone.now(), tile_text="",
+        identity_pending=False, identity_sent=identity_signature(person),
+        link_keys=",".join(sorted(l["external_id"] for l in links)),
+        link_sig=links_signature(links))
+    _note_connection(person, user)
+    log.info("Re-created %s — it had been deleted on SyncUp", person.external_id)
+    return "healed"
+
+
+def verify_present(person):
+    """Confirm SyncUp still holds this account; re-create it if it was deleted there.
+
+    Our own state marks the account live, so once it is "in step" nothing else ever contacts
+    it again — an account removed on SyncUp's side would simply stay gone. One read confirms
+    it. The account is re-created only on an explicit 404 (SyncUp's "no such account"), never
+    on a timeout, a 5xx or a rate-limit, so a flaky run can't wrongly resurrect anything.
+
+    Returns "ok", "healed", "failed", "busy", or None (nothing to verify)."""
+    if person.login_status != AppUser.LOGIN_ACTIVE or not can_use_app(person):
+        return None
+    try:
+        syncup_client.list_links(person.external_id, timeout=syncup_client.QUICK_TIMEOUT)
+    except syncup_client.SyncUpError as e:
+        if e.status == 404:
+            return _recreate(person)
+        # A read that failed is not a push we owe them: leave syncup_error (and the console's
+        # retry) for a real push, and simply re-probe next run — checked_at stays as it was.
+        log.warning("Existence check for %s failed: %s", person.external_id, e)
+        return "busy" if e.status == 429 else "failed"
+    AppUser.objects.filter(pk=person.pk).update(syncup_checked_at=timezone.now())
+    return "ok"
+
+
+# A live account is re-confirmed on SyncUp at least this often, so one deleted there is found
+# and re-created within about this long — sooner when a cron run has spare call budget.
+VERIFY_AFTER = datetime.timedelta(hours=12)
+
+
+def audit_present(budget):
+    """Make sure SyncUp still holds the live accounts, re-creating any deleted there. Walks the
+    least-recently-confirmed first and spends at most `budget` calls, so a large partner is
+    swept over several runs rather than all at once. Returns counts by outcome."""
+    counts = {}
+    if budget <= 0:
+        return counts
+    cutoff = timezone.now() - VERIFY_AFTER
+    due = (AppUser.objects
+           .filter(login_status=AppUser.LOGIN_ACTIVE, syncup_active=True)
+           .filter(Q(syncup_checked_at__isnull=True) | Q(syncup_checked_at__lt=cutoff))
+           .order_by(F("syncup_checked_at").asc(nulls_first=True)))
+    used = 0
+    for person in due:
+        if used >= budget:
+            break
+        outcome = verify_present(person)
+        if outcome is None:
+            continue
+        used += 1
+        counts[outcome] = counts.get(outcome, 0) + 1
+        if outcome == "busy":
+            break
+    return counts
+
+
 def retry_pending():
     """For /cron/syncup: open the app for anyone who can use it but has no login yet, and
     bring every existing login's SyncUp state up to date. Logins already in step cost no
@@ -410,6 +491,7 @@ def retry_pending():
     the next run. Returns counts by outcome."""
     counts = {"created": 0, "pushed": 0, "failed": 0, "unchanged": 0, "busy": 0, "left": 0,
               "identity": 0, "linked": link_new_rows()}
+    busy = False
     opened = 0
     for person in AppUser.objects.filter(login_status=AppUser.LOGIN_NONE):
         if opened >= PER_RUN:
@@ -419,6 +501,7 @@ def retry_pending():
             counts[outcome] = counts.get(outcome, 0) + 1
             opened += 1
         if outcome == "busy":
+            busy = True
             break
     # Everyone still without a login — the ones this run didn't reach, plus the ones who have
     # nothing to open yet. Informational: the next run walks the same list.
@@ -444,8 +527,16 @@ def retry_pending():
         if drifted or outcome in ("pushed", "failed", "busy"):
             calls += 1
         if outcome == "busy":
+            busy = True
             break
     counts["later"] = max(people.count() - seen, 0)
+    # Finally, re-confirm a slice of the live accounts still exist on SyncUp and re-create any
+    # deleted there — our own state would otherwise never touch them again. Shares whatever of
+    # this run's call budget the pushes above didn't use, so the total stays within SyncUp's
+    # rate limit, and is skipped entirely once SyncUp is already answering "too many".
+    if not busy:
+        for key, val in audit_present(max(PER_RUN - calls, 0)).items():
+            counts["verify_" + key] = val
     return counts
 
 

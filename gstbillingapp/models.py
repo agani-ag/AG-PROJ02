@@ -958,6 +958,11 @@ class AppUser(models.Model):
     # doesn't alter it skip the network call entirely.
     syncup_active = models.BooleanField(null=True, blank=True)
     syncup_synced_at = models.DateTimeField(null=True, blank=True)
+    # When SyncUp was last confirmed to still HOLD this account. Once we think a login is in
+    # step we never touch it again, so an account deleted on SyncUp's side would stay gone;
+    # /cron/syncup re-confirms the oldest-checked accounts a few at a time and re-creates any
+    # that vanished. Null = never confirmed, so it is swept first after this field is added.
+    syncup_checked_at = models.DateTimeField(null=True, blank=True)
     # The last failed push, shown on the console with a retry. Empty when in sync.
     syncup_error = models.CharField(max_length=300, blank=True, default="")
     # The subtitle last put on their GSTSync tile ("₹… due · N shops"), so the daily refresh

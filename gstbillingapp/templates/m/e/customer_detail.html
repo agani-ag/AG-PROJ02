@@ -81,7 +81,15 @@ async function pay(){
     } else { M.toast(r.message||'Failed'); }
 }
 function shareApp(){M.wa("{{ c.customer_phone|escapejs }}","{{ app_share|escapejs }}");}
-function remind(){M.sms("{{ c.customer_phone|escapejs }}","Dear {{ c.customer_name|escapejs }}, our records show an outstanding balance of {{ outstanding|inr }}. Kindly arrange payment. Thank you.");}
+function remind(){
+    var ph="{{ c.customer_phone|escapejs }}";
+    var msg="Dear {{ c.customer_name|escapejs }}, our records show an outstanding balance of {{ outstanding|inr }}. Kindly arrange payment. Thank you.";
+    // Decide the channel in-app, so each one deep-links straight to its app — no OS "open with".
+    M.sheet('Send reminder via', [
+        {label:'WhatsApp', icon:'ic-message', bg:'var(--greenbg)', fg:'var(--green)', fn:function(){M.wa(ph,msg);}},
+        {label:'SMS', icon:'ic-phone', bg:'var(--bluebg)', fg:'var(--acc)', fn:function(){M.sms(ph,msg);}}
+    ]);
+}
 </script>
 
 {% endblock %}

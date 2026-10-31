@@ -190,6 +190,20 @@
 
         #toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 20px);transform:translateX(-50%);background:#161a20;color:#fff;padding:11px 18px;border-radius:22px;font-size:13px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none;max-width:88%}
         #toast.show{opacity:.96}
+        /* Bottom-sheet chooser (M.sheet): pick a channel in-app so we deep-link straight to it,
+           instead of leaving the OS to ask "open with…". */
+        .msheet-ov{position:fixed;inset:0;background:rgba(15,18,24,.42);opacity:0;visibility:hidden;transition:opacity .22s,visibility .22s;z-index:1200}
+        .msheet-ov.show{opacity:1;visibility:visible}
+        .msheet{position:fixed;left:0;right:0;bottom:0;z-index:1201;max-width:520px;margin:0 auto;background:var(--card);
+                border-radius:22px 22px 0 0;padding:18px 16px calc(14px + env(safe-area-inset-bottom));
+                box-shadow:0 -8px 30px rgba(20,22,30,.18);transform:translateY(110%);transition:transform .26s cubic-bezier(.22,1,.36,1)}
+        .msheet-ov.show .msheet{transform:translateY(0)}
+        .msheet h3{margin:2px 2px 14px;font-size:15px;font-weight:800;color:var(--ink)}
+        .msheet .opt{display:flex;align-items:center;gap:13px;width:100%;border:0;cursor:pointer;background:var(--bg);
+                border-radius:14px;padding:13px 14px;margin-bottom:10px;font-size:15px;font-weight:700;color:var(--ink);text-align:left}
+        .msheet .opt .ico{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none}
+        .msheet .opt .ico svg{width:19px;height:19px}
+        .msheet .cancel{width:100%;border:0;cursor:pointer;background:transparent;color:var(--soft);font-size:14px;font-weight:700;padding:10px 0 2px}
         {% block includecss %}{% endblock %}
     </style>
 </head>
@@ -255,6 +269,11 @@
 
     {% block nav %}{% endblock %}
     <div class="navov" id="navOv"></div>
+    <div class="msheet-ov" id="msheet"><div class="msheet">
+        <h3 id="msheet-t">Choose</h3>
+        <div id="msheet-opts"></div>
+        <button type="button" class="cancel" data-msheet-close>Cancel</button>
+    </div></div>
     <div id="toast"></div>
     <script>
     (function(){
@@ -275,8 +294,32 @@
         async post(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':this.csrf},body:JSON.stringify(b||{})});return r.json();},
         toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(this._t);this._t=setTimeout(()=>t.classList.remove('show'),2200);},
         wa(p,t){let x=(p||'').replace(/\D/g,'');if(x.length===10)x='91'+x;window.open('https://wa.me/'+x+'?text='+encodeURIComponent(t||''),'_blank');},
-        sms(p,t){let x=(p||'').replace(/[^\d+]/g,'');window.location.href='sms:'+x+'?body='+encodeURIComponent(t||'');}
+        sms(p,t){let x=(p||'').replace(/[^\d+]/g,'');window.location.href='sms:'+x+'?body='+encodeURIComponent(t||'');},
+        /* A bottom-sheet chooser. opts: [{label, icon, bg, fg, fn}]. Picking one closes the
+           sheet, then runs fn — so the deep link opens the chosen app directly. */
+        sheet(title, opts){
+            const ov=document.getElementById('msheet'); if(!ov) return;
+            document.getElementById('msheet-t').textContent=title||'Choose';
+            const box=document.getElementById('msheet-opts'); box.innerHTML='';
+            (opts||[]).forEach(function(o){
+                const b=document.createElement('button'); b.type='button'; b.className='opt';
+                b.innerHTML='<span class="ico" style="background:'+(o.bg||'var(--bluebg)')+'">'
+                    +'<svg style="stroke:'+(o.fg||'var(--acc)')+'"><use href="#'+o.icon+'"/></svg></span>'
+                    +'<span></span>';
+                b.lastChild.textContent=o.label;
+                b.addEventListener('click', function(){ M.closeSheet(); if(o.fn) setTimeout(o.fn, 160); });
+                box.appendChild(b);
+            });
+            ov.classList.add('show');
+        },
+        closeSheet(){ const ov=document.getElementById('msheet'); if(ov) ov.classList.remove('show'); }
     };
+    (function(){
+        const ov=document.getElementById('msheet'); if(!ov) return;
+        ov.addEventListener('click', function(e){
+            if(e.target===ov || (e.target.closest && e.target.closest('[data-msheet-close]'))) M.closeSheet();
+        });
+    })();
 
     /* Consistency: every horizontal chip row auto-positions its selected chip to the
        centre — on load for the currently-selected one, and on tap for the chip pressed.

@@ -5369,6 +5369,88 @@ class CronRepairsDriftTests(TestCase):
         self.assertFalse(AppUser.objects.filter(identity_sent="").exists())
 
 
+class SyncUpResurrectsDeletedTests(TestCase):
+    """An account deleted on SyncUp's side. Our state still says it is live, so nothing would
+    ever touch it again — the cron's existence audit is what finds it and re-creates it."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.a, = _businesses("ALPHA")
+        cls.cust = Customer.objects.create(user=cls.a, customer_name="KMR",
+                                           customer_phone="9876543210", is_mobile_user=True)
+
+    def setUp(self):
+        _syncup_on()
+        self.upsert = mock.patch("gstbillingapp.syncup_client.upsert_account").start()
+        self.push = mock.patch("gstbillingapp.syncup_client.set_account_active").start()
+        self.upsert.return_value = {"status": "enabled"}
+        self.push.return_value = {"status": "enabled"}
+        self.addCleanup(mock.patch.stopall)
+
+    def _live(self, person):
+        appusers.ensure_login(person)
+        self.upsert.reset_mock()
+        return AppUserModel.objects.get(pk=person.pk)
+
+    def test_a_present_account_is_confirmed_without_being_recreated(self):
+        person = self._live(_person_of(self.cust))
+        with mock.patch("gstbillingapp.syncup_client.list_links",
+                        return_value=[{"id": 1, "external_id": "gstsync"}]) as links:
+            self.assertEqual(appusers.verify_present(person), "ok")
+        links.assert_called_once()
+        self.upsert.assert_not_called()                    # a live account is never rewritten
+        self.assertIsNotNone(AppUserModel.objects.get(pk=person.pk).syncup_checked_at)
+
+    def test_an_account_deleted_on_syncup_is_recreated(self):
+        person = self._live(_person_of(self.cust))
+        gone = syncup_client.SyncUpError("no such account", status=404)
+        with mock.patch("gstbillingapp.syncup_client.list_links", side_effect=gone):
+            self.assertEqual(appusers.verify_present(person), "healed")
+        self.upsert.assert_called_once()
+        kwargs = self.upsert.call_args.kwargs
+        self.assertEqual(kwargs["password"], "9876543210")       # their number, as on first open
+        self.assertEqual({l["external_id"] for l in kwargs["links"]}, {"gstsync"})
+        self.assertIsNotNone(AppUserModel.objects.get(pk=person.pk).syncup_checked_at)
+
+    def test_a_flaky_syncup_never_recreates_the_account(self):
+        """A timeout or a 5xx is not a delete. Re-creating on anything but an explicit 404 would
+        wipe a password the person had chosen the moment SyncUp had a bad minute."""
+        person = self._live(_person_of(self.cust))
+        for err in (syncup_client.SyncUpError("down"),                       # unreachable
+                    syncup_client.SyncUpError("boom", status=500)):          # SyncUp broke
+            with mock.patch("gstbillingapp.syncup_client.list_links", side_effect=err):
+                self.assertEqual(appusers.verify_present(person), "failed")
+        self.upsert.assert_not_called()
+        self.assertIsNone(AppUserModel.objects.get(pk=person.pk).syncup_checked_at)
+
+    def test_the_cron_recreates_an_account_deleted_on_syncup(self):
+        self._live(_person_of(self.cust))
+        with mock.patch("gstbillingapp.syncup_client.list_links",
+                        side_effect=syncup_client.SyncUpError("gone", status=404)):
+            counts = appusers.retry_pending()
+        self.upsert.assert_called_once()                   # the re-create, nothing else
+        self.assertEqual(counts.get("verify_healed"), 1)
+
+    def test_the_audit_is_paced_by_its_budget(self):
+        for i in range(3):
+            c = Customer.objects.create(user=self.a, customer_name="C%d" % i,
+                                        customer_phone="98765010%02d" % i, is_mobile_user=True)
+            appusers.ensure_login(_person_of(c))
+        with mock.patch("gstbillingapp.syncup_client.list_links",
+                        return_value=[{"id": 1, "external_id": "gstsync"}]) as links:
+            appusers.audit_present(2)
+        self.assertEqual(links.call_count, 2)              # two this run, the third waits
+
+    def test_a_confirmed_account_is_not_re_checked_until_it_goes_stale(self):
+        person = self._live(_person_of(self.cust))
+        with mock.patch("gstbillingapp.syncup_client.list_links",
+                        return_value=[{"id": 1, "external_id": "gstsync"}]):
+            appusers.verify_present(person)                # marks it checked just now
+        with mock.patch("gstbillingapp.syncup_client.list_links") as links:
+            appusers.audit_present(10)
+        links.assert_not_called()                          # freshly checked, so skipped
+
+
 class BackfillTests(TestCase):
     """A database that existed before identity.py has rows pointing at nobody. Until they are
     walked once, every console people screen is empty and nobody can open the app."""
