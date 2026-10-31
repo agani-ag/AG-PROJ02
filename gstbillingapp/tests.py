@@ -375,6 +375,15 @@ class MobileScreensTests(TestCase):
                            ("m_employee_collections", []), ("m_employee_orders", [])]:
             self.assertEqual(self.client.get(reverse(name, args=args)).status_code, 200, name)
 
+    def test_mobile_list_and_detail_show_the_syncup_marker(self):
+        person = _person_of(self.cust)
+        AppUserModel.objects.filter(pk=person.pk).update(
+            login_status=AppUserModel.LOGIN_ACTIVE, connection="enabled", app_opens=3)
+        self._emp()
+        self.assertIn("su su-on", self.client.get(reverse("m_employee_customers")).content.decode())
+        self.assertIn("su su-on", self.client.get(
+            reverse("m_employee_customer", args=[self.cust.id])).content.decode())
+
     def _pay(self, amount=200):
         return self.client.post(reverse("m_employee_record_payment", args=[self.cust.id]),
                                 data=json.dumps({"amount": amount, "note": "part"}),

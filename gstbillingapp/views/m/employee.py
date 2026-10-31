@@ -209,7 +209,7 @@ def customers(request):
     balances = {b.customer_id: float(b.current_balance or 0) for b in Book.objects.filter(user=u)}
     od = _overdue_days(u, datetime.date.today())
     rows = []
-    for c in Customer.objects.filter(user=u).order_by("customer_name"):
+    for c in Customer.objects.filter(user=u).select_related("app_user").order_by("customer_name"):
         # Round so a sub-paisa residual (e.g. 0.001) reads as cleared, not "₹ 0.00".
         bal = round(balances.get(c.id, 0.0), 2)
         rows.append({
@@ -217,6 +217,8 @@ def customers(request):
             # Overdue only applies to a customer who is actually owing — a cleared / in-advance
             # customer (balance ≥ 0) is never overdue, even if FIFO float noise says otherwise.
             "odays": od.get(c.id, 0) if bal < 0 else 0,
+            # Whether this customer is on SyncUp: "using" / "connected" / "" (see AppUser).
+            "syncup": c.app_user.syncup_state if c.app_user_id else "",
         })
     return render(request, "m/e/customers.html", {"rows": rows})
 

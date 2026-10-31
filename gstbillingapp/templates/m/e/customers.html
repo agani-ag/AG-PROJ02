@@ -27,7 +27,7 @@
     <a href="{% url 'm_employee_customer' r.id %}" class="row" data-s="{{ r.name|lower }} {{ r.phone|default:'' }}" data-type="{% if r.bal < 0 %}owing{% elif r.bal > 0 %}advance{% else %}clear{% endif %}" data-bal="{{ r.bal }}" data-odays="{{ r.odays }}">
         <span class="lbl" style="display:flex;gap:11px;align-items:center;min-width:0">
             <span class="ico ic-blue"><svg class="i"><use href="#ic-user"/></svg></span>
-            <span style="min-width:0"><span class="b">{{ r.name }}</span><div class="sub">{{ r.phone|default:"—" }}{% if r.odays %} · <span style="color:var(--red);font-weight:700">{{ r.odays }}d overdue</span>{% endif %}</div></span>
+            <span style="min-width:0"><span class="b">{{ r.name }}</span>{% if r.syncup == 'using' %}<span class="su su-on" title="Using SyncUp"><svg class="i"><use href="#ic-check"/></svg></span>{% elif r.syncup == 'connected' %}<span class="su su-dot" title="On SyncUp — not opened yet"></span>{% endif %}<div class="sub">{{ r.phone|default:"—" }}{% if r.odays %} · <span style="color:var(--red);font-weight:700">{{ r.odays }}d overdue</span>{% endif %}</div></span>
         </span>
         {% if r.bal < 0 %}<span class="badge b-red">&#8377; {{ r.bal|inr|cut:"-" }}</span>
         {% elif r.bal > 0 %}<span class="badge b-green">&#8377; {{ r.bal|inr }}</span>

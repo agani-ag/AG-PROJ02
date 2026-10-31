@@ -204,6 +204,12 @@
         .msheet .opt .ico{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none}
         .msheet .opt .ico svg{width:19px;height:19px}
         .msheet .cancel{width:100%;border:0;cursor:pointer;background:transparent;color:var(--soft);font-size:14px;font-weight:700;padding:10px 0 2px}
+        /* SyncUp usage marker: green tick = using (opened the app), grey dot = connected only. */
+        .su{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;flex:none;margin-left:7px}
+        .su.su-on svg{width:16px;height:16px;stroke:var(--green)}
+        .su.su-dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+        .lt h1 .su.su-on svg{width:20px;height:20px}
+        .lt h1 .su.su-dot{width:10px;height:10px}
         {% block includecss %}{% endblock %}
     </style>
 </head>
@@ -278,11 +284,38 @@
     <script>
     (function(){
         var tog=document.getElementById('navTog'), ov=document.getElementById('navOv');
+        function openNav(){ document.body.classList.add('nav-open'); }
         function closeNav(){ document.body.classList.remove('nav-open'); }
+        function isOpen(){ return document.body.classList.contains('nav-open'); }
         if(tog) tog.addEventListener('click', function(){ document.body.classList.toggle('nav-open'); });
         if(ov) ov.addEventListener('click', closeNav);
         // Tapping a nav link closes the drawer (the navigation reloads the page anyway).
         document.querySelectorAll('.nav a').forEach(function(a){ a.addEventListener('click', closeNav); });
+
+        // Swipe right anywhere to SHOW the drawer, swipe left to HIDE it. A swipe that begins on
+        // something which itself scrolls sideways (chip rows, a ledger, a map, an input) is left
+        // alone so those keep working.
+        var sx=0, sy=0, track=false;
+        function sideScroller(el){
+            if(el.closest && el.closest('input,textarea,select,.leaflet-container,canvas,iframe,[data-noswipe]')) return true;
+            for(var n=el; n && n!==document.body; n=n.parentElement){
+                if(n.scrollWidth > n.clientWidth + 4){
+                    var o=getComputedStyle(n).overflowX;
+                    if(o==='auto'||o==='scroll') return true;
+                }
+            }
+            return false;
+        }
+        document.addEventListener('touchstart', function(e){
+            if(e.touches.length!==1){ track=false; return; }
+            var t=e.touches[0]; sx=t.clientX; sy=t.clientY; track=!sideScroller(e.target);
+        }, {passive:true});
+        document.addEventListener('touchend', function(e){
+            if(!track) return; track=false;
+            var t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy;
+            if(Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)*1.5) return;   // not a clear sideways swipe
+            if(dx > 0){ if(!isOpen()) openNav(); } else if(isOpen()){ closeNav(); }
+        }, {passive:true});
     })();
     </script>
 

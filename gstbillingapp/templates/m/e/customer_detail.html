@@ -2,7 +2,7 @@
 {% load money %}
 {% block title %}{{ c.customer_name }}{% endblock %}
 {% block back %}<a class="back" href="{% url 'm_employee_customers' %}"><svg class="i" style="width:16px;height:16px;stroke:var(--soft)"><use href="#ic-reply"/></svg> Customers</a>{% endblock %}
-{% block heading %}{{ c.customer_name }}{% endblock %}
+{% block heading %}{{ c.customer_name }}{% if c.app_user.syncup_state == 'using' %}<span class="su su-on" title="Using SyncUp"><svg class="i"><use href="#ic-check"/></svg></span>{% elif c.app_user.syncup_state == 'connected' %}<span class="su su-dot" title="On SyncUp — not opened yet"></span>{% endif %}{% endblock %}
 {% block bizsel %}{% if brand_nav|length > 1 %}
 <div class="bizsel" id="bizsel">
     {% for b in brand_nav %}<a href="{% url brand_url b.cust_id %}?biz={{ b.id }}" class="{% if b.active %}on{% endif %}">{{ b.name }}</a>{% endfor %}
