@@ -292,9 +292,9 @@
         // Tapping a nav link closes the drawer (the navigation reloads the page anyway).
         document.querySelectorAll('.nav a').forEach(function(a){ a.addEventListener('click', closeNav); });
 
-        // Swipe right anywhere to SHOW the drawer, swipe left to HIDE it. A swipe that begins on
-        // something which itself scrolls sideways (chip rows, a ledger, a map, an input) is left
-        // alone so those keep working.
+        // Swipe left anywhere to SHOW the drawer (it lives on the right), swipe right to HIDE it.
+        // A swipe that begins on something which itself scrolls sideways (chip rows, a ledger, a
+        // map, an input) is left alone so those keep working.
         var sx=0, sy=0, track=false;
         function sideScroller(el){
             if(el.closest && el.closest('input,textarea,select,.leaflet-container,canvas,iframe,[data-noswipe]')) return true;
@@ -314,7 +314,7 @@
             if(!track) return; track=false;
             var t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy;
             if(Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)*1.5) return;   // not a clear sideways swipe
-            if(dx > 0){ if(!isOpen()) openNav(); } else if(isOpen()){ closeNav(); }
+            if(dx < 0){ if(!isOpen()) openNav(); } else if(isOpen()){ closeNav(); }
         }, {passive:true});
     })();
     </script>
