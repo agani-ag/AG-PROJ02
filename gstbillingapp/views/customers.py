@@ -24,7 +24,7 @@ import json
 
 # ================= Customer Views ===========================
 def _filtered_customers(request):
-    qs = Customer.objects.filter(user=request.user).order_by('customer_name')
+    qs = Customer.objects.filter(user=request.user).select_related('app_user').order_by('customer_name')
     q = (request.GET.get('q') or '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(customer_phone__icontains=q) | Q(customer_gst__icontains=q))

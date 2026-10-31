@@ -192,6 +192,47 @@ class CustomerInsightsTests(TestCase):
         self.assertEqual(self.client.get(reverse('customer_insights')).status_code, 400)
 
 
+class CustomerSyncUpMarkerTests(TestCase):
+    """The Customers list shows who is actually on SyncUp: a green tick for a customer who has
+    opened the app, a grey dot for a live login not opened yet, nothing otherwise."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="shop", password="x")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def _cust(self, name, phone, **state):
+        # A customer with a number gets an AppUser from identity; set its login state directly.
+        c = Customer.objects.create(user=self.user, customer_name=name, customer_phone=phone)
+        person = _person_of(c)
+        if state:
+            AppUserModel.objects.filter(pk=person.pk).update(**state)
+        return c
+
+    def test_syncup_state_property(self):
+        A = AppUserModel.LOGIN_ACTIVE
+        self.assertEqual(AppUserModel(login_status=A, connection="enabled", app_opens=2)
+                         .syncup_state, "using")
+        self.assertEqual(AppUserModel(login_status=A, connection="", app_opens=0)
+                         .syncup_state, "connected")
+        self.assertEqual(AppUserModel(login_status=A, connection="disabled", app_opens=5)
+                         .syncup_state, "")                      # they switched us off
+        self.assertEqual(AppUserModel(login_status=AppUserModel.LOGIN_NONE).syncup_state, "")
+
+    def test_the_list_marks_using_and_connected(self):
+        self._cust("USING CO", "9000000001", login_status=AppUserModel.LOGIN_ACTIVE,
+                   connection="enabled", app_opens=4)
+        self._cust("CONNECTED CO", "9000000002", login_status=AppUserModel.LOGIN_ACTIVE,
+                   connection="", app_opens=0)
+        self._cust("OFFLINE CO", "9000000003")                   # a login was never issued
+        html = self.client.get(reverse("customers")).content.decode()
+        self.assertEqual(html.count('class="su-m using"'), 1)
+        self.assertEqual(html.count('class="su-m conn"'), 1)
+        self.assertEqual(html.count('su-m'), 2)                   # the third customer has none
+
+
 class TodaySummaryTests(TestCase):
     """Running tally + GST set-aside meter (Group C)."""
 

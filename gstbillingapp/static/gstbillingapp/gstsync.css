@@ -77,6 +77,12 @@ body{background:#eef2f7}
 .gs .prim .pi{width:36px;height:36px;border-radius:9px;background:var(--bluebg);color:var(--brand);display:flex;align-items:center;justify-content:center;flex:none}
 .gs .prim .nm{font-weight:600;color:var(--ink)}
 .gs .prim .mn{font-size:12px;color:var(--faint)}
+/* SyncUp usage marker on the name: green = using (opened the app), grey = connected only. */
+.gs .su-m{display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;vertical-align:1px;white-space:nowrap}
+.gs .su-m.using{background:var(--greenbg);color:var(--green)}
+.gs .su-m.using i{font-size:10px}
+.gs .su-m.conn{background:var(--wash);color:var(--soft);border:1px solid var(--line)}
+.gs .su-m.conn i{font-size:6px}
 .gs .tag2{display:inline-flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--line);border-radius:7px;padding:3px 9px;font-size:12px;color:var(--soft);font-weight:500}
 .gs .num{font-family:var(--disp);font-weight:600;font-variant-numeric:tabular-nums}
 .gs .mut{color:var(--faint)}

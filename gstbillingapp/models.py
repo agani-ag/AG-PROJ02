@@ -1019,6 +1019,16 @@ class AppUser(models.Model):
     def has_login(self):
         return self.login_status != self.LOGIN_NONE
 
+    @property
+    def syncup_state(self):
+        """For the console lists: "using" (a live login they have opened at least once),
+        "connected" (a live login not yet opened), or "" (no working login, or one SyncUp has
+        blocked). Lets a business see at a glance who is actually on SyncUp."""
+        if self.login_status != self.LOGIN_ACTIVE or self.connection in ("disabled",
+                                                                         "not_enabled"):
+            return ""
+        return "using" if self.app_opens else "connected"
+
     def __str__(self):
         return self.name or self.sign_in or "user %s" % self.pk
 
