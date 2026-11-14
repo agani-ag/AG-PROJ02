@@ -2545,6 +2545,47 @@ class PlatformAdminInitialsTests(TestCase):
         self.assertEqual(self._initials("ganesh saravanan"), "GS")
 
 
+class AdsTests(TestCase):
+    """Ads sit on one page of their own; the ownership tag sits where Google looks for it."""
+
+    TAG = 'content="ca-pub-9329737502568531"'
+
+    def test_the_home_page_carries_the_ownership_tag(self):
+        """Google checks the home page, and its crawler is never signed in."""
+        r = self.client.get(reverse("landing_page"))
+        self.assertContains(r, 'name="google-adsense-account"')
+        self.assertContains(r, self.TAG)
+
+    def test_the_ads_page_is_public_and_carries_the_ads(self):
+        r = self.client.get(reverse("ads_page"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, self.TAG)
+        self.assertContains(r, "adsbygoogle")
+
+    def test_one_publisher_id_everywhere(self):
+        from django.conf import settings
+        for url in (reverse("landing_page"), reverse("ads_page")):
+            self.assertContains(self.client.get(url), "ca-" + settings.ADSENSE_PUBLISHER_ID,
+                                msg_prefix=url)
+
+    @override_settings(ADSENSE_PUBLISHER_ID="")
+    def test_an_empty_publisher_id_switches_everything_off(self):
+        for url in (reverse("landing_page"), reverse("ads_page")):
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 200, url)        # the pages stand on their own
+            self.assertNotContains(r, "google-adsense-account", msg_prefix=url)
+            self.assertNotContains(r, "googlesyndication", msg_prefix=url)
+
+    def test_no_google_code_reaches_the_app(self):
+        """A third-party script has no business on screens showing someone's ledger."""
+        a, = _businesses("ALPHA")
+        self.client.force_login(a)
+        for url in (reverse("landing_page"), reverse("customers")):
+            r = self.client.get(url)
+            self.assertNotContains(r, "googlesyndication", msg_prefix=url)
+            self.assertNotContains(r, "google-adsense-account", msg_prefix=url)
+
+
 class FaviconTests(TestCase):
     """Every shell carries the brand icon, and /favicon.ico resolves at the root."""
 

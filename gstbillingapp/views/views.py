@@ -6,6 +6,7 @@ from django.db.models import Sum
 from django.shortcuts import render
 
 from gstbillingapp.models import Invoice, BookLog, Book, Customer, Product
+from gstbillingapp.views import ads
 
 
 def _inv_total(js):
@@ -19,8 +20,10 @@ def _inv_total(js):
 # ================= Static Pages ==============================
 def landing_page(request):
     # Anonymous visitors get the public marketing page — pure storytelling, no app links.
+    # It carries the AdSense ownership tag, because Google looks for that on the home page.
     if not request.user.is_authenticated:
-        return render(request, 'landing_public.html', {})
+        return render(request, 'landing_public.html',
+                      {'adsense_pub': ads.publisher_id()})
 
     # Signed-in owners get their live dashboard.
     context = {}

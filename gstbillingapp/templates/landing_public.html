@@ -7,6 +7,10 @@
 <meta name="description" content="GSTSync brings billing, collections, inventory, purchases and your field team into one calm place. Built by a distributor, for distributors.">
 <meta property="og:title" content="GSTSync — Billing, Collections, Inventory & Field Force">
 <meta property="og:description" content="One calm place that replaces the notebook, the calculator, and three different apps.">
+{% comment %}Proves to AdSense that this site is ours. Google looks for it on the home page,
+which is this one for anyone not signed in — their crawler never is. Inert markup: it loads
+nothing, and the ads themselves live on /ads.{% endcomment %}
+{% if adsense_pub %}<meta name="google-adsense-account" content="ca-{{ adsense_pub }}">{% endif %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">

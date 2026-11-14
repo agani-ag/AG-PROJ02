@@ -19,12 +19,17 @@ from django.urls import include
 from django.urls import path
 from django.views.generic.base import RedirectView
 
+from gstbillingapp.views import ads
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('gstbillingapp.urls')),
     path('m/', include('gstbillingapp.m_urls')),
     path('cron/', include('gstbillingapp.cron_urls')),   # external cron service (shared-secret)
     path('console/', include('gstbillingapp.console_urls')),  # operator console (own session auth)
+
+    # Ads live on one page of their own, away from the app.
+    path('ads', ads.ads_page, name='ads_page'),
 
     # Browsers (and link unfurlers) request /favicon.ico from the site root regardless of
     # the <link> tags, and static/ is not the web root — so point it at the real file.

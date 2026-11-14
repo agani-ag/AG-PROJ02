@@ -1,0 +1,108 @@
+{% load static %}{% comment %}The ads page — its own page, on purpose.
+
+Standalone rather than extending base.html: the signed-in app shows a business's customers
+and balances, and neither a third-party script nor the weight belongs there. This page loads
+its own small stylesheet and nothing else of ours.
+
+The ad slots are placed but not yet filled: each needs a slot id created in the AdSense
+dashboard, pasted into data-ad-slot below. Until then they render as empty space, which is
+what AdSense expects rather than an error.
+{% endcomment %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guides for distributors · GSTSync</title>
+<meta name="description" content="Short practical notes on GST billing, collections and stock for small distributors — written from the shop floor, not a textbook.">
+{% if adsense_pub %}<meta name="google-adsense-account" content="ca-{{ adsense_pub }}">{% endif %}
+<link rel="icon" type="image/svg+xml" href="{% static 'gstbillingapp/images/favicon.svg' %}?v={{ ASSET_VER }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+{% if adsense_pub %}
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-{{ adsense_pub }}"
+        crossorigin="anonymous"></script>
+{% endif %}
+<style>
+:root{--brand:#2563eb;--ink:#0f172a;--soft:#5b6472;--faint:#94a3b8;--line:#e8ecf3;--wash:#f5f8fc}
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:var(--ink);font-size:16px;line-height:1.6;
+  font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased}
+a{color:var(--brand)}
+header{border-bottom:1px solid var(--line)}
+.in{max-width:760px;margin:0 auto;padding:0 20px}
+header .in{height:60px;display:flex;align-items:center;gap:10px}
+.brand{display:flex;align-items:center;gap:9px;font-family:"Space Grotesk",sans-serif;
+  font-weight:700;font-size:16px;color:var(--ink);text-decoration:none;letter-spacing:-.2px}
+.mark{width:30px;height:30px;border-radius:9px;flex:none;color:#fff;font-weight:700;font-size:15px;
+  background:linear-gradient(135deg,#2563eb,#4f46e5);display:flex;align-items:center;justify-content:center}
+h1{font-family:"Space Grotesk",sans-serif;font-size:30px;line-height:1.2;margin:34px 0 8px;letter-spacing:-.4px}
+h2{font-family:"Space Grotesk",sans-serif;font-size:20px;margin:34px 0 8px;letter-spacing:-.2px}
+.lede{color:var(--soft);font-size:17px;margin:0 0 6px}
+article{padding-bottom:10px;border-bottom:1px solid var(--line)}
+article:last-of-type{border-bottom:0}
+/* An ad is marked as one. Reserving the height keeps the text from jumping when it loads. */
+.adbox{margin:26px 0;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  background:var(--wash);min-height:110px;text-align:center}
+.adbox .lbl{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--faint);margin-bottom:6px}
+footer{border-top:1px solid var(--line);margin-top:40px;padding:22px 0 50px;color:var(--soft);font-size:14px}
+</style>
+</head>
+<body>
+
+<header><div class="in">
+  <a class="brand" href="/"><span class="mark">G</span> GSTSync</a>
+</div></header>
+
+<main class="in">
+  <h1>Guides for distributors</h1>
+  <p class="lede">Short, practical notes from running a distribution business — the questions
+    that actually come up at the counter, answered plainly.</p>
+
+  <article>
+    <h2>Why a customer's balance and your ledger disagree</h2>
+    <p>Nine times in ten it isn't arithmetic, it's timing: a cheque written on the 28th and
+      banked on the 2nd sits in two different months. Agree the <em>date you count it</em>
+      before you argue about the number, and most disputes end there.</p>
+  </article>
+
+  {% if adsense_pub %}
+  <div class="adbox">
+    <span class="lbl">Advertisement</span>
+    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-{{ adsense_pub }}"
+         data-ad-slot="" data-ad-format="auto" data-full-width-responsive="true"></ins>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </div>
+  {% endif %}
+
+  <article>
+    <h2>Collection day beats collection effort</h2>
+    <p>A fixed day per route is worth more than any reminder. The shop keeps your money ready
+      because it knows you are coming, and your rep stops making decisions about who to visit.</p>
+  </article>
+
+  <article>
+    <h2>What to do with a cheque that bounces twice</h2>
+    <p>Stop supplying before you stop asking. A second bounce is information about the shop's
+      cash position, not about their intentions — supplying through it turns a recoverable
+      amount into a bad debt.</p>
+  </article>
+
+  {% if adsense_pub %}
+  <div class="adbox">
+    <span class="lbl">Advertisement</span>
+    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-{{ adsense_pub }}"
+         data-ad-slot="" data-ad-format="auto" data-full-width-responsive="true"></ins>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </div>
+  {% endif %}
+</main>
+
+<footer><div class="in">
+  <a href="/">GSTSync</a> — billing, collections and stock for distributors.
+</div></footer>
+
+</body>
+</html>

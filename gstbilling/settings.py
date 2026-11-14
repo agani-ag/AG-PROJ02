@@ -135,6 +135,12 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
 )
 
+# ================= Google AdSense =====================================
+# One publisher id for every place that mentions it: the ownership meta tag on the home page
+# and on the ads page, and the ad script on the ads page. Blank switches all of it off — no
+# meta tag, no Google code anywhere — so this doubles as the off switch.
+ADSENSE_PUBLISHER_ID = os.getenv("ADSENSE_PUBLISHER_ID", "pub-9329737502568531")
+
 # ================= Maintenance / cron =================================
 # Shared secret for the /cron/ endpoints (see gstbillingapp/cron_views.py). NEVER
 # defaulted: with no key set the endpoints answer 404, so a missing value closes them
