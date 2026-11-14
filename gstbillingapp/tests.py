@@ -2576,6 +2576,15 @@ class AdsTests(TestCase):
             self.assertNotContains(r, "google-adsense-account", msg_prefix=url)
             self.assertNotContains(r, "googlesyndication", msg_prefix=url)
 
+    def test_every_ad_slot_on_the_page_has_an_id(self):
+        """An <ins> with an empty data-ad-slot draws nothing, reports nothing and raises no
+        error — the quietest way to run ads that never earn."""
+        page = self.client.get(reverse("ads_page")).content.decode()
+        self.assertIn('data-ad-slot="1247635388"', page)
+        self.assertNotIn('data-ad-slot=""', page)
+        self.assertEqual(page.count("adsbygoogle = window.adsbygoogle"),
+                         page.count('class="adsbygoogle"'))   # one push per slot
+
     def test_no_google_code_reaches_the_app(self):
         """A third-party script has no business on screens showing someone's ledger."""
         a, = _businesses("ALPHA")

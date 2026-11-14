@@ -4,9 +4,9 @@ Standalone rather than extending base.html: the signed-in app shows a business's
 and balances, and neither a third-party script nor the weight belongs there. This page loads
 its own small stylesheet and nothing else of ours.
 
-The ad slots are placed but not yet filled: each needs a slot id created in the AdSense
-dashboard, pasted into data-ad-slot below. Until then they render as empty space, which is
-what AdSense expects rather than an error.
+One ad unit, placed after the first article. A slot needs its id from the AdSense dashboard
+to fill at all — an empty data-ad-slot renders nothing and says nothing about why — so a
+placement without one is left out rather than left blank.
 {% endcomment %}<!doctype html>
 <html lang="en">
 <head>
@@ -71,8 +71,10 @@ footer{border-top:1px solid var(--line);margin-top:40px;padding:22px 0 50px;colo
   {% if adsense_pub %}
   <div class="adbox">
     <span class="lbl">Advertisement</span>
+    {% comment %}Ad unit "GST Sync 1". The slot id is what makes this fill — an empty one
+    renders nothing and reports nothing, with no error to tell you why.{% endcomment %}
     <ins class="adsbygoogle" style="display:block" data-ad-client="ca-{{ adsense_pub }}"
-         data-ad-slot="" data-ad-format="auto" data-full-width-responsive="true"></ins>
+         data-ad-slot="1247635388" data-ad-format="auto" data-full-width-responsive="true"></ins>
     <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
   </div>
   {% endif %}
@@ -90,14 +92,9 @@ footer{border-top:1px solid var(--line);margin-top:40px;padding:22px 0 50px;colo
       amount into a bad debt.</p>
   </article>
 
-  {% if adsense_pub %}
-  <div class="adbox">
-    <span class="lbl">Advertisement</span>
-    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-{{ adsense_pub }}"
-         data-ad-slot="" data-ad-format="auto" data-full-width-responsive="true"></ins>
-    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-  </div>
-  {% endif %}
+  {% comment %}A second placement belongs here once there is a second ad unit to fill it.
+  One unit used twice on one page would merge its reporting, and two ads on three short
+  articles is more than this page can carry anyway.{% endcomment %}
 </main>
 
 <footer><div class="in">
