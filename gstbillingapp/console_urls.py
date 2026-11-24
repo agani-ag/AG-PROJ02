@@ -8,6 +8,7 @@ from django.urls import path
 
 from .views import console
 from .views import console_data as data
+from .views import console_notice
 from .views import console_people as people
 from .views import console_settings
 
@@ -63,6 +64,10 @@ urlpatterns = [
     path("data/new/<str:label>", data.add, name="console_data_add"),
     path("data/row/<str:label>/<str:pk>", data.row, name="console_data_row"),
     path("data/row/<str:label>/<str:pk>/delete", data.delete, name="console_data_delete"),
+
+    # The one message every business owner sees when they sign in.
+    path("notice", console_notice.notice, name="console_notice"),
+    path("notice/toggle", console_notice.notice_toggle, name="console_notice_toggle"),
 
     path("admins", console.admins, name="console_admins"),
     path("password", console.change_password, name="console_change_password"),

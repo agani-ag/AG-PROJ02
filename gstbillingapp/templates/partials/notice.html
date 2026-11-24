@@ -1,0 +1,97 @@
+{% comment %}The console's notice to business owners — a dialog at sign-in, then a corner button.
+
+Included at the end of base.html, so it is desktop-only: /m/ has its own shell and this never
+reaches it. Everything here is inline and tiny, and none of it renders at all unless a notice
+is switched on in the console, so a quiet day costs the dashboard nothing.
+
+Closing it is remembered for the browser session only — it comes back at the next sign-in,
+which is the point of a notice about something that still has to be dealt with. The corner
+button reopens it in the meantime, so closing it never loses the information.
+{% endcomment %}
+{% if NOTICE %}
+<div id="gsnotice" class="gsn-wrap{% if NOTICE.closed %} gsn-min{% endif %}">
+  <div class="gsn-veil" onclick="gsNotice(false)"></div>
+
+  <div class="gsn-card" role="dialog" aria-modal="true" aria-labelledby="gsn-title">
+    <button type="button" class="gsn-x" onclick="gsNotice(false)" aria-label="Close">&times;</button>
+    <div class="gsn-head">
+      <span class="gsn-ico"><i class="fas fa-circle-exclamation"></i></span>
+      <h3 id="gsn-title">{{ NOTICE.title }}</h3>
+    </div>
+    <div class="gsn-body">
+      {{ NOTICE.body|linebreaks }}
+      {% if NOTICE.amount or NOTICE.due_date %}
+      <div class="gsn-facts">
+        {% if NOTICE.amount %}<div><span>Amount</span><b>&#8377; {{ NOTICE.amount|floatformat:2 }}</b></div>{% endif %}
+        {% if NOTICE.due_date %}<div><span>Due</span><b>{{ NOTICE.due_date|date:"d M Y" }}</b></div>{% endif %}
+      </div>
+      {% endif %}
+      {% if NOTICE.contact %}<p class="gsn-contact">{{ NOTICE.contact }}</p>{% endif %}
+    </div>
+    <div class="gsn-foot">
+      {% if NOTICE.action_text and NOTICE.action_url %}
+      <a class="gsn-btn gsn-go" href="{{ NOTICE.action_url }}" target="_blank" rel="noopener">{{ NOTICE.action_text }}</a>
+      {% endif %}
+      <button type="button" class="gsn-btn" onclick="gsNotice(false)">Close</button>
+    </div>
+  </div>
+
+  <button type="button" class="gsn-tab" onclick="gsNotice(true)" title="{{ NOTICE.title }}"
+          aria-label="Show the notice again"><i class="fas fa-circle-exclamation"></i></button>
+</div>
+
+<style>
+.gsn-wrap{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center}
+.gsn-veil{position:absolute;inset:0;background:rgba(15,23,42,.45)}
+.gsn-card{position:relative;background:#fff;border-radius:16px;width:min(480px,calc(100vw - 32px));
+  box-shadow:0 24px 60px -12px rgba(15,23,42,.35);overflow:hidden}
+.gsn-x{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:0;
+  background:#fee2e2;color:#dc2626;font-size:19px;line-height:1;cursor:pointer;font-weight:700}
+.gsn-x:hover{background:#dc2626;color:#fff}
+.gsn-head{display:flex;align-items:center;gap:11px;padding:19px 48px 0 22px}
+.gsn-head h3{margin:0;font-size:17px;font-weight:700;color:#0f172a;line-height:1.3}
+.gsn-ico{width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;
+  justify-content:center;background:#fff7e6;color:#d97706;font-size:15px}
+.gsn-body{padding:12px 22px 4px;color:#5b6472;font-size:14px;line-height:1.6}
+.gsn-body p{margin:0 0 8px}
+.gsn-facts{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px}
+.gsn-facts div{flex:1;min-width:130px;background:#f5f8fc;border:1px solid #e8ecf3;border-radius:10px;padding:9px 12px}
+.gsn-facts span{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8}
+.gsn-facts b{font-size:16px;color:#0f172a}
+.gsn-contact{margin:10px 0 0;font-size:13px;color:#0f172a}
+.gsn-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 22px 18px}
+.gsn-btn{border:1px solid #e8ecf3;background:#fff;color:#5b6472;border-radius:9px;padding:8px 14px;
+  font-size:13.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.gsn-btn:hover{border-color:#cfd8e6;color:#0f172a}
+.gsn-go{background:linear-gradient(135deg,#2563eb,#4f46e5);border-color:transparent;color:#fff}
+.gsn-go:hover{color:#fff;opacity:.93}
+/* Closed: the dialog and its veil go, and only the corner button is left. */
+.gsn-tab{display:none;position:fixed;right:18px;bottom:18px;width:46px;height:46px;border-radius:50%;
+  border:0;cursor:pointer;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-size:18px;
+  box-shadow:0 10px 24px -8px rgba(217,119,6,.75)}
+.gsn-tab:hover{transform:translateY(-1px)}
+.gsn-min{pointer-events:none}
+.gsn-min .gsn-veil,.gsn-min .gsn-card{display:none}
+.gsn-min .gsn-tab{display:block;pointer-events:auto}
+@media print{.gsn-wrap{display:none}}
+</style>
+<script>
+/* Closing is remembered on the server for this session, so moving between pages doesn't
+   reopen it. The request is fire-and-forget: if it fails the dialog still closes. */
+function gsNotice(show) {
+  var wrap = document.getElementById('gsnotice');
+  if (!wrap) return;
+  wrap.classList.toggle('gsn-min', !show);
+  if (show) return;
+  try {
+    fetch('{% url "notice_close" %}', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'X-CSRFToken': '{{ csrf_token }}', 'X-Requested-With': 'XMLHttpRequest'}
+    }).catch(function () {});
+  } catch (e) {}
+}
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') gsNotice(false);
+});
+</script>
+{% endif %}

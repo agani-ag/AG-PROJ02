@@ -2415,7 +2415,8 @@ class ConsolePurgeCoverageTests(TestCase):
 
     # Models that belong to the PLATFORM, not to any business. Anything else must be
     # reachable from a business, or the coverage test below fails.
-    PLATFORM_MODELS = {"PlatformAdmin", "AppUser", "SyncUpSettings", "SyncUpJobRun"}
+    PLATFORM_MODELS = {"PlatformAdmin", "AppUser", "SyncUpSettings", "SyncUpJobRun",
+                       "ConsoleNotice"}
 
     def _app_models(self):
         from django.apps import apps
@@ -2543,6 +2544,163 @@ class PlatformAdminInitialsTests(TestCase):
 
     def test_always_upper_case(self):
         self.assertEqual(self._initials("ganesh saravanan"), "GS")
+
+
+class ConsoleNoticeTests(TestCase):
+    """The console's one message to business owners: a dialog at sign-in, then a corner
+    button. Off by default, and off costs the dashboard nothing."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
+        cls.admin = PlatformAdmin(username="noticeop", full_name="Notice Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+        cls.a, = _businesses("ALPHA")
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def _notice(self, **kw):
+        from .models import ConsoleNotice
+        row = ConsoleNotice.load()
+        row.enabled = kw.pop("enabled", True)
+        row.title = kw.pop("title", "Renewal due")
+        row.body = kw.pop("body", "The subscription ends soon.")
+        for k, v in kw.items():
+            setattr(row, k, v)
+        row.save()
+        return row
+
+    def _console(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "noticeop", "password": "Cons0le!pass9"})
+
+    # ---- what the owner sees -------------------------------------------- #
+    def test_nothing_is_rendered_when_no_notice_is_running(self):
+        self.client.force_login(self.a)
+        r = self.client.get(reverse("landing_page"))
+        self.assertNotContains(r, "gsnotice")
+
+    def test_an_owner_sees_it_after_signing_in(self):
+        import datetime
+        self._notice(amount=4500, due_date=datetime.date(2026, 12, 31),
+                     contact="Call 98765 43210.")
+        self.client.force_login(self.a)
+        r = self.client.get(reverse("landing_page"))
+        for bit in ("gsnotice", "Renewal due", "4500.00", "31 Dec 2026", "Call 98765 43210."):
+            self.assertContains(r, bit)
+
+    def test_a_signed_out_visitor_never_sees_it(self):
+        self._notice()
+        self.assertNotContains(self.client.get(reverse("landing_page")), "gsnotice")
+
+    def test_closing_it_lasts_for_the_session_then_the_corner_button_remains(self):
+        self._notice()
+        self.client.force_login(self.a)
+        self.assertNotContains(self.client.get(reverse("landing_page")), "gsn-wrap gsn-min")
+        r = self.client.post(reverse("notice_close"))
+        self.assertEqual(r.status_code, 200)
+        page = self.client.get(reverse("landing_page"))
+        self.assertContains(page, "gsn-wrap gsn-min")       # starts collapsed
+        self.assertContains(page, "gsn-tab")        # the button is still there
+        self.assertContains(page, "Renewal due")    # with the words behind it
+
+    def test_signing_in_again_brings_it_back(self):
+        self._notice()
+        self.client.force_login(self.a)
+        self.client.post(reverse("notice_close"))
+        self.client.get(reverse("logout_view"))
+        self.client.force_login(self.a)
+        self.assertNotContains(self.client.get(reverse("landing_page")), "gsn-wrap gsn-min")
+
+    def test_changing_the_words_reaches_people_who_closed_the_last_one(self):
+        row = self._notice()
+        self.client.force_login(self.a)
+        self.client.post(reverse("notice_close"))
+        self._console()
+        self.client.post(reverse("console_notice"),
+                         {"title": "Price change", "body": "New rates from January.",
+                          "enabled": "on"})
+        self.client.force_login(self.a)                  # same session, new notice
+        r = self.client.get(reverse("landing_page"))
+        self.assertContains(r, "Price change")
+        self.assertNotContains(r, "gsn-wrap gsn-min")
+
+    def test_the_mobile_app_never_shows_it(self):
+        """It is addressed to the owner; /m/ is where their customers and staff look."""
+        self._notice()
+        c = Customer.objects.create(user=self.a, customer_name="KMR",
+                                    customer_phone="9876500091", is_mobile_user=True)
+        self.client.get("/m/customer/", {"t": _app_token(c)})   # token, then the clean URL
+        r = self.client.get("/m/customer/")
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, "gsnotice")
+
+    # ---- the console side ------------------------------------------------ #
+    def test_the_console_writes_and_switches_it_on(self):
+        from .models import ConsoleNotice
+        self._console()
+        r = self.client.post(reverse("console_notice"),
+                             {"title": "Renewal due", "body": "Ends on the 31st.",
+                              "amount": "4,500", "due_date": "2026-12-31", "enabled": "on"})
+        self.assertEqual(r.status_code, 302)
+        row = ConsoleNotice.load()
+        self.assertTrue(row.enabled)
+        self.assertEqual(str(row.amount), "4500.00")       # a typed comma is fine
+        self.assertEqual(row.updated_by, "Notice Op")
+
+    def test_a_notice_with_no_words_is_refused(self):
+        self._console()
+        r = self.client.post(reverse("console_notice"), {"title": "", "body": "", "enabled": "on"})
+        self.assertEqual(r.status_code, 400)
+        self.assertContains(r, "needs a title", status_code=400)
+
+    def test_a_bad_amount_or_date_is_refused(self):
+        self._console()
+        r = self.client.post(reverse("console_notice"),
+                             {"title": "T", "body": "B", "amount": "soon"})
+        self.assertContains(r, "is not a number", status_code=400)
+        r = self.client.post(reverse("console_notice"),
+                             {"title": "T", "body": "B", "due_date": "31-12-2026"})
+        self.assertContains(r, "is not a date", status_code=400)
+
+    def test_a_button_without_a_link_is_refused(self):
+        self._console()
+        r = self.client.post(reverse("console_notice"),
+                             {"title": "T", "body": "B", "action_text": "Pay now"})
+        self.assertContains(r, "needs a link", status_code=400)
+
+    def test_the_switch_works_on_its_own(self):
+        from .models import ConsoleNotice
+        self._notice(enabled=False)
+        self._console()
+        self.client.post(reverse("console_notice_toggle"))
+        self.assertTrue(ConsoleNotice.load().enabled)
+        self.client.post(reverse("console_notice_toggle"))
+        self.assertFalse(ConsoleNotice.load().enabled)
+
+    def test_switching_off_takes_it_away_at_once(self):
+        self._notice()
+        self.client.force_login(self.a)
+        self.assertContains(self.client.get(reverse("landing_page")), "gsnotice")
+        self._console()
+        self.client.post(reverse("console_notice_toggle"))
+        self.client.force_login(self.a)
+        self.assertNotContains(self.client.get(reverse("landing_page")), "gsnotice")
+
+    def test_the_console_page_needs_a_console_login(self):
+        for url in (reverse("console_notice"), reverse("console_notice_toggle")):
+            r = self.client.post(url)
+            self.assertEqual(r.status_code, 302, url)
+            self.assertIn("/console/login", r["Location"])
+
+    def test_a_business_cannot_write_the_notice(self):
+        self.client.force_login(self.a)
+        r = self.client.post(reverse("console_notice"), {"title": "mine", "body": "b"})
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/console/login", r["Location"])
 
 
 class AdsTests(TestCase):

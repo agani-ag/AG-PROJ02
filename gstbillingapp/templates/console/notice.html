@@ -1,0 +1,156 @@
+{% extends "console/base.html" %}
+{% comment %}The one notice every business owner sees at sign-in.
+
+The preview is the real thing, not a drawing of it: the same partial the app includes, with
+the saved row. What you see here is what they get.
+{% endcomment %}
+{% block title %}Notice{% endblock %}
+{% block nav_notice %}on{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1 class="disp">Notice</h1>
+    <div class="sub">One message, shown to every business owner when they sign in
+      {% if row.updated_at %}· last changed {{ row.updated_at|date:"d M Y, H:i" }}{% if row.updated_by %} by {{ row.updated_by }}{% endif %}{% endif %}</div>
+  </div>
+  <div class="actions">
+    {% if row.enabled %}<span class="gbadge ok">Showing now</span>
+    {% else %}<span class="gbadge grey">Switched off</span>{% endif %}
+  </div>
+</div>
+
+{% if errors %}
+<div class="cmsg bad"><svg class="gico"><use href="#i-alert"/></svg>
+  <div>{% for e in errors %}{{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div></div>
+{% endif %}
+
+<div class="warnbox" style="margin-bottom:14px">
+  <svg class="gico"><use href="#i-alert"/></svg>
+  <div>Every business sees the same words, so keep them general — no shop names, no customer
+    figures. It appears over the dashboard at sign-in, closes with the red <b>&times;</b>, and
+    comes back from the corner button or at their next sign-in. Desktop only; the mobile app
+    never shows it.</div>
+</div>
+
+<form method="post">{% csrf_token %}
+  <div class="section open">
+    <div class="sh"><span class="si b"><svg class="gico"><use href="#i-bell"/></svg></span>
+      <div><h3 class="disp">What it says</h3>
+        <div class="sd">Changing any of this brings the notice back for people who closed the last one</div></div></div>
+    <div class="body"><div class="grid">
+      <div class="field full">
+        <label for="title">Title</label>
+        <input id="title" class="control" name="title" maxlength="120" required
+               value="{{ form.title }}" placeholder="Your GSTSync subscription is due for renewal">
+        <div class="h">The line people actually read.</div>
+      </div>
+      <div class="field full">
+        <label for="body">Message</label>
+        <textarea id="body" class="control" name="body" rows="6" maxlength="1200" required
+                  placeholder="What is happening, and what happens if they do nothing.">{{ form.body }}</textarea>
+        <div class="h">Say what it is for and what stops working without it. Blank lines make paragraphs.</div>
+      </div>
+      <div class="field">
+        <label for="amount">Amount (₹)</label>
+        <input id="amount" class="control" name="amount" inputmode="decimal"
+               value="{{ form.amount }}" placeholder="e.g. 4500">
+        <div class="h">Optional. Shown as a figure beside the date.</div>
+      </div>
+      <div class="field">
+        <label for="due_date">Due date</label>
+        <input id="due_date" class="control" type="date" name="due_date" value="{{ form.due_date }}">
+        <div class="h">Optional.</div>
+      </div>
+      <div class="field full">
+        <label for="contact">How to act on it</label>
+        <input id="contact" class="control" name="contact" maxlength="200" value="{{ form.contact }}"
+               placeholder="To renew, contact us on 98765 43210.">
+      </div>
+      <div class="field">
+        <label for="action_text">Button text</label>
+        <input id="action_text" class="control" name="action_text" maxlength="40"
+               value="{{ form.action_text }}" placeholder="Pay now">
+        <div class="h">Leave empty for no button.</div>
+      </div>
+      <div class="field">
+        <label for="action_url">Button link</label>
+        <input id="action_url" class="control" type="url" name="action_url"
+               value="{{ form.action_url }}" placeholder="https://…">
+      </div>
+      <div class="field full">
+        <label class="gtoggle"><input type="checkbox" name="enabled"
+          {% if enabled is not None %}{% if enabled %}checked{% endif %}{% elif row.enabled %}checked{% endif %}>
+          Show this to every business</label>
+        <div class="h">Off saves the words without sending them.</div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="toolbar" style="margin-top:14px">
+    <button type="submit" class="gbtn gbtn-primary">
+      <svg class="gico"><use href="#i-ok"/></svg> Save</button>
+    <a href="{% url 'console_businesses' %}" class="gbtn">Cancel</a>
+  </div>
+</form>
+
+{% if row.pk %}
+<form method="post" action="{% url 'console_notice_toggle' %}" class="toolbar" style="margin-top:4px">
+  {% csrf_token %}
+  <button type="submit" class="gbtn">
+    <svg class="gico"><use href="#i-power"/></svg>
+    {% if row.enabled %}Switch it off now{% else %}Switch it on now{% endif %}</button>
+  <span class="mut" style="font-size:12.5px">Without saving the words again.</span>
+</form>
+
+<div class="section open" style="margin-top:18px">
+  <div class="sh"><span class="si g"><svg class="gico"><use href="#i-user"/></svg></span>
+    <div><h3 class="disp">What they see</h3>
+      <div class="sd">The saved notice, exactly as it appears over their dashboard</div></div></div>
+  <div class="body">
+    <div class="npv">
+      <div class="npv-card">
+        <button type="button" class="npv-x" aria-hidden="true">&times;</button>
+        <div class="npv-head"><span class="npv-ico">!</span><h3>{{ row.title|default:"(no title yet)" }}</h3></div>
+        <div class="npv-body">
+          {{ row.body|linebreaks }}
+          {% if row.amount or row.due_date %}
+          <div class="npv-facts">
+            {% if row.amount %}<div><span>Amount</span><b>&#8377; {{ row.amount|floatformat:2 }}</b></div>{% endif %}
+            {% if row.due_date %}<div><span>Due</span><b>{{ row.due_date|date:"d M Y" }}</b></div>{% endif %}
+          </div>
+          {% endif %}
+          {% if row.contact %}<p class="npv-contact">{{ row.contact }}</p>{% endif %}
+        </div>
+        <div class="npv-foot">
+          {% if row.action_text and row.action_url %}<span class="npv-btn npv-go">{{ row.action_text }}</span>{% endif %}
+          <span class="npv-btn">Close</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.npv{background:#eef2f8;border-radius:14px;padding:26px;display:flex;justify-content:center}
+.npv-card{position:relative;background:#fff;border-radius:16px;width:min(460px,100%);
+  box-shadow:0 18px 44px -14px rgba(15,23,42,.3)}
+.npv-x{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:0;
+  background:#fee2e2;color:#dc2626;font-size:19px;line-height:1;font-weight:700}
+.npv-head{display:flex;align-items:center;gap:11px;padding:19px 48px 0 22px}
+.npv-head h3{margin:0;font-size:17px;font-weight:700;color:#0f172a;line-height:1.3;font-family:inherit}
+.npv-ico{width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;
+  justify-content:center;background:#fff7e6;color:#d97706;font-weight:800}
+.npv-body{padding:12px 22px 4px;color:#5b6472;font-size:14px;line-height:1.6}
+.npv-body p{margin:0 0 8px}
+.npv-facts{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px}
+.npv-facts div{flex:1;min-width:130px;background:#f5f8fc;border:1px solid #e8ecf3;border-radius:10px;padding:9px 12px}
+.npv-facts span{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8}
+.npv-facts b{font-size:16px;color:#0f172a}
+.npv-contact{margin:10px 0 0;font-size:13px;color:#0f172a}
+.npv-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 22px 18px}
+.npv-btn{border:1px solid #e8ecf3;border-radius:9px;padding:8px 14px;font-size:13.5px;font-weight:600;color:#5b6472}
+.npv-go{background:linear-gradient(135deg,#2563eb,#4f46e5);border-color:transparent;color:#fff}
+</style>
+{% endif %}
+{% endblock %}

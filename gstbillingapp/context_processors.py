@@ -49,6 +49,29 @@ def asset_version(request):
     return {'ASSET_VER': _cached_version}
 
 
+def console_notice(request):
+    """`NOTICE` — the console's message for signed-in business owners, or None.
+
+    Lazy and cached, like SYNCUP_APP below: a request that never renders it costs nothing,
+    and when one is running the whole app shares a single cached row. `NOTICE.closed` says
+    whether this session has already dismissed it, so the page knows to start collapsed to
+    the corner button rather than opening over the screen again."""
+    from django.utils.functional import SimpleLazyObject
+
+    def build():
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return None                     # signed-out pages carry no notice
+        from .models import ConsoleNotice
+        notice = ConsoleNotice.live()
+        if notice is None:
+            return None
+        notice.closed = bool(request.session.get(notice.seen_key))
+        return notice
+
+    return {'NOTICE': SimpleLazyObject(build)}
+
+
 def syncup_app(request):
     """`SYNCUP_APP` — the SyncUp app's Google Play listing (see syncup_app.listing), or {}
     when no Play URL is set, so `{% if SYNCUP_APP.url %}` hides every app block.

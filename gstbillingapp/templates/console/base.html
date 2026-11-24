@@ -164,6 +164,8 @@ badly; templates are never cached, so inline is both simpler and always fresh.
         <svg class="gico sm"><use href="#i-team"/></svg> Employees</a>
       <a href="{% url 'console_data' %}" class="{% block nav_data %}{% endblock %}">
         <svg class="gico sm"><use href="#i-db"/></svg> Data</a>
+      <a href="{% url 'console_notice' %}" class="{% block nav_notice %}{% endblock %}">
+        <svg class="gico sm"><use href="#i-bell"/></svg> Notice</a>
       <a href="{% url 'console_admins' %}" class="{% block nav_adm %}{% endblock %}">
         <svg class="gico sm"><use href="#i-shield"/></svg> Admins</a>
       <a href="{% url 'console_syncup' %}" class="{% block nav_set %}{% endblock %}">

@@ -8,12 +8,15 @@ from .views import (
     inventory, products, profile,
     purchases, quotation, reports, vendor_purchase,
     views, insights, employee, presence, syncup_callback, telegram_ui,
-    surveys,
+    surveys, notice,
 )
 
 urlpatterns = [
     # Landing Page
     path('', views.landing_page, name='landing_page'),
+
+    # Putting the console's notice away for this session (see partials/notice.html).
+    path('notice/close', notice.close, name='notice_close'),
 
     # Authentication URLs
     path('login', auth.login_view, name='login_view'),

@@ -1,4 +1,5 @@
 # Django imports
+from django.core.cache import cache
 from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import check_password, make_password
@@ -1308,3 +1309,64 @@ class SurveyAnswer(models.Model):
 
     def __str__(self):
         return "%s / %s" % (self.response_id, self.question_id)
+
+
+class ConsoleNotice(models.Model):
+    """One message the console puts in front of every business owner when they sign in.
+
+    A single row: there is only ever one notice running, and it belongs to the console, not
+    to a business. Dismissing it lasts for that browser session, so it returns at the next
+    sign-in — which is the point of a notice about something that has to be acted on.
+    `version` rises whenever the text is changed, so a new notice reaches people who closed
+    the previous one without having to clear anything.
+
+    Desktop only, on purpose. It is addressed to the owner, and /m/ is where their customers
+    and staff look at their own ledgers.
+    """
+    enabled = models.BooleanField(default=False)
+    title = models.CharField(max_length=120, blank=True, default="")
+    body = models.TextField(max_length=1200, blank=True, default="")
+    # Optional, shown only when set, so the same notice serves for things that cost nothing.
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    # How to act on it: a line of contact text, and a button when there's somewhere to go.
+    contact = models.CharField(max_length=200, blank=True, default="")
+    action_text = models.CharField(max_length=40, blank=True, default="")
+    action_url = models.URLField(blank=True, default="")
+    version = models.IntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.CharField(max_length=80, blank=True, default="")
+
+    class Meta:
+        verbose_name = "console notice"
+
+    def __str__(self):
+        return self.title or "Notice"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1                                 # always the one row
+        super().save(*args, **kwargs)
+        cache.delete(self.CACHE_KEY)
+
+    CACHE_KEY = "console_notice"
+
+    @classmethod
+    def load(cls):
+        return cls.objects.filter(pk=1).first() or cls(pk=1)
+
+    @classmethod
+    def live(cls):
+        """The notice to show right now, or None — cached, so a page that shows nothing
+        costs no query once the first request has looked."""
+        found = cache.get(cls.CACHE_KEY, "miss")
+        if found == "miss":
+            row = cls.objects.filter(pk=1, enabled=True).first()
+            found = row if row and (row.title or row.body) else None
+            cache.set(cls.CACHE_KEY, found, 300)
+        return found
+
+    @property
+    def seen_key(self):
+        """What a session remembers once it has been closed. Carries the version, so
+        changing the text shows it again."""
+        return "notice_closed_v%d" % self.version
