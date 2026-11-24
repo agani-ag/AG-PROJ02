@@ -40,7 +40,11 @@ def notice(request):
     if not row.pk:                                  # never set up: start from the draft
         form.update(DEFAULT)
     form["amount"] = row.amount if row.amount is not None else ""
+    form["last_paid"] = row.last_paid if row.last_paid is not None else ""
+    form["last_paid_on"] = row.last_paid_on.isoformat() if row.last_paid_on else ""
     form["due_date"] = row.due_date.isoformat() if row.due_date else ""
+    form["due_end_of_month"] = row.due_end_of_month
+    form["stop_after_due"] = row.stop_after_due
     return render(request, "console/notice.html",
                   {"row": row, "form": form, "errors": []})
 
@@ -49,8 +53,10 @@ def _save(request, row):
     d = request.POST
     errors = []
     form = {f: (d.get(f) or "").strip() for f in FIELDS}
-    form["amount"] = (d.get("amount") or "").strip()
-    form["due_date"] = (d.get("due_date") or "").strip()
+    for name in ("amount", "last_paid", "last_paid_on", "due_date"):
+        form[name] = (d.get(name) or "").strip()
+    form["due_end_of_month"] = bool(d.get("due_end_of_month"))
+    form["stop_after_due"] = bool(d.get("stop_after_due"))
     enabled = bool(d.get("enabled"))
 
     if not form["title"]:
@@ -60,22 +66,38 @@ def _save(request, row):
     if form["action_text"] and not form["action_url"]:
         errors.append("A button needs a link, or leave the button text empty.")
 
-    amount = None
-    if form["amount"]:
+    money = {}
+    for name, label in (("amount", "amount"), ("last_paid", "last paid amount")):
+        money[name] = None
+        if not form[name]:
+            continue
         try:
-            amount = Decimal(form["amount"].replace(",", ""))
+            money[name] = Decimal(form[name].replace(",", ""))
         except (InvalidOperation, ValueError):
-            errors.append("That amount is not a number.")
+            errors.append("That %s is not a number." % label)
         else:
-            if amount < 0:
-                errors.append("That amount cannot be negative.")
+            if money[name] < 0:
+                errors.append("That %s cannot be negative." % label)
 
-    due = None
-    if form["due_date"]:
+    dates = {}
+    for name, label in (("due_date", "expiry date"), ("last_paid_on", "last paid date")):
+        dates[name] = None
+        if not form[name]:
+            continue
         try:
-            due = datetime.date.fromisoformat(form["due_date"])
+            dates[name] = datetime.date.fromisoformat(form[name])
         except ValueError:
-            errors.append("That date is not a date I can read. Use the date picker.")
+            errors.append("That %s is not a date I can read. Use the date picker." % label)
+
+    if form["due_end_of_month"]:
+        # The month decides the day, so a typed one would only ever disagree with it.
+        dates["due_date"] = None
+        form["due_date"] = ""
+        if form["stop_after_due"]:
+            errors.append("A notice that rolls to each month end never passes its date, so "
+                          "it can't stop by itself. Pick one or the other.")
+    elif form["stop_after_due"] and not dates["due_date"]:
+        errors.append("To stop the notice by itself it needs an expiry date.")
 
     if errors:
         return render(request, "console/notice.html",
@@ -85,16 +107,26 @@ def _save(request, row):
     # Anything the owner would see counts as a new notice, so it reaches the people who
     # closed the last one.
     changed = (any(getattr(row, f) != form[f] for f in FIELDS)
-               or row.amount != amount or row.due_date != due)
+               or row.amount != money["amount"] or row.last_paid != money["last_paid"]
+               or row.due_date != dates["due_date"]
+               or row.last_paid_on != dates["last_paid_on"]
+               or row.due_end_of_month != form["due_end_of_month"])
     for f in FIELDS:
         setattr(row, f, form[f])
-    row.amount, row.due_date, row.enabled = amount, due, enabled
+    row.amount, row.last_paid = money["amount"], money["last_paid"]
+    row.due_date, row.last_paid_on = dates["due_date"], dates["last_paid_on"]
+    row.due_end_of_month = form["due_end_of_month"]
+    row.stop_after_due, row.enabled = form["stop_after_due"], enabled
     if changed:
         row.version += 1
     row.updated_by = str(request.platform_admin)
     row.save()
-    messages.success(request, "Notice saved and switched on." if enabled
-                     else "Notice saved. It is switched off, so nobody sees it.")
+    if enabled and row.expired:
+        messages.warning(request, "Notice saved, but its expiry date has already passed and "
+                                  "it is set to stop then — so nobody sees it.")
+    else:
+        messages.success(request, "Notice saved and switched on." if enabled
+                         else "Notice saved. It is switched off, so nobody sees it.")
     return redirect("console_notice")
 
 

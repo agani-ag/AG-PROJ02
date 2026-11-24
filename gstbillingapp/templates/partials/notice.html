@@ -8,7 +8,7 @@ Closing it is remembered for the browser session only — it comes back at the n
 which is the point of a notice about something that still has to be dealt with. The corner
 button reopens it in the meantime, so closing it never loses the information.
 {% endcomment %}
-{% if NOTICE %}
+{% load money %}{% if NOTICE %}
 <div id="gsnotice" class="gsn-wrap{% if NOTICE.closed %} gsn-min{% endif %}">
   <div class="gsn-veil" onclick="gsNotice(false)"></div>
 
@@ -20,10 +20,14 @@ button reopens it in the meantime, so closing it never loses the information.
     </div>
     <div class="gsn-body">
       {{ NOTICE.body|linebreaks }}
-      {% if NOTICE.amount or NOTICE.due_date %}
+      {% if NOTICE.amount or NOTICE.expires_on or NOTICE.last_paid %}
       <div class="gsn-facts">
-        {% if NOTICE.amount %}<div><span>Amount</span><b>&#8377; {{ NOTICE.amount|floatformat:2 }}</b></div>{% endif %}
-        {% if NOTICE.due_date %}<div><span>Due</span><b>{{ NOTICE.due_date|date:"d M Y" }}</b></div>{% endif %}
+        {% if NOTICE.last_paid %}<div><span>Last paid</span><b>&#8377; {{ NOTICE.last_paid_total|inrs }}</b>
+          <i>&#8377; {{ NOTICE.last_paid|inrs }} + {{ NOTICE.GST_PERCENT }}% GST &#8377; {{ NOTICE.last_paid_gst|inrs }}</i>
+          {% if NOTICE.last_paid_on %}<i>on {{ NOTICE.last_paid_on|date:"d M Y" }}</i>{% endif %}</div>{% endif %}
+        {% if NOTICE.expires_on %}<div><span>Expires on</span><b>{{ NOTICE.expires_on|date:"d M Y" }}</b></div>{% endif %}
+        {% if NOTICE.amount %}<div><span>To renew</span><b>&#8377; {{ NOTICE.total|inrs }}</b>
+          <i>&#8377; {{ NOTICE.amount|inrs }} + {{ NOTICE.GST_PERCENT }}% GST &#8377; {{ NOTICE.gst|inrs }}</i></div>{% endif %}
       </div>
       {% endif %}
       {% if NOTICE.contact %}<p class="gsn-contact">{{ NOTICE.contact }}</p>{% endif %}
@@ -57,7 +61,8 @@ button reopens it in the meantime, so closing it never loses the information.
 .gsn-facts{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px}
 .gsn-facts div{flex:1;min-width:130px;background:#f5f8fc;border:1px solid #e8ecf3;border-radius:10px;padding:9px 12px}
 .gsn-facts span{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8}
-.gsn-facts b{font-size:16px;color:#0f172a}
+.gsn-facts b{font-size:16px;color:#0f172a;display:block}
+.gsn-facts i{font-style:normal;font-size:11.5px;color:#94a3b8;display:block;line-height:1.45}
 .gsn-contact{margin:10px 0 0;font-size:13px;color:#0f172a}
 .gsn-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 22px 18px}
 .gsn-btn{border:1px solid #e8ecf3;background:#fff;color:#5b6472;border-radius:9px;padding:8px 14px;

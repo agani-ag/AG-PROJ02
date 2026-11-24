@@ -1,8 +1,11 @@
 {% extends "console/base.html" %}
-{% comment %}The one notice every business owner sees at sign-in.
+{% comment %}The one notice every business owner sees at sign-in, with a preview that moves
+as you type.
 
-The preview is the real thing, not a drawing of it: the same partial the app includes, with
-the saved row. What you see here is what they get.
+The preview is the real card — the same markup and the same styling the app serves — and the
+script below mirrors each field into it on every keystroke. Nothing is saved to see it, which
+matters for a message that goes to every business at once: you read it as they will before
+anyone else does.
 {% endcomment %}
 {% block title %}Notice{% endblock %}
 {% block nav_notice %}on{% endblock %}
@@ -15,7 +18,8 @@ the saved row. What you see here is what they get.
       {% if row.updated_at %}· last changed {{ row.updated_at|date:"d M Y, H:i" }}{% if row.updated_by %} by {{ row.updated_by }}{% endif %}{% endif %}</div>
   </div>
   <div class="actions">
-    {% if row.enabled %}<span class="gbadge ok">Showing now</span>
+    {% if row.enabled and row.expired %}<span class="gbadge low">Expired</span>
+    {% elif row.enabled %}<span class="gbadge ok">Showing now</span>
     {% else %}<span class="gbadge grey">Switched off</span>{% endif %}
   </div>
 </div>
@@ -33,7 +37,8 @@ the saved row. What you see here is what they get.
     never shows it.</div>
 </div>
 
-<form method="post">{% csrf_token %}
+<div class="nlayout">
+<form method="post" id="nform">{% csrf_token %}
   <div class="section open">
     <div class="sh"><span class="si b"><svg class="gico"><use href="#i-bell"/></svg></span>
       <div><h3 class="disp">What it says</h3>
@@ -52,15 +57,39 @@ the saved row. What you see here is what they get.
         <div class="h">Say what it is for and what stops working without it. Blank lines make paragraphs.</div>
       </div>
       <div class="field">
-        <label for="amount">Amount (₹)</label>
-        <input id="amount" class="control" name="amount" inputmode="decimal"
-               value="{{ form.amount }}" placeholder="e.g. 4500">
-        <div class="h">Optional. Shown as a figure beside the date.</div>
+        <label for="last_paid">Last paid (₹)</label>
+        <input id="last_paid" class="control" name="last_paid" inputmode="decimal"
+               value="{{ form.last_paid }}" placeholder="e.g. 4500">
+        <div class="h">Before tax, like the renewal. Optional, and it is what makes the rest checkable.</div>
       </div>
       <div class="field">
-        <label for="due_date">Due date</label>
+        <label for="last_paid_on">Last paid on</label>
+        <input id="last_paid_on" class="control" type="date" name="last_paid_on" value="{{ form.last_paid_on }}">
+      </div>
+      <div class="field">
+        <label for="due_date">Expires on</label>
         <input id="due_date" class="control" type="date" name="due_date" value="{{ form.due_date }}">
-        <div class="h">Optional.</div>
+        <div class="h" id="due-hint">The day what they last paid for runs out.</div>
+      </div>
+      <div class="field full">
+        <label class="gtoggle"><input type="checkbox" id="due_end_of_month" name="due_end_of_month"
+          {% if form.due_end_of_month %}checked{% endif %}>
+          Use the last day of the month</label>
+        <div class="h">No date to pick, and none to come back and change: it reads as the end
+          of whatever month it currently is, month after month.</div>
+      </div>
+      <div class="field">
+        <label for="amount">To renew (₹)</label>
+        <input id="amount" class="control" name="amount" inputmode="decimal"
+               value="{{ form.amount }}" placeholder="e.g. 4500">
+        <div class="h">Before tax — 18% GST is added for them, and the card shows both.</div>
+      </div>
+      <div class="field full">
+        <label class="gtoggle"><input type="checkbox" id="stop_after_due" name="stop_after_due"
+          {% if form.stop_after_due %}checked{% endif %}>
+          Stop showing it once the expiry date has passed</label>
+        <div class="h">Off by default: an unpaid renewal matters most <i>after</i> the date, and a
+          notice that disappears on its own is one nobody acted on.</div>
       </div>
       <div class="field full">
         <label for="contact">How to act on it</label>
@@ -94,46 +123,52 @@ the saved row. What you see here is what they get.
   </div>
 </form>
 
-{% if row.pk %}
-<form method="post" action="{% url 'console_notice_toggle' %}" class="toolbar" style="margin-top:4px">
-  {% csrf_token %}
-  <button type="submit" class="gbtn">
-    <svg class="gico"><use href="#i-power"/></svg>
-    {% if row.enabled %}Switch it off now{% else %}Switch it on now{% endif %}</button>
-  <span class="mut" style="font-size:12.5px">Without saving the words again.</span>
-</form>
-
-<div class="section open" style="margin-top:18px">
-  <div class="sh"><span class="si g"><svg class="gico"><use href="#i-user"/></svg></span>
-    <div><h3 class="disp">What they see</h3>
-      <div class="sd">The saved notice, exactly as it appears over their dashboard</div></div></div>
-  <div class="body">
-    <div class="npv">
-      <div class="npv-card">
-        <button type="button" class="npv-x" aria-hidden="true">&times;</button>
-        <div class="npv-head"><span class="npv-ico">!</span><h3>{{ row.title|default:"(no title yet)" }}</h3></div>
-        <div class="npv-body">
-          {{ row.body|linebreaks }}
-          {% if row.amount or row.due_date %}
-          <div class="npv-facts">
-            {% if row.amount %}<div><span>Amount</span><b>&#8377; {{ row.amount|floatformat:2 }}</b></div>{% endif %}
-            {% if row.due_date %}<div><span>Due</span><b>{{ row.due_date|date:"d M Y" }}</b></div>{% endif %}
-          </div>
-          {% endif %}
-          {% if row.contact %}<p class="npv-contact">{{ row.contact }}</p>{% endif %}
+<aside class="npane">
+  <div class="npane-head">
+    <h3 class="disp">What they see</h3>
+    <span class="mut">live — nothing is saved yet</span>
+  </div>
+  <div class="npv">
+    <div class="npv-card">
+      <button type="button" class="npv-x" aria-hidden="true">&times;</button>
+      <div class="npv-head"><span class="npv-ico">!</span><h3 id="pv-title">{{ form.title|default:"(no title yet)" }}</h3></div>
+      <div class="npv-body">
+        <div id="pv-body"></div>
+        <div class="npv-facts" id="pv-facts">
+          <div id="pv-lastpaid"><span>Last paid</span><b></b><i class="gst"></i><i class="when"></i></div>
+          <div id="pv-due"><span>Expires on</span><b></b></div>
+          <div id="pv-amount"><span>To renew</span><b></b><i></i></div>
         </div>
-        <div class="npv-foot">
-          {% if row.action_text and row.action_url %}<span class="npv-btn npv-go">{{ row.action_text }}</span>{% endif %}
-          <span class="npv-btn">Close</span>
-        </div>
+        <p class="npv-contact" id="pv-contact"></p>
+      </div>
+      <div class="npv-foot">
+        <span class="npv-btn npv-go" id="pv-go"></span>
+        <span class="npv-btn">Close</span>
       </div>
     </div>
   </div>
+  {% if row.pk %}
+  <form method="post" action="{% url 'console_notice_toggle' %}" class="toolbar" style="margin-top:12px">
+    {% csrf_token %}
+    <button type="submit" class="gbtn">
+      <svg class="gico"><use href="#i-power"/></svg>
+      {% if row.enabled %}Switch it off now{% else %}Switch it on now{% endif %}</button>
+  </form>
+  <p class="mut" style="font-size:12.5px;margin:6px 0 0">Switches the saved notice without
+    saving the words again.</p>
+  {% endif %}
+</aside>
 </div>
 
 <style>
-.npv{background:#eef2f8;border-radius:14px;padding:26px;display:flex;justify-content:center}
-.npv-card{position:relative;background:#fff;border-radius:16px;width:min(460px,100%);
+.nlayout{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:20px;align-items:start}
+@media(max-width:1020px){.nlayout{grid-template-columns:minmax(0,1fr)}}
+.npane{position:sticky;top:74px}
+.npane-head{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 9px}
+.npane-head h3{margin:0;font-size:15px}
+.npane-head .mut{font-size:12px}
+.npv{background:#eef2f8;border-radius:14px;padding:22px;display:flex;justify-content:center}
+.npv-card{position:relative;background:#fff;border-radius:16px;width:100%;
   box-shadow:0 18px 44px -14px rgba(15,23,42,.3)}
 .npv-x{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:0;
   background:#fee2e2;color:#dc2626;font-size:19px;line-height:1;font-weight:700}
@@ -144,13 +179,106 @@ the saved row. What you see here is what they get.
 .npv-body{padding:12px 22px 4px;color:#5b6472;font-size:14px;line-height:1.6}
 .npv-body p{margin:0 0 8px}
 .npv-facts{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 4px}
-.npv-facts div{flex:1;min-width:130px;background:#f5f8fc;border:1px solid #e8ecf3;border-radius:10px;padding:9px 12px}
+.npv-facts>div{flex:1;min-width:120px;background:#f5f8fc;border:1px solid #e8ecf3;border-radius:10px;padding:9px 12px}
 .npv-facts span{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8}
-.npv-facts b{font-size:16px;color:#0f172a}
+.npv-facts b{font-size:16px;color:#0f172a;display:block}
+.npv-facts i{font-style:normal;font-size:11.5px;color:#94a3b8;display:block;line-height:1.45}
 .npv-contact{margin:10px 0 0;font-size:13px;color:#0f172a}
 .npv-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 22px 18px}
 .npv-btn{border:1px solid #e8ecf3;border-radius:9px;padding:8px 14px;font-size:13.5px;font-weight:600;color:#5b6472}
 .npv-go{background:linear-gradient(135deg,#2563eb,#4f46e5);border-color:transparent;color:#fff}
 </style>
-{% endif %}
+
+<script>
+/* The preview is driven from the form, not from the saved row, so it answers "what will they
+   see when I press Save" rather than "what did I send last time". */
+(function () {
+  var f = document.getElementById('nform');
+  if (!f) return;
+  var at = function (id) { return document.getElementById(id); };
+  var val = function (name) { return (f.elements[name] ? f.elements[name].value : '').trim(); };
+
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var GST_PERCENT = 18;                        // matches ConsoleNotice.GST_PERCENT
+  function asDate(iso) {                       // 2026-12-31 → 31 Dec 2026
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    if (!m) return '';
+    return Number(m[3]) + ' ' + MONTHS[Number(m[2]) - 1] + ' ' + m[1];
+  }
+  function asMoney(raw) {
+    var n = Number(String(raw || '').replace(/,/g, ''));
+    if (!raw || isNaN(n)) return '';
+    return '₹ ' + n.toLocaleString('en-IN', {minimumFractionDigits: 2,
+                                                  maximumFractionDigits: 2});
+  }
+  function show(el, on) { if (el) el.style.display = on ? '' : 'none'; }
+
+  function endOfMonth() {                      // the 30th, 31st or 28th, as the month has it
+    var now = new Date(), last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return last.getDate() + ' ' + MONTHS[last.getMonth()] + ' ' + last.getFullYear();
+  }
+
+  function draw() {
+    at('pv-title').textContent = val('title') || '(no title yet)';
+
+    // The month decides the day, so the date box has nothing left to say.
+    var rolls = f.elements['due_end_of_month'] && f.elements['due_end_of_month'].checked;
+    var dateBox = at('due_date'), stop = at('stop_after_due');
+    if (dateBox) { dateBox.disabled = rolls; if (rolls) dateBox.value = ''; }
+    if (stop) { stop.disabled = rolls; if (rolls) stop.checked = false; }
+    at('due-hint').textContent = rolls
+      ? 'Set by the month — ' + endOfMonth() + ' this month.'
+      : 'The day what they last paid for runs out.';
+
+    // Blank lines make paragraphs, the same as the owner's card does server-side.
+    var body = at('pv-body');
+    body.textContent = '';
+    val('body').split(/\n\s*\n/).forEach(function (para) {
+      if (!para.trim()) return;
+      var p = document.createElement('p');
+      p.textContent = para.trim();
+      body.appendChild(p);
+    });
+
+    var due = rolls ? endOfMonth() : asDate(val('due_date')),
+        paidOn = asDate(val('last_paid_on'));
+
+    // Both money figures are typed before tax and shown after it, the same way.
+    function withGst(name) {
+        var raw = val(name), base = Number(String(raw || '').replace(/,/g, ''));
+        if (!raw || isNaN(base)) return null;
+        var tax = Math.round(base * GST_PERCENT) / 100;
+        return {total: asMoney(base + tax),
+                line: asMoney(base) + ' + ' + GST_PERCENT + '% GST ' + asMoney(tax)};
+    }
+
+    var paid = withGst('last_paid');
+    at('pv-lastpaid').querySelector('b').textContent = paid ? paid.total : '';
+    at('pv-lastpaid').querySelector('.gst').textContent = paid ? paid.line : '';
+    at('pv-lastpaid').querySelector('.when').textContent = paidOn ? 'on ' + paidOn : '';
+    at('pv-due').querySelector('b').textContent = due;
+    // GST is added for them, so what the console types and what the owner pays are two
+    // different figures — and both are shown, so neither is a surprise.
+    var renew = withGst('amount');
+    at('pv-amount').querySelector('b').textContent = renew ? renew.total : '';
+    at('pv-amount').querySelector('i').textContent = renew ? renew.line : '';
+    show(at('pv-lastpaid'), paid);
+    show(at('pv-due'), due);
+    show(at('pv-amount'), renew);
+    show(at('pv-facts'), paid || due || renew);
+
+    var contact = val('contact');
+    at('pv-contact').textContent = contact;
+    show(at('pv-contact'), contact);
+
+    var go = val('action_text');
+    at('pv-go').textContent = go;
+    show(at('pv-go'), go && val('action_url'));
+  }
+
+  f.addEventListener('input', draw);
+  f.addEventListener('change', draw);
+  draw();
+})();
+</script>
 {% endblock %}

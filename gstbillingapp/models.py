@@ -1327,8 +1327,20 @@ class ConsoleNotice(models.Model):
     title = models.CharField(max_length=120, blank=True, default="")
     body = models.TextField(max_length=1200, blank=True, default="")
     # Optional, shown only when set, so the same notice serves for things that cost nothing.
+    # `amount` is what is being asked for now; `last_paid` is what they paid last time and
+    # when, which is what turns a demand into a statement somebody can check.
     amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    last_paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    last_paid_on = models.DateField(null=True, blank=True)
+    # The day what they last paid for runs out. Either a fixed date, or the end of whatever
+    # month it currently is — which rolls by itself, so a monthly notice is set once and
+    # never has to be edited again.
     due_date = models.DateField(null=True, blank=True)
+    due_end_of_month = models.BooleanField(default=False)
+    # Whether the notice goes away by itself once that day has passed. Off by default: an
+    # unpaid renewal matters most *after* the date, and a notice that vanishes on its own is
+    # a notice nobody acted on.
+    stop_after_due = models.BooleanField(default=False)
     # How to act on it: a line of contact text, and a button when there's somewhere to go.
     contact = models.CharField(max_length=200, blank=True, default="")
     action_text = models.CharField(max_length=40, blank=True, default="")
@@ -1357,13 +1369,79 @@ class ConsoleNotice(models.Model):
     @classmethod
     def live(cls):
         """The notice to show right now, or None — cached, so a page that shows nothing
-        costs no query once the first request has looked."""
+        costs no query once the first request has looked.
+
+        The expiry is checked after the cache, not before it, so a notice set to stop on its
+        due date stops that day rather than up to five minutes into the next one."""
         found = cache.get(cls.CACHE_KEY, "miss")
         if found == "miss":
             row = cls.objects.filter(pk=1, enabled=True).first()
             found = row if row and (row.title or row.body) else None
             cache.set(cls.CACHE_KEY, found, 300)
+        if found is not None and found.expired:
+            return None
         return found
+
+    # GST is added to the renewal for them, so the console types the figure it agreed and
+    # the owner reads the figure they will actually pay. A rate, not a field: when it
+    # changes it changes for everyone at once.
+    GST_PERCENT = 18
+
+    @classmethod
+    def _with_gst(cls, amount):
+        """(tax, total) for a figure typed before tax — (None, None) when there isn't one.
+
+        Both the renewal and what they last paid go through this, so the two figures on the
+        card are worked out the same way and can be compared."""
+        from decimal import ROUND_HALF_UP, Decimal
+        if amount is None:
+            return None, None
+        tax = (amount * Decimal(cls.GST_PERCENT) / 100).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return tax, amount + tax
+
+    @property
+    def gst(self):
+        """The tax on the renewal — shown, not folded in, because a bill that hides its tax
+        is the one people ring up about."""
+        return self._with_gst(self.amount)[0]
+
+    @property
+    def total(self):
+        """What they actually have to pay."""
+        return self._with_gst(self.amount)[1]
+
+    @property
+    def last_paid_gst(self):
+        return self._with_gst(self.last_paid)[0]
+
+    @property
+    def last_paid_total(self):
+        """What last time's invoice came to, tax included."""
+        return self._with_gst(self.last_paid)[1]
+
+    @property
+    def expires_on(self):
+        """The day the notice says their cover runs out.
+
+        Set to roll, that is the end of the month being lived through — so the same notice
+        reads correctly in January and in June without anybody touching it."""
+        import calendar
+
+        from django.utils import timezone
+        if not self.due_end_of_month:
+            return self.due_date
+        today = timezone.localdate()
+        return today.replace(day=calendar.monthrange(today.year, today.month)[1])
+
+    @property
+    def expired(self):
+        """Past the day it was set to stop on — only when it was set to stop at all.
+
+        A rolling notice never gets here: the end of this month is never behind us."""
+        from django.utils import timezone
+        when = self.expires_on
+        return bool(self.stop_after_due and when and when < timezone.localdate())
 
     @property
     def seen_key(self):

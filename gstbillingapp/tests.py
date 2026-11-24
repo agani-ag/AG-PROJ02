@@ -2589,7 +2589,7 @@ class ConsoleNoticeTests(TestCase):
                      contact="Call 98765 43210.")
         self.client.force_login(self.a)
         r = self.client.get(reverse("landing_page"))
-        for bit in ("gsnotice", "Renewal due", "4500.00", "31 Dec 2026", "Call 98765 43210."):
+        for bit in ("gsnotice", "Renewal due", "4,500", "31 Dec 2026", "Call 98765 43210."):
             self.assertContains(r, bit)
 
     def test_a_signed_out_visitor_never_sees_it(self):
@@ -2689,6 +2689,145 @@ class ConsoleNoticeTests(TestCase):
         self.client.post(reverse("console_notice_toggle"))
         self.client.force_login(self.a)
         self.assertNotContains(self.client.get(reverse("landing_page")), "gsnotice")
+
+    # ---- what was paid, and when it runs out ----------------------------- #
+    def test_the_card_shows_what_they_paid_and_when_it_runs_out(self):
+        import datetime
+        self._notice(last_paid=4500, last_paid_on=datetime.date(2026, 1, 1),
+                     due_date=datetime.date(2026, 12, 31), amount=5000)
+        self.client.force_login(self.a)
+        r = self.client.get(reverse("landing_page"))
+        for bit in ("Last paid", "4,500", "on 01 Jan 2026",
+                    "Expires on", "31 Dec 2026", "To renew", "5,000"):
+            self.assertContains(r, bit)
+
+    def test_it_keeps_showing_after_the_date_unless_told_otherwise(self):
+        """An unpaid renewal matters most after the date, so the default is to stay."""
+        import datetime
+        self._notice(due_date=datetime.date(2020, 1, 1))
+        self.client.force_login(self.a)
+        self.assertContains(self.client.get(reverse("landing_page")), "gsnotice")
+
+    def test_it_stops_by_itself_when_told_to(self):
+        import datetime
+        self._notice(due_date=datetime.date(2020, 1, 1), stop_after_due=True)
+        self.client.force_login(self.a)
+        self.assertNotContains(self.client.get(reverse("landing_page")), "gsnotice")
+
+    def test_a_date_still_to_come_still_shows(self):
+        import datetime
+        self._notice(due_date=datetime.date.today() + datetime.timedelta(days=1),
+                     stop_after_due=True)
+        self.client.force_login(self.a)
+        self.assertContains(self.client.get(reverse("landing_page")), "gsnotice")
+
+    def test_the_console_saves_the_new_money_fields(self):
+        import datetime
+        from .models import ConsoleNotice
+        self._console()
+        self.client.post(reverse("console_notice"),
+                         {"title": "T", "body": "B", "last_paid": "4,500",
+                          "last_paid_on": "2026-01-01", "due_date": "2026-12-31",
+                          "amount": "5000", "stop_after_due": "on", "enabled": "on"})
+        row = ConsoleNotice.load()
+        self.assertEqual(str(row.last_paid), "4500.00")
+        self.assertEqual(row.last_paid_on, datetime.date(2026, 1, 1))
+        self.assertEqual(row.due_date, datetime.date(2026, 12, 31))
+        self.assertTrue(row.stop_after_due)
+
+    def test_stopping_by_itself_needs_a_date_to_stop_on(self):
+        self._console()
+        r = self.client.post(reverse("console_notice"),
+                             {"title": "T", "body": "B", "stop_after_due": "on"})
+        self.assertContains(r, "needs an expiry date", status_code=400)
+
+    def test_saving_an_already_expired_notice_says_so(self):
+        self._console()
+        r = self.client.post(reverse("console_notice"),
+                             {"title": "T", "body": "B", "due_date": "2020-01-01",
+                              "stop_after_due": "on", "enabled": "on"}, follow=True)
+        self.assertContains(r, "nobody sees it")
+
+    def test_the_card_adds_gst_to_the_renewal(self):
+        """The console types what was agreed; the owner reads what they will pay."""
+        self._notice(amount=5000)
+        self.client.force_login(self.a)
+        r = self.client.get(reverse("landing_page"))
+        self.assertContains(r, "5,900")             # 5000 + 18%
+        self.assertContains(r, "18% GST")
+        self.assertContains(r, "900")
+
+    def test_gst_rounds_to_paise(self):
+        from .models import ConsoleNotice
+        self._notice(amount=4999)
+        row = ConsoleNotice.load()
+        self.assertEqual(str(row.gst), "899.82")
+        self.assertEqual(str(row.total), "5898.82")
+
+    def test_what_they_last_paid_carries_gst_the_same_way(self):
+        """Two figures worked out the same way, so they can be compared."""
+        from .models import ConsoleNotice
+        self._notice(last_paid=4500, amount=5000)
+        row = ConsoleNotice.load()
+        self.assertEqual(str(row.last_paid_gst), "810.00")
+        self.assertEqual(str(row.last_paid_total), "5310.00")
+        self.client.force_login(self.a)
+        r = self.client.get(reverse("landing_page"))
+        self.assertContains(r, "5,310")             # last paid, tax included
+        self.assertContains(r, "810")               # the tax on it
+        self.assertContains(r, "5,900")             # and the renewal, same treatment
+
+    def test_no_amount_means_no_tax_line(self):
+        from .models import ConsoleNotice
+        self._notice(amount=None)
+        self.assertIsNone(ConsoleNotice.load().gst)
+        self.client.force_login(self.a)
+        r = self.client.get(reverse("landing_page"))
+        self.assertContains(r, "gsnotice")                   # the notice is there
+        self.assertNotContains(r, 'class="gsn-facts"')       # with no figures block at all
+
+    def test_the_month_end_option_needs_no_date_and_rolls(self):
+        """Set once in January and it still reads correctly in June."""
+        import calendar
+        from django.utils import timezone
+        self._notice(due_end_of_month=True, due_date=None)
+        today = timezone.localdate()
+        last = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+        self.client.force_login(self.a)
+        r = self.client.get(reverse("landing_page"))
+        self.assertContains(r, "Expires on")
+        self.assertContains(r, last.strftime("%d %b %Y"))
+
+    def test_a_rolling_notice_never_expires(self):
+        self._notice(due_end_of_month=True, due_date=datetime.date(2020, 1, 1),
+                     stop_after_due=True)
+        self.client.force_login(self.a)
+        self.assertContains(self.client.get(reverse("landing_page")), "gsnotice")
+
+    def test_the_console_saves_the_month_end_option_and_drops_the_date(self):
+        from .models import ConsoleNotice
+        self._console()
+        self.client.post(reverse("console_notice"),
+                         {"title": "T", "body": "B", "due_date": "2026-12-31",
+                          "due_end_of_month": "on", "enabled": "on"})
+        row = ConsoleNotice.load()
+        self.assertTrue(row.due_end_of_month)
+        self.assertIsNone(row.due_date)             # the month decides it now
+
+    def test_rolling_and_stopping_by_itself_are_refused_together(self):
+        self._console()
+        r = self.client.post(reverse("console_notice"),
+                             {"title": "T", "body": "B", "due_end_of_month": "on",
+                              "stop_after_due": "on"})
+        self.assertContains(r, "Pick one or the other", status_code=400)
+
+    def test_the_console_preview_is_driven_by_the_form(self):
+        """It has to answer "what will they see when I press Save", so the preview reads the
+        fields rather than the saved row."""
+        self._console()
+        r = self.client.get(reverse("console_notice"))
+        self.assertContains(r, 'id="pv-title"')
+        self.assertContains(r, "nothing is saved yet")
 
     def test_the_console_page_needs_a_console_login(self):
         for url in (reverse("console_notice"), reverse("console_notice_toggle")):
