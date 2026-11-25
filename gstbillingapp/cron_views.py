@@ -28,6 +28,7 @@ so with nothing ever writing one it would quietly stop compacting after two days
 still reporting success. Add &backup=1 (above) or schedule /cron/backup alongside it.
 """
 import hmac
+import logging
 from functools import wraps
 
 from django.conf import settings
@@ -36,7 +37,10 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from . import telegram_backup
 from .cleanup import LockBusy, db_stats, job_lock, run_backup, run_cleanup
+
+log = logging.getLogger(__name__)
 
 
 # --------------------------------------------------------------------------- #
@@ -109,6 +113,32 @@ def health(request):
         return _failed(e)
 
 
+class AfterReply(JsonResponse):
+    """A reply that does one more job once it has been sent.
+
+    PythonAnywhere runs web apps without --enable-threads, so a background thread is not
+    available to us. A WSGI server calls close() on the response after the body has gone to
+    the client, which gives us the one safe place to do slow work without the caller waiting
+    on it — here, pushing a 7 MB database to Telegram while the cron service has already had
+    its 200. Django's test client calls close() too, so tests exercise the same path.
+
+    Worst case on a server that buffers the whole reply, the call simply takes as long as the
+    upload; it still works, it just isn't quick."""
+
+    def __init__(self, data, then=None, **kwargs):
+        super().__init__(data, **kwargs)
+        self._then = then
+
+    def close(self):
+        super().close()
+        if self._then is None:
+            return
+        try:
+            self._then()
+        except Exception:                           # noqa: BLE001 — the reply has already gone
+            log.exception("after-reply work failed")
+
+
 # --------------------------------------------------------------------------- #
 # Backup — call this once a day, BEFORE cleanup
 # --------------------------------------------------------------------------- #
@@ -127,11 +157,24 @@ def backup(request):
         keep = None
     try:
         with job_lock("backup"):
-            return JsonResponse(run_backup(keep=keep))
+            out = run_backup(keep=keep)
     except LockBusy:
         return _locked("backup")
     except Exception as e:  # noqa: BLE001
         return _failed(e)
+
+    # The copy is on disk and the cron has its answer. Sending it to Telegram happens after
+    # this reply, so a slow upload can't make the schedule look like a failure.
+    if not telegram_backup.enabled():
+        out["telegram"] = "off"
+        return JsonResponse(out)
+    out["telegram"] = "sending after this reply"
+    sent = {}
+
+    def deliver():
+        sent["result"] = telegram_backup.run_daily()
+
+    return AfterReply(out, then=deliver)
 
 
 # --------------------------------------------------------------------------- #
@@ -167,12 +210,19 @@ def cleanup(request):
     try:
         with job_lock("cleanup"):
             out = {"ok": True}
-            if _truthy(request.GET.get("backup")):
+            took_backup = _truthy(request.GET.get("backup"))
+            if took_backup:
                 out["backup_run"] = _backup_guarded()
             out.update(run_cleanup(
                 vacuum=_truthy(request.GET.get("vacuum")),
                 quotation_days=_int_param(request, "quotations")))
+        # Outside the lock and after the reply: the upload is not cleanup's business and the
+        # cron service shouldn't hold a lock, or a connection, while it happens.
+        if not (took_backup and telegram_backup.enabled()):
+            out["telegram"] = "off" if took_backup else "not asked for"
             return JsonResponse(out)
+        out["telegram"] = "sending after this reply"
+        return AfterReply(out, then=telegram_backup.run_daily)
     except LockBusy:
         return _locked("cleanup")
     except Exception as e:  # noqa: BLE001

@@ -889,6 +889,13 @@ class SyncUpSettings(models.Model):
     # Master switch for Telegram reports (sent through SyncUp's relay, see telegram_reports.py).
     # Each business is then switched on, and given its chat ids, on its console page.
     telegram_enabled = models.BooleanField(default=False)
+    # Where the daily database backup is sent. Blank is off, and off is the default, so a
+    # deploy never drops the database into a group that already exists for reports. It is a
+    # platform setting, not a business one: the file holds every business at once.
+    backup_chat_id = models.CharField(max_length=32, blank=True, default="")
+    backup_chat_label = models.CharField(max_length=40, blank=True, default="")
+    backup_last_sent_at = models.DateTimeField(null=True, blank=True)
+    backup_last_error = models.CharField(max_length=300, blank=True, default="")
     # SyncUp's signing secret for GSTSync — proves an Approve / Reject answer really came from
     # SyncUp. Write-only on the console, like the partner key.
     signing_secret = models.CharField(max_length=200, blank=True, default="")

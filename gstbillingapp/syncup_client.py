@@ -18,9 +18,11 @@ reports it, while a business-side change only records it — a business must nev
 because SyncUp is down.
 """
 import json
+import os
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from .models import SyncUpSettings
@@ -50,6 +52,9 @@ class SyncUpError(Exception):
         super().__init__(message)
         self.status = status
         self.payload = payload
+        # True only when we gave up waiting rather than being refused. The far side may
+        # still be working, so a caller must not simply try again.
+        self.timed_out = False
 
 
 def config():
@@ -120,6 +125,104 @@ def _request(method, path, payload=None, cfg=None, timeout=None, longer=False):
         return json.loads(raw)
     except ValueError:
         raise SyncUpError("SyncUp returned a response that isn't JSON.")
+
+
+def telegram_document(chat_id, filename, source, caption="", timeout=None):
+    """Send a file to a Telegram chat through SyncUp's relay. Returns SyncUp's reply.
+
+    GSTSync has no bot token — SyncUp owns the bot and the send log — so a file leaves here
+    the same way a message does.
+
+    The body is the file and nothing else: SyncUp passes those bytes straight to Telegram
+    without storing them, which is why everything describing the file travels in the query
+    string instead. `source` is the path to the file, or its bytes; a path is read from disk
+    in pieces, so a database never has to sit whole in this process's memory.
+
+    The caption is plain text. An operational note is full of dots, slashes and underscores,
+    and MarkdownV2 would mean escaping every one of them to say nothing extra."""
+    cfg = config()
+    if not cfg.is_configured:
+        raise SyncUpError("SyncUp isn't set up yet — add its address and partner key under "
+                          "Console → Settings.")
+    is_path = not isinstance(source, (bytes, bytearray))
+    size = os.path.getsize(source) if is_path else len(source)
+    if size > TELEGRAM_MAX_DOCUMENT:
+        raise SyncUpError("That file is %.1f MB; Telegram accepts up to %d MB from a bot."
+                          % (size / 1048576.0, TELEGRAM_MAX_DOCUMENT // 1048576))
+    if not size:
+        raise SyncUpError("That backup file is empty.")
+
+    query = urllib.parse.urlencode({
+        "chat_id": str(chat_id).strip(),
+        "filename": filename,
+        "caption": (caption or "")[:TELEGRAM_MAX_CAPTION],
+    })
+    url = cfg.api_base.rstrip("/") + "/partner/v1/telegram/document?" + query
+    body = open(source, "rb") if is_path else bytes(source)
+    # Content-Length by hand: urllib works it out for bytes, but a file object would make it
+    # send chunked instead, which this endpoint refuses.
+    req = urllib.request.Request(url, data=body, method="POST", headers={
+        "Authorization": "Bearer " + cfg.partner_key,
+        "Content-Type": "application/octet-stream",
+        "Content-Length": str(size),
+        "Accept": "application/json",
+    })
+    # An upload is not a page request: it gets its own, longer allowance.
+    limit = max(timeout or 0, DOCUMENT_TIMEOUT)
+    try:
+        try:
+            with urllib.request.urlopen(req, timeout=limit) as resp:
+                raw = resp.read().decode("utf-8") or "{}"
+        finally:
+            if is_path:
+                body.close()
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")
+        try:
+            data = json.loads(detail or "{}")
+        except ValueError:
+            data = None
+        # The Partner API answers with "message" for a bad request and "error" for a failed
+        # delivery. A 413 from PythonAnywhere's own front server is an HTML page, not JSON,
+        # so _page_title is the fallback rather than a crash.
+        message = ((data.get("error") or data.get("message")) if isinstance(data, dict)
+                   else None) or _page_title(detail) or e.reason
+        known = {
+            404: "This SyncUp doesn't accept documents yet — it needs the "
+                 "telegram/document endpoint.",
+            403: "SyncUp won't send to that chat: %s. Add the chat to GSTSync's allowed "
+                 "list on SyncUp's Telegram page." % message,
+            411: "SyncUp needs the file's length and didn't get one (411).",
+            413: "The file was refused as too large (413): %s" % message,
+            415: "SyncUp expects the file as the raw body (415): %s" % message,
+            429: "SyncUp is rate-limiting us (429). The next run will try again.",
+            503: "SyncUp's Telegram bot isn't set up: %s" % message,
+            # SyncUp streams the bytes through, so it cannot try a second time — a
+            # momentary Telegram failure arrives here as a 502, and the next run retries.
+            502: "Telegram refused the file: %s" % message,
+        }
+        raise SyncUpError(known.get(e.code) or "SyncUp refused the file (%s): %s"
+                          % (e.code, message), status=e.code, payload=data)
+    except (urllib.error.URLError, OSError) as e:
+        # A timeout here does NOT mean the send failed — SyncUp keeps going, and sending
+        # again would put a second copy of the database in the chat. Callers are told which
+        # kind of failure this was so they can leave it alone.
+        reason = getattr(e, "reason", e)
+        failed = SyncUpError("SyncUp is unreachable: %s" % e)
+        failed.timed_out = isinstance(reason, TimeoutError) or isinstance(e, TimeoutError)
+        if failed.timed_out:
+            failed.args = ("SyncUp didn't answer within %ds. The upload may still have "
+                           "reached Telegram, so this won't be retried today."
+                           % DOCUMENT_TIMEOUT,)
+        raise failed
+    try:
+        answer = json.loads(raw)
+    except ValueError:
+        raise SyncUpError("SyncUp returned a response that isn't JSON.")
+    if not answer.get("success"):
+        raise SyncUpError("Telegram refused the file: %s"
+                          % (answer.get("error") or "no reason given"), payload=answer)
+    return answer
 
 
 def check_connection(cfg=None):
@@ -236,6 +339,13 @@ def update_app_link(external_id, *, url, description, timeout=None):
 # A Telegram send retries inside SyncUp (3 tries, short backoff), so these calls are given more
 # room than a console call. They only ever run from /cron/syncup or a console test.
 TELEGRAM_TIMEOUT = 20
+# A whole database crossing two hosts on its way to Telegram. Nothing waits on this — it
+# runs after the cron's reply has gone — so it gets an allowance a page never would.
+# SyncUp allows Telegram 60s a try and tries three times, so the far side can legitimately
+# take three minutes. Anything under that would time us out while the send is still working.
+DOCUMENT_TIMEOUT = 240
+TELEGRAM_MAX_DOCUMENT = 50 * 1048576            # Telegram's limit for a bot upload
+TELEGRAM_MAX_CAPTION = 1024
 
 
 def telegram_send(chat_id, text, parse_mode="MarkdownV2", timeout=TELEGRAM_TIMEOUT,

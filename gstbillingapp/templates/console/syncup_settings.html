@@ -127,5 +127,73 @@
     <p class="mut" style="font-size:12.5px;margin:10px 0 0">Asks SyncUp about an account that doesn't exist. It proves the address and key work, and changes nothing on either side.</p>
   </div>
 </div>
+{% comment %}The daily database backup. Its own card, and its own form: this is the one
+setting on the page whose mistake leaks every business at once, so it saves on its own rather
+than riding along with a Save that was meant for something else.{% endcomment %}
+<div class="section open" style="margin-top:18px">
+  <div class="sh"><span class="si o"><svg class="gico"><use href="#i-shield"/></svg></span>
+    <div><h3 class="disp">Daily database backup</h3>
+      <div class="sd">The nightly copy, sent to Telegram so it isn't only on this server</div></div></div>
+  <div class="body">
+
+    <div class="warnbox">
+      <svg class="gico"><use href="#i-alert"/></svg>
+      <div><b>Everyone in that chat gets the whole database</b> — every business's customers,
+        ledgers and invoices, the sign-in passwords (hashed) and the SyncUp key. Pick a group
+        or channel that only you are in. It is off until you choose one.</div>
+    </div>
+
+    <form method="post" action="{% url 'console_backup_chat' %}">
+      {% csrf_token %}
+      <div class="grid">
+        <div class="field">
+          <label for="backup_chat_id">Telegram chat id</label>
+          <input id="backup_chat_id" class="control" name="backup_chat_id"
+                 value="{{ backup.chat_id }}" placeholder="-1001234567890" autocomplete="off">
+          <div class="h">From SyncUp's Telegram page, once the bot is in the chat. The same
+            page is where the chat has to be added to GSTSync's allowed list, or SyncUp
+            refuses to send to it. Empty switches it off.</div>
+        </div>
+        <div class="field">
+          <label for="backup_chat_label">What to call it</label>
+          <input id="backup_chat_label" class="control" name="backup_chat_label" maxlength="40"
+                 value="{{ backup.label }}" placeholder="My backups" autocomplete="off">
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px">
+        <button class="gbtn gbtn-primary"><svg class="gico"><use href="#i-ok"/></svg> Save</button>
+        {% if backup.enabled %}<span class="gbadge ok">On</span>
+        {% elif backup.chat_id %}<span class="gbadge low">Waiting on SyncUp settings</span>
+        {% else %}<span class="gbadge grey">Off</span>{% endif %}
+      </div>
+    </form>
+
+    {% if backup.enabled %}
+    <form method="post" action="{% url 'console_backup_now' %}" style="margin-top:12px">
+      {% csrf_token %}
+      <button class="gbtn" {% if not backup.file %}disabled{% endif %}>
+        <svg class="gico"><use href="#i-send"/></svg> Backup now</button>
+      <span class="mut" style="font-size:12.5px">Sends the newest copy straight away. This one waits for the upload.</span>
+    </form>
+    {% endif %}
+
+    <div class="mut" style="font-size:12.5px;margin-top:12px">
+      {% if backup.file %}Newest copy: <code>{{ backup.file }}</code>, {{ backup.size_mb }} MB.
+      {% else %}No copy on disk yet — <code>/cron/backup</code> takes one daily.{% endif %}
+      {% if backup.last_sent_at %}<br>Last sent to Telegram {{ backup.last_sent_at|date:"d M Y, H:i" }}.{% endif %}
+    </div>
+    {% if backup.last_error %}
+    <div class="cmsg bad" style="margin-top:10px"><svg class="gico"><use href="#i-alert"/></svg>
+      <div>{{ backup.last_error }}</div></div>
+    {% endif %}
+
+    <p class="mut" style="font-size:12.5px;margin:12px 0 0">
+      Sent once a day, after <code>/cron/backup</code> has answered — so a slow upload never
+      makes the schedule look like a failure. A failed send is tried again on the next run.
+      To restore: put the file in place of <code>gstbillingdb.sqlite3</code> and reload the web app.
+    </p>
+  </div>
+</div>
+
 {% if app %}{% include "partials/app_qr.html" with lib=True %}{% endif %}
 {% endblock %}

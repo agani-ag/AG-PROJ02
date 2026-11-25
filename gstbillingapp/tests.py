@@ -1,5 +1,8 @@
 import datetime
+import io
 import json
+import os
+import urllib.error
 from datetime import date, timedelta
 from unittest import mock
 
@@ -2544,6 +2547,309 @@ class PlatformAdminInitialsTests(TestCase):
 
     def test_always_upper_case(self):
         self.assertEqual(self._initials("ganesh saravanan"), "GS")
+
+
+class TelegramBackupTests(TestCase):
+    """The nightly copy, sent off the server through SyncUp's relay.
+
+    GSTSync has no bot token, so the file leaves the same way a message does. The send runs
+    after the cron's reply, because PythonAnywhere gives us no threads and a cron service
+    must not wait on a 7 MB upload."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
+        cls.admin = PlatformAdmin(username="backupop", full_name="Backup Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+
+    def setUp(self):
+        import tempfile
+        from django.core.cache import cache
+        cache.clear()
+        _syncup_on()
+        self.folder = tempfile.mkdtemp()
+        self.file = os.path.join(self.folder, "gstbillingdb-2026-11-25.sqlite3")
+        with open(self.file, "wb") as f:
+            f.write(b"SQLite format 3\x00" + b"x" * 2048)
+        self.settings_patch = self.settings(DB_BACKUP_DIR=self.folder)
+        self.settings_patch.enable()
+        self.addCleanup(self.settings_patch.disable)
+        self.send = mock.patch("gstbillingapp.syncup_client.telegram_document").start()
+        self.send.return_value = {"success": True, "message_id": 7}
+        self.addCleanup(mock.patch.stopall)
+        self._unlock()
+        self.addCleanup(self._unlock)
+
+    def _unlock(self):
+        from .cleanup import _lock_path
+        for name in ("telegram_backup", "backup", "cleanup"):
+            try:
+                os.unlink(_lock_path(name))
+            except OSError:
+                pass
+
+    def _chat(self, chat_id="-1001234567890"):
+        from .models import SyncUpSettings
+        cfg = SyncUpSettings.load()
+        cfg.backup_chat_id = chat_id
+        cfg.save()
+        return cfg
+
+    def _console(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "backupop", "password": "Cons0le!pass9"})
+
+    # ---- off by default -------------------------------------------------- #
+    def test_it_is_off_until_a_chat_is_chosen(self):
+        from . import telegram_backup
+        self.assertFalse(telegram_backup.enabled())
+        self.assertEqual(telegram_backup.run_daily(), "off")
+        self.send.assert_not_called()
+
+    # ---- sending --------------------------------------------------------- #
+    def test_it_sends_the_newest_file_as_it_is(self):
+        from . import telegram_backup
+        self._chat()
+        ok, message = telegram_backup.send()
+        self.assertTrue(ok, message)
+        chat, filename, source, caption = self.send.call_args.args
+        self.assertEqual(chat, "-1001234567890")
+        self.assertEqual(filename, "gstbillingdb-2026-11-25.sqlite3")
+        # The path, not the bytes: the file is streamed from disk rather than held in a
+        # worker's memory. Nothing rewrites it on the way out.
+        self.assertEqual(source, self.file)
+        self.assertIn("To restore", caption)
+        self.assertIn("GSTSync database backup", caption)
+
+    def test_a_failure_is_recorded_and_not_raised(self):
+        from . import telegram_backup
+        from .models import SyncUpSettings
+        self._chat()
+        self.send.side_effect = syncup_client.SyncUpError("Telegram refused the file")
+        ok, message = telegram_backup.send()
+        self.assertFalse(ok)
+        self.assertIn("refused", SyncUpSettings.load().backup_last_error)
+
+    def test_no_file_on_disk_is_said_plainly(self):
+        from . import telegram_backup
+        os.unlink(self.file)
+        self._chat()
+        ok, message = telegram_backup.send()
+        self.assertFalse(ok)
+        self.assertIn("No backup file", message)
+
+    # ---- once a day ------------------------------------------------------ #
+    def test_a_good_send_holds_the_day(self):
+        from . import telegram_backup
+        self._chat()
+        self.assertEqual(telegram_backup.run_daily(), "sent")
+        self.assertEqual(telegram_backup.run_daily(), "sent today")
+        self.assertEqual(self.send.call_count, 1)
+
+    def test_a_failed_send_is_tried_again_next_run(self):
+        from . import telegram_backup
+        self._chat()
+        self.send.side_effect = syncup_client.SyncUpError("down")
+        self.assertNotIn(telegram_backup.run_daily(), ("sent", "sent today"))
+        self.send.side_effect = None
+        self.send.return_value = {"success": True}
+        self.assertEqual(telegram_backup.run_daily(), "sent")
+
+    def test_a_timeout_is_not_tried_again_today(self):
+        """SyncUp keeps uploading after we stop waiting, so a second attempt would put a
+        second copy of the database in the chat. The day is closed instead."""
+        from . import telegram_backup
+        self._chat()
+        timed_out = syncup_client.SyncUpError("SyncUp didn't answer within 240s.")
+        timed_out.timed_out = True
+        self.send.side_effect = timed_out
+        first = telegram_backup.run_daily()
+        self.assertIn("didn't answer", first)
+        self.assertEqual(telegram_backup.run_daily(), "sent today")   # lock kept
+        self.assertEqual(self.send.call_count, 1)
+
+    def test_an_ordinary_refusal_is_tried_again(self):
+        """A refusal is final and cheap to repeat, unlike a timeout."""
+        from . import telegram_backup
+        self._chat()
+        self.send.side_effect = syncup_client.SyncUpError("Telegram refused the file")
+        telegram_backup.run_daily()
+        self.send.side_effect = None
+        self.send.return_value = {"success": True}
+        self.assertEqual(telegram_backup.run_daily(), "sent")
+
+    def test_a_chat_not_on_the_allowed_list_says_what_to_do(self):
+        import urllib.error
+        mock.patch.stopall()
+        _syncup_on()
+        body = b'{"success": false, "chat_id": "-100", "error": "chat not allowed"}'
+        fail = urllib.error.HTTPError("u", 403, "Forbidden", {}, io.BytesIO(body))
+        with mock.patch("urllib.request.urlopen", side_effect=fail):
+            with self.assertRaises(syncup_client.SyncUpError) as caught:
+                syncup_client.telegram_document("-100", "db.sqlite3", b"x")
+        self.assertIn("allowed list", str(caught.exception))
+        self.assertEqual(caught.exception.status, 403)
+
+    def test_a_timeout_is_marked_as_one(self):
+        mock.patch.stopall()
+        _syncup_on()
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=urllib.error.URLError(TimeoutError("timed out"))):
+            with self.assertRaises(syncup_client.SyncUpError) as caught:
+                syncup_client.telegram_document("-100", "db.sqlite3", b"x")
+        self.assertTrue(caught.exception.timed_out)
+        self.assertIn("may still have reached Telegram", str(caught.exception))
+
+    def test_a_front_server_413_that_is_not_json_is_still_readable(self):
+        """PythonAnywhere's own limit answers with an HTML page, not the Partner API's JSON."""
+        import urllib.error
+        mock.patch.stopall()
+        _syncup_on()
+        page = b"<html><title>413 Request Entity Too Large</title></html>"
+        fail = urllib.error.HTTPError("u", 413, "Too Large", {}, io.BytesIO(page))
+        with mock.patch("urllib.request.urlopen", side_effect=fail):
+            with self.assertRaises(syncup_client.SyncUpError) as caught:
+                syncup_client.telegram_document("-100", "db.sqlite3", b"x")
+        self.assertIn("too large", str(caught.exception).lower())
+
+    # ---- riding the cron ------------------------------------------------- #
+    def _cron_backup(self):
+        """Taking the copy is /cron/backup's own job and has its own tests; what is under
+        test here is what happens to the file afterwards."""
+        with mock.patch("gstbillingapp.cron_views.run_backup",
+                        return_value={"ok": True, "file": "gstbillingdb-2026-11-25.sqlite3"}):
+            return self.client.get(reverse("cron_backup"), HTTP_X_CRON_KEY="k")
+
+    @override_settings(CRON_KEY="k")
+    def test_the_cron_answers_before_the_upload(self):
+        """The reply goes first; close() does the sending. Django's test client calls
+        close() too, so this is the same path a WSGI server takes."""
+        self._chat()
+        body = json.loads(self._cron_backup().content)
+        self.assertEqual(body["telegram"], "sending after this reply")
+        self.send.assert_called()                   # the test client closed the response
+
+    @override_settings(CRON_KEY="k")
+    def test_the_cron_says_off_when_no_chat_is_chosen(self):
+        self.assertEqual(json.loads(self._cron_backup().content)["telegram"], "off")
+        self.send.assert_not_called()
+
+    @override_settings(CRON_KEY="k")
+    def test_an_upload_that_fails_never_fails_the_cron(self):
+        self._chat()
+        self.send.side_effect = syncup_client.SyncUpError("down")
+        r = self._cron_backup()
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(json.loads(r.content)["ok"])
+
+    # ---- the console ----------------------------------------------------- #
+    def test_the_console_chooses_and_clears_the_chat(self):
+        from .models import SyncUpSettings
+        self._console()
+        self.client.post(reverse("console_backup_chat"),
+                         {"backup_chat_id": "-1009999", "backup_chat_label": "My backups"})
+        self.assertEqual(SyncUpSettings.load().backup_chat_id, "-1009999")
+        self.client.post(reverse("console_backup_chat"), {"backup_chat_id": ""})
+        self.assertEqual(SyncUpSettings.load().backup_chat_id, "")
+
+    def test_a_chat_id_that_is_not_one_is_refused(self):
+        from .models import SyncUpSettings
+        self._console()
+        self.client.post(reverse("console_backup_chat"), {"backup_chat_id": "my group"})
+        self.assertEqual(SyncUpSettings.load().backup_chat_id, "")
+
+    def test_backup_now_sends_without_touching_the_daily_lock(self):
+        from . import telegram_backup
+        self._chat()
+        self._console()
+        self.client.post(reverse("console_backup_now"))
+        self.send.assert_called_once()
+        self.assertEqual(telegram_backup.run_daily(), "sent")   # the day is still open
+
+    def test_the_settings_page_warns_what_is_in_the_file(self):
+        self._console()
+        r = self.client.get(reverse("console_syncup"))
+        self.assertContains(r, "Daily database backup")
+        self.assertContains(r, "Everyone in that chat gets the whole database")
+
+    def test_the_console_login_is_required(self):
+        for url in (reverse("console_backup_chat"), reverse("console_backup_now")):
+            r = self.client.post(url)
+            self.assertEqual(r.status_code, 302, url)
+            self.assertIn("/console/login", r["Location"])
+
+    # ---- the client call ------------------------------------------------- #
+    def test_a_file_too_large_for_telegram_is_refused_before_sending(self):
+        """Checked from the size, so 50 MB is never sent only to be turned away."""
+        mock.patch.stopall()
+        _syncup_on()
+        with self.assertRaises(syncup_client.SyncUpError) as caught:
+            syncup_client.telegram_document("-100", "big.sqlite3", b"x" * (51 * 1048576))
+        self.assertIn("50 MB", str(caught.exception))
+
+    def test_the_new_status_codes_say_what_went_wrong(self):
+        import urllib.error
+        mock.patch.stopall()
+        _syncup_on()
+        for code, body, expect in (
+                (411, b'{"success": false, "message": "no length"}', "length"),
+                (415, b'{"success": false, "message": "not octet-stream"}', "raw body"),
+                (502, b'{"success": false, "error": "Telegram said no"}', "Telegram said no"),
+        ):
+            fail = urllib.error.HTTPError("u", code, "x", {}, io.BytesIO(body))
+            with mock.patch("urllib.request.urlopen", side_effect=fail):
+                with self.assertRaises(syncup_client.SyncUpError) as caught:
+                    syncup_client.telegram_document("-100", "db.sqlite3", b"x")
+            self.assertIn(expect, str(caught.exception))
+            self.assertEqual(caught.exception.status, code)
+
+    def test_the_body_is_the_file_and_nothing_else(self):
+        """SyncUp passes the body straight to Telegram without storing it, so everything
+        describing the file travels in the query string."""
+        mock.patch.stopall()
+        _syncup_on()
+        payload = bytes(range(256))                 # every byte value, including NULs
+        seen = {}
+
+        def capture(req, timeout=None):
+            seen["url"] = req.full_url
+            seen["body"] = req.data
+            seen["headers"] = {k.lower(): v for k, v in req.headers.items()}
+            return io.BytesIO(b'{"success": true, "message_id": "7"}')
+
+        with mock.patch("urllib.request.urlopen", side_effect=capture):
+            syncup_client.telegram_document("-100", "db.sqlite3", payload, "a note")
+        self.assertEqual(seen["body"], payload)     # byte for byte, nothing wrapped round it
+        self.assertEqual(seen["headers"]["content-type"], "application/octet-stream")
+        self.assertEqual(seen["headers"]["content-length"], str(len(payload)))
+        self.assertIn("chat_id=-100", seen["url"])
+        self.assertIn("filename=db.sqlite3", seen["url"])
+        self.assertIn("caption=a+note", seen["url"])
+
+    def test_a_path_is_streamed_rather_than_read_into_memory(self):
+        mock.patch.stopall()
+        _syncup_on()
+        seen = {}
+
+        def capture(req, timeout=None):
+            seen["body"] = req.data
+            seen["length"] = req.headers.get("Content-length")
+            return io.BytesIO(b'{"success": true}')
+
+        with mock.patch("urllib.request.urlopen", side_effect=capture):
+            syncup_client.telegram_document("-100", "db.sqlite3", self.file, "note")
+        self.assertTrue(hasattr(seen["body"], "read"))      # an open file, not bytes
+        self.assertEqual(seen["length"], str(os.path.getsize(self.file)))
+
+    def test_an_empty_file_is_refused_before_uploading(self):
+        mock.patch.stopall()
+        _syncup_on()
+        empty = os.path.join(self.folder, "empty.sqlite3")
+        open(empty, "wb").close()
+        with self.assertRaises(syncup_client.SyncUpError) as caught:
+            syncup_client.telegram_document("-100", "empty.sqlite3", empty)
+        self.assertIn("empty", str(caught.exception))
 
 
 class ConsoleNoticeTests(TestCase):

@@ -4,13 +4,14 @@ Kept in the database (models.SyncUpSettings, one row) rather than settings.py, s
 platform admin can set SyncUp up, rotate the partner key or move hosts without server
 access or a restart.
 """
+import re
 from urllib.parse import urlsplit
 
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from .. import syncup_messages
+from .. import syncup_messages, telegram_backup
 from ..console_auth import console_required
 from ..models import SyncUpSettings
 from ..syncup_app import DEFAULT_CUSTOMER_TEXT, DEFAULT_SHARE_TEXT, listing, parse_play_url
@@ -47,7 +48,8 @@ def syncup_settings(request):
             "telegram_enabled": cfg.telegram_enabled}
     extra = {"defaults": {"customer": DEFAULT_CUSTOMER_TEXT, "share": DEFAULT_SHARE_TEXT},
              "msg_stats": syncup_messages.stats(),
-             "callback_url": (link_base_of(cfg) + "/syncup/callback") if link_base_of(cfg) else ""}
+             "callback_url": (link_base_of(cfg) + "/syncup/callback") if link_base_of(cfg) else "",
+             "backup": telegram_backup.status()}
 
     if request.method == "POST":
         d = request.POST
@@ -115,6 +117,41 @@ def syncup_settings(request):
 
     return render(request, "console/syncup_settings.html",
                   dict(extra, cfg=cfg, form=form, errors=[], app=listing(cfg)))
+
+
+@console_required
+@require_POST
+def backup_chat(request):
+    """Choose (or clear) the Telegram chat the daily database backup goes to.
+
+    Off until an id is typed, so deploying this never drops the database into a group that
+    already exists for reports."""
+    cfg = SyncUpSettings.load()
+    chat = (request.POST.get("backup_chat_id") or "").strip()
+    if chat and not re.fullmatch(r"-?\d{1,20}", chat):
+        messages.error(request, "A Telegram chat id is digits, with a leading minus for a "
+                                "group. Copy it from SyncUp's Telegram page.")
+        return redirect("console_syncup")
+    cfg.backup_chat_id = chat
+    cfg.backup_chat_label = (request.POST.get("backup_chat_label") or "").strip()[:40]
+    if not chat:
+        cfg.backup_last_error = ""
+    cfg.updated_by = request.platform_admin
+    cfg.save()
+    messages.success(request, "Daily backup will go to %s." % (cfg.backup_chat_label or chat)
+                     if chat else "Daily backup to Telegram is off.")
+    return redirect("console_syncup")
+
+
+@console_required
+@require_POST
+def backup_now(request):
+    """Send the newest backup straight away, without touching the once-a-day lock.
+
+    This one does wait for the upload: somebody pressed a button and is owed an answer."""
+    ok, message = telegram_backup.send()
+    (messages.success if ok else messages.error)(request, message)
+    return redirect("console_syncup")
 
 
 @console_required

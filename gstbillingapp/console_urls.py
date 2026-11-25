@@ -73,4 +73,6 @@ urlpatterns = [
     path("password", console.change_password, name="console_change_password"),
     path("settings", console_settings.syncup_settings, name="console_syncup"),
     path("settings/test", console_settings.syncup_test, name="console_syncup_test"),
+    path("settings/backup-chat", console_settings.backup_chat, name="console_backup_chat"),
+    path("settings/backup-now", console_settings.backup_now, name="console_backup_now"),
 ]
