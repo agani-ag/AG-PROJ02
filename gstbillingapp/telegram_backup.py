@@ -78,8 +78,9 @@ def _rows():
 
 
 def note(path):
-    """What goes with the file. Plain text: the caption is read on a phone, and it has to say
-    what this is, when it was taken, and what to do with it."""
+    """What goes with the file. Plain text, and short: the caption is read on a phone, under
+    a file that arrives every night, so it says what this is and when it was taken and stops
+    there. How to restore it belongs on the console, where somebody is looking for it."""
     name = os.path.basename(path)
     size = os.path.getsize(path)
     when = timezone.localtime().strftime("%d %b %Y, %H:%M")
@@ -91,9 +92,6 @@ def note(path):
     counts = _rows()
     if counts:
         lines.append(counts)
-    lines.append("")
-    lines.append("To restore: stop the web app, put this file in place of "
-                 "gstbillingdb.sqlite3, then Reload.")
     return "\n".join(lines)
 
 

@@ -170,12 +170,7 @@ def backup(request):
         out["telegram"] = "off"
         return JsonResponse(out)
     out["telegram"] = "sending after this reply"
-    sent = {}
-
-    def deliver():
-        sent["result"] = telegram_backup.run_daily()
-
-    return AfterReply(out, then=deliver)
+    return AfterReply(out, then=telegram_backup.run_daily)
 
 
 # --------------------------------------------------------------------------- #

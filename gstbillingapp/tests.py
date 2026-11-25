@@ -2619,8 +2619,9 @@ class TelegramBackupTests(TestCase):
         # The path, not the bytes: the file is streamed from disk rather than held in a
         # worker's memory. Nothing rewrites it on the way out.
         self.assertEqual(source, self.file)
-        self.assertIn("To restore", caption)
         self.assertIn("GSTSync database backup", caption)
+        self.assertIn("gstbillingdb-2026-11-25.sqlite3", caption)
+        self.assertNotIn("To restore", caption)     # that belongs on the console, not here
 
     def test_a_failure_is_recorded_and_not_raised(self):
         from . import telegram_backup
