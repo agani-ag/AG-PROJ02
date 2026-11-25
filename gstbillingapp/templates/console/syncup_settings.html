@@ -140,7 +140,9 @@ than riding along with a Save that was meant for something else.{% endcomment %}
       <svg class="gico"><use href="#i-alert"/></svg>
       <div><b>Everyone in that chat gets the whole database</b> — every business's customers,
         ledgers and invoices, the sign-in passwords (hashed) and the SyncUp key. Pick a group
-        or channel that only you are in. It is off until you choose one.</div>
+        or channel that only you are in. It is off until you choose one.
+        <br><b>Switching this on also drops the copies kept here to {{ backup.keep }} days</b>,
+        since Telegram holds the history from then on and this server's disk is small.</div>
     </div>
 
     <form method="post" action="{% url 'console_backup_chat' %}">
@@ -178,7 +180,8 @@ than riding along with a Save that was meant for something else.{% endcomment %}
     {% endif %}
 
     <div class="mut" style="font-size:12.5px;margin-top:12px">
-      {% if backup.file %}Newest copy: <code>{{ backup.file }}</code>, {{ backup.size_mb }} MB.
+      {% if backup.file %}Newest copy: <code>{{ backup.file }}</code>, {{ backup.size_mb }} MB ·
+        <b>{{ backup.on_disk }}</b> kept on the server{% if backup.enabled %}, pruned to {{ backup.keep }} nightly{% endif %}.
       {% else %}No copy on disk yet — <code>/cron/backup</code> takes one daily.{% endif %}
       {% if backup.last_sent_at %}<br>Last sent to Telegram {{ backup.last_sent_at|date:"d M Y, H:i" }}.{% endif %}
     </div>

@@ -45,6 +45,18 @@ def enabled():
     return bool(chat_id()) and syncup_client.config().is_configured
 
 
+def retention():
+    """How many copies to keep on the server.
+
+    Seven while this is the only copy there is. Two once each night's file also reaches
+    Telegram: the history lives off the server from then on, and the disk here is small
+    enough that seven copies of a growing database is most of it. Two is enough to undo
+    today — yesterday's file is still on the machine when today's is written."""
+    if enabled():
+        return getattr(settings, "DB_BACKUP_KEEP_OFFSITE", 2)
+    return getattr(settings, "DB_BACKUP_KEEP", 7)
+
+
 def latest_file():
     """The newest backup on disk, or None. Sent as it is — a copy that has been opened and
     rewritten is a copy that might differ from the one restored."""
@@ -156,4 +168,13 @@ def status():
         "last_error": cfg.backup_last_error,
         "file": os.path.basename(path) if path else "",
         "size_mb": round(os.path.getsize(path) / 1048576.0, 1) if path else 0,
+        "keep": getattr(settings, "DB_BACKUP_KEEP_OFFSITE", 2),
+        "on_disk": len(_backup_files()),
     }
+
+
+def _backup_files():
+    folder = getattr(settings, "DB_BACKUP_DIR", "")
+    if not folder or not os.path.isdir(folder):
+        return []
+    return [n for n in os.listdir(folder) if n.endswith(".sqlite3")]

@@ -153,7 +153,11 @@ CRON_KEY = os.getenv("CRON_KEY", "gstsync-cron-key")
 # Where `VACUUM INTO` writes its compacted copies, and how many to retain.
 # NOTE: keep this OUT of any web-server document root — these files are the whole database.
 DB_BACKUP_DIR = os.path.join(BASE_DIR, 'backups')
-DB_BACKUP_KEEP = 7
+DB_BACKUP_KEEP = 3
+# How many to keep once each night's copy also goes to Telegram. Far fewer, on purpose: the
+# history then lives off the server, and this account's disk is 512 MB with the database
+# itself growing inside it. Enough to roll back today's mistake, and no more.
+DB_BACKUP_KEEP_OFFSITE = 2
 
 # A VACUUM rewrites the whole file, so it only runs once at least this much space is
 # actually reclaimable. Lets the cleanup job be scheduled daily without nightly churn.

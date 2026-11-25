@@ -216,7 +216,12 @@ def run_backup(keep=None):
     Skips (without erroring) when free disk is too tight — backups must never be the
     thing that fills the server.
     """
-    keep = keep if keep is not None else getattr(settings, "DB_BACKUP_KEEP", 7)
+    if keep is None:
+        # Asked rather than read from settings: how many copies this machine needs depends
+        # on whether they are also going somewhere else. Imported here, because
+        # telegram_backup builds on this module.
+        from .telegram_backup import retention
+        keep = retention()
     size = db_size_bytes()
     free = free_disk_bytes()
     # Need room for this copy plus a safety margin; a same-day rerun overwrites, so the

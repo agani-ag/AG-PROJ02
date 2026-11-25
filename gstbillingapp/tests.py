@@ -2713,6 +2713,47 @@ class TelegramBackupTests(TestCase):
                 syncup_client.telegram_document("-100", "db.sqlite3", b"x")
         self.assertIn("too large", str(caught.exception).lower())
 
+    # ---- what stays on the server ---------------------------------------- #
+    def test_sending_offsite_shrinks_what_is_kept_here(self):
+        """Seven copies of a growing database is most of a 512 MB account. Once Telegram
+        holds the history, the server only needs enough to undo today."""
+        from . import telegram_backup
+        with self.settings(DB_BACKUP_KEEP=7, DB_BACKUP_KEEP_OFFSITE=2):
+            self.assertEqual(telegram_backup.retention(), 7)
+            self._chat()
+            self.assertEqual(telegram_backup.retention(), 2)
+
+    def test_the_backup_prunes_to_that_number(self):
+        """VACUUM can't run inside a test's transaction, so the copy is stubbed; what is
+        under test is how many files survive it."""
+        from .cleanup import run_backup
+        import time
+        for day in range(10, 18):                   # a week of old copies, as on the server
+            old = os.path.join(self.folder, "gstbillingdb-2026-11-%d.sqlite3" % day)
+            open(old, "w").close()
+            # Aged deliberately: files written in the same second sort arbitrarily, and the
+            # pruning keeps the newest. On the server they are a day apart.
+            os.utime(old, (time.time() - (20 - day) * 86400,) * 2)
+        self._chat()
+        def fake_vacuum(sql, *a):
+            with open(sql.split("'")[1], "wb") as f:    # VACUUM INTO '<path>'
+                f.write(b"SQLite format 3\x00")
+
+        with self.settings(DB_BACKUP_KEEP=7, DB_BACKUP_KEEP_OFFSITE=2):
+            with mock.patch("gstbillingapp.cleanup.connection") as db:
+                db.cursor.return_value.__enter__.return_value.execute.side_effect = fake_vacuum
+                out = run_backup()
+        self.assertTrue(out["ok"], out)
+        left = [n for n in os.listdir(self.folder) if n.endswith(".sqlite3")]
+        self.assertEqual(len(left), 2, left)
+
+    def test_an_explicit_keep_still_wins(self):
+        from . import telegram_backup
+        self._chat()
+        with self.settings(DB_BACKUP_KEEP_OFFSITE=2):
+            self.assertEqual(telegram_backup.retention(), 2)    # the default for the cron
+        # but /cron/backup?keep=5 and the management command pass their own, untouched.
+
     # ---- riding the cron ------------------------------------------------- #
     def _cron_backup(self):
         """Taking the copy is /cron/backup's own job and has its own tests; what is under
@@ -6260,6 +6301,41 @@ class StaffAppSwitchTests(TestCase):
         self.assertEqual([l["external_id"] for l in appusers.desired_links(person)],
                          ["gstsync"])
         self.assertTrue(appusers.can_use_app(person))
+
+
+class ConsoleNavTests(TestCase):
+    """The console header. It has grown to seven sections, and the last one added is the
+    one that falls off the end — so the links are checked, not assumed."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import PlatformAdmin
+        cls.admin = PlatformAdmin(username="navop", full_name="Nav Op")
+        cls.admin.set_password("Cons0le!pass9")
+        cls.admin.save()
+
+    def setUp(self):
+        self.client.post(reverse("console_login"),
+                         {"username": "navop", "password": "Cons0le!pass9"})
+
+    def test_every_section_is_reachable_from_the_header(self):
+        r = self.client.get(reverse("console_businesses"))
+        for name in ("console_businesses", "console_customers", "console_employees",
+                     "console_data", "console_notice", "console_admins", "console_syncup"):
+            self.assertContains(r, 'href="%s"' % reverse(name), msg_prefix=name)
+
+    def test_the_account_links_live_behind_the_avatar(self):
+        """They were costing two sections' worth of bar spelled out."""
+        r = self.client.get(reverse("console_businesses"))
+        self.assertContains(r, "acct-menu")
+        self.assertContains(r, 'href="%s"' % reverse("console_change_password"))
+        self.assertContains(r, 'href="%s"' % reverse("console_logout"))
+        self.assertContains(r, "NAV OP")
+
+    def test_the_current_section_is_marked(self):
+        r = self.client.get(reverse("console_notice"))
+        self.assertContains(r, '#i-bell"/></svg> Notice</a>')
+        self.assertContains(r, 'class="on"')
 
 
 class ConsoleDataTests(TestCase):

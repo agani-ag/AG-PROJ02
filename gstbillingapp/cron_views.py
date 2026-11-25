@@ -144,7 +144,8 @@ class AfterReply(JsonResponse):
 # --------------------------------------------------------------------------- #
 @cron_endpoint
 def backup(request):
-    """Write a compacted copy via VACUUM INTO and prune to settings.DB_BACKUP_KEEP.
+    """Write a compacted copy via VACUUM INTO and prune to the retention in force — seven
+    copies normally, two once the nightly file also goes to Telegram.
 
     Pass ?keep=N to override the retention for one call. Skips itself (reporting
     "low_disk", still 200) when free space is tight — a backup must never be the thing
