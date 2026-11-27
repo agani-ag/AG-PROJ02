@@ -6304,6 +6304,126 @@ class StaffAppSwitchTests(TestCase):
         self.assertTrue(appusers.can_use_app(person))
 
 
+class DeviceNoteTests(TestCase):
+    """Lines passed between the screens one person is signed in on.
+
+    Both ends talk, it rides the presence heartbeat that was already running, and it keeps
+    nothing: everything older than a minute is dropped."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.a, cls.b = _businesses("ALPHA", "BETA")
+
+    def setUp(self):
+        from .views.presence import clear_note
+        clear_note(self.a.id)
+        clear_note(self.b.id)
+        self.addCleanup(clear_note, self.a.id)
+        self.addCleanup(clear_note, self.b.id)
+        self.client.force_login(self.a)
+
+    def _other_screen(self):
+        from django.test import Client
+        phone = Client()
+        phone.force_login(self.a)
+        return phone
+
+    def _ping(self, token="laptop", client=None):
+        return (client or self.client).post(reverse("presence_ping"), {"token": token}).json()
+
+    def _say(self, text, token="laptop", client=None, **extra):
+        return (client or self.client).post(
+            reverse("presence_say"), {"text": text, "token": token}, **extra).json()
+
+    # ---- both ends talk --------------------------------------------------- #
+    def test_each_screen_sends_and_sees_the_reply(self):
+        phone = self._other_screen()
+        self._say("Bank closes at 4", "laptop")
+        heard = self._ping("phone", phone)["notes"]
+        self.assertEqual([n["text"] for n in heard], ["Bank closes at 4"])
+
+        self._say("On my way", "phone", phone)                  # the reply
+        back = self._ping("laptop")["notes"]
+        self.assertEqual([n["text"] for n in back], ["Bank closes at 4", "On my way"])
+
+    def test_each_line_says_which_screen_it_came_from(self):
+        phone = self._other_screen()
+        self._say("from the counter", "laptop")
+        self._say("from the road", "phone", phone,
+                  HTTP_USER_AGENT="Mozilla/5.0 (iPhone) Safari")
+        lines = self._ping("laptop")["notes"]
+        self.assertEqual(lines[0]["by"], "laptop")              # so a browser can take sides
+        self.assertEqual(lines[1]["by"], "phone")
+        self.assertIn("iPhone", lines[1]["from"])
+        self.assertTrue(lines[1]["when"])
+
+    def test_the_sender_sees_their_own_line_at_once(self):
+        said = self._say("hello")
+        self.assertEqual([n["text"] for n in said["notes"]], ["hello"])
+
+    # ---- it keeps nothing ------------------------------------------------- #
+    def test_a_line_is_gone_after_a_minute(self):
+        import time as _time
+        from .views import presence
+        self.assertEqual(presence.NOTE_LIFE, 60)
+        self._say("old news")
+        with mock.patch.object(presence.time, "time",
+                               return_value=_time.time() + 61):
+            self.assertEqual(self._ping()["notes"], [])
+
+    def test_only_the_last_minute_survives_a_new_line(self):
+        import time as _time
+        from .views import presence
+        self._say("ancient")
+        later = _time.time() + 61
+        with mock.patch.object(presence.time, "time", return_value=later):
+            said = self._say("current")
+        self.assertEqual([n["text"] for n in said["notes"]], ["current"])
+
+    def test_a_thread_cannot_grow_without_limit(self):
+        from .views import presence
+        for i in range(presence.THREAD_MAX + 5):
+            self._say("line %d" % i)
+        self.assertEqual(len(self._ping()["notes"]), presence.THREAD_MAX)
+
+    def test_an_empty_line_clears_the_lot(self):
+        self._say("something")
+        self.assertEqual(self._say("  ")["notes"], [])
+        self.assertEqual(self._ping()["notes"], [])
+
+    def test_nothing_is_written_to_the_database(self):
+        """No table, no migration, no rows to clean up later."""
+        from .models import ActiveDevice
+        before = ActiveDevice.objects.count()
+        self._say("hello")
+        self.assertEqual(ActiveDevice.objects.count(), before)
+
+    # ---- the edges -------------------------------------------------------- #
+    def test_nobody_elses_screens_see_it(self):
+        from django.test import Client
+        self._say("mine")
+        other = Client()
+        other.force_login(self.b)
+        self.assertEqual(other.post(reverse("presence_ping"),
+                                    {"token": "x"}).json()["notes"], [])
+
+    def test_a_long_line_is_refused_rather_than_cut(self):
+        r = self.client.post(reverse("presence_say"), {"text": "x" * 500})
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self._ping()["notes"], [])
+
+    def test_signing_in_is_required(self):
+        self.client.logout()
+        self.assertEqual(
+            self.client.post(reverse("presence_say"), {"text": "hi"}).status_code, 302)
+
+    def test_the_navbar_carries_the_box_and_its_close_button(self):
+        r = self.client.get(reverse("landing_page"))
+        self.assertContains(r, 'id="notebox"')
+        self.assertContains(r, 'id="note-x"')
+        self.assertContains(r, reverse("presence_say"))
+
+
 class ConsoleNavTests(TestCase):
     """The console header. It has grown to seven sections, and the last one added is the
     one that falls off the end — so the links are checked, not assumed."""

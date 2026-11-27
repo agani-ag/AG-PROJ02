@@ -5,10 +5,26 @@
       <span class="mark" id="brand-mark" title="Active devices">
         <i class="fas fa-bolt" id="brand-bolt" style="color:#fff;font-size:14px"></i>
         <span class="brand-count" id="presence-count" hidden>1</span>
+        <span class="note-dot" id="note-dot" hidden></span>
       </span>
       GSTSync
       <span class="biz">{% if user_profile.business_brand %}{{ user_profile.business_brand|upper }}{% else %}{{ user|upper }}{% endif %}</span>
     </a>
+    {% comment %}A line you can put on your own other screen — the shop computer and the
+    phone in your pocket are the same sign-in. Hangs under the device count, which is the
+    only thing that knows there is another screen to put it on.{% endcomment %}
+    <div class="notebox" id="notebox" hidden>
+      <div class="note-head">
+        <span>Your screens</span>
+        <button type="button" class="note-x" id="note-x" aria-label="Close">&times;</button>
+      </div>
+      <div class="note-thread" id="note-thread"></div>
+      <form id="note-form" autocomplete="off">
+        <input id="note-input" maxlength="280" placeholder="Say something…">
+        <button type="submit" id="note-send" title="Send"><i class="fas fa-paper-plane"></i></button>
+      </form>
+      <div class="note-foot">Everything here disappears after a minute</div>
+    </div>
     <button class="burger" type="button" onclick="document.getElementById('gnavItems').classList.toggle('show')"><i class="fas fa-bars"></i></button>
 
     {% if user.is_authenticated %}
@@ -220,11 +236,94 @@ function passSwitchkey() {
     }
   }
 
+  // ---- the note under the mark ----
+  // One line, shown on every screen this person is signed in on. It rides the heartbeat
+  // that is already running, so a second screen sees it on its next beat.
+  var SAY_URL = "{% url 'presence_say' %}";
+  var box = document.getElementById('notebox');
+  var thread = document.getElementById('note-thread');
+  var dot = document.getElementById('note-dot');
+  var seen = null, devices = 1, quick = null, lines = [];
+
+  function openBox(on){
+    if(!box) return;
+    box.hidden = !on;
+    if(on){
+      if(dot) dot.hidden = true;
+      var input = document.getElementById('note-input');
+      if(input) input.focus();
+      // While you're looking at it, check more often — a reply shouldn't take half a minute.
+      if(!quick) quick = setInterval(ping, 5000);
+    } else if(quick){ clearInterval(quick); quick = null; }
+  }
+
+  function draw(list){
+    if(!thread) return;
+    lines = list || [];
+    thread.textContent = '';
+    if(!lines.length){
+      var empty = document.createElement('div');
+      empty.className = 'note-empty';
+      empty.textContent = 'Nothing in the last minute.';
+      thread.appendChild(empty);
+      return;
+    }
+    lines.forEach(function(n){
+      var row = document.createElement('div');
+      row.className = 'note-line' + (n.by === tok ? ' mine' : '');
+      var p = document.createElement('p');
+      p.textContent = n.text;
+      var meta = document.createElement('span');
+      // Your own line needs no label; one from the other screen says which screen.
+      meta.textContent = (n.by === tok ? '' : (n.from ? n.from + ' · ' : '')) + (n.when || '');
+      row.appendChild(p); row.appendChild(meta);
+      thread.appendChild(row);
+    });
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  function showNotes(list){
+    list = list || [];
+    var newest = list.length ? list[list.length - 1] : null;
+    var unread = newest && newest.id !== seen && newest.by !== tok;
+    draw(list);
+    if(newest) seen = newest.id;
+    if(unread && box && box.hidden && dot) dot.hidden = false;   // a mark until it's opened
+  }
+
+  if(mark){
+    mark.addEventListener('click', function(e){
+      if(devices < 2 && !lines.length) return;   // nothing to say to nobody; follow the link
+      e.preventDefault(); e.stopPropagation();
+      openBox(box.hidden);
+    });
+  }
+  var xBtn = document.getElementById('note-x');
+  if(xBtn) xBtn.addEventListener('click', function(){ openBox(false); });
+  document.addEventListener('click', function(e){
+    if(box && !box.hidden && !e.target.closest('#notebox') && !e.target.closest('#brand-mark'))
+      openBox(false);
+  });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') openBox(false); });
+
+  var form = document.getElementById('note-form');
+  if(form) form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var input = document.getElementById('note-input');
+    var text = (input.value || '').trim();
+    if(!text) return;
+    var body = new URLSearchParams(); body.set('text', text); body.set('token', tok);
+    fetch(SAY_URL, {method:'POST', headers:{'X-CSRFToken': getCookie('csrftoken'), 'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString()})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if(d && d.ok){ input.value = ''; showNotes(d.notes); } })
+      .catch(function(){});
+  });
+
   function ping(){
     var body = new URLSearchParams(); body.set('token', tok);
     fetch(PING_URL, {method:'POST', headers:{'X-CSRFToken': getCookie('csrftoken'), 'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString()})
       .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(d){ if(!d) return; render(d.count || 1); })
+      .then(function(d){ if(!d) return; devices = d.count || 1; render(devices); showNotes(d.notes); })
       .catch(function(){});
   }
 

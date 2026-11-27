@@ -38,6 +38,8 @@ urlpatterns = [
     path('presence/ping', presence.presence_ping, name='presence_ping'),
     path('presence/list', presence.presence_list, name='presence_list'),
     path('presence/leave', presence.presence_leave, name='presence_leave'),
+    # One line put on every screen this person is signed in on (see presence.py).
+    path('presence/say', presence.presence_say, name='presence_say'),
 
     # Profile URLs
     path('profile', profile.user_profile, name='user_profile'),

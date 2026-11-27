@@ -11,6 +11,11 @@ A device is recognised again on return because its ``token`` (a random id kept i
 browser's localStorage) is reused across logins on that browser. Long-idle rows are
 pruned by the nightly cron (see cleanup.purge_stale_devices).
 """
+import json
+import os
+import tempfile
+import time
+import uuid
 from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
@@ -24,6 +29,82 @@ from ..models import ActiveDevice
 # Heartbeat cadence lives in the browser (~30s). Keep the window a little over 2x
 # so a single missed beat never makes a live device flicker offline.
 PRESENCE_WINDOW = timedelta(seconds=75)
+
+# --------------------------------------------------------------------------- #
+# A note between your own devices
+# --------------------------------------------------------------------------- #
+# Signed in on the shop computer and on your phone, you can put a line on both screens at
+# once. It rides the heartbeat that is already running, so it costs no new polling.
+#
+# Both ends can talk: a line from the counter, a line back from the phone. It keeps no
+# history — everything older than a minute is simply dropped — so this lives in a file in
+# the system temp directory rather than in the database. Nothing here is worth a table, a
+# migration, or a row somebody has to clean up later.
+#
+# A file rather than the cache, because this installation has no CACHES setting and so uses
+# Django's per-process LocMemCache: two workers would not see each other's writes, which is
+# exactly the thing this has to do.
+NOTE_LIFE = 60                                   # a minute, then the line is gone
+NOTE_MAX = 280
+THREAD_MAX = 20                                  # a minute can't hold more than a handful
+
+
+def _note_path(user_id):
+    return os.path.join(tempfile.gettempdir(), "gstsync-note-%d.json" % int(user_id))
+
+
+def _load(user_id):
+    try:
+        with open(_note_path(user_id), "r", encoding="utf-8") as f:
+            lines = json.load(f)
+    except (OSError, ValueError):
+        return []
+    return lines if isinstance(lines, list) else []
+
+
+def _fresh(lines):
+    cutoff = time.time() - NOTE_LIFE
+    return [n for n in lines if isinstance(n, dict) and n.get("at", 0) > cutoff]
+
+
+def read_notes(user_id):
+    """Everything said in the last minute, oldest first. The browser gets no timestamps it
+    doesn't need — just enough to tell one line from the next, and whose it was."""
+    return [{k: v for k, v in n.items() if k != "at"} for n in _fresh(_load(user_id))]
+
+
+def add_note(user_id, text, sender="", device=""):
+    """Add a line to what this person's screens are showing, and return the lot.
+
+    Read, add, write — two devices typing in the same instant could in theory lose one. For
+    a line that disappears in a minute, a lock would cost more than it saves."""
+    lines = _fresh(_load(user_id))
+    lines.append({"id": uuid.uuid4().hex[:10], "text": text[:NOTE_MAX], "from": sender,
+                  "by": device, "at": time.time(),
+                  "when": timezone.localtime().strftime("%I:%M %p").lstrip("0")})
+    lines = lines[-THREAD_MAX:]
+    path = _note_path(user_id)
+    # Written beside and moved into place, so a device reading at the wrong moment gets the
+    # old set or the new one, never half of either.
+    fd, temp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".note")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(lines, f)
+        os.replace(temp, path)
+    except OSError:
+        try:
+            os.unlink(temp)
+        except OSError:
+            pass
+        raise
+    return [{k: v for k, v in n.items() if k != "at"} for n in lines]
+
+
+def clear_note(user_id):
+    try:
+        os.unlink(_note_path(user_id))
+    except OSError:
+        pass
 
 
 def _active_count(user):
@@ -104,7 +185,30 @@ def presence_ping(request):
         defaults={"user_agent": ua},  # last_seen refreshes via auto_now
     )
     request.session["device_token"] = token
-    return JsonResponse({"count": _active_count(request.user)})
+    # The note rides the beat that was happening anyway: no second timer, no new endpoint
+    # being polled, and a device that has just come back picks up whatever is current.
+    return JsonResponse({"count": _active_count(request.user),
+                         "notes": read_notes(request.user.id)})
+
+
+@login_required
+@require_POST
+def presence_say(request):
+    """Say one line to every screen this person is signed in on, including this one.
+
+    Either end can talk, so what comes back is the whole last minute, not just the line
+    that was added. Posting an empty line clears the lot."""
+    text = (request.POST.get("text") or "").strip()
+    if not text:
+        clear_note(request.user.id)
+        return JsonResponse({"ok": True, "notes": []})
+    if len(text) > NOTE_MAX:
+        return JsonResponse({"ok": False,
+                             "error": "Keep it under %d characters." % NOTE_MAX}, status=400)
+    sender = device_name(request.META.get("HTTP_USER_AGENT") or "")
+    device = (request.POST.get("token") or request.session.get("device_token") or "")[:64]
+    return JsonResponse({"ok": True,
+                         "notes": add_note(request.user.id, text, sender, device)})
 
 
 @login_required
