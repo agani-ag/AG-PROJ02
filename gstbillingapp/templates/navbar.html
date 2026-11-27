@@ -5,7 +5,6 @@
       <span class="mark" id="brand-mark" title="Active devices">
         <i class="fas fa-bolt" id="brand-bolt" style="color:#fff;font-size:14px"></i>
         <span class="brand-count" id="presence-count" hidden>1</span>
-        <span class="note-dot" id="note-dot" hidden></span>
       </span>
       GSTSync
       <span class="biz">{% if user_profile.business_brand %}{{ user_profile.business_brand|upper }}{% else %}{{ user|upper }}{% endif %}</span>
@@ -242,16 +241,21 @@ function passSwitchkey() {
   var SAY_URL = "{% url 'presence_say' %}";
   var box = document.getElementById('notebox');
   var thread = document.getElementById('note-thread');
-  var dot = document.getElementById('note-dot');
-  var seen = null, devices = 1, quick = null, lines = [];
+  // `auto` marks a panel that opened by itself, so it can close itself again once the last
+  // line has aged out. One you opened stays until you close it.
+  var seen = null, devices = 1, quick = null, lines = [], auto = false;
 
-  function openBox(on){
+  // `focusIt` is false when the panel opens by itself. A line arriving must not take the
+  // caret out of whatever invoice is being typed at the time.
+  function openBox(on, focusIt){
     if(!box) return;
     box.hidden = !on;
     if(on){
-      if(dot) dot.hidden = true;
+      box.classList.remove('note-in');
+      void box.offsetWidth;                      // restart the animation on a repeat arrival
+      box.classList.add('note-in');
       var input = document.getElementById('note-input');
-      if(input) input.focus();
+      if(input && focusIt !== false) input.focus();
       // While you're looking at it, check more often — a reply shouldn't take half a minute.
       if(!quick) quick = setInterval(ping, 5000);
     } else if(quick){ clearInterval(quick); quick = null; }
@@ -262,6 +266,8 @@ function passSwitchkey() {
     lines = list || [];
     thread.textContent = '';
     if(!lines.length){
+      // Everything has aged out. A panel that put itself up has nothing left to say.
+      if(auto && box && !box.hidden){ auto = false; openBox(false); return; }
       var empty = document.createElement('div');
       empty.className = 'note-empty';
       empty.textContent = 'Nothing in the last minute.';
@@ -285,21 +291,25 @@ function passSwitchkey() {
   function showNotes(list){
     list = list || [];
     var newest = list.length ? list[list.length - 1] : null;
-    var unread = newest && newest.id !== seen && newest.by !== tok;
+    // A line from the other screen announces itself. Waiting behind an icon is how a
+    // message gets missed, and this one only lives for a minute.
+    var arrived = newest && newest.id !== seen && newest.by !== tok;
     draw(list);
     if(newest) seen = newest.id;
-    if(unread && box && box.hidden && dot) dot.hidden = false;   // a mark until it's opened
+    if(arrived && box && box.hidden){ auto = true; openBox(true, false); }
   }
 
   if(mark){
     mark.addEventListener('click', function(e){
       if(devices < 2 && !lines.length) return;   // nothing to say to nobody; follow the link
       e.preventDefault(); e.stopPropagation();
+      auto = false;                              // yours now: it stays until you close it
       openBox(box.hidden);
     });
   }
+  if(box) box.addEventListener('click', function(){ auto = false; });
   var xBtn = document.getElementById('note-x');
-  if(xBtn) xBtn.addEventListener('click', function(){ openBox(false); });
+  if(xBtn) xBtn.addEventListener('click', function(){ auto = false; openBox(false); });
   document.addEventListener('click', function(e){
     if(box && !box.hidden && !e.target.closest('#notebox') && !e.target.closest('#brand-mark'))
       openBox(false);

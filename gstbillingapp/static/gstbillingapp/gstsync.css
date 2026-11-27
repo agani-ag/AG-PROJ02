@@ -311,10 +311,13 @@ th.gstable-sortable[data-sortdir="desc"]::after{content:"\2193";opacity:.9}
 /* A line put on your own other screen. Hangs under the device count, because that count is
    the only thing that knows there is another screen to put it on. */
 .gnav .gnav-row{position:relative}
-.gnav .brand .mark .note-dot{position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;
-  background:#f59e0b;border:2px solid #fff}
 .gnav .notebox{position:absolute;top:52px;left:24px;z-index:1200;width:300px;background:#fff;
   border:1px solid #e7ebf2;border-radius:13px;padding:10px;box-shadow:0 18px 42px -14px rgba(15,23,42,.35)}
+/* A line from the other screen puts the panel up by itself, so it arrives rather than
+   appears — and the movement is what the eye catches. */
+.gnav .notebox.note-in{animation:note-drop .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes note-drop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.gnav .notebox.note-in{animation:none}}
 .gnav .notebox::before{content:"";position:absolute;top:-6px;left:14px;width:11px;height:11px;
   background:#fff;border-left:1px solid #e7ebf2;border-top:1px solid #e7ebf2;transform:rotate(45deg)}
 .gnav .notebox .note-head{display:flex;align-items:center;justify-content:space-between;

@@ -6423,6 +6423,13 @@ class DeviceNoteTests(TestCase):
         self.assertContains(r, 'id="note-x"')
         self.assertContains(r, reverse("presence_say"))
 
+    def test_an_arriving_line_puts_the_panel_up_by_itself(self):
+        """It is an announcement — waiting behind an icon is how a one-minute line gets
+        missed. The panel opens without taking the caret out of whatever is being typed."""
+        page = self.client.get(reverse("landing_page")).content.decode()
+        self.assertIn("openBox(true, false)", page)      # opened, not focused
+        self.assertNotIn('id="note-dot"', page)          # nothing left to click first
+
 
 class ConsoleNavTests(TestCase):
     """The console header. It has grown to seven sections, and the last one added is the
