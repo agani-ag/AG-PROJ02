@@ -6361,6 +6361,24 @@ class DeviceNoteTests(TestCase):
         said = self._say("hello")
         self.assertEqual([n["text"] for n in said["notes"]], ["hello"])
 
+    def test_each_line_carries_the_seconds_it_has_left(self):
+        """Counted on the server, because that is the clock that decides. The browser only
+        ticks it down between beats."""
+        import time as _time
+        from .views import presence
+        said = self._say("tick tock")
+        self.assertEqual(said["notes"][0]["left"], presence.NOTE_LIFE)
+        with mock.patch.object(presence.time, "time", return_value=_time.time() + 45):
+            self.assertEqual(self._ping()["notes"][0]["left"], 15)
+
+    def test_the_countdown_never_goes_below_zero(self):
+        import time as _time
+        from .views import presence
+        self._say("nearly gone")
+        with mock.patch.object(presence.time, "time",
+                               return_value=_time.time() + presence.NOTE_LIFE - 0.4):
+            self.assertGreaterEqual(self._ping()["notes"][0]["left"], 0)
+
     # ---- it keeps nothing ------------------------------------------------- #
     def test_a_line_is_gone_after_a_minute(self):
         import time as _time

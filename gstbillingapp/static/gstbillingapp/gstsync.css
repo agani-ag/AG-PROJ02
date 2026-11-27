@@ -335,6 +335,8 @@ th.gstable-sortable[data-sortdir="desc"]::after{content:"\2193";opacity:.9}
   border-radius:11px 11px 3px 11px}
 .gnav .notebox .note-line p{margin:0;font-size:13.5px;color:#0f172a;line-height:1.45;word-break:break-word}
 .gnav .notebox .note-line span{display:block;margin-top:3px;font-size:10.5px;color:#94a3b8}
+/* The seconds it has left — the only part of a line that changes while you read it. */
+.gnav .notebox .note-left{font-weight:700;color:#d97706;font-variant-numeric:tabular-nums}
 .gnav .notebox .note-empty{font-size:12.5px;color:#94a3b8;text-align:center;padding:12px 0}
 .gnav .notebox form{display:flex;gap:7px}
 .gnav .notebox input{flex:1;min-width:0;border:1px solid #e7ebf2;border-radius:9px;padding:8px 11px;

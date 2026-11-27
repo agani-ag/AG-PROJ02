@@ -243,7 +243,8 @@ function passSwitchkey() {
   var thread = document.getElementById('note-thread');
   // `auto` marks a panel that opened by itself, so it can close itself again once the last
   // line has aged out. One you opened stays until you close it.
-  var seen = null, devices = 1, quick = null, lines = [], auto = false;
+  var seen = null, devices = 1, quick = null, lines = [], auto = false, dies = {};
+  setInterval(function(){ if(box && !box.hidden) tick(); }, 1000);
 
   // `focusIt` is false when the panel opens by itself. A line arriving must not take the
   // caret out of whatever invoice is being typed at the time.
@@ -277,15 +278,38 @@ function passSwitchkey() {
     lines.forEach(function(n){
       var row = document.createElement('div');
       row.className = 'note-line' + (n.by === tok ? ' mine' : '');
+      row.setAttribute('data-note', n.id);
       var p = document.createElement('p');
       p.textContent = n.text;
       var meta = document.createElement('span');
       // Your own line needs no label; one from the other screen says which screen.
       meta.textContent = (n.by === tok ? '' : (n.from ? n.from + ' · ' : '')) + (n.when || '');
+      var left = document.createElement('b');
+      left.className = 'note-left';
+      meta.appendChild(left);
       row.appendChild(p); row.appendChild(meta);
       thread.appendChild(row);
+      // When it dies, by this browser's clock. The server sends the seconds remaining on
+      // every beat, so a tab that slept catches up rather than drifting.
+      dies[n.id] = Date.now() + (n.left || 0) * 1000;
     });
+    tick();
     thread.scrollTop = thread.scrollHeight;
+  }
+
+  // The count beside each line. Only the countdown is rewritten, so the thread doesn't
+  // flicker or lose your place once a second.
+  function tick(){
+    if(!thread) return;
+    var rows = thread.querySelectorAll('.note-line'), gone = 0;
+    for(var i = 0; i < rows.length; i++){
+      var id = rows[i].getAttribute('data-note');
+      var secs = Math.max(0, Math.round(((dies[id] || 0) - Date.now()) / 1000));
+      var el = rows[i].querySelector('.note-left');
+      if(el) el.textContent = secs ? ' · ' + secs + 's' : '';
+      if(!secs){ rows[i].remove(); delete dies[id]; gone++; }
+    }
+    if(gone && !thread.querySelector('.note-line')) draw([]);
   }
 
   function showNotes(list){

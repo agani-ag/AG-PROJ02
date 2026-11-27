@@ -67,10 +67,22 @@ def _fresh(lines):
     return [n for n in lines if isinstance(n, dict) and n.get("at", 0) > cutoff]
 
 
+def _public(lines):
+    """What a browser is told: no timestamps it can't use, and the seconds each line has
+    left. The clock that matters is this server's, so the count comes from here and the
+    browser only ticks it down between beats."""
+    now = time.time()
+    out = []
+    for n in lines:
+        item = {k: v for k, v in n.items() if k != "at"}
+        item["left"] = max(0, int(round(NOTE_LIFE - (now - n.get("at", 0)))))
+        out.append(item)
+    return out
+
+
 def read_notes(user_id):
-    """Everything said in the last minute, oldest first. The browser gets no timestamps it
-    doesn't need — just enough to tell one line from the next, and whose it was."""
-    return [{k: v for k, v in n.items() if k != "at"} for n in _fresh(_load(user_id))]
+    """Everything said in the last minute, oldest first."""
+    return _public(_fresh(_load(user_id)))
 
 
 def add_note(user_id, text, sender="", device=""):
@@ -97,7 +109,7 @@ def add_note(user_id, text, sender="", device=""):
         except OSError:
             pass
         raise
-    return [{k: v for k, v in n.items() if k != "at"} for n in lines]
+    return _public(lines)
 
 
 def clear_note(user_id):
